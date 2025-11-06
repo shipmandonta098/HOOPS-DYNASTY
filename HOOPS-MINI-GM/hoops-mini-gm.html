@@ -542,28 +542,7 @@ function renderLeague(){
   const season = league.seasons[league.current];
   const today = season.day;
   const gamesLeft = season.schedule.filter(g=>!g.final).length;
-}
-
-// League Dashboard
-function renderLeague(){
-  if (!league){ return renderHome() }
-  const season = league.seasons[league.current];
-  const today = season.day;
-}
-
-// League Dashboard
-function renderLeague(){
-
-// ---------- Global State ----------
-let league = loadLeague();
-if (!league) {
-  // Start with a tiny welcome card
-  $app.innerHTML = `<div class="card"><h1>Welcome</h1><p>Create a new league from <b>Home</b> to get started.</p></div>`;
-  navigate('/');
-}
-
-// ---------- Renderers ----------
-function render(){
+  const played = season.schedule.length - gamesLeft;
   const path = location.pathname;
   if (path.startsWith('/game/')){
     const id = decodeURIComponent(path.split('/game/')[1]||'');
@@ -604,10 +583,6 @@ function renderHome(){
     localStorage.removeItem(SAVE_KEY);
     toast('Cleared local save.');
   };
-}
-
-navigate('/');
-  });
 }
 
 // League Dashboard
