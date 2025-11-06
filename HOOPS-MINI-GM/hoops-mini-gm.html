@@ -538,6 +538,13 @@ function renderCreateLeague(){
 
 // League Dashboard
 function renderLeague(){
+  if (!league){ return renderHome() }
+  const season = league.seasons[league.current];
+  const today = season.day;
+}
+
+// League Dashboard
+function renderLeague(){
 
 // ---------- Global State ----------
 let league = loadLeague();
