@@ -370,15 +370,19 @@ const routes = {
   '/standings': renderStandings,
   // dynamic game route handled via renderGame(id)
 };
-function navigate(path){ history.pushState({},'',path); render() }
+function navigate(path){ 
+  try {
+    history.pushState({},'',path); 
+  } catch(e) {
+    // Security error on file:// protocol, ignore
+  }
+  render();
+}
 window.addEventListener('popstate', render);
 document.querySelectorAll('[data-route]').forEach(btn=>btn.addEventListener('click', e=>navigate(btn.dataset.route)));
 
 // ---------- Global State ----------
 let league = loadLeague();
-if (!league) {
-  navigate('/');
-}
 
 // ---------- Renderers ----------
 function render(){
@@ -894,7 +898,7 @@ function toast(msg){
 }
 
 // Kick things off
-if (!league){ /* wait for user on Home */ } else { render() }
+render();
 </script>
 </body>
 </html>
