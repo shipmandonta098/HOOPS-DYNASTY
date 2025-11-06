@@ -541,6 +541,14 @@ function renderLeague(){
   if (!league){ return renderHome() }
   const season = league.seasons[league.current];
   const today = season.day;
+  const gamesLeft = season.schedule.filter(g=>!g.final).length;
+}
+
+// League Dashboard
+function renderLeague(){
+  if (!league){ return renderHome() }
+  const season = league.seasons[league.current];
+  const today = season.day;
 }
 
 // League Dashboard
