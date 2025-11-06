@@ -116,14 +116,22 @@ const sum = arr => arr.reduce((a,b)=>a+b,0);
 
 // ---------- Seed Data ----------
 const TEAM_NAMES = {
-  East: [['Albany','ALB'],['Baltimore','BAL'],['Cleveland','CLE'],['Miami','MIA']],
-  West: [['Seattle','SEA'],['Las Vegas','LVB'],['Phoenix','PHX'],['San Diego','SDG']]
+  East: [['Albany','ALB'],['Baltimore','BAL'],['Cleveland','CLE'],['Miami','MIA'],['Boston','BOS'],['New York','NYK'],['Philadelphia','PHI'],['Atlanta','ATL']],
+  West: [['Seattle','SEA'],['Las Vegas','LVB'],['Phoenix','PHX'],['San Diego','SDG'],['Portland','POR'],['Denver','DEN'],['Dallas','DAL'],['Houston','HOU']]
 };
 const POS = ['PG','SG','SF','PF','C'];
 
 function makeId(prefix, n){ return prefix+'_'+n.toString(36)+Math.random().toString(36).slice(2,7) }
 
-function generateInitialLeague(seedStr='HM'+Date.now()){
+function generateInitialLeague(seedStr='HM'+Date.now(), options={}){
+  // Extract options with defaults
+  const {
+    leagueName = 'Hoops League',
+    numTeams = 8,
+    seasonLength = 100,
+    difficulty = 'normal'
+  } = options;
+  
   // derive 32-bit seed from string
   let seed = 1779033703;
   for (let i=0;i<seedStr.length;i++){ seed = (seed ^ seedStr.charCodeAt(i)) * 1597334677 | 0 }
@@ -132,8 +140,12 @@ function generateInitialLeague(seedStr='HM'+Date.now()){
   // teams
   const teams = [];
   let tid = 1;
+  const teamsPerConf = Math.floor(numTeams / 2);
+  
   for (const conf of ['East','West']){
-    for (const [name,abbrev] of TEAM_NAMES[conf]){
+    const confTeams = TEAM_NAMES[conf];
+    for (let i = 0; i < teamsPerConf && i < confTeams.length; i++){
+      const [name,abbrev] = confTeams[i];
       teams.push({ id: 'T'+tid++, name, abbrev, conference: conf, rosterIds:[], wins:0, losses:0, pf:0, pa:0 });
     }
   }
@@ -171,8 +183,9 @@ function generateInitialLeague(seedStr='HM'+Date.now()){
     return 1200000;
   }
 
-  // generate 8*15 = 120 roster targets + some FAs
-  for(let i=0;i<8*15+12;i++){ players.push(makePlayer(null)) }
+  // generate players based on number of teams
+  const totalPlayers = numTeams * 15 + 12; // 15 per team + free agents
+  for(let i=0;i<totalPlayers;i++){ players.push(makePlayer(null)) }
   // assign to teams: 15 each
   let pool = players.map(p=>p.id);
   for (const t of teams){
@@ -186,15 +199,25 @@ function generateInitialLeague(seedStr='HM'+Date.now()){
   // left overs become free agents
   const freeAgents = pool;
 
-  // schedule ~56 games over ~100 days (double RR-ish)
-  const schedule = buildSchedule(rng, teams);
+  // schedule games over custom season length
+  const schedule = buildSchedule(rng, teams, seasonLength);
 
   const season = { year: 1, day: 1, schedule };
-  const league = { seed: seedStr, rngState: seed>>>0, teams, players, seasons:[season], current:0, freeAgents };
+  const league = { 
+    seed: seedStr, 
+    rngState: seed>>>0, 
+    leagueName,
+    difficulty,
+    teams, 
+    players, 
+    seasons:[season], 
+    current:0, 
+    freeAgents 
+  };
   return league;
 }
 
-function buildSchedule(rng, teams){
+function buildSchedule(rng, teams, seasonLength = 100){
   const ids = teams.map(t=>t.id);
   const games = [];
   let gid = 1;
@@ -202,8 +225,8 @@ function buildSchedule(rng, teams){
   for (let i=0;i<ids.length;i++){
     for (let j=i+1;j<ids.length;j++){
       const a = ids[i], b = ids[j];
-      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,99), homeTeamId:a, awayTeamId:b, final:false, score:{home:0,away:0} });
-      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,99), homeTeamId:b, awayTeamId:a, final:false, score:{home:0,away:0} });
+      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,seasonLength-1), homeTeamId:a, awayTeamId:b, final:false, score:{home:0,away:0} });
+      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,seasonLength-1), homeTeamId:b, awayTeamId:a, final:false, score:{home:0,away:0} });
     }
   }
   // sort by day
@@ -350,6 +373,171 @@ const routes = {
 function navigate(path){ history.pushState({},'',path); render() }
 window.addEventListener('popstate', render);
 document.querySelectorAll('[data-route]').forEach(btn=>btn.addEventListener('click', e=>navigate(btn.dataset.route)));
+
+// ---------- Global State ----------
+let league = loadLeague();
+if (!league) {
+  navigate('/');
+}
+
+// ---------- Renderers ----------
+function render(){
+  const path = location.pathname;
+  if (path.startsWith('/game/')){
+    const id = decodeURIComponent(path.split('/game/')[1]||'');
+    return renderGame(id);
+  }
+  if (path === '/create-league'){
+    return renderCreateLeague();
+  }
+  const fn = routes[path] || renderHome;
+  fn();
+}
+
+// Home Screen
+function renderHome(){
+  const hasSave = loadLeague() !== null;
+  
+  $app.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+      <div class="card" style="max-width:500px;text-align:center;padding:40px">
+        <h1 style="font-size:32px;margin-bottom:12px">🏀 Hoops Mini GM</h1>
+        <p style="color:var(--muted);margin-bottom:30px">Manage your basketball dynasty</p>
+        
+        <div class="grid" style="gap:16px;margin-bottom:20px">
+          <button class="btn primary" id="createLeagueBtn" style="padding:16px;font-size:18px;font-weight:700">
+            ⭐ Create a New League
+          </button>
+          ${hasSave ? `
+          <button class="btn" id="continueBtn" style="padding:16px;font-size:18px;font-weight:700">
+            ▶️ Continue
+          </button>` : ''}
+        </div>
+        
+        ${hasSave ? `
+        <div style="margin-top:20px">
+          <button class="btn destructive" id="clearSaveBtn" style="font-size:14px">Delete Saved League</button>
+        </div>` : ''}
+        
+        <div class="notice" style="margin-top:30px;text-align:left">
+          <strong>Welcome!</strong> Create a new league to start managing your team, simulate seasons, and build a dynasty.
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('createLeagueBtn')?.addEventListener('click', () => {
+    navigate('/create-league');
+  });
+  
+  document.getElementById('continueBtn')?.addEventListener('click', () => {
+    const l = loadLeague();
+    if (l) {
+      league = l;
+      toast('League loaded!');
+      navigate('/league');
+    } else {
+      toast('No save found.');
+    }
+  });
+  
+  document.getElementById('clearSaveBtn')?.addEventListener('click', () => {
+    if (confirm('Are you sure? This will permanently delete your saved league.')) {
+      localStorage.removeItem(SAVE_KEY);
+      league = null;
+      toast('League deleted.');
+      renderHome();
+    }
+  });
+}
+
+// Create League Screen
+function renderCreateLeague(){
+  $app.innerHTML = `
+    <div class="card" style="max-width:700px;margin:0 auto">
+      <div class="section-title">
+        <h1>Create a New League</h1>
+        <span class="tag">Customize Your Experience</span>
+      </div>
+      
+      <div class="grid" style="margin-top:20px;gap:16px">
+        <div>
+          <label style="display:block;margin-bottom:6px;font-weight:600">League Name</label>
+          <input id="leagueNameInput" placeholder="e.g., My Basketball League" style="width:100%" value="Hoops League" />
+        </div>
+        
+        <div>
+          <label style="display:block;margin-bottom:6px;font-weight:600">Number of Teams</label>
+          <select id="numTeamsSelect" style="width:100%">
+            <option value="8" selected>8 Teams</option>
+            <option value="12">12 Teams</option>
+            <option value="16">16 Teams</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;margin-bottom:6px;font-weight:600">Season Length</label>
+          <select id="seasonLengthSelect" style="width:100%">
+            <option value="50">50 Days (Quick)</option>
+            <option value="82">82 Days (Standard)</option>
+            <option value="100" selected>100 Days (Extended)</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;margin-bottom:6px;font-weight:600">Difficulty</label>
+          <select id="difficultySelect" style="width:100%">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block;margin-bottom:6px;font-weight:600">Random Seed (Optional)</label>
+          <input id="seedInput" placeholder="Leave empty for random" style="width:100%" />
+          <small style="color:var(--muted)">Using the same seed creates identical leagues</small>
+        </div>
+      </div>
+      
+      <div class="notice" style="margin-top:20px">
+        <strong>💾 Auto-Save:</strong> Your league will be automatically saved to your browser. You can export it anytime from the menu.
+      </div>
+      
+      <div class="row" style="margin-top:24px;gap:12px">
+        <button class="btn primary" id="startLeagueBtn" style="padding:12px 24px;font-size:16px;font-weight:700">
+          🚀 Start League
+        </button>
+        <button class="btn" id="cancelBtn" style="padding:12px 24px">Cancel</button>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('startLeagueBtn').addEventListener('click', () => {
+    const leagueName = document.getElementById('leagueNameInput').value.trim() || 'Hoops League';
+    const numTeams = parseInt(document.getElementById('numTeamsSelect').value);
+    const seasonLength = parseInt(document.getElementById('seasonLengthSelect').value);
+    const difficulty = document.getElementById('difficultySelect').value;
+    const seed = document.getElementById('seedInput').value.trim() || undefined;
+    
+    // Create the league with custom settings
+    league = generateInitialLeague(seed, { leagueName, numTeams, seasonLength, difficulty });
+    
+    // Auto-save immediately
+    saveLeague(league);
+    toast('League created and saved!');
+    
+    // Navigate to league dashboard
+    navigate('/league');
+  });
+  
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    navigate('/');
+  });
+}
+
+// League Dashboard
+function renderLeague(){
 
 // ---------- Global State ----------
 let league = loadLeague();
