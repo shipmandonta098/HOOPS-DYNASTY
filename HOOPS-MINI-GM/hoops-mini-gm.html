@@ -531,9 +531,23 @@ function renderCreateLeague(){
     navigate('/league');
   });
   
+    
   document.getElementById('cancelBtn').addEventListener('click', () => {
     navigate('/');
   });
+}
+
+// League Dashboard
+function renderLeague(){
+  if (!league){ return renderHome() }
+  const season = league.seasons[league.current];
+  const today = season.day;
+  const gamesLeft = season.schedule.filter(g=>!g.final).length;
+  const played = season.schedule.length - gamesLeft;
+  const simPossible = season.schedule.some(g=>g.day===today && !g.final);
+
+  const standings = getStandings(league);
+  const top = standings.slice(0,4);
 }
 
 // League Dashboard
