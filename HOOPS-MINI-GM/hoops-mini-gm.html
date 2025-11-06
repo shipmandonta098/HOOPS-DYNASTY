@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hoops Mini GM — Single File</title>
+  <style>
+    :root{
+      --bg:#0f1115;--panel:#151823;--muted:#8a94a6;--text:#e6e9ef;
+      --accent:#6ea8fe;--accent-2:#9fe870;--danger:#ff6b6b;
+      --card:#1a2030;--border:#263042;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;background:linear-gradient(180deg,#0f1115,#0d1220);
+      color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    header{
+      position:sticky;top:0;z-index:5;
+      backdrop-filter:saturate(140%) blur(10px);
+      background:rgba(13,18,32,.75);border-bottom:1px solid var(--border);
+    }
+    .nav{
+      max-width:1100px;margin:0 auto;display:flex;gap:16px;align-items:center;padding:12px 16px;
+    }
+    .brand{font-weight:800;letter-spacing:.3px}
+    .spacer{flex:1}
+    .btn{
+      background:var(--panel);border:1px solid var(--border);color:var(--text);
+      padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600;
+    }
+    .btn:hover{border-color:var(--accent)}
+    .btn.primary{background:linear-gradient(180deg,#2a3a66,#203056);border-color:#2f4ea0}
+    .btn.destructive{background:#2b1b1f;border-color:#5b2b33;color:#ffd7d7}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px;display:grid;gap:16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+    h1,h2,h3{margin:0 0 8px}
+    h1{font-size:22px} h2{font-size:18px} h3{font-size:16px;color:var(--muted)}
+    .row{display:flex;flex-wrap:wrap;gap:10px}
+    .grid{display:grid;gap:12px}
+    .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media (max-width:900px){.grid.cols-3,.grid.cols-4{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:640px){.grid.cols-2,.grid.cols-3,.grid.cols-4{grid-template-columns:1fr}}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px dashed var(--border);text-align:left;white-space:nowrap}
+    th{color:var(--muted);font-weight:700;cursor:default}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    .muted{color:var(--muted)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:20px;background:#192236;border:1px solid var(--border);font-size:12px;color:#b5c6ff}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    input,select{
+      background:#0f1526;border:1px solid var(--border);color:var(--text);
+      padding:8px 10px;border-radius:10px;outline:none;min-width:0;
+    }
+    .section-title{display:flex;align-items:center;gap:10px}
+    .linklike{color:var(--accent);cursor:pointer}
+    .tag{padding:2px 6px;border-radius:7px;border:1px solid var(--border);font-size:12px;background:#121a2a}
+    .kpi{font-weight:800;font-size:22px}
+    .small{font-size:12px;color:var(--muted)}
+    .right{float:right}
+    .notice{background:#101827;border:1px solid #233047;border-radius:12px;padding:10px 12px;color:#cfe3ff}
+    .footer{color:#7e8799;text-align:center;padding:18px}
+    .pointer{cursor:pointer}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="nav">
+      <div class="brand">🏀 Hoops Mini GM (Single‑File)</div>
+      <button class="btn" data-route="/">Home</button>
+      <button class="btn" data-route="/league">League</button>
+      <button class="btn" data-route="/teams">Teams</button>
+      <button class="btn" data-route="/players">Players</button>
+      <button class="btn" data-route="/schedule">Schedule</button>
+      <button class="btn" data-route="/standings">Standings</button>
+      <div class="spacer"></div>
+      <button id="saveBtn" class="btn">Save</button>
+      <button id="exportBtn" class="btn">Export</button>
+      <label class="btn" for="importFile">Import</label>
+      <input id="importFile" type="file" accept="application/json" style="display:none" />
+    </div>
+  </header>
+  <main class="wrap" id="app"></main>
+  <div class="footer">No libs, no problem. Everything runs in this one HTML file. Your save stays in your browser.</div>
+
+<script>
+// ---------- Utilities ----------
+const clone = (x) => JSON.parse(JSON.stringify(x));
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+// Small random helpers (deterministic by rng func)
+const randInt = (rng, min, max) => Math.floor(rng() * (max - min + 1)) + min;
+const choice = (rng, arr) => arr[Math.floor(rng()*arr.length)];
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const sum = arr => arr.reduce((a,b)=>a+b,0);
+
+// ---------- Domain Types (JSDoc for clarity) ----------
+/**
+ * Player: { id,name,age,pos,ovr,ratings:{off,def,reb,pace},stamina,pot,teamId,salary,contractYears }
+ * Team: { id,name,abbrev,conference,rosterIds:[], wins,losses, pf,pa }
+ * Game: { id,day,homeTeamId,awayTeamId,final,score:{home,away}, box:{teamStats, lines[]} }
+ * Season: { year, day, schedule:Game[] }
+ * League: { seed, rngState, teams:Team[], players:Player[], seasons:Season[], current: number, freeAgents:number[] }
+ */
+
+// ---------- Seed Data ----------
+const TEAM_NAMES = {
+  East: [['Albany','ALB'],['Baltimore','BAL'],['Cleveland','CLE'],['Miami','MIA']],
+  West: [['Seattle','SEA'],['Las Vegas','LVB'],['Phoenix','PHX'],['San Diego','SDG']]
+};
+const POS = ['PG','SG','SF','PF','C'];
+
+function makeId(prefix, n){ return prefix+'_'+n.toString(36)+Math.random().toString(36).slice(2,7) }
+
+function generateInitialLeague(seedStr='HM'+Date.now()){
+  // derive 32-bit seed from string
+  let seed = 1779033703;
+  for (let i=0;i<seedStr.length;i++){ seed = (seed ^ seedStr.charCodeAt(i)) * 1597334677 | 0 }
+  const rng = mulberry32(seed>>>0);
+
+  // teams
+  const teams = [];
+  let tid = 1;
+  for (const conf of ['East','West']){
+    for (const [name,abbrev] of TEAM_NAMES[conf]){
+      teams.push({ id: 'T'+tid++, name, abbrev, conference: conf, rosterIds:[], wins:0, losses:0, pf:0, pa:0 });
+    }
+  }
+
+  // players (~120) and distribute
+  const players = [];
+  let pid = 1;
+  const makePlayer = (teamId=null)=>{
+    const pos = choice(rng, POS);
+    const base = randInt(rng, 55, 85); // overall center mass
+    const o = clamp(Math.round(base + randInt(rng,-10,10)),35,95);
+    const d = clamp(Math.round(base + randInt(rng,-10,10)),35,95);
+    const r = clamp(Math.round(base + randInt(rng,-15,8)),35,95);
+    const p = clamp(Math.round(base + randInt(rng,-10,12)),35,95);
+    const name = genName(rng);
+    const stamina = clamp(Math.round(60 + rng()*40), 40, 99);
+    const pot = clamp(Math.round(o*0.5 + d*0.3 + r*0.2 + randInt(rng,-10,10)), 40, 99);
+    const salary =  minimumSalary(o);
+    const contractYears = 1 + Math.floor(rng()*3);
+    const age = randInt(rng,19,34);
+    const id = 'P'+pid++;
+    return { id, name, age, pos, ovr: Math.round((o+d+r+p)/4), ratings:{off:o,def:d,reb:r,pace:p}, stamina, pot, teamId, salary, contractYears };
+  };
+  // basic name gen
+  function genName(rng){
+    const first = ['Jace','Milo','Kenji','Ruben','DeShawn','Omar','Luca','Andre','Tariq','Pavel','Noah','Elijah','Malik','Ty','Jalen','Zain','Leo','Akira','Yuri','Mason','Kai','Ezra','Cody','Ari'];
+    const last =  ['Walker','Santiago','Okafor','Zhou','Kovacs','Henderson','Young','Garner','Griffin','Bennett','Sato','Nguyen','Lee','Smith','Baker','Adebayo','Fields','Ramirez','Nash','Trent','Owens','Fox','Knight','Jordan'];
+    return choice(rng, first)+' '+choice(rng,last);
+  }
+  function minimumSalary(ovr){
+    if (ovr>=85) return 12000000;
+    if (ovr>=78) return 8000000;
+    if (ovr>=72) return 4500000;
+    if (ovr>=66) return 2200000;
+    return 1200000;
+  }
+
+  // generate 8*15 = 120 roster targets + some FAs
+  for(let i=0;i<8*15+12;i++){ players.push(makePlayer(null)) }
+  // assign to teams: 15 each
+  let pool = players.map(p=>p.id);
+  for (const t of teams){
+    for (let i=0;i<15;i++){
+      const pick = pool.splice(randInt(rng,0,pool.length-1),1)[0];
+      const pl = players.find(p=>p.id===pick);
+      pl.teamId = t.id;
+      t.rosterIds.push(pl.id);
+    }
+  }
+  // left overs become free agents
+  const freeAgents = pool;
+
+  // schedule ~56 games over ~100 days (double RR-ish)
+  const schedule = buildSchedule(rng, teams);
+
+  const season = { year: 1, day: 1, schedule };
+  const league = { seed: seedStr, rngState: seed>>>0, teams, players, seasons:[season], current:0, freeAgents };
+  return league;
+}
+
+function buildSchedule(rng, teams){
+  const ids = teams.map(t=>t.id);
+  const games = [];
+  let gid = 1;
+  // simple round-robin double home/away
+  for (let i=0;i<ids.length;i++){
+    for (let j=i+1;j<ids.length;j++){
+      const a = ids[i], b = ids[j];
+      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,99), homeTeamId:a, awayTeamId:b, final:false, score:{home:0,away:0} });
+      games.push({ id:'G'+gid++, day: 1+randInt(rng,0,99), homeTeamId:b, awayTeamId:a, final:false, score:{home:0,away:0} });
+    }
+  }
+  // sort by day
+  games.sort((a,b)=>a.day-b.day);
+  return games;
+}
+
+// ---------- Persistence ----------
+const SAVE_KEY = 'hoops-mini-gm-singlefile';
+function saveLeague(league){
+  localStorage.setItem(SAVE_KEY, JSON.stringify(league));
+  toast('Saved!');
+}
+function loadLeague(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+// ---------- Engine ----------
+function computeTeamComposite(team, league){
+  const roster = team.rosterIds.map(id=>league.players.find(p=>p.id===id));
+  const avg = (k) => Math.round(sum(roster.map(p=>p.ratings[k]))/roster.length || 60);
+  const o = avg('off'), d = avg('def'), r = avg('reb'), p = avg('pace');
+  const overall = Math.round(sum(roster.map(p=>p.ovr))/roster.length || 60);
+  const offRating = 0.5*o + 0.2*p + 0.15*r + 0.15*overall;
+  const defRating = 0.6*d + 0.15*r + 0.25*overall;
+  return { offRating, defRating, pace: p };
+}
+
+function simulateGame(game, league, rng){
+  if (game.final) return game;
+  const home = league.teams.find(t=>t.id===game.homeTeamId);
+  const away = league.teams.find(t=>t.id===game.awayTeamId);
+
+  const h = computeTeamComposite(home, league);
+  const a = computeTeamComposite(away, league);
+
+  const leagueAvgORTG = 110;
+  const k = 8;
+
+  const paceNoise = randInt(rng, -6, 6);
+  const poss = clamp(96 + Math.round((h.pace + a.pace)/2 - 60)/6 + paceNoise, 88, 106);
+
+  const homeORTG = leagueAvgORTG + (h.offRating - a.defRating)/k + 2; // HCA ~ +2
+  const awayORTG = leagueAvgORTG + (a.offRating - h.defRating)/k;
+
+  let homePts = Math.round(poss * homeORTG / 100 + randInt(rng,-5,5));
+  let awayPts = Math.round(poss * awayORTG / 100 + randInt(rng,-5,5));
+  homePts = clamp(homePts, 85, 145);
+  awayPts = clamp(awayPts, 85, 145);
+
+  // Avoid ties
+  if (homePts===awayPts) homePts += (rng() > .5 ? 1 : -1);
+
+  game.score.home = homePts;
+  game.score.away = awayPts;
+  game.final = true;
+
+  // standings
+  home.pf += homePts; home.pa += awayPts;
+  away.pf += awayPts; away.pa += homePts;
+  if (homePts>awayPts){ home.wins++; away.losses++; } else { away.wins++; home.losses++; }
+
+  // simple box distribution
+  game.box = makeBoxScore(league, home, away, homePts, awayPts, rng);
+  return game;
+}
+
+function makeBoxScore(league, home, away, homePts, awayPts, rng){
+  const pickMinutes = (team)=>{
+    const rs = team.rosterIds.map(id=>league.players.find(p=>p.id===id));
+    // choose 9-man rotation by stamina+ovr
+    const ranked = rs.slice().sort((a,b)=>(b.ovr+b.stamina)-(a.ovr+a.stamina)).slice(0,9);
+    const minsBase = [34,32,31,30,28,24,22,20,18];
+    return ranked.map((p,i)=>({ id:p.id, player:p, mins: minsBase[i] + randInt(rng,-3,3) }));
+  };
+  const homeMin = pickMinutes(home);
+  const awayMin = pickMinutes(away);
+  const distribute = (lines,totalPts)=>{
+    const weights = lines.map(l=>l.player.ratings.off*0.7 + l.player.ovr*0.3);
+    const wsum = sum(weights);
+    let ptsLeft = totalPts;
+    const out = lines.map((l,idx)=>{
+      const share = (weights[idx]/wsum);
+      let pts = Math.max(0, Math.round(share*totalPts + randInt(rng,-5,5)));
+      ptsLeft -= pts;
+      const reb = Math.max(0, Math.round(l.player.ratings.reb/15 + rng()*6));
+      const ast = Math.max(0, Math.round(l.player.ratings.pace/20 + rng()*6));
+      const stl = Math.max(0, Math.round(l.player.ratings.def/40 + rng()*2));
+      const blk = Math.max(0, Math.round(l.player.ratings.def/50 + rng()*2));
+      const tov = Math.max(0, Math.round( (100-l.player.ratings.off)/40 + rng()*3 ));
+      return { pid:l.id, name:l.player.name, pos:l.player.pos, mins:l.mins, pts, reb, ast, stl, blk, tov };
+    });
+    // fix rounding drift
+    while (ptsLeft>0){ out[randInt(rng,0,out.length-1)].pts++; ptsLeft--; }
+    while (ptsLeft<0){ const ix = randInt(rng,0,out.length-1); if (out[ix].pts>0){ out[ix].pts--; ptsLeft++; } else break; }
+    return out;
+  };
+  return {
+    teamStats: [
+      { teamId: home.id, pts: homePts },
+      { teamId: away.id, pts: awayPts },
+    ],
+    lines: [
+      ...distribute(homeMin, homePts).map(l=>({ ...l, teamId: home.id })),
+      ...distribute(awayMin, awayPts).map(l=>({ ...l, teamId: away.id })),
+    ]
+  };
+}
+
+function simToday(league){
+  const season = league.seasons[league.current];
+  const todayGames = season.schedule.filter(g=>g.day===season.day && !g.final);
+  const rng = mulberry32(league.rngState>>>0);
+  for (const g of todayGames) simulateGame(g, league, rng);
+  // nudge rng state
+  league.rngState = (league.rngState + todayGames.length*2654435761)>>>0;
+  season.day++;
+  return todayGames.length;
+}
+
+function simToDay(league, targetDay){
+  let count=0;
+  while (league.seasons[league.current].day <= targetDay){
+    count += simToday(league);
+    // stop if nothing left to sim on a day (avoid infinite loop)
+    if (count===0) { league.seasons[league.current].day++; }
+  }
+  return count;
+}
+
+// ---------- UI Router ----------
+const $app = document.getElementById('app');
+const routes = {
+  '/': renderHome,
+  '/league': renderLeague,
+  '/teams': renderTeams,
+  '/players': renderPlayers,
+  '/schedule': renderSchedule,
+  '/standings': renderStandings,
+  // dynamic game route handled via renderGame(id)
+};
+function navigate(path){ history.pushState({},'',path); render() }
+window.addEventListener('popstate', render);
+document.querySelectorAll('[data-route]').forEach(btn=>btn.addEventListener('click', e=>navigate(btn.dataset.route)));
+
+// ---------- Global State ----------
+let league = loadLeague();
+if (!league) {
+  // Start with a tiny welcome card
+  $app.innerHTML = `<div class="card"><h1>Welcome</h1><p>Create a new league from <b>Home</b> to get started.</p></div>`;
+  navigate('/');
+}
+
+// ---------- Renderers ----------
+function render(){
+  const path = location.pathname;
+  if (path.startsWith('/game/')){
+    const id = decodeURIComponent(path.split('/game/')[1]||'');
+    return renderGame(id);
+  }
+  const fn = routes[path] || renderHome;
+  fn();
+}
+
+// Home
+function renderHome(){
+  $app.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="section-title"><h1>Start a New League</h1><span class="tag">Eight teams • 100 days • local save</span></div>
+    <div class="row" style="margin-top:10px">
+      <input id="seedInput" placeholder="Seed (optional, any text)" style="flex:1;min-width:240px" />
+      <button class="btn primary" id="newLeagueBtn">New League</button>
+      <button class="btn" id="loadBtn">Load Saved</button>
+      <button class="btn destructive" id="clearBtn">Clear Save</button>
+    </div>
+    <div class="notice" style="margin-top:12px">Pro tip: using the same seed generates the same universe. Great for head‑to‑head “remote” leagues.</div>
+  `;
+  $app.appendChild(card);
+  document.getElementById('newLeagueBtn').onclick = ()=>{
+    const seed = document.getElementById('seedInput').value.trim() || undefined;
+    league = generateInitialLeague(seed);
+    saveLeague(league);
+    navigate('/league');
+  };
+  document.getElementById('loadBtn').onclick = ()=>{
+    const l = loadLeague();
+    if (l){ league = l; toast('Loaded.'); navigate('/league'); }
+    else toast('No save found.');
+  };
+  document.getElementById('clearBtn').onclick = ()=>{
+    localStorage.removeItem(SAVE_KEY);
+    toast('Cleared local save.');
+  };
+}
+
+// League Dashboard
+function renderLeague(){
+  if (!league){ return renderHome() }
+  const season = league.seasons[league.current];
+  const today = season.day;
+  const gamesLeft = season.schedule.filter(g=>!g.final).length;
+  const played = season.schedule.length - gamesLeft;
+  const simPossible = season.schedule.some(g=>g.day===today && !g.final);
+
+  const standings = getStandings(league);
+  const top = standings.slice(0,4);
+
+  $app.innerHTML = `
+    <div class="grid cols-3">
+      <div class="card">
+        <div class="section-title"><h1>Season ${season.year}</h1><span class="tag">Day ${today}</span></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="playTodayBtn"${simPossible?'':' disabled'}>Play Today</button>
+          <button class="btn" id="sim7Btn">Sim 7 Days</button>
+          <button class="btn" id="simAllBtn">Sim To End</button>
+        </div>
+        <div class="grid" style="margin-top:12px">
+          <div class="notice">Games played: <b>${played}</b> • Remaining: <b>${gamesLeft}</b></div>
+        </div>
+      </div>
+      <div class="card">
+        <h1>Power Snapshot</h1>
+        <table>
+          <thead><tr><th>Team</th><th>W</th><th>L</th><th class="muted">Diff</th></tr></thead>
+          <tbody>${top.map(t=>{
+            const diff = (t.pf - t.pa);
+            return `<tr class="pointer" data-team="${t.id}"><td>${t.name} <span class="muted">(${t.abbrev})</span></td><td>${t.wins}</td><td>${t.losses}</td><td class="muted">${diff>0?'+':''}${diff}</td></tr>`
+          }).join('')}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h1>Today’s Games</h1>
+        <div id="todayGames"></div>
+      </div>
+    </div>
+  `;
+  // Today games list
+  const todayGamesEl = document.getElementById('todayGames');
+  const todays = season.schedule.filter(g=>g.day===today);
+  if (todays.length===0){
+    todayGamesEl.innerHTML = `<div class="muted">No games scheduled.</div>`;
+  }else{
+    todayGamesEl.innerHTML = `
+      <table><thead><tr><th>Matchup</th><th>Status</th><th></th></tr></thead>
+      <tbody>${todays.map(g=>{
+        const h = league.teams.find(t=>t.id===g.homeTeamId);
+        const a = league.teams.find(t=>t.id===g.awayTeamId);
+        return `<tr>
+          <td>${a.abbrev} @ ${h.abbrev}</td>
+          <td>${g.final?`Final ${g.score.away}-${g.score.home}`:'Scheduled'}</td>
+          <td>${g.final?`<span class="linklike" onclick="navigate('/game/${g.id}')">Box</span>`:''}</td>
+        </tr>`
+      }).join('')}</tbody></table>`;
+  }
+
+  // interactions
+  document.getElementById('playTodayBtn')?.addEventListener('click', ()=>{ const n=simToday(league); saveLeague(league); renderLeague(); toast(`Simmed ${n} game(s).`) });
+  document.getElementById('sim7Btn').addEventListener('click', ()=>{ const n=simToDay(league, league.seasons[league.current].day+6); saveLeague(league); renderLeague(); toast(`Blazed through ${n} sim(s).`) });
+  document.getElementById('simAllBtn').addEventListener('click', ()=>{
+    const lastDay = Math.max(...league.seasons[league.current].schedule.map(g=>g.day));
+    const n=simToDay(league, lastDay+1);
+    saveLeague(league); renderLeague(); toast(`Season sim complete: ${n} games.`);
+  });
+  // team row click
+  document.querySelectorAll('[data-team]').forEach(el=>el.addEventListener('click', ()=>{
+    navigate('/teams'); // could deep-link later
+  }));
+}
+
+// Teams
+function renderTeams(){
+  const teams = league.teams.slice().sort((a,b)=> (b.wins-b.losses)-(a.wins-a.losses));
+  $app.innerHTML = `
+    <div class="card">
+      <div class="section-title"><h1>Teams</h1><span class="tag">${teams.length} total</span></div>
+      <div class="grid cols-4" style="margin-top:12px" id="teamGrid"></div>
+    </div>
+  `;
+  const grid = document.getElementById('teamGrid');
+  grid.innerHTML = teams.map(t=>{
+    const diff = t.pf - t.pa;
+    return `<div class="card">
+      <h2>${t.name} <span class="muted">(${t.abbrev} • ${t.conference})</span></h2>
+      <div class="row" style="margin-top:6px;gap:14px">
+        <div><div class="small muted">Record</div><div class="kpi">${t.wins}-${t.losses}</div></div>
+        <div><div class="small muted">PF/PA</div><div class="kpi">${t.pf}/${t.pa}</div></div>
+        <div><div class="small muted">Diff</div><div class="kpi">${diff>0?'+':''}${diff}</div></div>
+      </div>
+      <div class="small muted" style="margin-top:10px">${t.rosterIds.length} players</div>
+    </div>`
+  }).join('');
+}
+
+// Players
+function renderPlayers(){
+  const q = '';
+  const players = league.players.slice().sort((a,b)=>b.ovr-a.ovr);
+  $app.innerHTML = `
+    <div class="card">
+      <div class="section-title"><h1>Players</h1><span class="tag">${players.length}</span></div>
+      <div class="toolbar" style="margin:10px 0">
+        <input id="search" placeholder="Search name..." />
+        <select id="teamFilter"><option value="">All Teams</option>
+          ${league.teams.map(t=>`<option value="${t.id}">${t.name} (${t.abbrev})</option>`).join('')}
+        </select>
+        <select id="posFilter"><option value="">All Positions</option>${POS.map(p=>`<option>${p}</option>`).join('')}</select>
+      </div>
+      <div style="overflow:auto"><table id="ptable">
+        <thead><tr>
+          <th>Name</th><th>Team</th><th>Pos</th><th>OVR</th><th>OFF</th><th>DEF</th><th>REB</th><th>PACE</th><th>Age</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>`;
+  const $tbody = document.querySelector('#ptable tbody');
+  const apply = ()=>{
+    const term = document.getElementById('search').value.toLowerCase();
+    const tf = document.getElementById('teamFilter').value;
+    const pf = document.getElementById('posFilter').value;
+    const rows = players.filter(p=>(!term || p.name.toLowerCase().includes(term)) && (!tf || p.teamId===tf) && (!pf || p.pos===pf));
+    $tbody.innerHTML = rows.map(p=>{
+      const t = league.teams.find(t=>t.id===p.teamId);
+      return `<tr>
+        <td>${p.name}</td><td>${t?`${t.abbrev}`:'FA'}</td><td>${p.pos}</td>
+        <td>${p.ovr}</td><td>${p.ratings.off}</td><td>${p.ratings.def}</td><td>${p.ratings.reb}</td><td>${p.ratings.pace}</td><td>${p.age}</td>
+      </tr>`
+    }).join('');
+  };
+  document.getElementById('search').addEventListener('input', apply);
+  document.getElementById('teamFilter').addEventListener('change', apply);
+  document.getElementById('posFilter').addEventListener('change', apply);
+  apply();
+}
+
+// Schedule
+function renderSchedule(){
+  const season = league.seasons[league.current];
+  const days = new Map();
+  for (const g of season.schedule){
+    const bucket = days.get(g.day) || [];
+    bucket.push(g);
+    days.set(g.day, bucket);
+  }
+  const sortedDays = Array.from(days.keys()).sort((a,b)=>a-b);
+  $app.innerHTML = `
+    <div class="card">
+      <div class="section-title"><h1>Schedule</h1><span class="tag">${season.schedule.length} games</span></div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" id="simTodayBtn">Sim Today</button>
+        <button class="btn" id="simWeekBtn">Sim 7 Days</button>
+        <span class="muted">Current Day: ${season.day}</span>
+      </div>
+    </div>
+    <div id="days"></div>
+  `;
+  const daysEl = document.getElementById('days');
+  daysEl.innerHTML = sortedDays.map(d=>{
+    const games = days.get(d);
+    return `<div class="card">
+      <h2>Day ${d} ${d===season.day?'<span class="pill">Today</span>':''}</h2>
+      <table><thead><tr><th>Matchup</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${games.map(g=>{
+          const h = league.teams.find(t=>t.id===g.homeTeamId);
+          const a = league.teams.find(t=>t.id===g.awayTeamId);
+          return `<tr>
+            <td>${a.abbrev} @ ${h.abbrev}</td>
+            <td>${g.final?`Final ${g.score.away}-${g.score.home}`:'Scheduled'}</td>
+            <td>${g.final?`<span class="linklike" onclick="navigate('/game/${g.id}')">Box</span>`:''}</td>
+          </tr>`
+        }).join('')}
+      </tbody></table>
+    </div>`
+  }).join('');
+  document.getElementById('simTodayBtn').addEventListener('click', ()=>{ const n=simToday(league); saveLeague(league); renderSchedule(); toast(`Simmed ${n} game(s).`) });
+  document.getElementById('simWeekBtn').addEventListener('click', ()=>{ const n=simToDay(league, league.seasons[league.current].day+6); saveLeague(league); renderSchedule(); toast(`Simmed ${n} game(s).`) });
+}
+
+// Standings
+function getStandings(league){
+  return league.teams.slice().sort((a,b)=>{
+    const winA = a.wins/(a.wins+a.losses || 1);
+    const winB = b.wins/(b.wins+b.losses || 1);
+    if (winA!==winB) return winB-winA;
+    const diffA = a.pf-a.pa, diffB=b.pf-b.pa;
+    return diffB-diffA;
+  });
+}
+function renderStandings(){
+  const east = getStandings(league).filter(t=>t.conference==='East');
+  const west = getStandings(league).filter(t=>t.conference==='West');
+  const tableHtml = (rows)=>`
+    <table><thead><tr><th>#</th><th>Team</th><th>W</th><th>L</th><th>Win%</th><th>GB</th><th>PF</th><th>PA</th><th>Diff</th></tr></thead>
+    <tbody>
+      ${rows.map((t,i)=>{
+        const winp = ((t.wins/(t.wins+t.losses||1))*100).toFixed(1)+'%';
+        const gb = (rows[0].wins - t.wins + (t.losses - rows[0].losses))/2;
+        const diff = t.pf - t.pa;
+        return `<tr><td>${i+1}</td><td>${t.name} <span class="muted">(${t.abbrev})</span></td>
+          <td>${t.wins}</td><td>${t.losses}</td><td>${winp}</td><td>${gb?gb.toFixed(1):'—'}</td>
+          <td>${t.pf}</td><td>${t.pa}</td><td>${diff>0?'+':''}${diff}</td></tr>`
+      }).join('')}
+    </tbody></table>`;
+  $app.innerHTML = `
+    <div class="grid cols-2">
+      <div class="card"><h1>East</h1>${tableHtml(east)}</div>
+      <div class="card"><h1>West</h1>${tableHtml(west)}</div>
+    </div>
+  `;
+}
+
+// Game Detail
+function renderGame(id){
+  const season = league.seasons[league.current];
+  const g = season.schedule.find(x=>x.id===id);
+  if (!g){ $app.innerHTML = `<div class="card">Game not found.</div>`; return }
+  const h = league.teams.find(t=>t.id===g.homeTeamId);
+  const a = league.teams.find(t=>t.id===g.awayTeamId);
+  $app.innerHTML = `
+    <div class="card">
+      <div class="section-title">
+        <h1>${a.name} @ ${h.name}</h1>
+        <span class="tag">Day ${g.day}</span>
+        ${g.final?'<span class="pill">Final</span>':'<span class="pill">Scheduled</span>'}
+      </div>
+      <h2 style="margin-top:8px">${g.final?`${a.abbrev} ${g.score.away} — ${h.abbrev} ${g.score.home}`:'Not played yet'}</h2>
+    </div>
+    ${g.final?renderBox(g):''}
+  `;
+}
+function renderBox(g){
+  const byTeam = (tid)=>g.box.lines.filter(l=>l.teamId===tid);
+  const teamHeader = (tid)=>{
+    const t = league.teams.find(x=>x.id===tid);
+    const pts = g.box.teamStats.find(s=>s.teamId===tid)?.pts ?? 0;
+    return `<div class="section-title"><h2>${t.name}</h2><span class="pill">Pts ${pts}</span></div>`
+  };
+  const table = (rows)=>`
+    <div style="overflow:auto"><table>
+      <thead><tr><th>Player</th><th>Pos</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.name}</td><td>${r.pos}</td><td>${r.mins}</td><td>${r.pts}</td><td>${r.reb}</td><td>${r.ast}</td><td>${r.stl}</td><td>${r.blk}</td><td>${r.tov}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  return `<div class="grid cols-2 card">
+    <div>${teamHeader(g.homeTeamId)}${table(byTeam(g.homeTeamId))}</div>
+    <div>${teamHeader(g.awayTeamId)}${table(byTeam(g.awayTeamId))}</div>
+  </div>`;
+}
+
+// ---------- Top Bar: Save/Export/Import ----------
+document.getElementById('saveBtn').addEventListener('click', ()=>{ if(league) saveLeague(league) });
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  if (!league) return toast('No league to export.');
+  const blob = new Blob([JSON.stringify(league,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `hoops_mini_gm_${(league.seed||'seed')}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const json = JSON.parse(reader.result);
+      league = json; saveLeague(league);
+      toast('Import successful.'); render();
+    }catch(e){ toast('Import failed: invalid JSON.'); }
+  };
+  reader.readAsText(file);
+});
+
+// ---------- Tiny Toast ----------
+let toastTimer;
+function toast(msg){
+  let el = document.getElementById('toast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.position='fixed'; el.style.bottom='18px'; el.style.right='18px';
+    el.style.background = '#0d1424'; el.style.border='1px solid #24324a'; el.style.padding='10px 14px';
+    el.style.borderRadius='10px'; el.style.color='#cfe3ff'; el.style.boxShadow='0 6px 20px rgba(0,0,0,.35)';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.opacity='0'; }, 1600);
+}
+
+// Kick things off
+if (!league){ /* wait for user on Home */ } else { render() }
+</script>
+</body>
+</html>
