@@ -13,8 +13,8 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            background: #0D1117;
+            color: #E6E7EB;
             min-height: 100vh;
             padding: 20px;
         }
@@ -22,28 +22,31 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: #0D1117;
+            border-radius: 4px;
+            border: 1px solid #30363D;
             overflow: hidden;
         }
 
         header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
+            background: #0D1117;
+            color: #E6E7EB;
             padding: 30px;
             text-align: center;
+            border-bottom: 1px solid #30363D;
         }
 
         h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-shadow: none;
+            font-weight: 600;
         }
 
         .season-info {
             font-size: 1.2em;
             margin-top: 10px;
+            color: #9BA1A6;
         }
 
         .nav-buttons {
@@ -58,38 +61,41 @@
             padding: 12px 24px;
             font-size: 16px;
             border: none;
-            border-radius: 8px;
+            border-radius: 4px;
             cursor: pointer;
-            background: #4CAF50;
+            background: #2384F5;
             color: white;
-            font-weight: bold;
-            transition: all 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-weight: 600;
+            padding: 10px;
+            border: 1px solid #30363D;
+            border-radius: 4px;
+            font-size: 16px;
+            background: #161B22;
+            color: #E6E7EB;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
         }
 
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
-        }
-
-        button:active {
-            transform: translateY(0);
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #2384F5;
         }
 
         button.secondary {
-            background: #2196F3;
+            background: #2384F5;
         }
 
         button.danger {
-            background: #f44336;
+            background: #C73D3D;
         }
 
         button.warning {
-            background: #ff9800;
+            background: #2384F5;
         }
 
         .content {
             padding: 30px;
+            background: #0D1117;
         }
 
         .section {
@@ -114,52 +120,58 @@
         }
 
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #161B22;
+            color: #E6E7EB;
             padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            border: 1px solid #30363D;
+            box-shadow: none;
         }
 
         .stat-card h3 {
             font-size: 0.9em;
-            opacity: 0.9;
+            color: #9BA1A6;
             margin-bottom: 10px;
+            font-weight: 500;
         }
 
         .stat-card .value {
             font-size: 2em;
             font-weight: bold;
+            color: #E6E7EB;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #0D1117;
+            border: 1px solid #30363D;
+            box-shadow: none;
         }
 
         th {
-            background: #2a5298;
-            color: white;
+            background: #161B22;
+            color: #E6E7EB;
             padding: 15px;
             text-align: left;
-            font-weight: bold;
+            font-weight: 600;
+            border-bottom: 1px solid #30363D;
         }
 
         td {
             padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #30363D;
+            color: #E6E7EB;
         }
 
         tr:hover {
-            background: #f5f5f5;
+            background: #1E242B;
         }
 
         .player-name {
             font-weight: bold;
-            color: #2a5298;
+            color: #E6E7EB;
         }
 
         .rating {
@@ -169,11 +181,11 @@
             font-weight: bold;
         }
 
-        .rating-excellent { background: #4CAF50; color: white; }
-        .rating-good { background: #8BC34A; color: white; }
-        .rating-average { background: #FFC107; color: #333; }
-        .rating-poor { background: #FF9800; color: white; }
-        .rating-bad { background: #f44336; color: white; }
+        .rating-excellent { background: #2ECC71; color: white; }
+        .rating-good { background: #28A745; color: white; }
+        .rating-average { background: #F1C40F; color: white; }
+        .rating-poor { background: #E67E22; color: white; }
+        .rating-bad { background: #C0392B; color: white; }
 
         .modal {
             display: none;
@@ -182,7 +194,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.85);
             z-index: 1000;
             animation: fadeIn 0.3s;
         }
@@ -194,30 +206,33 @@
         }
 
         .modal-content {
-            background: white;
+            background: #161B22;
             padding: 30px;
-            border-radius: 15px;
+            border-radius: 4px;
             max-width: 600px;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            border: 1px solid #30363D;
+            box-shadow: none;
         }
 
         .modal-content h2 {
             margin-bottom: 20px;
-            color: #2a5298;
+            color: #E6E7EB;
         }
 
         .draft-pick {
-            background: #f5f5f5;
+            background: #0D1117;
             padding: 15px;
             margin: 10px 0;
-            border-radius: 8px;
-            border-left: 4px solid #2a5298;
+            border-radius: 4px;
+            border-left: 4px solid #2384F5;
+            border: 1px solid #30363D;
+            border-left: 4px solid #2384F5;
         }
 
         .draft-pick:hover {
-            background: #e8e8e8;
+            background: #161B22;
             cursor: pointer;
         }
 
@@ -230,7 +245,7 @@
             font-weight: bold;
         }
 
-        .team-my { background: #e3f2fd; }
+        .team-my { background: #1E242B; }
 
         .controls {
             display: flex;
@@ -242,9 +257,10 @@
         select {
             padding: 10px;
             font-size: 16px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            background: white;
+            border: 1px solid #30363D;
+            border-radius: 4px;
+            background: #161B22;
+            color: #E6E7EB;
         }
 
         .trade-interface {
@@ -255,43 +271,40 @@
         }
 
         .trade-side {
-            background: #f5f5f5;
+            background: #161B22;
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 4px;
+            border: 1px solid #30363D;
         }
 
         .trade-side h3 {
             margin-bottom: 15px;
+            color: #E6E7EB;
         }
 
         .player-list-item {
-            background: white;
+            background: #0D1117;
             padding: 10px;
             margin: 5px 0;
-            border-radius: 5px;
+            border-radius: 4px;
             cursor: pointer;
-            border: 2px solid transparent;
+            border: 1px solid #30363D;
+            color: #E6E7EB;
         }
 
         .player-list-item:hover {
-            border-color: #2a5298;
+            border-color: #2384F5;
+            background: #161B22;
         }
 
-        .player-list-item.selected {
-            background: #2a5298;
-            color: white;
+        select:focus {
+            outline: none;
+            border-color: #2384F5;
         }
 
-        .message {
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
-            animation: slideIn 0.3s;
-        }
-
-        .message-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .message-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .message-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .message-success { background: #0D3B1E; color: #2ECC71; border-color: #28A745; }
+        .message-error { background: #3B0D14; color: #E67E73; border-color: #C73D3D; }
+        .message-info { background: #0D2636; color: #58A6FF; border-color: #2384F5; }
 
         @keyframes slideIn {
             from { transform: translateX(-20px); opacity: 0; }
@@ -299,31 +312,33 @@
         }
 
         .game-result {
-            background: white;
+            background: #161B22;
             padding: 15px;
             margin: 10px 0;
-            border-radius: 8px;
-            border-left: 4px solid #2a5298;
+            border-radius: 4px;
+            border-left: 4px solid #2384F5;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border: 1px solid #30363D;
+            border-left: 4px solid #2384F5;
         }
 
         .game-result.win {
-            border-left-color: #4CAF50;
-            background: #f1f8f4;
+            border-left-color: #2ECC71;
+            background: #161B22;
         }
 
         .game-result.loss {
-            border-left-color: #f44336;
-            background: #fef1f1;
+            border-left-color: #C73D3D;
+            background: #161B22;
         }
 
         .loading {
             text-align: center;
             padding: 40px;
             font-size: 1.2em;
-            color: #666;
+            color: #9BA1A6;
         }
 
         .home-screen {
@@ -442,11 +457,248 @@
             color: #666;
             font-size: 0.9em;
         }
+
+        .league-management {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0D1117;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2001;
+            animation: fadeIn 0.5s;
+        }
+
+        .league-management.hidden {
+            display: none;
+        }
+
+        .league-content {
+            background: #161B22;
+            padding: 50px;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.4);
+            border: 1px solid #30363D;
+            color: #E6E7EB;
+        }
+
+        .league-content h2 {
+            color: #E6E7EB;
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 40px;
+            font-weight: bold;
+        }
+
+        .league-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .league-button {
+            padding: 20px 40px;
+            font-size: 20px;
+            background: #2384F5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            box-shadow: none;
+        }
+
+        .league-button:hover {
+            background: #1C6FD0;
+        }
+
+        .league-button.secondary {
+            background: #2384F5;
+        }
+
+        .saved-leagues {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .league-item {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-left: 4px solid #2a5298;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button:hover {
+            background: #1a5fb4;
+        }
+
+        .league-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .delete-btn {
+            padding: 8px 16px;
+            background: #C73D3D;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .delete-btn:hover {
+            background: #A62B2B;
+        }
+
+        .back-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #30363D;
+            color: #E6E7EB;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #161B22;
+        }
+
+        .no-leagues {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9BA1A6;
+            font-size: 1.1em;
+        }
+
+        .league-name-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: 1px solid #30363D;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            background: #161B22;
+            color: #E6E7EB;
+        }
+
+        .league-name-input:focus {
+            outline: none;
+            border-color: #2384F5;
+        }
+
+        /* Team Selection and Home Screen */
+        .home-screen {
+            background: #0D1117;
+        }
+        .home-content {
+            color: #E6E7EB;
+        }
+        .home-content h1 {
+            text-shadow: none;
+        }
+        .home-content p {
+            color: #9BA1A6;
+        }
+        .start-button {
+            padding: 20px 60px;
+            font-size: 24px;
+            background: #2384F5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: none;
+        }
+        .start-button:hover {
+            opacity: 0.9;
+        }
+        .team-selection {
+            background: #0D1117;
+        }
+        .team-selection h2 {
+            color: #E6E7EB;
+            text-shadow: none;
+        }
+        .teams-grid {
+            gap: 20px;
+        }
+        .team-card {
+            background: #161B22;
+            border-radius: 4px;
+            box-shadow: none;
+            color: #E6E7EB;
+            border: 1px solid #30363D;
+            transition: all 0.2s;
+        }
+        .team-card:hover {
+            background: #1E242B;
+            box-shadow: none;
+        }
+        .team-logo {
+            color: #E6E7EB;
+        }
+        .team-card h3 {
+            color: #E6E7EB;
+        }
+        .team-card p {
+            color: #9BA1A6;
+        }
     </style>
 </head>
 <body>
+    <!-- League Management Screen -->
+    <div id="leagueManagement" class="league-management">
+        <div class="league-content">
+            <h2>🏀 League Management</h2>
+            <div class="league-buttons">
+                <button class="league-button" onclick="showCreateLeague()">Create New League</button>
+                <button class="league-button secondary" onclick="showContinueLeague()">Continue League</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create League Screen -->
+    <div id="createLeague" class="league-management hidden">
+        <div class="league-content">
+            <h2>Create New League</h2>
+            <input type="text" id="leagueNameInput" class="league-name-input" placeholder="Enter league name..." maxlength="30">
+            <button class="league-button" onclick="createNewLeague()">Start League</button>
+            <button class="back-btn" onclick="backToLeagueManagement()">Back</button>
+        </div>
+    </div>
+
+    <!-- Continue League Screen -->
+    <div id="continueLeague" class="league-management hidden">
+        <div class="league-content">
+            <h2>Continue League</h2>
+            <div id="savedLeaguesList" class="saved-leagues"></div>
+            <button class="back-btn" onclick="backToLeagueManagement()">Back</button>
+        </div>
+    </div>
+
     <!-- Home Screen -->
-    <div id="homeScreen" class="home-screen">
+    <div id="homeScreen" class="home-screen hidden">
         <div class="home-content">
             <h1>🏀 HOOPS MINI GM</h1>
             <p>Build Your Basketball Dynasty</p>
@@ -555,7 +807,10 @@
             myTeamId: 0,
             teams: [],
             draftPicks: [],
-            gameResults: []
+            gameResults: [],
+            leagueName: '',
+            leagueId: null,
+            createdDate: null
         };
 
         // Initialize Game
@@ -566,37 +821,30 @@
         // Create Teams
         function createTeams() {
             const teams = [
-                { name: 'New York Knights', logo: '🗽', city: 'New York' },
-                { name: 'Los Angeles Thunder', logo: '⚡', city: 'Los Angeles' },
-                { name: 'Chicago Bulls', logo: '🐂', city: 'Chicago' },
-                { name: 'Miami Flames', logo: '🔥', city: 'Miami' },
-                { name: 'Boston Warriors', logo: '⚔️', city: 'Boston' },
-                { name: 'Golden State Dragons', logo: '🐉', city: 'San Francisco' },
-                { name: 'Houston Rockets', logo: '🚀', city: 'Houston' },
-                { name: 'Phoenix Suns', logo: '☀️', city: 'Phoenix' },
-                { name: 'Dallas Mavericks', logo: '🤠', city: 'Dallas' },
-                { name: 'Toronto Raptors', logo: '🦖', city: 'Toronto' },
-                { name: 'Brooklyn Nets', logo: '🏙️', city: 'Brooklyn' },
-                { name: 'Philadelphia Stars', logo: '⭐', city: 'Philadelphia' },
-                { name: 'Milwaukee Bucks', logo: '🦌', city: 'Milwaukee' },
-                { name: 'Denver Nuggets', logo: '⛰️', city: 'Denver' },
-                { name: 'Portland Blazers', logo: '🌲', city: 'Portland' },
-                { name: 'Seattle Storm', logo: '🌩️', city: 'Seattle' },
-                { name: 'Atlanta Hawks', logo: '🦅', city: 'Atlanta' },
-                { name: 'Cleveland Cavaliers', logo: '⚜️', city: 'Cleveland' },
-                { name: 'Memphis Grizzlies', logo: '🐻', city: 'Memphis' },
-                { name: 'San Antonio Spurs', logo: '🌟', city: 'San Antonio' },
-                { name: 'Minnesota Timberwolves', logo: '🐺', city: 'Minneapolis' },
-                { name: 'New Orleans Pelicans', logo: '🎺', city: 'New Orleans' },
-                { name: 'Utah Jazz', logo: '🎵', city: 'Salt Lake City' },
-                { name: 'Sacramento Kings', logo: '👑', city: 'Sacramento' },
-                { name: 'Charlotte Hornets', logo: '🐝', city: 'Charlotte' },
-                { name: 'Orlando Magic', logo: '✨', city: 'Orlando' },
-                { name: 'Indiana Pacers', logo: '🏎️', city: 'Indianapolis' },
-                { name: 'Detroit Pistons', logo: '🔧', city: 'Detroit' },
-                { name: 'Washington Wizards', logo: '🧙', city: 'Washington DC' },
-                { name: 'Las Vegas Aces', logo: '🎰', city: 'Las Vegas' }
-            ];
+    { name: 'New York Guardians', logo: '🛡️', city: 'New York' },
+    { name: 'Los Angeles Wave', logo: '🌊', city: 'Los Angeles' },
+    { name: 'Chicago Union', logo: '🏗️', city: 'Chicago' },
+    { name: 'Miami Breakers', logo: '🌴', city: 'Miami' },
+    { name: 'Boston Rebellion', logo: '⚔️', city: 'Boston' },
+    { name: 'Golden State Bayhawks', logo: '🦅', city: 'San Francisco' },
+    { name: 'Houston Comets', logo: '☄️', city: 'Houston' },
+    { name: 'Phoenix Scorch', logo: '🔥', city: 'Phoenix' },
+    { name: 'Dallas Outlaws', logo: '🤠', city: 'Dallas' },
+    { name: 'Toronto Huskies', logo: '🐺', city: 'Toronto' },
+    { name: 'Brooklyn Sidekicks', logo: '🎧', city: 'Brooklyn' },
+    { name: 'Philadelphia Liberty', logo: '🔔', city: 'Philadelphia' },
+    { name: 'Milwaukee Lumber', logo: '🪵', city: 'Milwaukee' },
+    { name: 'Denver Peaks', logo: '🏔️', city: 'Denver' },
+    { name: 'Portland Cascades', logo: '🌲', city: 'Portland' },
+    { name: 'Seattle Surge', logo: '🌊', city: 'Seattle' },
+    { name: 'Atlanta Flight', logo: '✈️', city: 'Atlanta' },
+    { name: 'Cleveland Forge', logo: '⚒️', city: 'Cleveland' },
+    { name: 'Memphis Rhythm', logo: '🎷', city: 'Memphis' },
+    { name: 'San Antonio Wranglers', logo: '🐂', city: 'San Antonio' },
+    { name: 'Minnesota Chill', logo: '❄️', city: 'Minneapolis' },
+    { name: 'New Orleans Krewe', logo: '🎭', city: 'New Orleans' }
+];
+
 
             gameState.allTeams = teams;
             gameState.teams = teams.map((team, index) => ({
@@ -613,9 +861,31 @@
 
         // Generate Random Player
         function generatePlayer(teamId, forcedPosition = null) {
-            const firstNames = ['LeBron', 'Kobe', 'Michael', 'Stephen', 'Kevin', 'James', 'Luka', 'Giannis', 'Jayson', 'Damian', 'Anthony', 'Kawhi', 'Joel', 'Nikola', 'Devin', 'Trae', 'Jimmy', 'Paul', 'Chris', 'Russell'];
-            const lastNames = ['James', 'Bryant', 'Jordan', 'Curry', 'Durant', 'Harden', 'Doncic', 'Antetokounmpo', 'Tatum', 'Lillard', 'Davis', 'Leonard', 'Embiid', 'Jokic', 'Booker', 'Young', 'Butler', 'George', 'Paul', 'Westbrook'];
-            const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+    const firstNames = [
+        'Caleb', 'Jordan', 'Marcus', 'Evan', 'Travis', 'Derrick', 'Shawn',
+        'Malcolm', 'Tyrone', 'Devin', 'Logan', 'Chase', 'Wesley', 'Andre',
+        'Jamal', 'Donovan', 'Bryce', 'Hunter', 'Brandon', 'Cameron',
+        'Cole', 'Trevor', 'Darius', 'Jeremiah', 'Xavier', 'Grant',
+        'Blake', 'Carter', 'Adrian', 'Tyler', 'Julian', 'Isaiah',
+        'Noah', 'Eli', 'Jaylen', 'Austin', 'Mason', 'Dillon',
+        'Jesse', 'Riley', 'Nate', 'Owen', 'Leo', 'Zachary',
+        'Miles', 'Ethan', 'Landon', 'Calvin', 'Spencer'
+    ];
+
+    const lastNames = [
+        'Carter', 'Robinson', 'Brooks', 'Turner', 'Parker', 'Reed',
+        'Mitchell', 'Bailey', 'Howard', 'Fisher', 'Webb', 'Holmes',
+        'Fox', 'Gibson', 'Grant', 'Fowler', 'Wheeler', 'Walters',
+        'Patterson', 'Lawson', 'Coleman', 'Dean', 'Henderson',
+        'Sullivan', 'Banks', 'Chapman', 'Bowman', 'Greer', 'Harmon',
+        'Becker', 'Jennings', 'Riley', 'Stevens', 'Vaughn', 'Holland',
+        'Barrett', 'Reese', 'Powers', 'Carson', 'Newton', 'Harper',
+        'Warren', 'Barker', 'Douglas', 'Collins', 'Bishop', 'Hayes',
+        'Rowe', 'Franklin'
+    ];
+
+    const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+
 
             const position = forcedPosition || positions[Math.floor(Math.random() * positions.length)];
             const age = 19 + Math.floor(Math.random() * 16); // 19-34
@@ -852,6 +1122,8 @@
                     myTeamWon ? 'success' : 'error'
                 );
             }
+            
+            autoSave();
         }
 
         // Simulate to Playoffs
@@ -899,6 +1171,7 @@
             showMessage(`Drafted ${player.firstName} ${player.lastName}!`, 'success');
             startDraft();
             updateUI();
+            autoSave();
         }
 
         // Trade System
@@ -1026,6 +1299,7 @@
                 showMessage('Trade accepted!', 'success');
                 updateUI();
                 initTrade();
+                autoSave();
             } else {
                 showMessage('Trade rejected. Try offering better value!', 'error');
             }
@@ -1078,12 +1352,149 @@
 
         function selectTeam(teamId) {
             gameState.myTeamId = teamId;
+            gameState.teamName = gameState.teams[teamId].name;
             document.getElementById('teamSelection').classList.add('hidden');
             document.querySelector('.container').style.display = 'block';
             
             createPlayers();
             updateUI();
+            saveLeague();
             showMessage(`Welcome to the ${gameState.teams[teamId].name}! Build your championship team!`, 'info');
+        }
+
+        // League Management Functions
+        function showCreateLeague() {
+            document.getElementById('leagueManagement').classList.add('hidden');
+            document.getElementById('createLeague').classList.remove('hidden');
+            document.getElementById('leagueNameInput').value = '';
+            document.getElementById('leagueNameInput').focus();
+        }
+
+        function showContinueLeague() {
+            document.getElementById('leagueManagement').classList.add('hidden');
+            document.getElementById('continueLeague').classList.remove('hidden');
+            displaySavedLeagues();
+        }
+
+        function backToLeagueManagement() {
+            document.getElementById('createLeague').classList.add('hidden');
+            document.getElementById('continueLeague').classList.add('hidden');
+            document.getElementById('leagueManagement').classList.remove('hidden');
+        }
+
+        function createNewLeague() {
+            const leagueName = document.getElementById('leagueNameInput').value.trim();
+            if (!leagueName) {
+                alert('Please enter a league name!');
+                return;
+            }
+
+            // Create new league ID
+            gameState.leagueId = 'league_' + Date.now();
+            gameState.leagueName = leagueName;
+            gameState.createdDate = new Date().toISOString();
+            gameState.season = 1;
+            gameState.week = 0;
+
+            // Hide create screen and show team selection
+            document.getElementById('createLeague').classList.add('hidden');
+            document.getElementById('teamSelection').classList.remove('hidden');
+            
+            // Display team selection grid
+            const grid = document.getElementById('teamsGrid');
+            grid.innerHTML = gameState.allTeams.map((team, index) => `
+                <div class="team-card" onclick="selectTeam(${index})">
+                    <div class="team-logo">${team.logo}</div>
+                    <h3>${team.name}</h3>
+                    <p>${team.city}</p>
+                </div>
+            `).join('');
+        }
+
+        function displaySavedLeagues() {
+            const savedLeagues = getAllLeagues();
+            const container = document.getElementById('savedLeaguesList');
+
+            if (savedLeagues.length === 0) {
+                container.innerHTML = '<div class="no-leagues">No saved leagues found. Create a new league to get started!</div>';
+                return;
+            }
+
+            container.innerHTML = savedLeagues.map(league => {
+                const date = new Date(league.createdDate).toLocaleDateString();
+                return `
+                    <div class="league-item" onclick="loadLeague('${league.leagueId}')">
+                        <div class="league-info">
+                            <h3>${league.leagueName}</h3>
+                            <p>Season ${league.season} | Week ${league.week} | ${league.teamName || 'Team not selected'}</p>
+                            <p style="font-size: 0.8em;">Created: ${date}</p>
+                        </div>
+                        <div class="league-actions">
+                            <button class="delete-btn" onclick="event.stopPropagation(); deleteLeague('${league.leagueId}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getAllLeagues() {
+            const leagues = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('league_')) {
+                    try {
+                        const league = JSON.parse(localStorage.getItem(key));
+                        leagues.push(league);
+                    } catch (e) {
+                        console.error('Error parsing league:', e);
+                    }
+                }
+            }
+            // Sort by created date, newest first
+            return leagues.sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate));
+        }
+
+        function saveLeague() {
+            if (gameState.leagueId) {
+                try {
+                    localStorage.setItem(gameState.leagueId, JSON.stringify(gameState));
+                } catch (e) {
+                    console.error('Error saving league:', e);
+                    showMessage('Error saving league progress', 'error');
+                }
+            }
+        }
+
+        function loadLeague(leagueId) {
+            try {
+                const savedState = localStorage.getItem(leagueId);
+                if (savedState) {
+                    gameState = JSON.parse(savedState);
+                    
+                    // Hide continue screen, show main game
+                    document.getElementById('continueLeague').classList.add('hidden');
+                    document.querySelector('.container').style.display = 'block';
+                    
+                    updateUI();
+                    showMessage(`Welcome back to ${gameState.leagueName}!`, 'info');
+                }
+            } catch (e) {
+                console.error('Error loading league:', e);
+                alert('Error loading league. The save file may be corrupted.');
+            }
+        }
+
+        function deleteLeague(leagueId) {
+            if (confirm('Are you sure you want to delete this league? This cannot be undone.')) {
+                localStorage.removeItem(leagueId);
+                displaySavedLeagues();
+                showMessage('League deleted', 'info');
+            }
+        }
+
+        // Auto-save after key actions
+        function autoSave() {
+            saveLeague();
         }
 
         // Initialize on load
