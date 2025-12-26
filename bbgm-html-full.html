@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball GM Simulator</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // IndexedDB Setup with Dexie
+        const db = new Dexie('BasketballGM');
+        db.version(1).stores({
+            players: '++id, team, season, age, rating',
+            teams: 'name, season',
+            seasons: 'year',
+            gameState: 'id'
+        });
+
+        const SALARY_CAP = 140000000;
+        const LUXURY_TAX = 165000000;
+
+        const BasketballGM = () => {
+            const [loading, setLoading] = useState(true);
+            const [currentSeason, setCurrentSeason] = useState(2025);
+            const [currentTeam, setCurrentTeam] = useState('Seattle Storm');
+            const [seasonPhase, setSeasonPhase] = useState('preseason');
+            const [teams, setTeams] = useState({});
+            const [standings, setStandings] = useState({});
+            const [myPlayers, setMyPlayers] = useState([]);
+            const [allTeamNames, setAllTeamNames] = useState([]);
+            const [championships, setChampionships] = useState({});
+            
+            // New state for home screen and navigation
+            const [currentView, setCurrentView] = useState('home'); // home, team-select, league-settings, game, edit-teams
+            const [currentPage, setCurrentPage] = useState('dashboard'); // dashboard, roster, standings, finances, etc.
+            const [leagueExists, setLeagueExists] = useState(false);
+            const [difficulty, setDifficulty] = useState('normal');
+            const [salaryCapEnabled, setSalaryCapEnabled] = useState(true);
+            
+            // Team customization state
+            const [customTeams, setCustomTeams] = useState([]);
+            const [editingTeamIndex, setEditingTeamIndex] = useState(0);
+            
+            // League settings state
+            const [regularSeasonGames, setRegularSeasonGames] = useState(82);
+            const [playoffTeams, setPlayoffTeams] = useState(16);
+            const [playoffSeriesLength, setPlayoffSeriesLength] = useState(7);
+            const [playerProgressionSpeed, setPlayerProgressionSpeed] = useState('Normal');
+            const [injuryFrequency, setInjuryFrequency] = useState('Normal');
+            const [retirementAgeVariance, setRetirementAgeVariance] = useState('Normal 35-40');
+            const [draftRounds, setDraftRounds] = useState(2);
+            const [draftLotteryOdds, setDraftLotteryOdds] = useState('Weighted by record');
+            const [rookieClassQuality, setRookieClassQuality] = useState('Average');
+            const [startingBudget, setStartingBudget] = useState(50000000);
+            const [revenueDifficulty, setRevenueDifficulty] = useState('Normal');
+            const [luxuryTaxEnabled, setLuxuryTaxEnabled] = useState(true);
+            const [customSalaryCap, setCustomSalaryCap] = useState(140000000);
+            const [customLuxuryTax, setCustomLuxuryTax] = useState(165000000);
+            const [autoSaveFrequency, setAutoSaveFrequency] = useState('Every season');
+            const [simulationSpeed, setSimulationSpeed] = useState('Instant');
+            const [historicalStatTracking, setHistoricalStatTracking] = useState('Standard');
+            const [numDivisions, setNumDivisions] = useState(6);
+            const [numConferences, setNumConferences] = useState(2);
+            const [conferencesEnabled, setConferencesEnabled] = useState(true);
+            const [playoffSeeding, setPlayoffSeeding] = useState('Division winners prioritized');
+            const [playerNameGeneration, setPlayerNameGeneration] = useState('Generated');
+            const [playerMoraleEnabled, setPlayerMoraleEnabled] = useState(false);
+            const [coachRatingsEnabled, setCoachRatingsEnabled] = useState(false);
+            const [teamChemistryEnabled, setTeamChemistryEnabled] = useState(false);
+
+            useEffect(() => {
+                checkForExistingLeague();
+            }, []);
+
+            useEffect(() => {
+                checkForExistingLeague();
+            }, []);
+
+            async function checkForExistingLeague() {
+                try {
+                    const existingState = await db.gameState.get(1);
+                    setLeagueExists(!!existingState);
+                    setLoading(false);
+                } catch (error) {
+                    console.error('Error checking for league:', error);
+                    setLoading(false);
+                }
+            }
+
+            function initializeDefaultTeams() {
+                return [
+                    { name: 'Storm', city: 'Seattle', abbrev: 'SEA', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D5C96', secondaryColor: '#FFD700', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Vipers', city: 'Las Vegas', abbrev: 'LVV', conference: 'West', division: 'Pacific', capacity: 18500, primaryColor: '#006BB6', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Thunder', city: 'Portland', abbrev: 'POR', conference: 'West', division: 'Pacific', capacity: 19000, primaryColor: '#E03A3E', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Predators', city: 'Chicago', abbrev: 'CHI', conference: 'East', division: 'Central', capacity: 21000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Knights', city: 'Boston', abbrev: 'BOS', conference: 'East', division: 'Atlantic', capacity: 19000, primaryColor: '#007A33', secondaryColor: '#BA9653', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Titans', city: 'New York', abbrev: 'NYT', conference: 'East', division: 'Atlantic', capacity: 20000, primaryColor: '#006BB6', secondaryColor: '#F58426', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Phantoms', city: 'Los Angeles', abbrev: 'LAP', conference: 'West', division: 'Pacific', capacity: 19000, primaryColor: '#552583', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Dragons', city: 'Miami', abbrev: 'MIA', conference: 'East', division: 'Southeast', capacity: 19600, primaryColor: '#98002E', secondaryColor: '#F9A01B', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Firebirds', city: 'Atlanta', abbrev: 'ATL', conference: 'East', division: 'Southeast', capacity: 18000, primaryColor: '#E03A3E', secondaryColor: '#C1D32F', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Fusion', city: 'Philadelphia', abbrev: 'PHI', conference: 'East', division: 'Atlantic', capacity: 21000, primaryColor: '#006BB6', secondaryColor: '#ED174C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Blaze', city: 'Phoenix', abbrev: 'PHX', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#E56020', secondaryColor: '#1D1160', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Outlaws', city: 'Dallas', abbrev: 'DAL', conference: 'West', division: 'Southwest', capacity: 19200, primaryColor: '#00538C', secondaryColor: '#002B5E', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Peaks', city: 'Denver', abbrev: 'DEN', conference: 'West', division: 'Northwest', capacity: 19500, primaryColor: '#0E2240', secondaryColor: '#FEC524', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Waves', city: 'San Diego', abbrev: 'SDW', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Comets', city: 'Houston', abbrev: 'HOU', conference: 'West', division: 'Southwest', capacity: 18000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Strikers', city: 'San Antonio', abbrev: 'SAS', conference: 'West', division: 'Southwest', capacity: 18500, primaryColor: '#C4CED4', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Wizards', city: 'Orlando', abbrev: 'ORL', conference: 'East', division: 'Southeast', capacity: 18500, primaryColor: '#0077C0', secondaryColor: '#C4CED4', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Motors', city: 'Detroit', abbrev: 'DET', conference: 'East', division: 'Central', capacity: 20000, primaryColor: '#C8102E', secondaryColor: '#1D42BA', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Cobras', city: 'Charlotte', abbrev: 'CHA', conference: 'East', division: 'Southeast', capacity: 19000, primaryColor: '#1D1160', secondaryColor: '#00788C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Blues', city: 'Memphis', abbrev: 'MEM', conference: 'West', division: 'Southwest', capacity: 18000, primaryColor: '#5D76A9', secondaryColor: '#12173F', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Frost', city: 'Minnesota', abbrev: 'MIN', conference: 'West', division: 'Northwest', capacity: 19000, primaryColor: '#0C2340', secondaryColor: '#236192', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Royals', city: 'Sacramento', abbrev: 'SAC', conference: 'West', division: 'Pacific', capacity: 17500, primaryColor: '#5A2D81', secondaryColor: '#63727A', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Krewe', city: 'New Orleans', abbrev: 'NOP', conference: 'West', division: 'Southwest', capacity: 17000, primaryColor: '#0C2340', secondaryColor: '#C8102E', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Titans', city: 'Milwaukee', abbrev: 'MIL', conference: 'East', division: 'Central', capacity: 17500, primaryColor: '#00471B', secondaryColor: '#EEE1C6', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Racers', city: 'Indianapolis', abbrev: 'IND', conference: 'East', division: 'Central', capacity: 17800, primaryColor: '#002D62', secondaryColor: '#FDBB30', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Thunder', city: 'Cleveland', abbrev: 'CLE', conference: 'East', division: 'Central', capacity: 19400, primaryColor: '#860038', secondaryColor: '#041E42', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Steel', city: 'Pittsburgh', abbrev: 'PIT', conference: 'East', division: 'Central', capacity: 18000, primaryColor: '#000000', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Stars', city: 'Nashville', abbrev: 'NAS', conference: 'East', division: 'Southeast', capacity: 17000, primaryColor: '#041E42', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Blaze', city: 'Baltimore', abbrev: 'BAL', conference: 'East', division: 'Atlantic', capacity: 18000, primaryColor: '#00788C', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Sentinels', city: 'San Francisco', abbrev: 'SFO', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' }
+                ];
+            }
+
+            function openTeamEditor() {
+                setCustomTeams(initializeDefaultTeams());
+                setEditingTeamIndex(0);
+                setCurrentView('edit-teams');
+            }
+
+            function addNewTeam() {
+                const newTeam = {
+                    name: 'New Team',
+                    city: 'New City',
+                    abbrev: 'NEW',
+                    conference: 'East',
+                    division: 'Atlantic',
+                    capacity: 18000,
+                    primaryColor: '#000000',
+                    secondaryColor: '#FFFFFF',
+                    logoUrl: '',
+                    secondaryLogoUrl: ''
+                };
+                setCustomTeams([...customTeams, newTeam]);
+                setEditingTeamIndex(customTeams.length);
+            }
+
+            function removeTeam(index) {
+                if (confirm('Are you sure you want to remove this team?')) {
+                    const updated = customTeams.filter((_, i) => i !== index);
+                    setCustomTeams(updated);
+                    if (editingTeamIndex >= updated.length && updated.length > 0) {
+                        setEditingTeamIndex(updated.length - 1);
+                    } else if (updated.length === 0) {
+                        setEditingTeamIndex(0);
+                    }
+                }
+            }
+
+            function updateTeamField(field, value) {
+                const updated = [...customTeams];
+                updated[editingTeamIndex][field] = value;
+                setCustomTeams(updated);
+            }
+
+            function saveCustomTeams() {
+                if (customTeams.length === 0) {
+                    alert('You must have at least one team!');
+                    return;
+                }
+                // Validate all teams have required fields
+                for (let team of customTeams) {
+                    if (!team.name || !team.city || !team.abbrev) {
+                        alert('All teams must have a name, city, and abbreviation!');
+                        return;
+                    }
+                }
+                setCurrentView('team-select');
+            }
+
+            function cancelTeamEditing() {
+                if (confirm('Discard changes?')) {
+                    setCustomTeams([]);
+                    setCurrentView('team-select');
+                }
+            }
+
+            async function startNewLeague() {
+                setCurrentView('team-select');
+            }
+
+            async function selectTeam(teamName) {
+                setCurrentTeam(teamName);
+                setCurrentView('league-settings');
+            }
+
+            async function createLeagueWithSettings() {
+                setLoading(true);
+                setCurrentView('game');
+                await createNewGame();
+                setLoading(false);
+            }
+
+            async function continueLeague() {
+                setLoading(true);
+                setCurrentView('game');
+                await loadExistingGame();
+                setLoading(false);
+            }
+
+            async function loadExistingGame() {
+                try {
+                    const existingState = await db.gameState.get(1);
+                    
+                    if (existingState) {
+                        setCurrentSeason(existingState.currentSeason);
+                        setCurrentTeam(existingState.currentTeam);
+                        setSeasonPhase(existingState.seasonPhase);
+                        setStandings(existingState.standings || {});
+                        setChampionships(existingState.championships || {});
+                        setDifficulty(existingState.difficulty || 'normal');
+                        setSalaryCapEnabled(existingState.salaryCapEnabled !== false);
+                        
+                        // Load all league settings
+                        setRegularSeasonGames(existingState.regularSeasonGames || 82);
+                        setPlayoffTeams(existingState.playoffTeams || 16);
+                        setPlayoffSeriesLength(existingState.playoffSeriesLength || 7);
+                        setPlayerProgressionSpeed(existingState.playerProgressionSpeed || 'Normal');
+                        setInjuryFrequency(existingState.injuryFrequency || 'Normal');
+                        setRetirementAgeVariance(existingState.retirementAgeVariance || 'Normal 35-40');
+                        setDraftRounds(existingState.draftRounds || 2);
+                        setDraftLotteryOdds(existingState.draftLotteryOdds || 'Weighted by record');
+                        setRookieClassQuality(existingState.rookieClassQuality || 'Average');
+                        setStartingBudget(existingState.startingBudget || 50000000);
+                        setRevenueDifficulty(existingState.revenueDifficulty || 'Normal');
+                        setLuxuryTaxEnabled(existingState.luxuryTaxEnabled !== false);
+                        setCustomSalaryCap(existingState.customSalaryCap || 140000000);
+                        setCustomLuxuryTax(existingState.customLuxuryTax || 165000000);
+                        setAutoSaveFrequency(existingState.autoSaveFrequency || 'Every season');
+                        setSimulationSpeed(existingState.simulationSpeed || 'Instant');
+                        setHistoricalStatTracking(existingState.historicalStatTracking || 'Standard');
+                        setNumDivisions(existingState.numDivisions || 6);
+                        setNumConferences(existingState.numConferences || 2);
+                        setConferencesEnabled(existingState.conferencesEnabled !== false);
+                        setPlayoffSeeding(existingState.playoffSeeding || 'Division winners prioritized');
+                        setPlayerNameGeneration(existingState.playerNameGeneration || 'Generated');
+                        setPlayerMoraleEnabled(existingState.playerMoraleEnabled || false);
+                        setCoachRatingsEnabled(existingState.coachRatingsEnabled || false);
+                        setTeamChemistryEnabled(existingState.teamChemistryEnabled || false);
+                        
+                        const teamData = await db.teams.where('season').equals(existingState.currentSeason).toArray();
+                        const teamsObj = {};
+                        teamData.forEach(t => teamsObj[t.name] = t);
+                        setTeams(teamsObj);
+                        setAllTeamNames(Object.keys(teamsObj));
+                        
+                        const players = await db.players
+                            .where(['team', 'season'])
+                            .equals([existingState.currentTeam, existingState.currentSeason])
+                            .toArray();
+                        setMyPlayers(players);
+                    }
+                } catch (error) {
+                    console.error('Error loading game:', error);
+                }
+            }
+
+            async function initializeGame() {
+                try {
+                    // Check if game exists
+                    const existingState = await db.gameState.get(1);
+                    
+                    if (existingState) {
+                        // Load existing game
+                        setCurrentSeason(existingState.currentSeason);
+                        setCurrentTeam(existingState.currentTeam);
+                        setSeasonPhase(existingState.seasonPhase);
+                        setStandings(existingState.standings || {});
+                        setChampionships(existingState.championships || {});
+                        
+                        const teamData = await db.teams.where('season').equals(existingState.currentSeason).toArray();
+                        const teamsObj = {};
+                        teamData.forEach(t => teamsObj[t.name] = t);
+                        setTeams(teamsObj);
+                        setAllTeamNames(Object.keys(teamsObj));
+                        
+                        const players = await db.players
+                            .where(['team', 'season'])
+                            .equals([existingState.currentTeam, existingState.currentSeason])
+                            .toArray();
+                        setMyPlayers(players);
+                    } else {
+                        // Create new game
+                        await createNewGame();
+                    }
+                    setLoading(false);
+                } catch (error) {
+                    console.error('Error initializing:', error);
+                    setLoading(false);
+                }
+            }
+
+            async function createNewGame() {
+                const teamNames = customTeams.length > 0 
+                    ? customTeams.map(t => `${t.city} ${t.name}`)
+                    : [
+                        'Seattle Storm', 'Las Vegas Vipers', 'Portland Thunder', 'Chicago Predators', 'Boston Knights', 'New York Titans',
+                        'Los Angeles Phantoms', 'Miami Dragons', 'Atlanta Firebirds', 'Philadelphia Fusion', 'Phoenix Blaze', 'Dallas Outlaws',
+                        'Denver Peaks', 'San Diego Waves', 'Houston Comets', 'San Antonio Strikers', 'Orlando Wizards', 'Detroit Motors',
+                        'Charlotte Cobras', 'Memphis Blues', 'Minnesota Frost', 'Sacramento Royals', 'New Orleans Krewe', 'Milwaukee Titans',
+                        'Indianapolis Racers', 'Cleveland Thunder', 'Pittsburgh Steel', 'Nashville Stars', 'Baltimore Blaze', 'San Francisco Sentinels'
+                    ];
+
+                const teamsData = teamNames.map((name, idx) => ({
+                    name,
+                    season: 2025,
+                    wins: 0,
+                    losses: 0,
+                    budget: SALARY_CAP,
+                    // Store custom team data
+                    ...(customTeams.length > 0 ? {
+                        city: customTeams[idx].city,
+                        teamName: customTeams[idx].name,
+                        abbrev: customTeams[idx].abbrev,
+                        conference: customTeams[idx].conference,
+                        division: customTeams[idx].division,
+                        capacity: customTeams[idx].capacity,
+                        primaryColor: customTeams[idx].primaryColor,
+                        secondaryColor: customTeams[idx].secondaryColor,
+                        logoUrl: customTeams[idx].logoUrl,
+                        secondaryLogoUrl: customTeams[idx].secondaryLogoUrl
+                    } : {})
+                }));
+
+                await db.teams.bulkAdd(teamsData);
+                
+                const teamsObj = {};
+                teamsData.forEach(t => teamsObj[t.name] = t);
+                setTeams(teamsObj);
+                setAllTeamNames(teamNames);
+
+                // Generate all players for all teams
+                const allPlayers = [];
+                const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                const firstNames = ['James', 'Kevin', 'Stephen', 'LeBron', 'Anthony', 'Chris', 'Michael', 'Kobe', 'Dwyane', 'Russell', 'Damian', 'Jayson', 'Luka', 'Giannis', 'Joel', 'Nikola', 'Kawhi', 'Paul', 'Jimmy', 'Devin', 'Trae', 'Zion', 'Ja', 'Donovan', 'Bradley'];
+                const lastNames = ['Johnson', 'Williams', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Rodriguez', 'Lewis', 'Lee', 'Walker', 'Hall', 'Allen'];
+
+                teamNames.forEach(teamName => {
+                    for (let i = 0; i < 12; i++) {
+                        const age = 19 + Math.floor(Math.random() * 15);
+                        const potential = 50 + Math.floor(Math.random() * 50);
+                        const baseRating = Math.max(40, Math.min(95, potential - (age - 22) * 2 + (Math.random() * 20 - 10)));
+                        
+                        allPlayers.push({
+                            name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                            team: teamName,
+                            season: 2025,
+                            position: positions[Math.floor(Math.random() * positions.length)],
+                            age: age,
+                            rating: Math.round(baseRating),
+                            potential: potential,
+                            contractYears: 1 + Math.floor(Math.random() * 4),
+                            salary: Math.round((baseRating / 100) * 40000000 + Math.random() * 5000000),
+                            ppg: 0,
+                            rpg: 0,
+                            apg: 0
+                        });
+                    }
+                });
+
+                await db.players.bulkAdd(allPlayers);
+
+                const myTeamPlayers = allPlayers.filter(p => p.team === currentTeam);
+                setMyPlayers(myTeamPlayers);
+
+                await db.gameState.add({
+                    id: 1,
+                    currentSeason: 2025,
+                    currentTeam: currentTeam,
+                    seasonPhase: 'preseason',
+                    standings: {},
+                    championships: {},
+                    difficulty: difficulty,
+                    salaryCapEnabled: salaryCapEnabled,
+                    // League settings
+                    regularSeasonGames,
+                    playoffTeams,
+                    playoffSeriesLength,
+                    playerProgressionSpeed,
+                    injuryFrequency,
+                    retirementAgeVariance,
+                    draftRounds,
+                    draftLotteryOdds,
+                    rookieClassQuality,
+                    startingBudget,
+                    revenueDifficulty,
+                    luxuryTaxEnabled,
+                    customSalaryCap,
+                    customLuxuryTax,
+                    autoSaveFrequency,
+                    simulationSpeed,
+                    historicalStatTracking,
+                    numDivisions,
+                    numConferences,
+                    conferencesEnabled,
+                    playoffSeeding,
+                    playerNameGeneration,
+                    playerMoraleEnabled,
+                    coachRatingsEnabled,
+                    teamChemistryEnabled
+                });
+            }
+
+            async function simulateSeason() {
+                setLoading(true);
+                try {
+                    const newStandings = {};
+                    
+                    // Calculate standings for each team
+                    for (const teamName of allTeamNames) {
+                        const teamPlayers = await db.players
+                            .where(['team', 'season'])
+                            .equals([teamName, currentSeason])
+                            .toArray();
+                        
+                        const teamRating = teamPlayers.reduce((sum, p) => sum + p.rating, 0) / teamPlayers.length;
+                        const expectedWins = Math.round((teamRating - 50) / 2 + 41);
+                        const wins = Math.max(10, Math.min(72, expectedWins + Math.floor(Math.random() * 20 - 10)));
+                        
+                        newStandings[teamName] = {
+                            wins,
+                            losses: 82 - wins
+                        };
+                    }
+
+                    // Update player stats and development
+                    const allPlayers = await db.players.where('season').equals(currentSeason).toArray();
+                    const updatedPlayers = allPlayers.map(p => {
+                        const ageFactor = p.age < 27 ? 1 : (p.age > 30 ? -1 : 0);
+                        const potentialDiff = p.potential - p.rating;
+                        const development = Math.random() * 3 * (potentialDiff > 0 ? 1 : -0.5) + ageFactor;
+                        
+                        return {
+                            ...p,
+                            rating: Math.max(40, Math.min(99, Math.round(p.rating + development))),
+                            ppg: Math.round((p.rating / 5) * (Math.random() * 0.4 + 0.8) * 10) / 10,
+                            rpg: Math.round((p.rating / 10) * (Math.random() * 0.5 + 0.8) * 10) / 10,
+                            apg: Math.round((p.rating / 15) * (Math.random() * 0.6 + 0.7) * 10) / 10
+                        };
+                    });
+
+                    await db.players.bulkPut(updatedPlayers);
+
+                    setStandings(newStandings);
+                    setSeasonPhase('playoffs');
+
+                    await db.gameState.update(1, {
+                        seasonPhase: 'playoffs',
+                        standings: newStandings
+                    });
+
+                    const updatedMyPlayers = await db.players
+                        .where(['team', 'season'])
+                        .equals([currentTeam, currentSeason])
+                        .toArray();
+                    setMyPlayers(updatedMyPlayers);
+
+                } catch (error) {
+                    console.error('Error simulating season:', error);
+                }
+                setLoading(false);
+            }
+
+            async function simulatePlayoffs() {
+                setLoading(true);
+                try {
+                    const sortedTeams = Object.entries(standings).sort((a, b) => b[1].wins - a[1].wins);
+                    const champion = sortedTeams[Math.floor(Math.random() * 4)][0];
+                    
+                    const newChampionships = { ...championships };
+                    newChampionships[champion] = (newChampionships[champion] || 0) + 1;
+                    
+                    setChampionships(newChampionships);
+                    setSeasonPhase('offseason');
+
+                    await db.gameState.update(1, {
+                        seasonPhase: 'offseason',
+                        championships: newChampionships
+                    });
+
+                    // Save season to history
+                    await db.seasons.add({
+                        year: currentSeason,
+                        champion,
+                        standings: JSON.stringify(standings)
+                    });
+
+                } catch (error) {
+                    console.error('Error simulating playoffs:', error);
+                }
+                setLoading(false);
+            }
+
+            async function advanceToNextSeason() {
+                setLoading(true);
+                try {
+                    const nextSeason = currentSeason + 1;
+                    
+                    // Age players and update contracts
+                    const allPlayers = await db.players.where('season').equals(currentSeason).toArray();
+                    const updatedPlayers = allPlayers
+                        .map(p => ({
+                            ...p,
+                            age: p.age + 1,
+                            contractYears: Math.max(0, p.contractYears - 1),
+                            season: nextSeason
+                        }))
+                        .filter(p => p.contractYears > 0 || Math.random() > 0.3);
+
+                    // Generate rookie draft class
+                    const rookies = [];
+                    const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                    const firstNames = ['Marcus', 'Brandon', 'Tyler', 'Jordan', 'Cameron', 'Dylan', 'Austin', 'Jason', 'Ryan', 'Alex', 'Evan', 'Noah', 'Mason', 'Logan', 'Lucas'];
+                    const lastNames = ['Smith', 'Jones', 'Lee', 'Walker', 'Hall', 'Allen', 'Young', 'King', 'Wright', 'Lopez', 'Hill', 'Scott', 'Green', 'Adams', 'Baker'];
+                    
+                    // Draft rookies to teams based on previous season standings
+                    const sortedTeams = Object.entries(standings).sort((a, b) => a[1].wins - b[1].wins);
+                    
+                    for (let i = 0; i < 30; i++) {
+                        const draftingTeam = sortedTeams[i % sortedTeams.length][0];
+                        const potential = Math.max(50, 95 - i * 0.8 + (Math.random() * 15 - 7.5));
+                        const rating = Math.max(40, Math.round(potential - 20 + (Math.random() * 10 - 5)));
+                        
+                        rookies.push({
+                            name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                            team: draftingTeam,
+                            season: nextSeason,
+                            position: positions[Math.floor(Math.random() * positions.length)],
+                            age: 19,
+                            rating: rating,
+                            potential: Math.round(potential),
+                            contractYears: 4,
+                            salary: Math.round((31 - i) * 300000),
+                            ppg: 0,
+                            rpg: 0,
+                            apg: 0
+                        });
+                    }
+
+                    // Clear old season players and add new ones
+                    await db.players.where('season').equals(currentSeason).delete();
+                    await db.players.bulkAdd([...updatedPlayers, ...rookies]);
+
+                    // Create new teams for new season
+                    const newTeamsData = allTeamNames.map(name => ({
+                        name,
+                        season: nextSeason,
+                        wins: 0,
+                        losses: 0,
+                        budget: SALARY_CAP
+                    }));
+                    await db.teams.bulkAdd(newTeamsData);
+
+                    setCurrentSeason(nextSeason);
+                    setSeasonPhase('preseason');
+                    setStandings({});
+
+                    await db.gameState.update(1, {
+                        currentSeason: nextSeason,
+                        seasonPhase: 'preseason',
+                        standings: {}
+                    });
+
+                    const newMyPlayers = await db.players
+                        .where(['team', 'season'])
+                        .equals([currentTeam, nextSeason])
+                        .toArray();
+                    setMyPlayers(newMyPlayers);
+
+                } catch (error) {
+                    console.error('Error advancing season:', error);
+                }
+                setLoading(false);
+            }
+
+            async function releasePlayer(playerId) {
+                try {
+                    await db.players.delete(playerId);
+                    setMyPlayers(prev => prev.filter(p => p.id !== playerId));
+                } catch (error) {
+                    console.error('Error releasing player:', error);
+                }
+            }
+
+            async function resetGame() {
+                if (confirm('Are you sure? This will delete all progress.')) {
+                    await db.delete();
+                    setLeagueExists(false);
+                    setCurrentView('home');
+                    setCurrentPage('dashboard');
+                    window.location.reload();
+                }
+            }
+
+            async function exitToHome() {
+                if (confirm('Return to main menu? Your progress is auto-saved.')) {
+                    setCurrentView('home');
+                    setCurrentPage('dashboard');
+                }
+            }
+
+            const totalSalary = myPlayers.reduce((sum, p) => sum + p.salary, 0);
+            const capSpace = SALARY_CAP - totalSalary;
+            const avgRating = myPlayers.length > 0 
+                ? Math.round(myPlayers.reduce((sum, p) => sum + p.rating, 0) / myPlayers.length)
+                : 0;
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center">
+                        <div className="text-2xl">Loading...</div>
+                    </div>
+                );
+            }
+
+            // HOME SCREEN - Landing Page
+            if (currentView === 'home') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center p-6">
+                        <div className="max-w-2xl w-full">
+                            <div className="text-center mb-12">
+                                <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                                    🏀 HOOPS DYNASTY
+                                </h1>
+                                <p className="text-xl text-gray-300">Basketball GM Simulator</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <button 
+                                    onClick={startNewLeague}
+                                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 px-8 py-6 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
+                                >
+                                    🆕 Create New League
+                                </button>
+
+                                {leagueExists && (
+                                    <>
+                                        <button 
+                                            onClick={continueLeague}
+                                            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-6 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
+                                        >
+                                            ▶️ Continue League
+                                        </button>
+
+                                        <button 
+                                            onClick={resetGame}
+                                            className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 px-6 py-4 rounded-lg font-semibold text-lg shadow-xl"
+                                        >
+                                            🗑️ Delete Saved League
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="mt-12 text-center text-gray-400 text-sm">
+                                <p>Build your dynasty. Draft stars. Win championships.</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // TEAM SELECTION SCREEN
+            if (currentView === 'team-select') {
+                const teamNames = customTeams.length > 0
+                    ? customTeams.map(t => `${t.city} ${t.name}`)
+                    : [
+                        'Seattle Storm', 'Las Vegas Vipers', 'Portland Thunder', 'Chicago Predators', 'Boston Knights', 'New York Titans',
+                        'Los Angeles Phantoms', 'Miami Dragons', 'Atlanta Firebirds', 'Philadelphia Fusion', 'Phoenix Blaze', 'Dallas Outlaws',
+                        'Denver Peaks', 'San Diego Waves', 'Houston Comets', 'San Antonio Strikers', 'Orlando Wizards', 'Detroit Motors',
+                        'Charlotte Cobras', 'Memphis Blues', 'Minnesota Frost', 'Sacramento Royals', 'New Orleans Krewe', 'Milwaukee Titans',
+                        'Indianapolis Racers', 'Cleveland Thunder', 'Pittsburgh Steel', 'Nashville Stars', 'Baltimore Blaze', 'San Francisco Sentinels'
+                    ];
+
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-bold mb-2">Select Your Team</h1>
+                                <p className="text-gray-300">Choose which franchise you want to manage</p>
+                                <p className="text-sm text-gray-400 mt-2">{teamNames.length} teams in league</p>
+                            </div>
+
+                            <div className="mb-6 text-center">
+                                <button
+                                    onClick={openTeamEditor}
+                                    className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold text-lg shadow-xl transform hover:scale-105 transition"
+                                >
+                                    ✏️ Edit Teams
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                {teamNames.map(team => (
+                                    <button
+                                        key={team}
+                                        onClick={() => selectTeam(team)}
+                                        className="bg-slate-800 hover:bg-blue-600 p-6 rounded-lg font-bold text-lg transform hover:scale-105 transition shadow-xl"
+                                    >
+                                        {team}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="mt-8 text-center">
+                                <button 
+                                    onClick={() => setCurrentView('home')}
+                                    className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-semibold"
+                                >
+                                    ← Back
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // TEAM CUSTOMIZATION SCREEN
+            if (currentView === 'edit-teams') {
+                const currentTeam = customTeams[editingTeamIndex];
+
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="text-center mb-6">
+                                <h1 className="text-4xl font-bold mb-2">Team Customization</h1>
+                                <p className="text-gray-300">Create your custom league - {customTeams.length} teams</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Team List Sidebar */}
+                                <div className="bg-slate-800 rounded-lg p-4 shadow-xl max-h-[600px] overflow-y-auto">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-xl font-bold">Teams</h3>
+                                        <button
+                                            onClick={addNewTeam}
+                                            className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm font-semibold"
+                                        >
+                                            + Add
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {customTeams.map((team, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`p-3 rounded-lg cursor-pointer flex justify-between items-center ${
+                                                    editingTeamIndex === idx ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'
+                                                }`}
+                                                onClick={() => setEditingTeamIndex(idx)}
+                                            >
+                                                <div>
+                                                    <div className="font-semibold">{team.city} {team.name}</div>
+                                                    <div className="text-xs text-gray-400">{team.abbrev} - {team.conference}</div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); removeTeam(idx); }}
+                                                    className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Team Editor Form */}
+                                {currentTeam && (
+                                    <div className="lg:col-span-2 bg-slate-800 rounded-lg p-6 shadow-xl">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-2xl font-bold">Editing: {currentTeam.city} {currentTeam.name}</h3>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setEditingTeamIndex(Math.max(0, editingTeamIndex - 1))}
+                                                    disabled={editingTeamIndex === 0}
+                                                    className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 px-3 py-2 rounded"
+                                                >
+                                                    ← Prev
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingTeamIndex(Math.min(customTeams.length - 1, editingTeamIndex + 1))}
+                                                    disabled={editingTeamIndex === customTeams.length - 1}
+                                                    className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 px-3 py-2 rounded"
+                                                >
+                                                    Next →
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Team Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={currentTeam.name}
+                                                    onChange={(e) => updateTeamField('name', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                    placeholder="Storm"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">City/Region</label>
+                                                <input
+                                                    type="text"
+                                                    value={currentTeam.city}
+                                                    onChange={(e) => updateTeamField('city', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                    placeholder="Seattle"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Abbreviation (3 letters)</label>
+                                                <input
+                                                    type="text"
+                                                    value={currentTeam.abbrev}
+                                                    onChange={(e) => updateTeamField('abbrev', e.target.value.toUpperCase().substring(0, 3))}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 uppercase"
+                                                    placeholder="SEA"
+                                                    maxLength={3}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Conference</label>
+                                                <select
+                                                    value={currentTeam.conference}
+                                                    onChange={(e) => updateTeamField('conference', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                >
+                                                    <option value="East">Eastern Conference</option>
+                                                    <option value="West">Western Conference</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Division</label>
+                                                <select
+                                                    value={currentTeam.division}
+                                                    onChange={(e) => updateTeamField('division', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                >
+                                                    <option value="Atlantic">Atlantic</option>
+                                                    <option value="Central">Central</option>
+                                                    <option value="Southeast">Southeast</option>
+                                                    <option value="Northwest">Northwest</option>
+                                                    <option value="Pacific">Pacific</option>
+                                                    <option value="Southwest">Southwest</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Stadium Capacity</label>
+                                                <input
+                                                    type="number"
+                                                    value={currentTeam.capacity}
+                                                    onChange={(e) => updateTeamField('capacity', parseInt(e.target.value) || 0)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                    placeholder="18000"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Primary Color (Jersey)</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={currentTeam.primaryColor}
+                                                        onChange={(e) => updateTeamField('primaryColor', e.target.value)}
+                                                        className="w-16 h-10 bg-slate-700 border border-slate-600 rounded cursor-pointer"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={currentTeam.primaryColor}
+                                                        onChange={(e) => updateTeamField('primaryColor', e.target.value)}
+                                                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                        placeholder="#1D5C96"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold mb-2">Secondary Color</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="color"
+                                                        value={currentTeam.secondaryColor}
+                                                        onChange={(e) => updateTeamField('secondaryColor', e.target.value)}
+                                                        className="w-16 h-10 bg-slate-700 border border-slate-600 rounded cursor-pointer"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={currentTeam.secondaryColor}
+                                                        onChange={(e) => updateTeamField('secondaryColor', e.target.value)}
+                                                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                        placeholder="#FFD700"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2">Logo URL (optional)</label>
+                                                <input
+                                                    type="text"
+                                                    value={currentTeam.logoUrl}
+                                                    onChange={(e) => updateTeamField('logoUrl', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                    placeholder="https://example.com/logo.png"
+                                                />
+                                            </div>
+
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold mb-2">Secondary Logo URL (optional)</label>
+                                                <input
+                                                    type="text"
+                                                    value={currentTeam.secondaryLogoUrl}
+                                                    onChange={(e) => updateTeamField('secondaryLogoUrl', e.target.value)}
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                    placeholder="https://example.com/secondary-logo.png"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Team Preview */}
+                                        <div className="mt-6 p-4 bg-slate-700 rounded-lg">
+                                            <h4 className="font-bold mb-2">Preview</h4>
+                                            <div 
+                                                className="p-4 rounded-lg text-center"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${currentTeam.primaryColor} 0%, ${currentTeam.secondaryColor} 100%)`
+                                                }}
+                                            >
+                                                <div className="text-2xl font-bold">{currentTeam.abbrev}</div>
+                                                <div className="text-xl">{currentTeam.city} {currentTeam.name}</div>
+                                                <div className="text-sm mt-2">{currentTeam.conference} - {currentTeam.division}</div>
+                                                <div className="text-xs mt-1">Capacity: {currentTeam.capacity.toLocaleString()}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!currentTeam && customTeams.length === 0 && (
+                                    <div className="lg:col-span-2 bg-slate-800 rounded-lg p-6 shadow-xl text-center">
+                                        <p className="text-gray-400 text-lg mb-4">No teams yet. Click "+ Add" to create your first team!</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="mt-6 flex justify-center gap-4">
+                                <button
+                                    onClick={saveCustomTeams}
+                                    className="bg-green-600 hover:bg-green-700 px-8 py-3 rounded-lg font-bold text-lg shadow-xl"
+                                >
+                                    ✓ Save Teams
+                                </button>
+                                <button
+                                    onClick={cancelTeamEditing}
+                                    className="bg-gray-600 hover:bg-gray-700 px-8 py-3 rounded-lg font-bold text-lg shadow-xl"
+                                >
+                                    ✕ Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // LEAGUE SETTINGS SCREEN
+            if (currentView === 'league-settings') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6 overflow-y-auto">
+                        <div className="max-w-5xl mx-auto pb-12">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-bold mb-2">League Settings</h1>
+                                <p className="text-gray-300">Customize your league - Managing: {currentTeam}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Season Structure */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-blue-400">⚙️ Season Structure</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Regular Season Games</label>
+                                            <select 
+                                                value={regularSeasonGames}
+                                                onChange={(e) => setRegularSeasonGames(parseInt(e.target.value))}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="50">50 games</option>
+                                                <option value="58">58 games</option>
+                                                <option value="72">72 games</option>
+                                                <option value="82">82 games (Default)</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Playoff Teams</label>
+                                            <select 
+                                                value={playoffTeams}
+                                                onChange={(e) => setPlayoffTeams(parseInt(e.target.value))}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="4">4 teams</option>
+                                                <option value="6">6 teams</option>
+                                                <option value="8">8 teams</option>
+                                                <option value="10">10 teams</option>
+                                                <option value="12">12 teams</option>
+                                                <option value="16">16 teams (Default)</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Playoff Series Length</label>
+                                            <select 
+                                                value={playoffSeriesLength}
+                                                onChange={(e) => setPlayoffSeriesLength(parseInt(e.target.value))}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="3">Best of 3</option>
+                                                <option value="5">Best of 5</option>
+                                                <option value="7">Best of 7 (Default)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Player Development */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-green-400">📈 Player Development</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Player Progression Speed</label>
+                                            <select 
+                                                value={playerProgressionSpeed}
+                                                onChange={(e) => setPlayerProgressionSpeed(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Slow">Slow</option>
+                                                <option value="Normal">Normal (Default)</option>
+                                                <option value="Fast">Fast</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Injury Frequency</label>
+                                            <select 
+                                                value={injuryFrequency}
+                                                onChange={(e) => setInjuryFrequency(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="None">None</option>
+                                                <option value="Low">Low</option>
+                                                <option value="Normal">Normal (Default)</option>
+                                                <option value="High">High</option>
+                                                <option value="Realistic">Realistic</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Retirement Age Variance</label>
+                                            <select 
+                                                value={retirementAgeVariance}
+                                                onChange={(e) => setRetirementAgeVariance(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Strict 35-38">Strict 35-38</option>
+                                                <option value="Normal 35-40">Normal 35-40 (Default)</option>
+                                                <option value="Random">Random</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Draft Settings */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-purple-400">🎯 Draft Settings</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Number of Draft Rounds</label>
+                                            <select 
+                                                value={draftRounds}
+                                                onChange={(e) => setDraftRounds(parseInt(e.target.value))}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="1">1 round</option>
+                                                <option value="2">2 rounds (Default)</option>
+                                                <option value="3">3 rounds</option>
+                                                <option value="4">4 rounds</option>
+                                                <option value="5">5 rounds</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Draft Lottery Odds</label>
+                                            <select 
+                                                value={draftLotteryOdds}
+                                                onChange={(e) => setDraftLotteryOdds(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Weighted by record">Weighted by record (Default)</option>
+                                                <option value="Completely random">Completely random</option>
+                                                <option value="Balanced">Balanced</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Rookie Class Quality</label>
+                                            <select 
+                                                value={rookieClassQuality}
+                                                onChange={(e) => setRookieClassQuality(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Weak">Weak</option>
+                                                <option value="Average">Average (Default)</option>
+                                                <option value="Strong">Strong</option>
+                                                <option value="Random each year">Random each year</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Financial */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-yellow-400">💰 Financial</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Starting Team Budget</label>
+                                            <input 
+                                                type="number"
+                                                value={startingBudget}
+                                                onChange={(e) => setStartingBudget(parseInt(e.target.value) || 0)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                placeholder="50000000"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">${(startingBudget / 1000000).toFixed(1)}M</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Revenue Difficulty</label>
+                                            <select 
+                                                value={revenueDifficulty}
+                                                onChange={(e) => setRevenueDifficulty(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Easy">Easy</option>
+                                                <option value="Normal">Normal (Default)</option>
+                                                <option value="Hard">Hard</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Custom Salary Cap</label>
+                                            <input 
+                                                type="number"
+                                                value={customSalaryCap}
+                                                onChange={(e) => setCustomSalaryCap(parseInt(e.target.value) || 0)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                placeholder="140000000"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">${(customSalaryCap / 1000000).toFixed(1)}M</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Custom Luxury Tax Threshold</label>
+                                            <input 
+                                                type="number"
+                                                value={customLuxuryTax}
+                                                onChange={(e) => setCustomLuxuryTax(parseInt(e.target.value) || 0)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                placeholder="165000000"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">${(customLuxuryTax / 1000000).toFixed(1)}M</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={luxuryTaxEnabled}
+                                                    onChange={(e) => setLuxuryTaxEnabled(e.target.checked)}
+                                                    className="w-5 h-5"
+                                                />
+                                                <span className="text-sm">Enable Luxury Tax Penalties</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Simulation */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-red-400">⚡ Simulation</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Auto-Save Frequency</label>
+                                            <select 
+                                                value={autoSaveFrequency}
+                                                onChange={(e) => setAutoSaveFrequency(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Every season">Every season (Default)</option>
+                                                <option value="Every playoff">Every playoff</option>
+                                                <option value="Manual only">Manual only</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Simulation Speed</label>
+                                            <select 
+                                                value={simulationSpeed}
+                                                onChange={(e) => setSimulationSpeed(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Instant">Instant (Default)</option>
+                                                <option value="Fast">Fast</option>
+                                                <option value="Detailed">Detailed</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Historical Stat Tracking</label>
+                                            <select 
+                                                value={historicalStatTracking}
+                                                onChange={(e) => setHistoricalStatTracking(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Basic">Basic</option>
+                                                <option value="Standard">Standard (Default)</option>
+                                                <option value="Comprehensive">Comprehensive</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* League Structure */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl">
+                                    <h3 className="text-2xl font-bold mb-4 text-cyan-400">🏆 League Structure</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Number of Divisions</label>
+                                            <input 
+                                                type="number"
+                                                value={numDivisions}
+                                                onChange={(e) => setNumDivisions(parseInt(e.target.value) || 0)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                min="0"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Number of Conferences</label>
+                                            <input 
+                                                type="number"
+                                                value={numConferences}
+                                                onChange={(e) => setNumConferences(parseInt(e.target.value) || 0)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                min="1"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={conferencesEnabled}
+                                                    onChange={(e) => setConferencesEnabled(e.target.checked)}
+                                                    className="w-5 h-5"
+                                                />
+                                                <span className="text-sm">Enable Conferences (Single table if unchecked)</span>
+                                            </label>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Playoff Seeding</label>
+                                            <select 
+                                                value={playoffSeeding}
+                                                onChange={(e) => setPlayoffSeeding(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Division winners prioritized">Division winners prioritized (Default)</option>
+                                                <option value="Pure record-based">Pure record-based</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Realism Options */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl lg:col-span-2">
+                                    <h3 className="text-2xl font-bold mb-4 text-orange-400">🎮 Realism Options</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Player Name Generation</label>
+                                            <select 
+                                                value={playerNameGeneration}
+                                                onChange={(e) => setPlayerNameGeneration(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="Generated">Generated (Default)</option>
+                                                <option value="NBA-inspired">NBA-inspired</option>
+                                                <option value="Custom list">Custom list</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={playerMoraleEnabled}
+                                                    onChange={(e) => setPlayerMoraleEnabled(e.target.checked)}
+                                                    className="w-5 h-5"
+                                                />
+                                                <span className="text-sm">Enable Player Morale System</span>
+                                            </label>
+
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={coachRatingsEnabled}
+                                                    onChange={(e) => setCoachRatingsEnabled(e.target.checked)}
+                                                    className="w-5 h-5"
+                                                />
+                                                <span className="text-sm">Enable Coach Ratings</span>
+                                            </label>
+
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={teamChemistryEnabled}
+                                                    onChange={(e) => setTeamChemistryEnabled(e.target.checked)}
+                                                    className="w-5 h-5"
+                                                />
+                                                <span className="text-sm">Enable Team Chemistry</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* General Difficulty (moved to bottom) */}
+                                <div className="bg-slate-800 rounded-lg p-6 shadow-2xl lg:col-span-2">
+                                    <h3 className="text-2xl font-bold mb-4 text-pink-400">🎯 General Difficulty</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2">Difficulty Level</label>
+                                            <select 
+                                                value={difficulty}
+                                                onChange={(e) => setDifficulty(e.target.value)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                            >
+                                                <option value="easy">Easy - AI teams less competitive</option>
+                                                <option value="normal">Normal - Balanced gameplay</option>
+                                                <option value="hard">Hard - Challenging competition</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center">
+                                            <label className="flex items-center space-x-3 cursor-pointer">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={salaryCapEnabled}
+                                                    onChange={(e) => setSalaryCapEnabled(e.target.checked)}
+                                                    className="w-6 h-6"
+                                                />
+                                                <span>Enable Salary Cap Rules</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="mt-8 flex justify-center gap-4">
+                                <button 
+                                    onClick={createLeagueWithSettings}
+                                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 px-12 py-4 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
+                                >
+                                    🏀 Start League
+                                </button>
+                                <button 
+                                    onClick={() => setCurrentView('team-select')}
+                                    className="bg-gray-600 hover:bg-gray-700 px-8 py-4 rounded-lg font-bold text-xl shadow-xl"
+                                >
+                                    ← Back
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // MAIN GAME VIEW with Navigation
+            if (currentView === 'game') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+                        {/* Top Header */}
+                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-2xl">
+                            <div className="max-w-7xl mx-auto px-6 py-4">
+                                <div className="flex justify-between items-center">
+                                    <h1 className="text-3xl font-bold">🏀 HOOPS DYNASTY</h1>
+                                    <div className="flex gap-4 items-center text-sm">
+                                        <span>📅 Season {currentSeason}</span>
+                                        <span>🏆 {currentTeam}</span>
+                                        <span>💰 ${(capSpace / 1000000).toFixed(1)}M cap</span>
+                                        <span className="capitalize">📊 {seasonPhase}</span>
+                                        <button 
+                                            onClick={exitToHome}
+                                            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-semibold ml-4"
+                                        >
+                                            Exit to Menu
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex">
+                            {/* Sidebar Navigation */}
+                            <div className="w-64 bg-slate-800 min-h-screen p-4 shadow-xl">
+                                <nav className="space-y-2">
+                                    {[
+                                        { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+                                        { id: 'roster', icon: '👥', label: 'Roster' },
+                                        { id: 'standings', icon: '📊', label: 'League Standings' },
+                                        { id: 'draft', icon: '🎯', label: 'Draft', disabled: true },
+                                        { id: 'trades', icon: '🔄', label: 'Trades', disabled: true },
+                                        { id: 'free-agency', icon: '✍️', label: 'Free Agency', disabled: true },
+                                        { id: 'finances', icon: '💰', label: 'Finances' },
+                                        { id: 'history', icon: '📜', label: 'History', disabled: true }
+                                    ].map(item => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => !item.disabled && setCurrentPage(item.id)}
+                                            disabled={item.disabled}
+                                            className={`w-full text-left px-4 py-3 rounded-lg font-semibold flex items-center gap-3 ${
+                                                currentPage === item.id 
+                                                    ? 'bg-blue-600' 
+                                                    : item.disabled 
+                                                        ? 'bg-slate-700 text-gray-500 cursor-not-allowed' 
+                                                        : 'hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            <span className="text-xl">{item.icon}</span>
+                                            <span>{item.label}</span>
+                                            {item.disabled && <span className="ml-auto text-xs">(Soon)</span>}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+
+                            {/* Main Content Area */}
+                            <div className="flex-1 p-6">
+                                {currentPage === 'dashboard' && (
+                                    <div>
+                                        <h2 className="text-3xl font-bold mb-6">Dashboard</h2>
+                                        
+                                        {/* Quick Stats */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-3 text-blue-400">Team Performance</h3>
+                                                <div className="space-y-2">
+                                                    <p className="text-3xl font-bold">{standings[currentTeam]?.wins || 0}-{standings[currentTeam]?.losses || 0}</p>
+                                                    <p className="text-sm text-gray-400">Season Record</p>
+                                                    <p className="text-lg">🏆 {championships[currentTeam] || 0} Championships</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-3 text-green-400">Roster Overview</h3>
+                                                <div className="space-y-2">
+                                                    <p className="text-3xl font-bold">{myPlayers.length}</p>
+                                                    <p className="text-sm text-gray-400">Players</p>
+                                                    <p className="text-lg">Avg Rating: {avgRating}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-3 text-yellow-400">Financial Status</h3>
+                                                <div className="space-y-2">
+                                                    <p className="text-3xl font-bold">${(capSpace / 1000000).toFixed(1)}M</p>
+                                                    <p className="text-sm text-gray-400">Cap Space</p>
+                                                    <p className={`text-lg ${totalSalary > LUXURY_TAX ? 'text-red-400' : 'text-green-400'}`}>
+                                                        {totalSalary > LUXURY_TAX ? '⚠️ Over Tax' : '✓ Under Cap'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Quick Actions */}
+                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                            <h3 className="text-2xl font-bold mb-4">Quick Actions</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {seasonPhase === 'preseason' && (
+                                                    <button onClick={simulateSeason} className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-lg font-bold text-lg">
+                                                        ▶️ Simulate Season
+                                                    </button>
+                                                )}
+                                                {seasonPhase === 'playoffs' && (
+                                                    <button onClick={simulatePlayoffs} className="bg-yellow-600 hover:bg-yellow-700 px-6 py-4 rounded-lg font-bold text-lg">
+                                                        🏆 Simulate Playoffs
+                                                    </button>
+                                                )}
+                                                {seasonPhase === 'offseason' && (
+                                                    <button onClick={advanceToNextSeason} className="bg-blue-600 hover:bg-blue-700 px-6 py-4 rounded-lg font-bold text-lg">
+                                                        ⏭️ Start Next Season
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {currentPage === 'roster' && (
+                                    <div>
+                                        <h2 className="text-3xl font-bold mb-6">Team Roster</h2>
+                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead className="bg-slate-700">
+                                                        <tr>
+                                                            <th className="px-4 py-3 text-left">Name</th>
+                                                            <th className="px-4 py-3">Pos</th>
+                                                            <th className="px-4 py-3">Age</th>
+                                                            <th className="px-4 py-3">Ovr</th>
+                                                            <th className="px-4 py-3">Pot</th>
+                                                            <th className="px-4 py-3">Contract</th>
+                                                            <th className="px-4 py-3">Salary</th>
+                                                            <th className="px-4 py-3">PPG</th>
+                                                            <th className="px-4 py-3">RPG</th>
+                                                            <th className="px-4 py-3">APG</th>
+                                                            <th className="px-4 py-3">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {myPlayers.sort((a, b) => b.rating - a.rating).map(player => (
+                                                            <tr key={player.id} className="border-b border-slate-700 hover:bg-slate-700">
+                                                                <td className="px-4 py-3 font-semibold">{player.name}</td>
+                                                                <td className="px-4 py-3 text-center">{player.position}</td>
+                                                                <td className="px-4 py-3 text-center">{player.age}</td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <span className={player.rating >= 80 ? 'text-green-400 font-bold' : player.rating >= 70 ? 'text-blue-400' : 'text-gray-400'}>
+                                                                        {player.rating}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-purple-400">{player.potential}</td>
+                                                                <td className="px-4 py-3 text-center">{player.contractYears}yr</td>
+                                                                <td className="px-4 py-3 text-center">${(player.salary / 1000000).toFixed(1)}M</td>
+                                                                <td className="px-4 py-3 text-center">{player.ppg}</td>
+                                                                <td className="px-4 py-3 text-center">{player.rpg}</td>
+                                                                <td className="px-4 py-3 text-center">{player.apg}</td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <button 
+                                                                        onClick={() => releasePlayer(player.id)}
+                                                                        className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm"
+                                                                    >
+                                                                        Release
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {currentPage === 'standings' && (
+                                    <div>
+                                        <h2 className="text-3xl font-bold mb-6">League Standings</h2>
+                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {Object.entries(standings)
+                                                    .sort((a, b) => b[1].wins - a[1].wins)
+                                                    .map(([team, record], index) => (
+                                                        <div 
+                                                            key={team} 
+                                                            className={`p-4 rounded-lg ${team === currentTeam ? 'bg-blue-700' : 'bg-slate-700'}`}
+                                                        >
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <div className="text-sm text-gray-400">#{index + 1}</div>
+                                                                    <div className="font-bold text-lg">{team}</div>
+                                                                    <div className="text-2xl font-bold">{record.wins}-{record.losses}</div>
+                                                                </div>
+                                                                {championships[team] > 0 && (
+                                                                    <div className="text-yellow-400">
+                                                                        🏆 {championships[team]}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {currentPage === 'finances' && (
+                                    <div>
+                                        <h2 className="text-3xl font-bold mb-6">Team Finances</h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4">Salary Overview</h3>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <div className="flex justify-between mb-2">
+                                                            <span>Total Payroll</span>
+                                                            <span className="font-bold">${(totalSalary / 1000000).toFixed(2)}M</span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-700 rounded-full h-4">
+                                                            <div 
+                                                                className={`h-4 rounded-full ${totalSalary > LUXURY_TAX ? 'bg-red-600' : totalSalary > SALARY_CAP ? 'bg-yellow-600' : 'bg-green-600'}`}
+                                                                style={{width: `${Math.min(100, (totalSalary / LUXURY_TAX) * 100)}%`}}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Salary Cap</span>
+                                                        <span>${(SALARY_CAP / 1000000).toFixed(1)}M</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Luxury Tax Line</span>
+                                                        <span>${(LUXURY_TAX / 1000000).toFixed(1)}M</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="font-bold">Cap Space</span>
+                                                        <span className={`font-bold ${capSpace < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                            ${(capSpace / 1000000).toFixed(2)}M
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4">Top Salaries</h3>
+                                                <div className="space-y-2">
+                                                    {myPlayers
+                                                        .sort((a, b) => b.salary - a.salary)
+                                                        .slice(0, 5)
+                                                        .map(player => (
+                                                            <div key={player.id} className="flex justify-between items-center p-2 bg-slate-700 rounded">
+                                                                <span>{player.name}</span>
+                                                                <span className="font-bold">${(player.salary / 1000000).toFixed(1)}M</span>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+        };
+
+        ReactDOM.render(<BasketballGM />, document.getElementById('root'));
+    </script>
+</body>
+</html>
