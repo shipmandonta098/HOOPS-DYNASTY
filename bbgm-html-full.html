@@ -16,13 +16,15 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // IndexedDB Setup with Dexie
+        // IndexedDB Setup with Dexie - Fresh start
         const db = new Dexie('BasketballGM');
+        
         db.version(1).stores({
-            players: '++id, team, season, age, rating',
-            teams: 'name, season',
-            seasons: 'year',
-            gameState: 'id'
+            leagues: '++id, name, createdDate, lastPlayed',
+            players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
+            teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season',
+            seasons: '++id, [leagueId+year], leagueId, year',
+            gameState: '++id, leagueId'
         });
 
         const SALARY_CAP = 140000000;
@@ -39,8 +41,13 @@
             const [allTeamNames, setAllTeamNames] = useState([]);
             const [championships, setChampionships] = useState({});
             
+            // League management state
+            const [currentLeagueId, setCurrentLeagueId] = useState(null);
+            const [allLeagues, setAllLeagues] = useState([]);
+            const [newLeagueName, setNewLeagueName] = useState('');
+            
             // New state for home screen and navigation
-            const [currentView, setCurrentView] = useState('home'); // home, team-select, league-settings, game, edit-teams
+            const [currentView, setCurrentView] = useState('home'); // home, league-select, team-select, league-settings, game, edit-teams
             const [currentPage, setCurrentPage] = useState('dashboard'); // dashboard, roster, standings, finances, etc.
             const [leagueExists, setLeagueExists] = useState(false);
             const [difficulty, setDifficulty] = useState('normal');
@@ -76,14 +83,68 @@
             const [playerMoraleEnabled, setPlayerMoraleEnabled] = useState(false);
             const [coachRatingsEnabled, setCoachRatingsEnabled] = useState(false);
             const [teamChemistryEnabled, setTeamChemistryEnabled] = useState(false);
+            const [rosterSize, setRosterSize] = useState(15);
+            const [selectedPlayer, setSelectedPlayer] = useState(null);
+            const [viewingPlayerProfile, setViewingPlayerProfile] = useState(false);
 
             useEffect(() => {
                 checkForExistingLeague();
             }, []);
 
             useEffect(() => {
-                checkForExistingLeague();
+                loadAllLeagues();
             }, []);
+
+            async function loadAllLeagues() {
+                try {
+                    const leagues = await db.leagues.toArray();
+                    setAllLeagues(leagues);
+                    setLeagueExists(leagues.length > 0);
+                    setLoading(false);
+                } catch (error) {
+                    console.error('Error loading leagues:', error);
+                    setLoading(false);
+                }
+            }
+
+            async function createNewLeaguePrompt() {
+                const leagueCount = allLeagues.length + 1;
+                setNewLeagueName(`League ${leagueCount}`);
+                setCurrentView('team-select');
+            }
+
+            async function selectLeague(leagueId) {
+                setLoading(true);
+                setCurrentLeagueId(leagueId);
+                await loadExistingGame(leagueId);
+                setCurrentView('game');
+                setLoading(false);
+            }
+
+            async function renameLeague(leagueId, currentName) {
+                const newName = prompt('Enter new league name:', currentName);
+                if (newName && newName.trim()) {
+                    await db.leagues.update(leagueId, { name: newName.trim() });
+                    await loadAllLeagues();
+                }
+            }
+
+            async function deleteLeague(leagueId, leagueName) {
+                if (confirm(`Are you sure you want to delete "${leagueName}"? This cannot be undone.`)) {
+                    try {
+                        await db.leagues.delete(leagueId);
+                        await db.players.where('leagueId').equals(leagueId).delete();
+                        await db.teams.where('leagueId').equals(leagueId).delete();
+                        await db.seasons.where('leagueId').equals(leagueId).delete();
+                        await db.gameState.where('leagueId').equals(leagueId).delete();
+                        await loadAllLeagues();
+                        alert('League deleted successfully!');
+                    } catch (error) {
+                        console.error('Error deleting league:', error);
+                        alert('Error deleting league.');
+                    }
+                }
+            }
 
             async function checkForExistingLeague() {
                 try {
@@ -93,6 +154,193 @@
                 } catch (error) {
                     console.error('Error checking for league:', error);
                     setLoading(false);
+                }
+            }
+
+            function generatePlayerArchetype(skills, position) {
+                const archetypes = {
+                    'PG': ['Floor General', 'Scoring Guard', 'Playmaker', 'Two-Way Guard'],
+                    'SG': ['Sharpshooter', 'Slasher', 'Two-Way Wing', 'Scoring Guard'],
+                    'SF': ['Three-and-D Wing', 'Slasher', 'Point Forward', 'Two-Way Wing'],
+                    'PF': ['Stretch Four', 'Inside Scorer', 'Two-Way Forward', 'Glass Cleaner'],
+                    'C': ['Rim Protector', 'Post Scorer', 'Stretch Five', 'Glass Cleaner']
+                };
+                
+                const posArchetypes = archetypes[position] || archetypes['SF'];
+                return posArchetypes[Math.floor(Math.random() * posArchetypes.length)];
+            }
+
+            function generatePlayerBadges(skills, position) {
+                const badges = [];
+                if (skills.threePoint >= 85) badges.push('Three-Point Specialist');
+                if (skills.defense >= 85) badges.push('Defensive Anchor');
+                if (skills.passing >= 85) badges.push('Floor General');
+                if (skills.blocking >= 85) badges.push('Rim Protector');
+                if (skills.rebounding >= 85) badges.push('Glass Cleaner');
+                if (skills.clutch >= 85) badges.push('Clutch Performer');
+                if (skills.insideScoring >= 85) badges.push('Inside Force');
+                if (skills.ballHandling >= 85) badges.push('Playmaker');
+                return badges;
+            }
+
+            function getCareerTrajectory(age, rating, potential) {
+                if (age < 25 && potential > rating + 10) return 'Rising Star';
+                if (age >= 25 && age <= 29) return 'Prime';
+                if (age > 29 && rating >= 80) return 'Steady Veteran';
+                if (age > 32) return 'Declining';
+                return 'Steady';
+            }
+
+            function generateBirthdate(age) {
+                const currentYear = 2025;
+                const birthYear = currentYear - age;
+                const month = Math.floor(Math.random() * 12);
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                const day = Math.floor(Math.random() * daysInMonth[month]) + 1;
+                
+                return {
+                    month: monthNames[month],
+                    day,
+                    year: birthYear,
+                    formatted: `${monthNames[month]} ${day}, ${birthYear}`
+                };
+            }
+
+            function generateHometown() {
+                const hometowns = [
+                    'Los Angeles, California', 'Chicago, Illinois', 'Houston, Texas', 'Phoenix, Arizona',
+                    'Philadelphia, Pennsylvania', 'San Antonio, Texas', 'San Diego, California', 'Dallas, Texas',
+                    'San Jose, California', 'Austin, Texas', 'Jacksonville, Florida', 'Fort Worth, Texas',
+                    'Columbus, Ohio', 'Charlotte, North Carolina', 'Indianapolis, Indiana', 'Seattle, Washington',
+                    'Denver, Colorado', 'Boston, Massachusetts', 'Detroit, Michigan', 'Memphis, Tennessee',
+                    'Portland, Oregon', 'Oklahoma City, Oklahoma', 'Las Vegas, Nevada', 'Louisville, Kentucky',
+                    'Baltimore, Maryland', 'Milwaukee, Wisconsin', 'Albuquerque, New Mexico', 'Tucson, Arizona',
+                    'Fresno, California', 'Sacramento, California', 'Atlanta, Georgia', 'Miami, Florida',
+                    'Cleveland, Ohio', 'New Orleans, Louisiana', 'Oakland, California', 'Minneapolis, Minnesota',
+                    'Brooklyn, New York', 'Tampa, Florida', 'Newark, New Jersey', 'Washington, D.C.',
+                    'St. Louis, Missouri', 'Pittsburgh, Pennsylvania', 'Cincinnati, Ohio', 'Kansas City, Missouri',
+                    'Raleigh, North Carolina', 'Omaha, Nebraska', 'Virginia Beach, Virginia'
+                ];
+                return hometowns[Math.floor(Math.random() * hometowns.length)];
+            }
+
+            function generateCollege(age) {
+                const colleges = [
+                    'Duke University', 'Kentucky', 'North Carolina', 'Kansas', 'UCLA', 'Gonzaga', 'Villanova',
+                    'Michigan', 'Arizona', 'Syracuse', 'Louisville', 'Michigan State', 'Connecticut',
+                    'Indiana', 'Florida', 'Texas', 'Memphis', 'Maryland', 'Ohio State', 'Wisconsin',
+                    'Purdue', 'Illinois', 'Stanford', 'USC', 'Georgetown', 'Notre Dame', 'Virginia',
+                    'Baylor', 'Oregon', 'Tennessee', 'Alabama', 'LSU', 'Wake Forest', 'Georgia Tech'
+                ];
+                
+                const international = ['France', 'Spain', 'Serbia', 'Croatia', 'Australia', 'Canada', 'Lithuania', 'Greece', 'Germany', 'Argentina'];
+                
+                // Young players (19-20) might be international or high school
+                if (age <= 20 && Math.random() < 0.2) {
+                    return Math.random() < 0.5 ? 'High School' : international[Math.floor(Math.random() * international.length)];
+                }
+                
+                // Some chance of international for any age
+                if (Math.random() < 0.15) {
+                    return international[Math.floor(Math.random() * international.length)];
+                }
+                
+                return colleges[Math.floor(Math.random() * colleges.length)];
+            }
+
+            function generateDraftInfo(age, rating, teamNames) {
+                const yearsInLeague = Math.max(0, age - 19);
+                const draftYear = 2025 - yearsInLeague;
+                
+                // Higher rated players more likely to be drafted higher
+                // Undrafted chance for lower rated players
+                if (rating < 60 && Math.random() < 0.3) {
+                    return {
+                        year: draftYear,
+                        round: null,
+                        pick: null,
+                        team: null,
+                        undrafted: true,
+                        formatted: 'Undrafted'
+                    };
+                }
+                
+                let round, pick;
+                if (rating >= 80) {
+                    // Elite players: lottery picks
+                    round = 1;
+                    pick = Math.floor(Math.random() * 14) + 1;
+                } else if (rating >= 70) {
+                    // Good players: first round
+                    round = 1;
+                    pick = Math.floor(Math.random() * 30) + 1;
+                } else {
+                    // Others: mostly second round
+                    if (Math.random() < 0.3) {
+                        round = 1;
+                        pick = 15 + Math.floor(Math.random() * 15);
+                    } else {
+                        round = 2;
+                        pick = Math.floor(Math.random() * 30) + 1;
+                    }
+                }
+                
+                const draftTeam = teamNames[Math.floor(Math.random() * teamNames.length)];
+                
+                return {
+                    year: draftYear,
+                    round,
+                    pick,
+                    team: draftTeam,
+                    undrafted: false,
+                    formatted: `Round ${round}, Pick ${pick}`
+                };
+            }
+
+            function generatePhysicalAttributes(position) {
+                const heights = {
+                    'PG': [72, 76], // 6'0" - 6'4"
+                    'SG': [74, 78], // 6'2" - 6'6"
+                    'SF': [77, 81], // 6'5" - 6'9"
+                    'PF': [80, 84], // 6'8" - 7'0"
+                    'C': [82, 88]   // 6'10" - 7'4"
+                };
+                
+                const range = heights[position] || heights['SF'];
+                const heightInches = range[0] + Math.floor(Math.random() * (range[1] - range[0]));
+                const weight = 160 + (heightInches - 72) * 5 + Math.floor(Math.random() * 40);
+                const wingspan = heightInches + Math.floor(Math.random() * 8) - 2;
+                
+                return {
+                    heightInches,
+                    weight,
+                    wingspan,
+                    verticalLeap: 24 + Math.floor(Math.random() * 20)
+                };
+            }
+
+            function openPlayerProfile(player) {
+                setSelectedPlayer(player);
+                setViewingPlayerProfile(true);
+            }
+
+            function closePlayerProfile() {
+                setSelectedPlayer(null);
+                setViewingPlayerProfile(false);
+            }
+
+            function navigateToNextPlayer() {
+                const currentIndex = myPlayers.findIndex(p => p.id === selectedPlayer.id);
+                if (currentIndex < myPlayers.length - 1) {
+                    setSelectedPlayer(myPlayers[currentIndex + 1]);
+                }
+            }
+
+            function navigateToPreviousPlayer() {
+                const currentIndex = myPlayers.findIndex(p => p.id === selectedPlayer.id);
+                if (currentIndex > 0) {
+                    setSelectedPlayer(myPlayers[currentIndex - 1]);
                 }
             }
 
@@ -205,72 +453,112 @@
 
             async function createLeagueWithSettings() {
                 setLoading(true);
-                setCurrentView('game');
-                await createNewGame();
-                setLoading(false);
+                try {
+                    // Prompt for league name if not set
+                    if (!newLeagueName || !newLeagueName.trim()) {
+                        const leagueCount = allLeagues.length + 1;
+                        setNewLeagueName(`League ${leagueCount}`);
+                    }
+                    
+                    const leagueId = await createNewGame();
+                    setCurrentLeagueId(leagueId);
+                    await loadAllLeagues();
+                    // Small delay to ensure state updates
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    setCurrentView('game');
+                } catch (error) {
+                    console.error('Error creating league:', error);
+                    alert('Error creating league: ' + error.message + '. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
             }
 
             async function continueLeague() {
-                setLoading(true);
-                setCurrentView('game');
-                await loadExistingGame();
-                setLoading(false);
+                setCurrentView('league-select');
             }
 
-            async function loadExistingGame() {
+            async function loadExistingGame(leagueId) {
                 try {
-                    const existingState = await db.gameState.get(1);
+                    console.log('Loading league with ID:', leagueId);
+                    const existingState = await db.gameState.where('leagueId').equals(leagueId).first();
                     
-                    if (existingState) {
-                        setCurrentSeason(existingState.currentSeason);
-                        setCurrentTeam(existingState.currentTeam);
-                        setSeasonPhase(existingState.seasonPhase);
-                        setStandings(existingState.standings || {});
-                        setChampionships(existingState.championships || {});
-                        setDifficulty(existingState.difficulty || 'normal');
-                        setSalaryCapEnabled(existingState.salaryCapEnabled !== false);
-                        
-                        // Load all league settings
-                        setRegularSeasonGames(existingState.regularSeasonGames || 82);
-                        setPlayoffTeams(existingState.playoffTeams || 16);
-                        setPlayoffSeriesLength(existingState.playoffSeriesLength || 7);
-                        setPlayerProgressionSpeed(existingState.playerProgressionSpeed || 'Normal');
-                        setInjuryFrequency(existingState.injuryFrequency || 'Normal');
-                        setRetirementAgeVariance(existingState.retirementAgeVariance || 'Normal 35-40');
-                        setDraftRounds(existingState.draftRounds || 2);
-                        setDraftLotteryOdds(existingState.draftLotteryOdds || 'Weighted by record');
-                        setRookieClassQuality(existingState.rookieClassQuality || 'Average');
-                        setStartingBudget(existingState.startingBudget || 50000000);
-                        setRevenueDifficulty(existingState.revenueDifficulty || 'Normal');
-                        setLuxuryTaxEnabled(existingState.luxuryTaxEnabled !== false);
-                        setCustomSalaryCap(existingState.customSalaryCap || 140000000);
-                        setCustomLuxuryTax(existingState.customLuxuryTax || 165000000);
-                        setAutoSaveFrequency(existingState.autoSaveFrequency || 'Every season');
-                        setSimulationSpeed(existingState.simulationSpeed || 'Instant');
-                        setHistoricalStatTracking(existingState.historicalStatTracking || 'Standard');
-                        setNumDivisions(existingState.numDivisions || 6);
-                        setNumConferences(existingState.numConferences || 2);
-                        setConferencesEnabled(existingState.conferencesEnabled !== false);
-                        setPlayoffSeeding(existingState.playoffSeeding || 'Division winners prioritized');
-                        setPlayerNameGeneration(existingState.playerNameGeneration || 'Generated');
-                        setPlayerMoraleEnabled(existingState.playerMoraleEnabled || false);
-                        setCoachRatingsEnabled(existingState.coachRatingsEnabled || false);
-                        setTeamChemistryEnabled(existingState.teamChemistryEnabled || false);
-                        
-                        const teamData = await db.teams.where('season').equals(existingState.currentSeason).toArray();
-                        const teamsObj = {};
-                        teamData.forEach(t => teamsObj[t.name] = t);
-                        setTeams(teamsObj);
-                        setAllTeamNames(Object.keys(teamsObj));
-                        
-                        const players = await db.players
-                            .where(['team', 'season'])
-                            .equals([existingState.currentTeam, existingState.currentSeason])
-                            .toArray();
-                        setMyPlayers(players);
+                    console.log('Game state found:', existingState);
+                    
+                    if (!existingState) {
+                        console.error('No game state found for league ID:', leagueId);
+                        alert('Error: League data not found. The league may be corrupted.');
+                        setCurrentView('league-select');
+                        return;
                     }
+                    
+                    setCurrentSeason(existingState.currentSeason);
+                    setCurrentTeam(existingState.currentTeam);
+                    setSeasonPhase(existingState.seasonPhase);
+                    setStandings(existingState.standings || {});
+                    setChampionships(existingState.championships || {});
+                    setDifficulty(existingState.difficulty || 'normal');
+                    setSalaryCapEnabled(existingState.salaryCapEnabled !== false);
+                    
+                    // Load all league settings
+                    setRegularSeasonGames(existingState.regularSeasonGames || 82);
+                    setPlayoffTeams(existingState.playoffTeams || 16);
+                    setPlayoffSeriesLength(existingState.playoffSeriesLength || 7);
+                    setPlayerProgressionSpeed(existingState.playerProgressionSpeed || 'Normal');
+                    setInjuryFrequency(existingState.injuryFrequency || 'Normal');
+                    setRetirementAgeVariance(existingState.retirementAgeVariance || 'Normal 35-40');
+                    setDraftRounds(existingState.draftRounds || 2);
+                    setDraftLotteryOdds(existingState.draftLotteryOdds || 'Weighted by record');
+                    setRookieClassQuality(existingState.rookieClassQuality || 'Average');
+                    setStartingBudget(existingState.startingBudget || 50000000);
+                    setRevenueDifficulty(existingState.revenueDifficulty || 'Normal');
+                    setLuxuryTaxEnabled(existingState.luxuryTaxEnabled !== false);
+                    setCustomSalaryCap(existingState.customSalaryCap || 140000000);
+                    setCustomLuxuryTax(existingState.customLuxuryTax || 165000000);
+                    setAutoSaveFrequency(existingState.autoSaveFrequency || 'Every season');
+                    setSimulationSpeed(existingState.simulationSpeed || 'Instant');
+                    setHistoricalStatTracking(existingState.historicalStatTracking || 'Standard');
+                    setNumDivisions(existingState.numDivisions || 6);
+                    setNumConferences(existingState.numConferences || 2);
+                    setConferencesEnabled(existingState.conferencesEnabled !== false);
+                    setPlayoffSeeding(existingState.playoffSeeding || 'Division winners prioritized');
+                    setPlayerNameGeneration(existingState.playerNameGeneration || 'Generated');
+                    setPlayerMoraleEnabled(existingState.playerMoraleEnabled || false);
+                    setCoachRatingsEnabled(existingState.coachRatingsEnabled || false);
+                    setTeamChemistryEnabled(existingState.teamChemistryEnabled || false);
+                    setRosterSize(existingState.rosterSize || 15);
+                    
+                    const teamData = await db.teams.where('[leagueId+season]').equals([leagueId, existingState.currentSeason]).toArray();
+                    console.log('Teams loaded:', teamData.length);
+                    
+                    if (teamData.length === 0) {
+                        console.error('No teams found for league');
+                        alert('Error: No teams found for this league. The league data may be corrupted.');
+                        setCurrentView('league-select');
+                        return;
+                    }
+                    
+                    const teamsObj = {};
+                    teamData.forEach(t => teamsObj[t.name] = t);
+                    setTeams(teamsObj);
+                    setAllTeamNames(Object.keys(teamsObj));
+                    
+                    const players = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([leagueId, existingState.currentTeam, existingState.currentSeason])
+                        .toArray();
+                    
+                    console.log('Players loaded:', players.length);
+                    setMyPlayers(players);
+                    
+                    // Update last played timestamp
+                    await db.leagues.update(leagueId, { lastPlayed: new Date().toISOString() });
+                    
+                    console.log('League loaded successfully');
                 } catch (error) {
                     console.error('Error loading game:', error);
+                    alert('Error loading league: ' + error.message);
+                    setCurrentView('league-select');
                 }
             }
 
@@ -310,6 +598,14 @@
             }
 
             async function createNewGame() {
+                // Create league entry
+                const leagueName = newLeagueName && newLeagueName.trim() ? newLeagueName.trim() : `League ${allLeagues.length + 1}`;
+                const leagueId = await db.leagues.add({
+                    name: leagueName,
+                    createdDate: new Date().toISOString(),
+                    lastPlayed: new Date().toISOString()
+                });
+
                 const teamNames = customTeams.length > 0 
                     ? customTeams.map(t => `${t.city} ${t.name}`)
                     : [
@@ -321,6 +617,7 @@
                     ];
 
                 const teamsData = teamNames.map((name, idx) => ({
+                    leagueId,
                     name,
                     season: 2025,
                     wins: 0,
@@ -355,24 +652,132 @@
                 const lastNames = ['Johnson', 'Williams', 'Brown', 'Davis', 'Miller', 'Wilson', 'Moore', 'Taylor', 'Anderson', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Rodriguez', 'Lewis', 'Lee', 'Walker', 'Hall', 'Allen'];
 
                 teamNames.forEach(teamName => {
-                    for (let i = 0; i < 12; i++) {
+                    for (let i = 0; i < rosterSize; i++) {
                         const age = 19 + Math.floor(Math.random() * 15);
                         const potential = 50 + Math.floor(Math.random() * 50);
                         const baseRating = Math.max(40, Math.min(95, potential - (age - 22) * 2 + (Math.random() * 20 - 10)));
+                        const position = positions[Math.floor(Math.random() * positions.length)];
+                        const physical = generatePhysicalAttributes(position);
+                        
+                        // Generate skill ratings based on position and overall rating
+                        const variation = () => Math.floor(Math.random() * 20) - 10;
+                        const skills = {
+                            insideScoring: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['C', 'PF'].includes(position) ? 10 : -10)))),
+                            midRange: Math.max(30, Math.min(99, Math.round(baseRating + variation()))),
+                            threePoint: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['PG', 'SG', 'SF'].includes(position) ? 10 : -10)))),
+                            freeThrow: Math.max(30, Math.min(99, Math.round(baseRating + variation()))),
+                            passing: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (position === 'PG' ? 15 : 0)))),
+                            ballHandling: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['PG', 'SG'].includes(position) ? 10 : -5)))),
+                            perimeterDefense: Math.max(30, Math.min(99, Math.round(baseRating + variation()))),
+                            interiorDefense: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['C', 'PF'].includes(position) ? 10 : -10)))),
+                            offensiveRebounding: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['C', 'PF'].includes(position) ? 15 : -10)))),
+                            defensiveRebounding: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['C', 'PF'].includes(position) ? 15 : -10)))),
+                            blocking: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (position === 'C' ? 15 : -5)))),
+                            stealing: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['PG', 'SG'].includes(position) ? 5 : 0)))),
+                            bbiq: Math.max(30, Math.min(99, Math.round(baseRating + variation()))),
+                            speed: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['PG', 'SG'].includes(position) ? 10 : -10)))),
+                            strength: Math.max(30, Math.min(99, Math.round(baseRating + variation() + (['C', 'PF'].includes(position) ? 10 : -10)))),
+                            stamina: Math.max(30, Math.min(99, Math.round(baseRating + variation())))
+                        };
+                        
+                        // Personality/Intangibles
+                        const intangibles = {
+                            leadership: Math.floor(Math.random() * 100),
+                            workEthic: Math.floor(Math.random() * 100),
+                            coachability: Math.floor(Math.random() * 100),
+                            clutch: Math.floor(Math.random() * 100),
+                            consistency: Math.floor(Math.random() * 100),
+                            injuryProneness: ['Low', 'Medium', 'High'][Math.floor(Math.random() * 3)],
+                            morale: 75 + Math.floor(Math.random() * 25),
+                            chemistry: 70 + Math.floor(Math.random() * 30)
+                        };
+                        
+                        const archetype = generatePlayerArchetype(skills, position);
+                        const badges = generatePlayerBadges(skills, position);
+                        const rating = Math.round(baseRating);
+                        
+                        // Generate bio information
+                        const birthdate = generateBirthdate(age);
+                        const hometown = generateHometown();
+                        const college = generateCollege(age);
+                        const draftInfo = generateDraftInfo(age, rating, teamNames);
                         
                         allPlayers.push({
                             name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                            leagueId,
                             team: teamName,
                             season: 2025,
-                            position: positions[Math.floor(Math.random() * positions.length)],
-                            age: age,
-                            rating: Math.round(baseRating),
+                            position,
+                            age,
+                            rating,
                             potential: potential,
                             contractYears: 1 + Math.floor(Math.random() * 4),
                             salary: Math.round((baseRating / 100) * 40000000 + Math.random() * 5000000),
+                            jerseyNumber: (i % 99) + 1,
+                            // Physical
+                            ...physical,
+                            birthYear: 2025 - age,
+                            yearsInLeague: Math.max(0, age - 19),
+                            // Bio
+                            birthdate: birthdate.formatted,
+                            birthdateMonth: birthdate.month,
+                            birthdateDay: birthdate.day,
+                            birthdateYear: birthdate.year,
+                            hometown,
+                            college,
+                            // Skills (stored as JSON string)
+                            skills: JSON.stringify(skills),
+                            // Stats
                             ppg: 0,
                             rpg: 0,
-                            apg: 0
+                            apg: 0,
+                            fgPct: 0,
+                            threePct: 0,
+                            ftPct: 0,
+                            steals: 0,
+                            blocks: 0,
+                            turnovers: 0,
+                            minutesPerGame: 0,
+                            gamesPlayed: 0,
+                            // Advanced stats
+                            trueShootingPct: 0,
+                            per: 0,
+                            usageRate: 0,
+                            turnoverRate: 0,
+                            assistTurnoverRatio: 0,
+                            plusMinus: 0,
+                            winShares: 0,
+                            // Intangibles (stored as JSON string)
+                            intangibles: JSON.stringify(intangibles),
+                            // Career info
+                            archetype,
+                            badges: JSON.stringify(badges),
+                            trajectory: getCareerTrajectory(age, rating, potential),
+                            peakAge: 27 + Math.floor(Math.random() * 4),
+                            draftYear: draftInfo.year,
+                            draftRound: draftInfo.round,
+                            draftPick: draftInfo.pick,
+                            draftTeam: draftInfo.team,
+                            undrafted: draftInfo.undrafted,
+                            // Achievements (stored as JSON string)
+                            achievements: JSON.stringify({
+                                championships: 0,
+                                allStars: 0,
+                                allLeague: 0,
+                                mvps: 0,
+                                dpoy: 0,
+                                roy: 0
+                            }),
+                            // Injury
+                            injuryStatus: 'Healthy',
+                            injuryHistory: JSON.stringify([]),
+                            gamesMissed: 0,
+                            durability: 70 + Math.floor(Math.random() * 30),
+                            // Contract details
+                            playerOption: Math.random() > 0.8,
+                            teamOption: Math.random() > 0.9,
+                            noTradeClause: baseRating > 85 && Math.random() > 0.7,
+                            birdRights: Math.random() > 0.5
                         });
                     }
                 });
@@ -383,7 +788,7 @@
                 setMyPlayers(myTeamPlayers);
 
                 await db.gameState.add({
-                    id: 1,
+                    leagueId,
                     currentSeason: 2025,
                     currentTeam: currentTeam,
                     seasonPhase: 'preseason',
@@ -416,8 +821,11 @@
                     playerNameGeneration,
                     playerMoraleEnabled,
                     coachRatingsEnabled,
-                    teamChemistryEnabled
+                    teamChemistryEnabled,
+                    rosterSize
                 });
+                
+                return leagueId;
             }
 
             async function simulateSeason() {
@@ -443,7 +851,7 @@
                     }
 
                     // Update player stats and development
-                    const allPlayers = await db.players.where('season').equals(currentSeason).toArray();
+                    const allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
                     const updatedPlayers = allPlayers.map(p => {
                         const ageFactor = p.age < 27 ? 1 : (p.age > 30 ? -1 : 0);
                         const potentialDiff = p.potential - p.rating;
@@ -463,14 +871,15 @@
                     setStandings(newStandings);
                     setSeasonPhase('playoffs');
 
-                    await db.gameState.update(1, {
+                    const gameStateRecord = await db.gameState.where('leagueId').equals(currentLeagueId).first();
+                    await db.gameState.update(gameStateRecord.id, {
                         seasonPhase: 'playoffs',
                         standings: newStandings
                     });
 
                     const updatedMyPlayers = await db.players
-                        .where(['team', 'season'])
-                        .equals([currentTeam, currentSeason])
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, currentTeam, currentSeason])
                         .toArray();
                     setMyPlayers(updatedMyPlayers);
 
@@ -492,13 +901,15 @@
                     setChampionships(newChampionships);
                     setSeasonPhase('offseason');
 
-                    await db.gameState.update(1, {
+                    const gameStateRecord = await db.gameState.where('leagueId').equals(currentLeagueId).first();
+                    await db.gameState.update(gameStateRecord.id, {
                         seasonPhase: 'offseason',
                         championships: newChampionships
                     });
 
                     // Save season to history
                     await db.seasons.add({
+                        leagueId: currentLeagueId,
                         year: currentSeason,
                         champion,
                         standings: JSON.stringify(standings)
@@ -516,7 +927,7 @@
                     const nextSeason = currentSeason + 1;
                     
                     // Age players and update contracts
-                    const allPlayers = await db.players.where('season').equals(currentSeason).toArray();
+                    const allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
                     const updatedPlayers = allPlayers
                         .map(p => ({
                             ...p,
@@ -542,6 +953,7 @@
                         
                         rookies.push({
                             name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                            leagueId: currentLeagueId,
                             team: draftingTeam,
                             season: nextSeason,
                             position: positions[Math.floor(Math.random() * positions.length)],
@@ -557,11 +969,13 @@
                     }
 
                     // Clear old season players and add new ones
-                    await db.players.where('season').equals(currentSeason).delete();
+                    await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).delete();
                     await db.players.bulkAdd([...updatedPlayers, ...rookies]);
 
                     // Create new teams for new season
                     const newTeamsData = allTeamNames.map(name => ({
+                        leagueId: currentLeagueId,
+                        name,
                         name,
                         season: nextSeason,
                         wins: 0,
@@ -574,15 +988,16 @@
                     setSeasonPhase('preseason');
                     setStandings({});
 
-                    await db.gameState.update(1, {
+                    const gameStateRecord = await db.gameState.where('leagueId').equals(currentLeagueId).first();
+                    await db.gameState.update(gameStateRecord.id, {
                         currentSeason: nextSeason,
                         seasonPhase: 'preseason',
                         standings: {}
                     });
 
                     const newMyPlayers = await db.players
-                        .where(['team', 'season'])
-                        .equals([currentTeam, nextSeason])
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, currentTeam, nextSeason])
                         .toArray();
                     setMyPlayers(newMyPlayers);
 
@@ -602,19 +1017,17 @@
             }
 
             async function resetGame() {
-                if (confirm('Are you sure? This will delete all progress.')) {
+                if (confirm('Are you sure? This will delete ALL leagues and progress.')) {
                     await db.delete();
-                    setLeagueExists(false);
-                    setCurrentView('home');
-                    setCurrentPage('dashboard');
                     window.location.reload();
                 }
             }
 
             async function exitToHome() {
-                if (confirm('Return to main menu? Your progress is auto-saved.')) {
-                    setCurrentView('home');
+                if (confirm('Return to league selection? Your progress is auto-saved.')) {
+                    setCurrentView('league-select');
                     setCurrentPage('dashboard');
+                    await loadAllLeagues();
                 }
             }
 
@@ -646,33 +1059,102 @@
 
                             <div className="space-y-4">
                                 <button 
-                                    onClick={startNewLeague}
+                                    onClick={createNewLeaguePrompt}
                                     className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 px-8 py-6 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
                                 >
                                     🆕 Create New League
                                 </button>
 
                                 {leagueExists && (
-                                    <>
-                                        <button 
-                                            onClick={continueLeague}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-6 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
-                                        >
-                                            ▶️ Continue League
-                                        </button>
-
-                                        <button 
-                                            onClick={resetGame}
-                                            className="w-full bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 px-6 py-4 rounded-lg font-semibold text-lg shadow-xl"
-                                        >
-                                            🗑️ Delete Saved League
-                                        </button>
-                                    </>
+                                    <button 
+                                        onClick={continueLeague}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-6 rounded-lg font-bold text-2xl shadow-2xl transform hover:scale-105 transition"
+                                    >
+                                        ▶️ My Leagues ({allLeagues.length})
+                                    </button>
                                 )}
                             </div>
 
                             <div className="mt-12 text-center text-gray-400 text-sm">
                                 <p>Build your dynasty. Draft stars. Win championships.</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // LEAGUE SELECTION SCREEN
+            if (currentView === 'league-select') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white p-6">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-bold mb-2">My Leagues</h1>
+                                <p className="text-gray-300">Select a league to continue</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                                {allLeagues
+                                    .sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed))
+                                    .map(league => {
+                                        // Get league data
+                                        const getLeagueData = async () => {
+                                            const state = await db.gameState.get(league.id);
+                                            return state;
+                                        };
+                                        
+                                        return (
+                                            <div key={league.id} className="bg-slate-800 rounded-lg p-6 shadow-xl hover:shadow-2xl transition">
+                                                <div className="mb-4">
+                                                    <h3 className="text-2xl font-bold text-blue-400 mb-2">{league.name}</h3>
+                                                    <div className="text-sm text-gray-400">
+                                                        Last played: {new Date(league.lastPlayed).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 mb-4">
+                                                    <button
+                                                        onClick={() => selectLeague(league.id)}
+                                                        className="w-full bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-bold text-lg"
+                                                    >
+                                                        ▶️ Continue
+                                                    </button>
+                                                    
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={() => renameLeague(league.id, league.name)}
+                                                            className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded font-semibold text-sm"
+                                                        >
+                                                            ✏️ Rename
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteLeague(league.id, league.name)}
+                                                            className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded font-semibold text-sm"
+                                                        >
+                                                            🗑️ Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+
+                            <div className="text-center space-y-4">
+                                <button
+                                    onClick={createNewLeaguePrompt}
+                                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 px-8 py-4 rounded-lg font-bold text-xl shadow-xl"
+                                >
+                                    ➕ Create New League
+                                </button>
+                                <div>
+                                    <button 
+                                        onClick={() => setCurrentView('home')}
+                                        className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-semibold"
+                                    >
+                                        ← Back to Home
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1257,6 +1739,19 @@
                                     <h3 className="text-2xl font-bold mb-4 text-cyan-400">🏆 League Structure</h3>
                                     <div className="space-y-4">
                                         <div>
+                                            <label className="block text-sm font-semibold mb-2">Roster Size (Players per Team)</label>
+                                            <input 
+                                                type="number"
+                                                value={rosterSize}
+                                                onChange={(e) => setRosterSize(parseInt(e.target.value) || 12)}
+                                                className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2"
+                                                min="8"
+                                                max="20"
+                                            />
+                                            <p className="text-xs text-gray-400 mt-1">Recommended: 12-15 players</p>
+                                        </div>
+
+                                        <div>
                                             <label className="block text-sm font-semibold mb-2">Number of Divisions</label>
                                             <input 
                                                 type="number"
@@ -1409,6 +1904,18 @@
 
             // MAIN GAME VIEW with Navigation
             if (currentView === 'game') {
+                // Ensure data is loaded
+                if (!allTeamNames || allTeamNames.length === 0 || !currentTeam) {
+                    return (
+                        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center">
+                            <div className="text-center">
+                                <div className="text-2xl mb-4">Loading your league...</div>
+                                <div className="text-gray-400">Please wait</div>
+                            </div>
+                        </div>
+                    );
+                }
+
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
                         {/* Top Header */}
@@ -1467,46 +1974,305 @@
                             </div>
 
                             {/* Main Content Area */}
-                            <div className="flex-1 p-6">
+                            <div className="flex-1 p-6 overflow-y-auto">
                                 {currentPage === 'dashboard' && (
                                     <div>
                                         <h2 className="text-3xl font-bold mb-6">Dashboard</h2>
                                         
-                                        {/* Quick Stats */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                                <h3 className="text-xl font-bold mb-3 text-blue-400">Team Performance</h3>
-                                                <div className="space-y-2">
-                                                    <p className="text-3xl font-bold">{standings[currentTeam]?.wins || 0}-{standings[currentTeam]?.losses || 0}</p>
-                                                    <p className="text-sm text-gray-400">Season Record</p>
-                                                    <p className="text-lg">🏆 {championships[currentTeam] || 0} Championships</p>
+                                        {/* Top Row - Critical Info */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                            {/* League Standing & Playoff Picture */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl border-l-4 border-blue-500">
+                                                <h3 className="text-xl font-bold mb-4 text-blue-400">📊 League Standing</h3>
+                                                <div className="space-y-3">
+                                                    {(() => {
+                                                        const sortedStandings = Object.entries(standings).sort((a, b) => b[1].wins - a[1].wins);
+                                                        const myRank = sortedStandings.findIndex(([team]) => team === currentTeam) + 1;
+                                                        const myRecord = standings[currentTeam];
+                                                        const firstPlace = sortedStandings[0];
+                                                        const gamesBack = myRecord && firstPlace ? ((firstPlace[1].wins - myRecord.wins) + (myRecord.losses - firstPlace[1].losses)) / 2 : 0;
+                                                        const playoffSpots = playoffTeams || 16;
+                                                        const inPlayoffs = myRank <= playoffSpots;
+                                                        
+                                                        return (
+                                                            <>
+                                                                <div className="text-center">
+                                                                    <div className="text-4xl font-bold text-white">{myRecord?.wins || 0}-{myRecord?.losses || 0}</div>
+                                                                    <div className="text-gray-400 text-sm">Season Record</div>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-300">Overall Rank:</span>
+                                                                    <span className="font-bold text-2xl text-yellow-400">#{myRank}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-300">Games Back:</span>
+                                                                    <span className="font-bold">{gamesBack > 0 ? `-${gamesBack.toFixed(1)}` : '—'}</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-gray-300">Playoff Seed:</span>
+                                                                    <span className="font-bold">{inPlayoffs ? `#${myRank}` : `Out (${myRank - playoffSpots} back)`}</span>
+                                                                </div>
+                                                                <div className={`mt-3 p-3 rounded-lg text-center font-bold ${inPlayoffs ? 'bg-green-600' : 'bg-red-600'}`}>
+                                                                    {inPlayoffs ? '✓ Playoff Position' : '✗ Out of Playoffs'}
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
-                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                                <h3 className="text-xl font-bold mb-3 text-green-400">Roster Overview</h3>
-                                                <div className="space-y-2">
-                                                    <p className="text-3xl font-bold">{myPlayers.length}</p>
-                                                    <p className="text-sm text-gray-400">Players</p>
-                                                    <p className="text-lg">Avg Rating: {avgRating}</p>
+                                            {/* Team Performance */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl border-l-4 border-green-500">
+                                                <h3 className="text-xl font-bold mb-4 text-green-400">🏆 Team Performance</h3>
+                                                <div className="space-y-3">
+                                                    <div className="text-center mb-3">
+                                                        <div className="text-3xl font-bold">🏆 {championships[currentTeam] || 0}</div>
+                                                        <div className="text-gray-400 text-sm">Championships</div>
+                                                    </div>
+                                                    {(() => {
+                                                        const recentGames = ['W', 'L', 'W', 'W', 'L']; // TODO: Calculate from actual game data
+                                                        return (
+                                                            <div>
+                                                                <div className="text-gray-300 text-sm mb-2">Last 5 Games:</div>
+                                                                <div className="flex gap-2 justify-center">
+                                                                    {recentGames.map((result, idx) => (
+                                                                        <div key={idx} className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${result === 'W' ? 'bg-green-600' : 'bg-red-600'}`}>
+                                                                            {result}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                                                        <span className="text-gray-300">Season Phase:</span>
+                                                        <span className="font-bold text-yellow-400 capitalize">{seasonPhase}</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
+                                            {/* Financial Status */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl border-l-4 border-yellow-500">
+                                                <h3 className="text-xl font-bold mb-4 text-yellow-400">💰 Financial Status</h3>
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-300">Cap Space:</span>
+                                                        <span className={`font-bold text-xl ${capSpace < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                            ${(capSpace / 1000000).toFixed(1)}M
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex justify-between text-sm mb-1">
+                                                            <span className="text-gray-400">Total Payroll</span>
+                                                            <span className="text-gray-300">${(totalSalary / 1000000).toFixed(1)}M</span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-700 rounded-full h-3">
+                                                            <div 
+                                                                className={`h-3 rounded-full ${totalSalary > customLuxuryTax ? 'bg-red-600' : totalSalary > customSalaryCap ? 'bg-yellow-600' : 'bg-green-600'}`}
+                                                                style={{width: `${Math.min(100, (totalSalary / customLuxuryTax) * 100)}%`}}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                                            <span>Cap: ${(customSalaryCap / 1000000).toFixed(0)}M</span>
+                                                            <span>Tax: ${(customLuxuryTax / 1000000).toFixed(0)}M</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`p-3 rounded-lg text-center font-bold text-sm ${totalSalary > customLuxuryTax ? 'bg-red-600' : totalSalary > customSalaryCap ? 'bg-yellow-600' : 'bg-green-600'}`}>
+                                                        {totalSalary > customLuxuryTax ? '⚠️ Over Luxury Tax' : totalSalary > customSalaryCap ? '⚠️ Over Cap' : '✓ Under Cap'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Second Row - Player & Team Info */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                            {/* Player Highlights */}
                                             <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                                <h3 className="text-xl font-bold mb-3 text-yellow-400">Financial Status</h3>
+                                                <h3 className="text-xl font-bold mb-4 text-purple-400">⭐ Player Highlights</h3>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <div className="text-sm text-gray-400 mb-2">Top Performers (PPG)</div>
+                                                        <div className="space-y-2">
+                                                            {myPlayers
+                                                                .sort((a, b) => b.ppg - a.ppg)
+                                                                .slice(0, 3)
+                                                                .map((player, idx) => (
+                                                                    <div key={player.id} className="flex justify-between items-center bg-slate-700 p-2 rounded">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-yellow-400 font-bold">#{idx + 1}</span>
+                                                                            <span className="font-semibold">{player.name}</span>
+                                                                            <span className="text-xs text-gray-400">{player.position}</span>
+                                                                        </div>
+                                                                        <span className="font-bold text-lg">{player.ppg}</span>
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm text-gray-400 mb-2">Expiring Contracts ({myPlayers.filter(p => p.contractYears <= 1).length})</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {myPlayers
+                                                                .filter(p => p.contractYears <= 1)
+                                                                .slice(0, 5)
+                                                                .map(player => (
+                                                                    <div key={player.id} className="bg-red-900 px-3 py-1 rounded text-sm">
+                                                                        {player.name} ({player.position})
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Team Needs Analysis */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4 text-cyan-400">📋 Team Analysis</h3>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <div className="text-sm text-gray-400 mb-2">Roster by Position</div>
+                                                        <div className="grid grid-cols-5 gap-2">
+                                                            {['PG', 'SG', 'SF', 'PF', 'C'].map(pos => {
+                                                                const count = myPlayers.filter(p => p.position === pos).length;
+                                                                return (
+                                                                    <div key={pos} className="bg-slate-700 p-2 rounded text-center">
+                                                                        <div className="font-bold text-xl">{count}</div>
+                                                                        <div className="text-xs text-gray-400">{pos}</div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <div className="text-sm text-gray-400">Roster Size</div>
+                                                            <div className="font-bold text-2xl">{myPlayers.length}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm text-gray-400">Avg Rating</div>
+                                                            <div className="font-bold text-2xl text-blue-400">{avgRating}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm text-gray-400">Avg Age</div>
+                                                            <div className="font-bold text-2xl">
+                                                                {myPlayers.length > 0 ? (myPlayers.reduce((sum, p) => sum + p.age, 0) / myPlayers.length).toFixed(1) : 0}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-sm text-gray-400">Expiring Deals</div>
+                                                            <div className="font-bold text-2xl text-red-400">{myPlayers.filter(p => p.contractYears <= 1).length}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Third Row - League Context */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                            {/* Season Progress */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4 text-orange-400">📅 Season Progress</h3>
+                                                <div className="space-y-4">
+                                                    {(() => {
+                                                        const totalGames = regularSeasonGames || 82;
+                                                        const gamesPlayed = (standings[currentTeam]?.wins || 0) + (standings[currentTeam]?.losses || 0);
+                                                        const gamesRemaining = totalGames - gamesPlayed;
+                                                        const progress = (gamesPlayed / totalGames) * 100;
+                                                        
+                                                        return (
+                                                            <>
+                                                                <div>
+                                                                    <div className="flex justify-between text-sm mb-2">
+                                                                        <span className="text-gray-400">Games Played</span>
+                                                                        <span className="font-semibold">{gamesPlayed} / {totalGames}</span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-700 rounded-full h-4">
+                                                                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 h-4 rounded-full" style={{width: `${progress}%`}}></div>
+                                                                    </div>
+                                                                    <div className="text-center text-sm text-gray-400 mt-1">{gamesRemaining} games remaining</div>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <div className="flex justify-between items-center p-2 bg-slate-700 rounded">
+                                                                        <span className="text-sm">Current Phase:</span>
+                                                                        <span className="font-bold capitalize text-yellow-400">{seasonPhase}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between items-center p-2 bg-slate-700 rounded">
+                                                                        <span className="text-sm">Season:</span>
+                                                                        <span className="font-bold">{currentSeason}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+
+                                            {/* League Leaders */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4 text-pink-400">🌟 League Leaders</h3>
                                                 <div className="space-y-2">
-                                                    <p className="text-3xl font-bold">${(capSpace / 1000000).toFixed(1)}M</p>
-                                                    <p className="text-sm text-gray-400">Cap Space</p>
-                                                    <p className={`text-lg ${totalSalary > LUXURY_TAX ? 'text-red-400' : 'text-green-400'}`}>
-                                                        {totalSalary > LUXURY_TAX ? '⚠️ Over Tax' : '✓ Under Cap'}
-                                                    </p>
+                                                    {(() => {
+                                                        const sortedStandings = Object.entries(standings).sort((a, b) => b[1].wins - a[1].wins);
+                                                        return sortedStandings.slice(0, 5).map(([team, record], idx) => (
+                                                            <div key={team} className={`flex justify-between items-center p-2 rounded ${team === currentTeam ? 'bg-blue-700' : 'bg-slate-700'}`}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`font-bold ${idx === 0 ? 'text-yellow-400' : 'text-gray-400'}`}>#{idx + 1}</span>
+                                                                    <span className="font-semibold">{team}</span>
+                                                                </div>
+                                                                <span className="font-bold">{record.wins}-{record.losses}</span>
+                                                            </div>
+                                                        ));
+                                                    })()}
+                                                </div>
+                                            </div>
+
+                                            {/* Season Goals */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-xl font-bold mb-4 text-green-400">🎯 Season Goals</h3>
+                                                <div className="space-y-3">
+                                                    {(() => {
+                                                        const sortedStandings = Object.entries(standings).sort((a, b) => b[1].wins - a[1].wins);
+                                                        const myRank = sortedStandings.findIndex(([team]) => team === currentTeam) + 1;
+                                                        const inPlayoffs = myRank <= (playoffTeams || 16);
+                                                        const underTax = totalSalary <= customLuxuryTax;
+                                                        const youngPlayers = myPlayers.filter(p => p.age <= 25 && (p.rating - 50) >= 10).length;
+                                                        const wonChampionship = seasonPhase === 'offseason' && championships[currentTeam] > 0;
+                                                        
+                                                        const goals = [
+                                                            { label: 'Make Playoffs', status: seasonPhase === 'offseason' ? (inPlayoffs ? 'completed' : 'failed') : (inPlayoffs ? 'on-track' : 'at-risk'), progress: inPlayoffs ? 100 : 0 },
+                                                            { label: 'Win Championship', status: wonChampionship ? 'completed' : seasonPhase === 'offseason' ? 'failed' : 'pending', progress: wonChampionship ? 100 : 0 },
+                                                            { label: 'Stay Under Luxury Tax', status: underTax ? 'on-track' : 'at-risk', progress: underTax ? 100 : (customLuxuryTax / totalSalary) * 100 },
+                                                            { label: 'Develop 3+ Young Players', status: youngPlayers >= 3 ? 'completed' : youngPlayers >= 2 ? 'on-track' : 'at-risk', progress: (youngPlayers / 3) * 100 }
+                                                        ];
+                                                        
+                                                        return goals.map((goal, idx) => (
+                                                            <div key={idx}>
+                                                                <div className="flex justify-between text-sm mb-1">
+                                                                    <span className="text-gray-300">{goal.label}</span>
+                                                                    <span className={`font-semibold ${
+                                                                        goal.status === 'completed' ? 'text-green-400' : 
+                                                                        goal.status === 'on-track' ? 'text-blue-400' : 
+                                                                        goal.status === 'at-risk' ? 'text-red-400' : 'text-gray-400'
+                                                                    }`}>
+                                                                        {goal.status === 'completed' ? '✓' : goal.status === 'failed' ? '✗' : goal.status === 'on-track' ? '→' : '⚠'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-700 rounded-full h-2">
+                                                                    <div className={`h-2 rounded-full ${
+                                                                        goal.status === 'completed' ? 'bg-green-600' : 
+                                                                        goal.status === 'on-track' ? 'bg-blue-600' : 
+                                                                        goal.status === 'at-risk' ? 'bg-red-600' : 'bg-gray-600'
+                                                                    }`} style={{width: `${goal.progress}%`}}></div>
+                                                                </div>
+                                                            </div>
+                                                        ));
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Quick Actions */}
                                         <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                            <h3 className="text-2xl font-bold mb-4">Quick Actions</h3>
+                                            <h3 className="text-2xl font-bold mb-4">⚡ Quick Actions</h3>
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 {seasonPhase === 'preseason' && (
                                                     <button onClick={simulateSeason} className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-lg font-bold text-lg">
@@ -1528,7 +2294,7 @@
                                     </div>
                                 )}
 
-                                {currentPage === 'roster' && (
+                                {currentPage === 'roster' && !viewingPlayerProfile && (
                                     <div>
                                         <h2 className="text-3xl font-bold mb-6">Team Roster</h2>
                                         <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
@@ -1552,7 +2318,14 @@
                                                     <tbody>
                                                         {myPlayers.sort((a, b) => b.rating - a.rating).map(player => (
                                                             <tr key={player.id} className="border-b border-slate-700 hover:bg-slate-700">
-                                                                <td className="px-4 py-3 font-semibold">{player.name}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <button 
+                                                                        onClick={() => openPlayerProfile(player)}
+                                                                        className="font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                                                                    >
+                                                                        {player.name}
+                                                                    </button>
+                                                                </td>
                                                                 <td className="px-4 py-3 text-center">{player.position}</td>
                                                                 <td className="px-4 py-3 text-center">{player.age}</td>
                                                                 <td className="px-4 py-3 text-center">
@@ -1582,6 +2355,511 @@
                                         </div>
                                     </div>
                                 )}
+
+                                {/* PLAYER PROFILE VIEW */}
+                                {currentPage === 'roster' && viewingPlayerProfile && selectedPlayer && (() => {
+                                    const skills = selectedPlayer.skills ? JSON.parse(selectedPlayer.skills) : {};
+                                    const intangibles = selectedPlayer.intangibles ? JSON.parse(selectedPlayer.intangibles) : {};
+                                    const badges = selectedPlayer.badges ? JSON.parse(selectedPlayer.badges) : [];
+                                    const achievements = selectedPlayer.achievements ? JSON.parse(selectedPlayer.achievements) : {};
+                                    const injuryHistory = selectedPlayer.injuryHistory ? JSON.parse(selectedPlayer.injuryHistory) : [];
+                                    
+                                    const heightFeet = Math.floor((selectedPlayer.heightInches || 76) / 12);
+                                    const heightInches = (selectedPlayer.heightInches || 76) % 12;
+                                    
+                                    const SkillBar = ({ label, value }) => (
+                                        <div className="mb-2">
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span>{label}</span>
+                                                <span className="font-bold">{value}</span>
+                                            </div>
+                                            <div className="w-full bg-slate-700 rounded-full h-2">
+                                                <div 
+                                                    className={`h-2 rounded-full ${value >= 85 ? 'bg-green-500' : value >= 70 ? 'bg-blue-500' : value >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                    style={{width: `${value}%`}}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    );
+                                    
+                                    return (
+                                        <div className="max-w-7xl mx-auto">
+                                            {/* Navigation Header */}
+                                            <div className="bg-slate-800 rounded-lg p-4 mb-6 shadow-xl flex justify-between items-center">
+                                                <button 
+                                                    onClick={closePlayerProfile}
+                                                    className="bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-semibold"
+                                                >
+                                                    ← Back to Roster
+                                                </button>
+                                                <div className="flex gap-4">
+                                                    <button 
+                                                        onClick={navigateToPreviousPlayer}
+                                                        disabled={myPlayers.findIndex(p => p.id === selectedPlayer.id) === 0}
+                                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded-lg"
+                                                    >
+                                                        ← Previous
+                                                    </button>
+                                                    <button 
+                                                        onClick={navigateToNextPlayer}
+                                                        disabled={myPlayers.findIndex(p => p.id === selectedPlayer.id) === myPlayers.length - 1}
+                                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded-lg"
+                                                    >
+                                                        Next →
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Player Header */}
+                                            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-8 mb-6 shadow-2xl">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h1 className="text-5xl font-bold mb-2">{selectedPlayer.name}</h1>
+                                                        <div className="flex gap-4 text-xl">
+                                                            <span>{currentTeam}</span>
+                                                            <span>•</span>
+                                                            <span>#{selectedPlayer.jerseyNumber || 0}</span>
+                                                            <span>•</span>
+                                                            <span>{selectedPlayer.position}</span>
+                                                        </div>
+                                                        <div className="mt-3 text-sm text-gray-200">
+                                                            {selectedPlayer.archetype} • {selectedPlayer.trajectory}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="bg-yellow-500 text-black rounded-full w-24 h-24 flex items-center justify-center">
+                                                            <span className="text-4xl font-bold">{selectedPlayer.rating}</span>
+                                                        </div>
+                                                        <div className="mt-2 text-sm">
+                                                            <div>Potential: <span className="font-bold text-purple-300">{selectedPlayer.potential}</span></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Contract Summary */}
+                                                <div className="mt-6 bg-black bg-opacity-30 rounded-lg p-4">
+                                                    <div className="grid grid-cols-4 gap-4 text-center">
+                                                        <div>
+                                                            <div className="text-gray-300 text-sm">Contract</div>
+                                                            <div className="text-xl font-bold">{selectedPlayer.contractYears} years</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-300 text-sm">Annual Salary</div>
+                                                            <div className="text-xl font-bold">${(selectedPlayer.salary / 1000000).toFixed(1)}M</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-300 text-sm">Total Value</div>
+                                                            <div className="text-xl font-bold">${((selectedPlayer.salary * selectedPlayer.contractYears) / 1000000).toFixed(1)}M</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-300 text-sm">Status</div>
+                                                            <div className={`text-lg font-bold ${selectedPlayer.injuryStatus === 'Healthy' ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {selectedPlayer.injuryStatus || 'Healthy'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Main Content Grid */}
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                                {/* Physical Attributes */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-orange-400">📏 Physical Attributes</h3>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Height:</span>
+                                                            <span className="font-bold">{heightFeet}'{heightInches}"</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Weight:</span>
+                                                            <span className="font-bold">{selectedPlayer.weight || 200} lbs</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Wingspan:</span>
+                                                            <span className="font-bold">{Math.floor((selectedPlayer.wingspan || 76) / 12)}'{(selectedPlayer.wingspan || 76) % 12}"</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Vertical:</span>
+                                                            <span className="font-bold">{selectedPlayer.verticalLeap || 30}"</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Age:</span>
+                                                            <span className="font-bold">{selectedPlayer.age} ({selectedPlayer.birthYear || 2000})</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Years Pro:</span>
+                                                            <span className="font-bold">{selectedPlayer.yearsInLeague || 0}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Current Season Stats */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-green-400">📊 Season Stats</h3>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">PPG</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.ppg || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">RPG</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.rpg || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">APG</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.apg || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">FG%</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.fgPct || 0}%</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">3P%</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.threePct || 0}%</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">FT%</div>
+                                                            <div className="text-2xl font-bold">{selectedPlayer.ftPct || 0}%</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">SPG</div>
+                                                            <div className="text-xl font-bold">{selectedPlayer.steals || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">BPG</div>
+                                                            <div className="text-xl font-bold">{selectedPlayer.blocks || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">MPG</div>
+                                                            <div className="text-xl font-bold">{selectedPlayer.minutesPerGame || 0}</div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-gray-400 text-sm">GP</div>
+                                                            <div className="text-xl font-bold">{selectedPlayer.gamesPlayed || 0}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Advanced Stats */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-purple-400">📈 Advanced Stats</h3>
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">TS%:</span>
+                                                            <span className="font-bold">{selectedPlayer.trueShootingPct || 0}%</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">PER:</span>
+                                                            <span className="font-bold">{selectedPlayer.per || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Usage Rate:</span>
+                                                            <span className="font-bold">{selectedPlayer.usageRate || 0}%</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">TO Rate:</span>
+                                                            <span className="font-bold">{selectedPlayer.turnoverRate || 0}%</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">AST/TO:</span>
+                                                            <span className="font-bold">{selectedPlayer.assistTurnoverRatio || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">+/-:</span>
+                                                            <span className={`font-bold ${(selectedPlayer.plusMinus || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                {selectedPlayer.plusMinus >= 0 ? '+' : ''}{selectedPlayer.plusMinus || 0}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Win Shares:</span>
+                                                            <span className="font-bold">{selectedPlayer.winShares || 0}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Skill Ratings - Full Width */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl mb-6">
+                                                <h3 className="text-2xl font-bold mb-4 text-blue-400">🎯 Skill Ratings</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                    <div>
+                                                        <h4 className="font-bold text-yellow-400 mb-3">Scoring</h4>
+                                                        <SkillBar label="Inside Scoring" value={skills.insideScoring || 50} />
+                                                        <SkillBar label="Mid-Range" value={skills.midRange || 50} />
+                                                        <SkillBar label="Three-Point" value={skills.threePoint || 50} />
+                                                        <SkillBar label="Free Throw" value={skills.freeThrow || 50} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-green-400 mb-3">Ball Skills</h4>
+                                                        <SkillBar label="Passing" value={skills.passing || 50} />
+                                                        <SkillBar label="Ball Handling" value={skills.ballHandling || 50} />
+                                                        <SkillBar label="Basketball IQ" value={skills.bbiq || 50} />
+                                                        <SkillBar label="Speed" value={skills.speed || 50} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-red-400 mb-3">Defense</h4>
+                                                        <SkillBar label="Perimeter Defense" value={skills.perimeterDefense || 50} />
+                                                        <SkillBar label="Interior Defense" value={skills.interiorDefense || 50} />
+                                                        <SkillBar label="Stealing" value={skills.stealing || 50} />
+                                                        <SkillBar label="Shot Blocking" value={skills.blocking || 50} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-purple-400 mb-3">Physical/Rebounding</h4>
+                                                        <SkillBar label="Off. Rebounding" value={skills.offensiveRebounding || 50} />
+                                                        <SkillBar label="Def. Rebounding" value={skills.defensiveRebounding || 50} />
+                                                        <SkillBar label="Strength" value={skills.strength || 50} />
+                                                        <SkillBar label="Stamina" value={skills.stamina || 50} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Lower Section Grid */}
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                                {/* Personality & Intangibles */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-pink-400">💎 Intangibles</h3>
+                                                    <SkillBar label="Leadership" value={intangibles.leadership || 50} />
+                                                    <SkillBar label="Work Ethic" value={intangibles.workEthic || 50} />
+                                                    <SkillBar label="Coachability" value={intangibles.coachability || 50} />
+                                                    <SkillBar label="Clutch Rating" value={intangibles.clutch || 50} />
+                                                    <SkillBar label="Consistency" value={intangibles.consistency || 50} />
+                                                    <SkillBar label="Morale" value={intangibles.morale || 75} />
+                                                    <SkillBar label="Chemistry" value={intangibles.chemistry || 75} />
+                                                    <div className="mt-3 flex justify-between items-center">
+                                                        <span className="text-gray-300">Injury Proneness:</span>
+                                                        <span className={`font-bold px-3 py-1 rounded ${
+                                                            intangibles.injuryProneness === 'Low' ? 'bg-green-600' : 
+                                                            intangibles.injuryProneness === 'Medium' ? 'bg-yellow-600' : 'bg-red-600'
+                                                        }`}>
+                                                            {intangibles.injuryProneness || 'Medium'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Development Info */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-cyan-400">📚 Development</h3>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-300">Current Rating:</span>
+                                                            <span className="text-3xl font-bold text-blue-400">{selectedPlayer.rating}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-300">Potential:</span>
+                                                            <span className="text-3xl font-bold text-purple-400">{selectedPlayer.potential}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Peak Age:</span>
+                                                            <span className="font-bold">{selectedPlayer.peakAge || 28}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Trajectory:</span>
+                                                            <span className={`font-bold px-3 py-1 rounded ${
+                                                                selectedPlayer.trajectory === 'Rising Star' ? 'bg-green-600' :
+                                                                selectedPlayer.trajectory === 'Prime' ? 'bg-blue-600' :
+                                                                selectedPlayer.trajectory === 'Declining' ? 'bg-red-600' : 'bg-gray-600'
+                                                            }`}>
+                                                                {selectedPlayer.trajectory}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Archetype:</span>
+                                                            <span className="font-bold text-yellow-400">{selectedPlayer.archetype}</span>
+                                                        </div>
+                                                        <div className="mt-4">
+                                                            <div className="text-gray-300 mb-2">Development Potential:</div>
+                                                            <div className="w-full bg-slate-700 rounded-full h-4">
+                                                                <div 
+                                                                    className="bg-gradient-to-r from-blue-500 to-purple-500 h-4 rounded-full"
+                                                                    style={{width: `${(selectedPlayer.potential / 100) * 100}%`}}
+                                                                ></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Player Badges */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-yellow-400">🏅 Badges & Specialties</h3>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {badges.length > 0 ? badges.map((badge, idx) => (
+                                                            <div key={idx} className="bg-gradient-to-r from-yellow-600 to-orange-600 px-4 py-2 rounded-lg font-semibold">
+                                                                {badge}
+                                                            </div>
+                                                        )) : (
+                                                            <p className="text-gray-400">No badges earned yet</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Contract Details */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-green-400">💰 Contract Details</h3>
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Years Remaining:</span>
+                                                            <span className="font-bold">{selectedPlayer.contractYears}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Annual Salary:</span>
+                                                            <span className="font-bold">${(selectedPlayer.salary / 1000000).toFixed(2)}M</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Total Value:</span>
+                                                            <span className="font-bold text-green-400">${((selectedPlayer.salary * selectedPlayer.contractYears) / 1000000).toFixed(2)}M</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Player Option:</span>
+                                                            <span className="font-bold">{selectedPlayer.playerOption ? '✓ Yes' : '✗ No'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Team Option:</span>
+                                                            <span className="font-bold">{selectedPlayer.teamOption ? '✓ Yes' : '✗ No'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">No-Trade Clause:</span>
+                                                            <span className="font-bold">{selectedPlayer.noTradeClause ? '✓ Yes' : '✗ No'}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Bird Rights:</span>
+                                                            <span className="font-bold">{selectedPlayer.birdRights ? '✓ Yes' : '✗ No'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Career Achievements */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-yellow-400">🏆 Career Achievements</h3>
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">Championships:</span>
+                                                            <span className="font-bold">{achievements.championships || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">All-Star Selections:</span>
+                                                            <span className="font-bold">{achievements.allStars || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">All-League Teams:</span>
+                                                            <span className="font-bold">{achievements.allLeague || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">MVP Awards:</span>
+                                                            <span className="font-bold">{achievements.mvps || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">DPOY Awards:</span>
+                                                            <span className="font-bold">{achievements.dpoy || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-300">ROY Award:</span>
+                                                            <span className="font-bold">{achievements.roy ? '✓' : '—'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Player Bio */}
+                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                    <h3 className="text-2xl font-bold mb-4 text-blue-400">📝 Player Bio</h3>
+                                                    <div className="space-y-3 text-gray-300">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <span className="text-gray-400 text-sm">Birthdate:</span>
+                                                                <div className="font-semibold">{selectedPlayer.birthdate || 'N/A'} (Age {selectedPlayer.age})</div>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-gray-400 text-sm">Hometown:</span>
+                                                                <div className="font-semibold">{selectedPlayer.hometown || 'N/A'}</div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div>
+                                                            <span className="text-gray-400 text-sm">College:</span>
+                                                            <div className="font-semibold text-lg">{selectedPlayer.college || 'N/A'}</div>
+                                                        </div>
+                                                        
+                                                        <div>
+                                                            <span className="text-gray-400 text-sm">Draft:</span>
+                                                            <div className="font-semibold text-lg">
+                                                                {selectedPlayer.undrafted ? (
+                                                                    <span className="text-orange-400">Undrafted ({selectedPlayer.draftYear})</span>
+                                                                ) : (
+                                                                    <span>
+                                                                        {selectedPlayer.draftYear} - Round {selectedPlayer.draftRound}, Pick {selectedPlayer.draftPick}
+                                                                        {selectedPlayer.draftTeam && (
+                                                                            <span className="text-blue-400"> ({selectedPlayer.draftTeam})</span>
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="mt-4 p-4 bg-slate-700 rounded-lg">
+                                                            <p className="text-sm leading-relaxed">
+                                                                {(() => {
+                                                                    const draftText = selectedPlayer.undrafted 
+                                                                        ? 'went undrafted but earned a roster spot'
+                                                                        : selectedPlayer.draftRound === 1 && selectedPlayer.draftPick <= 10
+                                                                            ? `was a lottery pick (Round ${selectedPlayer.draftRound}, Pick ${selectedPlayer.draftPick})`
+                                                                            : selectedPlayer.draftRound === 1
+                                                                                ? `was selected in the first round (Pick ${selectedPlayer.draftPick})`
+                                                                                : `was drafted in Round ${selectedPlayer.draftRound}, Pick ${selectedPlayer.draftPick}`;
+                                                                    
+                                                                    const collegeText = selectedPlayer.college === 'High School' 
+                                                                        ? 'straight out of high school'
+                                                                        : ['France', 'Spain', 'Serbia', 'Croatia', 'Australia', 'Canada', 'Lithuania', 'Greece', 'Germany', 'Argentina'].includes(selectedPlayer.college)
+                                                                            ? `from ${selectedPlayer.college}`
+                                                                            : `out of ${selectedPlayer.college}`;
+                                                                    
+                                                                    const skillLevel = selectedPlayer.rating >= 85 ? 'elite, All-Star caliber' 
+                                                                        : selectedPlayer.rating >= 80 ? 'elite'
+                                                                        : selectedPlayer.rating >= 75 ? 'strong'
+                                                                        : selectedPlayer.rating >= 70 ? 'solid'
+                                                                        : selectedPlayer.rating >= 60 ? 'developing'
+                                                                        : 'emerging';
+                                                                    
+                                                                    return `${selectedPlayer.name} is a ${selectedPlayer.age}-year-old ${selectedPlayer.archetype} from ${selectedPlayer.hometown}. ${draftText} in ${selectedPlayer.draftYear} ${collegeText}, this ${selectedPlayer.position} is currently in year ${selectedPlayer.yearsInLeague || 1} of their professional career. Known for ${skillLevel} skills, ${selectedPlayer.name} has established themselves as ${selectedPlayer.rating >= 80 ? 'a cornerstone player' : selectedPlayer.rating >= 70 ? 'a key contributor' : 'a valuable rotation piece'} for ${currentTeam}.`;
+                                                                })()}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <h3 className="text-2xl font-bold mb-4">⚡ Actions</h3>
+                                                <div className="flex gap-4">
+                                                    <button 
+                                                        onClick={closePlayerProfile}
+                                                        className="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                    >
+                                                        ← Back to Roster
+                                                    </button>
+                                                    <button 
+                                                        className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                        disabled
+                                                    >
+                                                        📊 Trade Player (Coming Soon)
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            if (confirm(`Are you sure you want to release ${selectedPlayer.name}?`)) {
+                                                                releasePlayer(selectedPlayer.id);
+                                                                closePlayerProfile();
+                                                            }
+                                                        }}
+                                                        className="bg-red-600 hover:bg-red-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                    >
+                                                        🗑️ Release Player
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
 
                                 {currentPage === 'standings' && (
                                     <div>
