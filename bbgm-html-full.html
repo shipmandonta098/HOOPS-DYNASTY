@@ -19,12 +19,24 @@
         // IndexedDB Setup with Dexie - Fresh start
         const db = new Dexie('BasketballGM');
         
+        // Version 1: Original schema
         db.version(1).stores({
             leagues: '++id, name, createdDate, lastPlayed',
             players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
-            teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season',
+            teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season, conference, division',
             seasons: '++id, [leagueId+year], leagueId, year',
             gameState: '++id, leagueId'
+        });
+        
+        // Version 2: Added schedule table
+        db.version(2).stores({
+            leagues: '++id, name, createdDate, lastPlayed',
+            players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
+            teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season, conference, division',
+            seasons: '++id, [leagueId+year], leagueId, year',
+            gameState: '++id, leagueId',
+            schedule: '++id, [leagueId+season], leagueId, season, day, homeTeam, awayTeam, result, homeScore, awayScore, overtime, time',
+            draftProspects: '++id, [leagueId+season], leagueId, season, drafted, projectedPick'
         });
 
         const SALARY_CAP = 140000000;
@@ -86,6 +98,23 @@
             const [rosterSize, setRosterSize] = useState(15);
             const [selectedPlayer, setSelectedPlayer] = useState(null);
             const [viewingPlayerProfile, setViewingPlayerProfile] = useState(false);
+            const [viewingTeam, setViewingTeam] = useState(null); // Team whose roster we're viewing
+            const [viewingTeamPlayers, setViewingTeamPlayers] = useState([]);
+            const [standingsTab, setStandingsTab] = useState('overall'); // overall, playoffs, conference, division
+            const [scheduleTab, setScheduleTab] = useState('all'); // all, myteam, today, week
+            const [scheduleGames, setScheduleGames] = useState([]);
+            
+            // Draft state
+            const [draftProspects, setDraftProspects] = useState([]);
+            const [draftTab, setDraftTab] = useState('prospects'); // prospects, bigboard, simulator, live
+            const [draftInProgress, setDraftInProgress] = useState(false);
+            const [currentDraftPick, setCurrentDraftPick] = useState(1);
+            const [draftOrder, setDraftOrder] = useState([]);
+            const [scoutedPlayers, setScoutedPlayers] = useState(new Set());
+            const [scoutingBudget, setScoutingBudget] = useState(20); // Can fully scout 20 players
+            const [bigBoard, setBigBoard] = useState([]); // User's personal rankings
+            const [selectedProspect, setSelectedProspect] = useState(null);
+            const [draftResults, setDraftResults] = useState([]);
 
             useEffect(() => {
                 checkForExistingLeague();
@@ -94,6 +123,37 @@
             useEffect(() => {
                 loadAllLeagues();
             }, []);
+
+            // Load schedule when page changes to schedule
+            useEffect(() => {
+                if (currentPage === 'schedule' && currentLeagueId && currentSeason) {
+                    loadScheduleGames();
+                }
+            }, [currentPage, currentLeagueId, currentSeason, scheduleTab]);
+            
+            // Load draft prospects when page changes to draft
+            useEffect(() => {
+                if (currentPage === 'draft' && currentLeagueId && currentSeason) {
+                    loadDraftProspects();
+                    if (draftOrder.length === 0) {
+                        calculateDraftOrder();
+                    }
+                }
+            }, [currentPage, currentLeagueId, currentSeason]);
+
+            async function loadScheduleGames() {
+                try {
+                    const allGames = await db.schedule
+                        .where('[leagueId+season]')
+                        .equals([currentLeagueId, currentSeason])
+                        .toArray();
+                    
+                    setScheduleGames(allGames);
+                } catch (error) {
+                    console.error('Error loading schedule:', error);
+                    setScheduleGames([]);
+                }
+            }
 
             async function loadAllLeagues() {
                 try {
@@ -344,38 +404,327 @@
                 }
             }
 
+            async function viewTeamRoster(teamName) {
+                try {
+                    setViewingTeam(teamName);
+                    let players = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, teamName, currentSeason])
+                        .toArray();
+                    
+                    // Fix any players with missing data
+                    players = await Promise.all(players.map(p => loadAndFixPlayer(p)));
+                    
+                    setViewingTeamPlayers(players);
+                } catch (error) {
+                    console.error('Error loading team roster:', error);
+                }
+            }
+
+            function closeTeamRoster() {
+                setViewingTeam(null);
+                setViewingTeamPlayers([]);
+            }
+
+            // Auto-fix missing data functions
+            function assignDivisionAndConference(teamName) {
+                // Map of default teams to their divisions
+                const teamDivisionMap = {
+                    // Atlantic Division (Eastern Conference)
+                    'Boston Knights': { division: 'Atlantic', conference: 'Eastern' },
+                    'New York Titans': { division: 'Atlantic', conference: 'Eastern' },
+                    'Philadelphia Fusion': { division: 'Atlantic', conference: 'Eastern' },
+                    'Baltimore Blaze': { division: 'Atlantic', conference: 'Eastern' },
+                    'Charlotte Cobras': { division: 'Atlantic', conference: 'Eastern' },
+                    
+                    // Central Division (Eastern Conference)
+                    'Chicago Predators': { division: 'Central', conference: 'Eastern' },
+                    'Detroit Motors': { division: 'Central', conference: 'Eastern' },
+                    'Indianapolis Racers': { division: 'Central', conference: 'Eastern' },
+                    'Milwaukee Titans': { division: 'Central', conference: 'Eastern' },
+                    'Cleveland Thunder': { division: 'Central', conference: 'Eastern' },
+                    
+                    // Southeast Division (Eastern Conference)
+                    'Miami Dragons': { division: 'Southeast', conference: 'Eastern' },
+                    'Atlanta Firebirds': { division: 'Southeast', conference: 'Eastern' },
+                    'Orlando Wizards': { division: 'Southeast', conference: 'Eastern' },
+                    'Nashville Stars': { division: 'Southeast', conference: 'Eastern' },
+                    'Pittsburgh Steel': { division: 'Southeast', conference: 'Eastern' },
+                    
+                    // Pacific Division (Western Conference)
+                    'Seattle Storm': { division: 'Pacific', conference: 'Western' },
+                    'Las Vegas Vipers': { division: 'Pacific', conference: 'Western' },
+                    'Portland Thunder': { division: 'Pacific', conference: 'Western' },
+                    'Los Angeles Phantoms': { division: 'Pacific', conference: 'Western' },
+                    'Sacramento Royals': { division: 'Pacific', conference: 'Western' },
+                    
+                    // Southwest Division (Western Conference)
+                    'Phoenix Blaze': { division: 'Southwest', conference: 'Western' },
+                    'Dallas Outlaws': { division: 'Southwest', conference: 'Western' },
+                    'Houston Comets': { division: 'Southwest', conference: 'Western' },
+                    'San Antonio Strikers': { division: 'Southwest', conference: 'Western' },
+                    'New Orleans Krewe': { division: 'Southwest', conference: 'Western' },
+                    
+                    // Northwest Division (Western Conference)
+                    'Denver Peaks': { division: 'Northwest', conference: 'Western' },
+                    'San Diego Waves': { division: 'Northwest', conference: 'Western' },
+                    'Memphis Blues': { division: 'Northwest', conference: 'Western' },
+                    'Minnesota Frost': { division: 'Northwest', conference: 'Western' },
+                    'San Francisco Sentinels': { division: 'Northwest', conference: 'Western' }
+                };
+                
+                // Return mapped division if found
+                if (teamDivisionMap[teamName]) {
+                    return teamDivisionMap[teamName];
+                }
+                
+                // Fallback: Use hash for custom teams
+                const divisions = [
+                    { division: "Atlantic", conference: "Eastern" },
+                    { division: "Central", conference: "Eastern" },
+                    { division: "Southeast", conference: "Eastern" },
+                    { division: "Northwest", conference: "Western" },
+                    { division: "Pacific", conference: "Western" },
+                    { division: "Southwest", conference: "Western" }
+                ];
+                
+                const hash = teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                return divisions[hash % divisions.length];
+            }
+
+            async function loadAndFixTeams(leagueId, season) {
+                const teams = await db.teams.where('[leagueId+season]').equals([leagueId, season]).toArray();
+                
+                // Fix any teams missing division/conference
+                const fixedTeams = [];
+                for (const team of teams) {
+                    if (!team.division || !team.conference) {
+                        const assignment = assignDivisionAndConference(team.name);
+                        team.division = assignment.division;
+                        team.conference = assignment.conference;
+                        
+                        // Save the fix
+                        await db.teams.update(team.id, {
+                            division: team.division,
+                            conference: team.conference
+                        });
+                    }
+                    fixedTeams.push(team);
+                }
+                
+                return fixedTeams;
+            }
+
+            async function loadAndFixPlayer(player) {
+                let needsUpdate = false;
+                const updates = {};
+                
+                // If missing bio data, generate and save
+                if (!player.birthdate || !player.hometown || !player.college) {
+                    if (!player.birthdate) {
+                        const birthdate = generateBirthdate(player.age);
+                        player.birthdate = birthdate.formatted;
+                        player.birthdateMonth = birthdate.month;
+                        player.birthdateDay = birthdate.day;
+                        player.birthdateYear = birthdate.year;
+                        updates.birthdate = birthdate.formatted;
+                        updates.birthdateMonth = birthdate.month;
+                        updates.birthdateDay = birthdate.day;
+                        updates.birthdateYear = birthdate.year;
+                        needsUpdate = true;
+                    }
+                    
+                    if (!player.hometown) {
+                        player.hometown = generateHometown();
+                        updates.hometown = player.hometown;
+                        needsUpdate = true;
+                    }
+                    
+                    if (!player.college) {
+                        player.college = generateCollege(player.age);
+                        updates.college = player.college;
+                        needsUpdate = true;
+                    }
+                    
+                    if (!player.draftYear) {
+                        const teamNames = allTeamNames.length > 0 ? allTeamNames : [player.team];
+                        const draftInfo = generateDraftInfo(player.age, player.rating, teamNames);
+                        player.draftYear = draftInfo.year;
+                        player.draftRound = draftInfo.round;
+                        player.draftPick = draftInfo.pick;
+                        player.draftTeam = draftInfo.team;
+                        player.undrafted = draftInfo.undrafted;
+                        updates.draftYear = draftInfo.year;
+                        updates.draftRound = draftInfo.round;
+                        updates.draftPick = draftInfo.pick;
+                        updates.draftTeam = draftInfo.team;
+                        updates.undrafted = draftInfo.undrafted;
+                        needsUpdate = true;
+                    }
+                }
+                
+                // Save the fixes
+                if (needsUpdate && player.id) {
+                    await db.players.update(player.id, updates);
+                }
+                
+                return player;
+            }
+
+            // Division assignment function
+            function assignDivisionsToTeams(teams) {
+                const divisions = [
+                    { name: "Atlantic", conference: "Eastern" },
+                    { name: "Central", conference: "Eastern" },
+                    { name: "Southeast", conference: "Eastern" },
+                    { name: "Northwest", conference: "Western" },
+                    { name: "Pacific", conference: "Western" },
+                    { name: "Southwest", conference: "Western" }
+                ];
+                
+                // Distribute teams evenly across divisions
+                const teamsPerDivision = Math.ceil(teams.length / divisions.length);
+                
+                return teams.map((team, index) => {
+                    const divisionIndex = Math.min(Math.floor(index / teamsPerDivision), divisions.length - 1);
+                    const division = divisions[divisionIndex];
+                    
+                    return {
+                        ...team,
+                        division: division.name,
+                        conference: division.conference
+                    };
+                });
+            }
+
+            // Standings calculation functions
+            function calculateWinPercentage(wins, losses) {
+                const total = wins + losses;
+                return total === 0 ? 0 : (wins / total);
+            }
+
+            function calculateGamesBack(teamWins, teamLosses, leaderWins, leaderLosses) {
+                const gb = ((leaderWins - teamWins) + (teamLosses - leaderLosses)) / 2;
+                return gb === 0 ? '—' : gb.toFixed(1);
+            }
+
+            function calculateLast10(last10String) {
+                if (!last10String || last10String.length === 0) return '0-0';
+                const recent = last10String.slice(-10);
+                const wins = (recent.match(/W/g) || []).length;
+                const losses = (recent.match(/L/g) || []).length;
+                return `${wins}-${losses}`;
+            }
+
+            function calculateStreak(last10String) {
+                if (!last10String || last10String.length === 0) return '—';
+                
+                let streak = 1;
+                const lastResult = last10String[last10String.length - 1];
+                
+                for (let i = last10String.length - 2; i >= 0; i--) {
+                    if (last10String[i] === lastResult) {
+                        streak++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                return `${lastResult}${streak}`;
+            }
+
+            function getStandingsData() {
+                // If standings is empty, initialize with all teams at 0-0
+                if (Object.keys(standings).length === 0 && allTeamNames.length > 0) {
+                    return allTeamNames.map(teamName => {
+                        const team = teams[teamName] || {};
+                        return {
+                            team: teamName,
+                            wins: 0,
+                            losses: 0,
+                            conference: team.conference || 'East',
+                            division: team.division || 'Atlantic',
+                            confWins: 0,
+                            confLosses: 0,
+                            homeWins: 0,
+                            homeLosses: 0,
+                            awayWins: 0,
+                            awayLosses: 0,
+                            last10: '',
+                            winPct: 0
+                        };
+                    });
+                }
+                
+                // Convert standings object to array with all calculated fields
+                const standingsArray = Object.entries(standings).map(([teamName, teamData]) => {
+                    const team = teams[teamName] || {};
+                    return {
+                        team: teamName,
+                        wins: teamData.wins || 0,
+                        losses: teamData.losses || 0,
+                        conference: team.conference || 'East',
+                        division: team.division || 'Atlantic',
+                        confWins: teamData.confWins || 0,
+                        confLosses: teamData.confLosses || 0,
+                        homeWins: teamData.homeWins || 0,
+                        homeLosses: teamData.homeLosses || 0,
+                        awayWins: teamData.awayWins || 0,
+                        awayLosses: teamData.awayLosses || 0,
+                        last10: teamData.last10 || '',
+                        winPct: calculateWinPercentage(teamData.wins || 0, teamData.losses || 0)
+                    };
+                });
+
+                // Sort by win percentage
+                standingsArray.sort((a, b) => b.winPct - a.winPct);
+
+                return standingsArray;
+            }
+
             function initializeDefaultTeams() {
                 return [
-                    { name: 'Storm', city: 'Seattle', abbrev: 'SEA', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D5C96', secondaryColor: '#FFD700', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Vipers', city: 'Las Vegas', abbrev: 'LVV', conference: 'West', division: 'Pacific', capacity: 18500, primaryColor: '#006BB6', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Thunder', city: 'Portland', abbrev: 'POR', conference: 'West', division: 'Pacific', capacity: 19000, primaryColor: '#E03A3E', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Predators', city: 'Chicago', abbrev: 'CHI', conference: 'East', division: 'Central', capacity: 21000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Knights', city: 'Boston', abbrev: 'BOS', conference: 'East', division: 'Atlantic', capacity: 19000, primaryColor: '#007A33', secondaryColor: '#BA9653', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Titans', city: 'New York', abbrev: 'NYT', conference: 'East', division: 'Atlantic', capacity: 20000, primaryColor: '#006BB6', secondaryColor: '#F58426', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Phantoms', city: 'Los Angeles', abbrev: 'LAP', conference: 'West', division: 'Pacific', capacity: 19000, primaryColor: '#552583', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Dragons', city: 'Miami', abbrev: 'MIA', conference: 'East', division: 'Southeast', capacity: 19600, primaryColor: '#98002E', secondaryColor: '#F9A01B', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Firebirds', city: 'Atlanta', abbrev: 'ATL', conference: 'East', division: 'Southeast', capacity: 18000, primaryColor: '#E03A3E', secondaryColor: '#C1D32F', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Fusion', city: 'Philadelphia', abbrev: 'PHI', conference: 'East', division: 'Atlantic', capacity: 21000, primaryColor: '#006BB6', secondaryColor: '#ED174C', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Blaze', city: 'Phoenix', abbrev: 'PHX', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#E56020', secondaryColor: '#1D1160', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Outlaws', city: 'Dallas', abbrev: 'DAL', conference: 'West', division: 'Southwest', capacity: 19200, primaryColor: '#00538C', secondaryColor: '#002B5E', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Peaks', city: 'Denver', abbrev: 'DEN', conference: 'West', division: 'Northwest', capacity: 19500, primaryColor: '#0E2240', secondaryColor: '#FEC524', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Waves', city: 'San Diego', abbrev: 'SDW', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Comets', city: 'Houston', abbrev: 'HOU', conference: 'West', division: 'Southwest', capacity: 18000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Strikers', city: 'San Antonio', abbrev: 'SAS', conference: 'West', division: 'Southwest', capacity: 18500, primaryColor: '#C4CED4', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Wizards', city: 'Orlando', abbrev: 'ORL', conference: 'East', division: 'Southeast', capacity: 18500, primaryColor: '#0077C0', secondaryColor: '#C4CED4', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Motors', city: 'Detroit', abbrev: 'DET', conference: 'East', division: 'Central', capacity: 20000, primaryColor: '#C8102E', secondaryColor: '#1D42BA', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Cobras', city: 'Charlotte', abbrev: 'CHA', conference: 'East', division: 'Southeast', capacity: 19000, primaryColor: '#1D1160', secondaryColor: '#00788C', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Blues', city: 'Memphis', abbrev: 'MEM', conference: 'West', division: 'Southwest', capacity: 18000, primaryColor: '#5D76A9', secondaryColor: '#12173F', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Frost', city: 'Minnesota', abbrev: 'MIN', conference: 'West', division: 'Northwest', capacity: 19000, primaryColor: '#0C2340', secondaryColor: '#236192', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Royals', city: 'Sacramento', abbrev: 'SAC', conference: 'West', division: 'Pacific', capacity: 17500, primaryColor: '#5A2D81', secondaryColor: '#63727A', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Krewe', city: 'New Orleans', abbrev: 'NOP', conference: 'West', division: 'Southwest', capacity: 17000, primaryColor: '#0C2340', secondaryColor: '#C8102E', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Titans', city: 'Milwaukee', abbrev: 'MIL', conference: 'East', division: 'Central', capacity: 17500, primaryColor: '#00471B', secondaryColor: '#EEE1C6', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Racers', city: 'Indianapolis', abbrev: 'IND', conference: 'East', division: 'Central', capacity: 17800, primaryColor: '#002D62', secondaryColor: '#FDBB30', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Thunder', city: 'Cleveland', abbrev: 'CLE', conference: 'East', division: 'Central', capacity: 19400, primaryColor: '#860038', secondaryColor: '#041E42', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Steel', city: 'Pittsburgh', abbrev: 'PIT', conference: 'East', division: 'Central', capacity: 18000, primaryColor: '#000000', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Stars', city: 'Nashville', abbrev: 'NAS', conference: 'East', division: 'Southeast', capacity: 17000, primaryColor: '#041E42', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Blaze', city: 'Baltimore', abbrev: 'BAL', conference: 'East', division: 'Atlantic', capacity: 18000, primaryColor: '#00788C', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
-                    { name: 'Sentinels', city: 'San Francisco', abbrev: 'SFO', conference: 'West', division: 'Pacific', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' }
+                    // Atlantic Division (Eastern Conference)
+                    { name: 'Knights', city: 'Boston', abbrev: 'BOS', conference: 'Eastern', division: 'Atlantic', capacity: 19000, primaryColor: '#007A33', secondaryColor: '#BA9653', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Titans', city: 'New York', abbrev: 'NYT', conference: 'Eastern', division: 'Atlantic', capacity: 20000, primaryColor: '#006BB6', secondaryColor: '#F58426', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Fusion', city: 'Philadelphia', abbrev: 'PHI', conference: 'Eastern', division: 'Atlantic', capacity: 21000, primaryColor: '#006BB6', secondaryColor: '#ED174C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Blaze', city: 'Baltimore', abbrev: 'BAL', conference: 'Eastern', division: 'Atlantic', capacity: 18000, primaryColor: '#00788C', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Cobras', city: 'Charlotte', abbrev: 'CHA', conference: 'Eastern', division: 'Atlantic', capacity: 19000, primaryColor: '#1D1160', secondaryColor: '#00788C', logoUrl: '', secondaryLogoUrl: '' },
+                    
+                    // Central Division (Eastern Conference)
+                    { name: 'Predators', city: 'Chicago', abbrev: 'CHI', conference: 'Eastern', division: 'Central', capacity: 21000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Motors', city: 'Detroit', abbrev: 'DET', conference: 'Eastern', division: 'Central', capacity: 20000, primaryColor: '#C8102E', secondaryColor: '#1D42BA', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Racers', city: 'Indianapolis', abbrev: 'IND', conference: 'Eastern', division: 'Central', capacity: 17800, primaryColor: '#002D62', secondaryColor: '#FDBB30', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Titans', city: 'Milwaukee', abbrev: 'MIL', conference: 'Eastern', division: 'Central', capacity: 17500, primaryColor: '#00471B', secondaryColor: '#EEE1C6', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Thunder', city: 'Cleveland', abbrev: 'CLE', conference: 'Eastern', division: 'Central', capacity: 19400, primaryColor: '#860038', secondaryColor: '#041E42', logoUrl: '', secondaryLogoUrl: '' },
+                    
+                    // Southeast Division (Eastern Conference)
+                    { name: 'Dragons', city: 'Miami', abbrev: 'MIA', conference: 'Eastern', division: 'Southeast', capacity: 19600, primaryColor: '#98002E', secondaryColor: '#F9A01B', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Firebirds', city: 'Atlanta', abbrev: 'ATL', conference: 'Eastern', division: 'Southeast', capacity: 18000, primaryColor: '#E03A3E', secondaryColor: '#C1D32F', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Wizards', city: 'Orlando', abbrev: 'ORL', conference: 'Eastern', division: 'Southeast', capacity: 18500, primaryColor: '#0077C0', secondaryColor: '#C4CED4', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Stars', city: 'Nashville', abbrev: 'NAS', conference: 'Eastern', division: 'Southeast', capacity: 17000, primaryColor: '#041E42', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Steel', city: 'Pittsburgh', abbrev: 'PIT', conference: 'Eastern', division: 'Southeast', capacity: 18000, primaryColor: '#000000', secondaryColor: '#FFB81C', logoUrl: '', secondaryLogoUrl: '' },
+                    
+                    // Pacific Division (Western Conference)
+                    { name: 'Storm', city: 'Seattle', abbrev: 'SEA', conference: 'Western', division: 'Pacific', capacity: 18000, primaryColor: '#1D5C96', secondaryColor: '#FFD700', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Vipers', city: 'Las Vegas', abbrev: 'LVV', conference: 'Western', division: 'Pacific', capacity: 18500, primaryColor: '#006BB6', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Thunder', city: 'Portland', abbrev: 'POR', conference: 'Western', division: 'Pacific', capacity: 19000, primaryColor: '#E03A3E', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Phantoms', city: 'Los Angeles', abbrev: 'LAP', conference: 'Western', division: 'Pacific', capacity: 19000, primaryColor: '#552583', secondaryColor: '#FDB927', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Royals', city: 'Sacramento', abbrev: 'SAC', conference: 'Western', division: 'Pacific', capacity: 17500, primaryColor: '#5A2D81', secondaryColor: '#63727A', logoUrl: '', secondaryLogoUrl: '' },
+                    
+                    // Southwest Division (Western Conference)
+                    { name: 'Blaze', city: 'Phoenix', abbrev: 'PHX', conference: 'Western', division: 'Southwest', capacity: 18000, primaryColor: '#E56020', secondaryColor: '#1D1160', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Outlaws', city: 'Dallas', abbrev: 'DAL', conference: 'Western', division: 'Southwest', capacity: 19200, primaryColor: '#00538C', secondaryColor: '#002B5E', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Comets', city: 'Houston', abbrev: 'HOU', conference: 'Western', division: 'Southwest', capacity: 18000, primaryColor: '#CE1141', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Strikers', city: 'San Antonio', abbrev: 'SAS', conference: 'Western', division: 'Southwest', capacity: 18500, primaryColor: '#C4CED4', secondaryColor: '#000000', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Krewe', city: 'New Orleans', abbrev: 'NOP', conference: 'Western', division: 'Southwest', capacity: 17000, primaryColor: '#0C2340', secondaryColor: '#C8102E', logoUrl: '', secondaryLogoUrl: '' },
+                    
+                    // Northwest Division (Western Conference)
+                    { name: 'Peaks', city: 'Denver', abbrev: 'DEN', conference: 'Western', division: 'Northwest', capacity: 19500, primaryColor: '#0E2240', secondaryColor: '#FEC524', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Waves', city: 'San Diego', abbrev: 'SDW', conference: 'Western', division: 'Northwest', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Blues', city: 'Memphis', abbrev: 'MEM', conference: 'Western', division: 'Northwest', capacity: 18000, primaryColor: '#5D76A9', secondaryColor: '#12173F', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Frost', city: 'Minnesota', abbrev: 'MIN', conference: 'Western', division: 'Northwest', capacity: 19000, primaryColor: '#0C2340', secondaryColor: '#236192', logoUrl: '', secondaryLogoUrl: '' },
+                    { name: 'Sentinels', city: 'San Francisco', abbrev: 'SFO', conference: 'Western', division: 'Northwest', capacity: 18000, primaryColor: '#1D428A', secondaryColor: '#FFC72C', logoUrl: '', secondaryLogoUrl: '' }
                 ];
             }
 
@@ -528,7 +877,7 @@
                     setTeamChemistryEnabled(existingState.teamChemistryEnabled || false);
                     setRosterSize(existingState.rosterSize || 15);
                     
-                    const teamData = await db.teams.where('[leagueId+season]').equals([leagueId, existingState.currentSeason]).toArray();
+                    const teamData = await loadAndFixTeams(leagueId, existingState.currentSeason);
                     console.log('Teams loaded:', teamData.length);
                     
                     if (teamData.length === 0) {
@@ -543,10 +892,13 @@
                     setTeams(teamsObj);
                     setAllTeamNames(Object.keys(teamsObj));
                     
-                    const players = await db.players
+                    let players = await db.players
                         .where('[leagueId+team+season]')
                         .equals([leagueId, existingState.currentTeam, existingState.currentSeason])
                         .toArray();
+                    
+                    // Fix any players with missing data
+                    players = await Promise.all(players.map(p => loadAndFixPlayer(p)));
                     
                     console.log('Players loaded:', players.length);
                     setMyPlayers(players);
@@ -616,20 +968,21 @@
                         'Indianapolis Racers', 'Cleveland Thunder', 'Pittsburgh Steel', 'Nashville Stars', 'Baltimore Blaze', 'San Francisco Sentinels'
                     ];
 
-                const teamsData = teamNames.map((name, idx) => ({
+                // Create base team data
+                let teamsData = teamNames.map((name, idx) => ({
                     leagueId,
                     name,
                     season: 2025,
                     wins: 0,
                     losses: 0,
                     budget: SALARY_CAP,
-                    // Store custom team data
-                    ...(customTeams.length > 0 ? {
+                    division: '',
+                    conference: '',
+                    // Store custom team data if available
+                    ...(customTeams.length > 0 && customTeams[idx] ? {
                         city: customTeams[idx].city,
                         teamName: customTeams[idx].name,
                         abbrev: customTeams[idx].abbrev,
-                        conference: customTeams[idx].conference,
-                        division: customTeams[idx].division,
                         capacity: customTeams[idx].capacity,
                         primaryColor: customTeams[idx].primaryColor,
                         secondaryColor: customTeams[idx].secondaryColor,
@@ -637,6 +990,19 @@
                         secondaryLogoUrl: customTeams[idx].secondaryLogoUrl
                     } : {})
                 }));
+
+                // Assign divisions evenly if using custom teams with pre-set divisions/conferences
+                if (customTeams.length > 0 && customTeams[0].division && customTeams[0].conference) {
+                    // Use custom team divisions/conferences
+                    teamsData = teamsData.map((team, idx) => ({
+                        ...team,
+                        division: customTeams[idx].division,
+                        conference: customTeams[idx].conference
+                    }));
+                } else {
+                    // Auto-assign divisions evenly
+                    teamsData = assignDivisionsToTeams(teamsData);
+                }
 
                 await db.teams.bulkAdd(teamsData);
                 
@@ -646,6 +1012,25 @@
                 setAllTeamNames(teamNames);
 
                 // Generate all players for all teams
+                // Generate realistic player salary based on rating
+                function generatePlayerSalary(rating) {
+                    let baseSalary;
+                    
+                    if (rating >= 90) {
+                        baseSalary = 35000000 + Math.random() * 10000000; // Stars: $35-45M
+                    } else if (rating >= 80) {
+                        baseSalary = 20000000 + Math.random() * 10000000; // Good: $20-30M
+                    } else if (rating >= 70) {
+                        baseSalary = 10000000 + Math.random() * 8000000;  // Solid: $10-18M
+                    } else if (rating >= 60) {
+                        baseSalary = 5000000 + Math.random() * 5000000;   // Role: $5-10M
+                    } else {
+                        baseSalary = 1000000 + Math.random() * 3000000;   // Bench: $1-4M
+                    }
+                    
+                    return Math.round(baseSalary);
+                }
+
                 const allPlayers = [];
                 const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
                 const firstNames = ['James', 'Kevin', 'Stephen', 'LeBron', 'Anthony', 'Chris', 'Michael', 'Kobe', 'Dwyane', 'Russell', 'Damian', 'Jayson', 'Luka', 'Giannis', 'Joel', 'Nikola', 'Kawhi', 'Paul', 'Jimmy', 'Devin', 'Trae', 'Zion', 'Ja', 'Donovan', 'Bradley'];
@@ -712,7 +1097,7 @@
                             rating,
                             potential: potential,
                             contractYears: 1 + Math.floor(Math.random() * 4),
-                            salary: Math.round((baseRating / 100) * 40000000 + Math.random() * 5000000),
+                            salary: generatePlayerSalary(rating),
                             jerseyNumber: (i % 99) + 1,
                             // Physical
                             ...physical,
@@ -825,33 +1210,200 @@
                     rosterSize
                 });
                 
+                // Generate season schedule
+                await generateSeasonSchedule(leagueId, 2025, teamNames);
+                
                 return leagueId;
             }
 
             async function simulateSeason() {
                 setLoading(true);
                 try {
+                    // Check if schedule exists
+                    const scheduleGames = await db.schedule
+                        .where('[leagueId+season]')
+                        .equals([currentLeagueId, currentSeason])
+                        .toArray();
+                    
                     const newStandings = {};
                     
-                    // Calculate standings for each team
+                    // Initialize standings for each team
                     for (const teamName of allTeamNames) {
-                        const teamPlayers = await db.players
-                            .where(['team', 'season'])
-                            .equals([teamName, currentSeason])
-                            .toArray();
-                        
-                        const teamRating = teamPlayers.reduce((sum, p) => sum + p.rating, 0) / teamPlayers.length;
-                        const expectedWins = Math.round((teamRating - 50) / 2 + 41);
-                        const wins = Math.max(10, Math.min(72, expectedWins + Math.floor(Math.random() * 20 - 10)));
-                        
+                        const teamData = teams[teamName] || {};
                         newStandings[teamName] = {
-                            wins,
-                            losses: 82 - wins
+                            wins: 0,
+                            losses: 0,
+                            confWins: 0,
+                            confLosses: 0,
+                            homeWins: 0,
+                            homeLosses: 0,
+                            awayWins: 0,
+                            awayLosses: 0,
+                            last10: '',
+                            conference: teamData.conference || 'Eastern',
+                            division: teamData.division || 'Atlantic'
                         };
                     }
 
+                    // Simulate games from schedule (day-based system)
+                    if (scheduleGames.length > 0) {
+                        // Get team ratings for all teams
+                        const teamRatings = {};
+                        for (const teamName of allTeamNames) {
+                            const teamPlayers = await db.players
+                                .where('[leagueId+team+season]')
+                                .equals([currentLeagueId, teamName, currentSeason])
+                                .toArray();
+                            teamRatings[teamName] = teamPlayers.reduce((sum, p) => sum + p.rating, 0) / teamPlayers.length;
+                        }
+                        
+                        // Track game results for last 10
+                        const teamGameResults = {};
+                        allTeamNames.forEach(team => teamGameResults[team] = []);
+                        
+                        // Simulate each scheduled game
+                        for (const game of scheduleGames) {
+                            const homeTeam = game.homeTeam;
+                            const awayTeam = game.awayTeam;
+                            
+                            const homeRating = teamRatings[homeTeam] || 70;
+                            const awayRating = teamRatings[awayTeam] || 70;
+                            
+                            const homeData = teams[homeTeam] || {};
+                            const awayData = teams[awayTeam] || {};
+                            const homeConf = homeData.conference || 'Eastern';
+                            const awayConf = awayData.conference || 'Eastern';
+                            const isConfGame = homeConf === awayConf;
+                            
+                            // Calculate scores with home court advantage
+                            const homeAdvantage = 3;
+                            const ratingDiff = homeRating - awayRating + homeAdvantage;
+                            const homeWinProb = 0.5 + (ratingDiff / 100);
+                            const homeWins = Math.random() < homeWinProb;
+                            
+                            // Generate realistic scores
+                            const homeScore = Math.round(100 + (homeRating - 65) * 1.5 + homeAdvantage + (Math.random() * 20 - 10));
+                            const awayScore = Math.round(100 + (awayRating - 65) * 1.5 + (Math.random() * 20 - 10));
+                            
+                            // Ensure winner has higher score
+                            const finalHomeScore = homeWins ? Math.max(homeScore, awayScore + 1) : Math.min(homeScore, awayScore - 1);
+                            const finalAwayScore = homeWins ? Math.min(awayScore, finalHomeScore - 1) : Math.max(awayScore, finalHomeScore + 1);
+                            
+                            // Determine overtime
+                            const overtime = Math.abs(finalHomeScore - finalAwayScore) <= 3 && Math.random() < 0.15;
+                            
+                            // Update schedule with results
+                            await db.schedule.update(game.id, {
+                                result: 'final',
+                                homeScore: finalHomeScore,
+                                awayScore: finalAwayScore,
+                                overtime
+                            });
+                            
+                            // Update standings
+                            if (homeWins) {
+                                newStandings[homeTeam].wins++;
+                                newStandings[homeTeam].homeWins++;
+                                newStandings[awayTeam].losses++;
+                                newStandings[awayTeam].awayLosses++;
+                                if (isConfGame) {
+                                    newStandings[homeTeam].confWins++;
+                                    newStandings[awayTeam].confLosses++;
+                                }
+                                teamGameResults[homeTeam].push('W');
+                                teamGameResults[awayTeam].push('L');
+                            } else {
+                                newStandings[awayTeam].wins++;
+                                newStandings[awayTeam].awayWins++;
+                                newStandings[homeTeam].losses++;
+                                newStandings[homeTeam].homeLosses++;
+                                if (isConfGame) {
+                                    newStandings[awayTeam].confWins++;
+                                    newStandings[homeTeam].confLosses++;
+                                }
+                                teamGameResults[awayTeam].push('W');
+                                teamGameResults[homeTeam].push('L');
+                            }
+                        }
+                        
+                        // Set last 10 for each team
+                        allTeamNames.forEach(team => {
+                            newStandings[team].last10 = teamGameResults[team].join('');
+                        });
+                    } else {
+                        // Fallback: Old simulation method if no schedule exists
+                        console.warn('No schedule found, using random simulation');
+                        const gamesPerTeam = regularSeasonGames;
+                        const homeGames = gamesPerTeam / 2;
+                        
+                        for (const teamName of allTeamNames) {
+                            const teamPlayers = await db.players
+                                .where('[leagueId+team+season]')
+                                .equals([currentLeagueId, teamName, currentSeason])
+                                .toArray();
+                            
+                            const teamRating = teamPlayers.reduce((sum, p) => sum + p.rating, 0) / teamPlayers.length;
+                            const teamData = teams[teamName] || {};
+                            const teamConf = teamData.conference || 'Eastern';
+                            
+                            let totalWins = 0;
+                            let homeWins = 0;
+                            let awayWins = 0;
+                            let confWins = 0;
+                            let gameResults = [];
+                            
+                            for (let game = 0; game < gamesPerTeam; game++) {
+                                const isHome = game < homeGames;
+                                const homeAdvantage = isHome ? 3 : -3;
+                                
+                                const opponents = allTeamNames.filter(t => t !== teamName);
+                                const opponentName = opponents[Math.floor(Math.random() * opponents.length)];
+                                const opponentData = teams[opponentName] || {};
+                                const opponentConf = opponentData.conference || 'Western';
+                                const isConfGame = teamConf === opponentConf;
+                                
+                                const opponentPlayers = await db.players
+                                    .where('[leagueId+team+season]')
+                                    .equals([currentLeagueId, opponentName, currentSeason])
+                                    .toArray();
+                                const opponentRating = opponentPlayers.reduce((sum, p) => sum + p.rating, 0) / opponentPlayers.length;
+                                
+                                const ratingDiff = teamRating - opponentRating + homeAdvantage;
+                                const winProb = 0.5 + (ratingDiff / 100);
+                                const won = Math.random() < winProb;
+                                
+                                if (won) {
+                                    totalWins++;
+                                    if (isHome) homeWins++;
+                                    else awayWins++;
+                                    if (isConfGame) confWins++;
+                                    gameResults.push('W');
+                                } else {
+                                    if (isConfGame) {
+                                        newStandings[teamName].confLosses = (newStandings[teamName].confLosses || 0) + 1;
+                                    }
+                                    gameResults.push('L');
+                                }
+                            }
+                            
+                            const totalLosses = gamesPerTeam - totalWins;
+                            newStandings[teamName].wins = totalWins;
+                            newStandings[teamName].losses = totalLosses;
+                            newStandings[teamName].homeWins = homeWins;
+                            newStandings[teamName].homeLosses = homeGames - homeWins;
+                            newStandings[teamName].awayWins = awayWins;
+                            newStandings[teamName].awayLosses = (gamesPerTeam - homeGames) - awayWins;
+                            newStandings[teamName].confWins = confWins;
+                            newStandings[teamName].last10 = gameResults.join('');
+                        }
+                    }
+
                     // Update player stats and development
-                    const allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
+                    let allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
+                    
+                    // Fix any players with missing bio data
+                    allPlayers = await Promise.all(allPlayers.map(p => loadAndFixPlayer(p)));
+                    
                     const updatedPlayers = allPlayers.map(p => {
                         const ageFactor = p.age < 27 ? 1 : (p.age > 30 ? -1 : 0);
                         const potentialDiff = p.potential - p.rating;
@@ -862,7 +1414,7 @@
                             rating: Math.max(40, Math.min(99, Math.round(p.rating + development))),
                             ppg: Math.round((p.rating / 5) * (Math.random() * 0.4 + 0.8) * 10) / 10,
                             rpg: Math.round((p.rating / 10) * (Math.random() * 0.5 + 0.8) * 10) / 10,
-                            apg: Math.round((p.rating / 15) * (Math.random() * 0.6 + 0.7) * 10) / 10
+            apg: Math.round((p.rating / 15) * (Math.random() * 0.6 + 0.7) * 10) / 10
                         };
                     });
 
@@ -927,7 +1479,11 @@
                     const nextSeason = currentSeason + 1;
                     
                     // Age players and update contracts
-                    const allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
+                    let allPlayers = await db.players.where('[leagueId+season]').equals([currentLeagueId, currentSeason]).toArray();
+                    
+                    // Fix any players with missing bio data before advancing
+                    allPlayers = await Promise.all(allPlayers.map(p => loadAndFixPlayer(p)));
+                    
                     const updatedPlayers = allPlayers
                         .map(p => ({
                             ...p,
@@ -951,6 +1507,18 @@
                         const potential = Math.max(50, 95 - i * 0.8 + (Math.random() * 15 - 7.5));
                         const rating = Math.max(40, Math.round(potential - 20 + (Math.random() * 10 - 5)));
                         
+                        // Rookie scale salaries based on draft position
+                        let rookieSalary;
+                        if (i < 5) {
+                            rookieSalary = 8000000 + Math.random() * 2000000; // Top 5: $8-10M
+                        } else if (i < 10) {
+                            rookieSalary = 5000000 + Math.random() * 2000000; // 6-10: $5-7M
+                        } else if (i < 20) {
+                            rookieSalary = 3000000 + Math.random() * 1500000; // 11-20: $3-4.5M
+                        } else {
+                            rookieSalary = 1500000 + Math.random() * 1000000; // 21-30: $1.5-2.5M
+                        }
+                        
                         rookies.push({
                             name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
                             leagueId: currentLeagueId,
@@ -961,7 +1529,7 @@
                             rating: rating,
                             potential: Math.round(potential),
                             contractYears: 4,
-                            salary: Math.round((31 - i) * 300000),
+                            salary: Math.round(rookieSalary),
                             ppg: 0,
                             rpg: 0,
                             apg: 0
@@ -1000,6 +1568,9 @@
                         .equals([currentLeagueId, currentTeam, nextSeason])
                         .toArray();
                     setMyPlayers(newMyPlayers);
+                    
+                    // Generate schedule for new season
+                    await generateSeasonSchedule(currentLeagueId, nextSeason, allTeamNames);
 
                 } catch (error) {
                     console.error('Error advancing season:', error);
@@ -1021,6 +1592,591 @@
                     await db.delete();
                     window.location.reload();
                 }
+            }
+
+            async function refixDivisions() {
+                if (!currentLeagueId) return;
+                
+                try {
+                    setLoading(true);
+                    
+                    // Get all teams for current league
+                    const allTeams = await db.teams.where('leagueId').equals(currentLeagueId).toArray();
+                    
+                    // Update each team with correct division/conference
+                    for (const team of allTeams) {
+                        const assignment = assignDivisionAndConference(team.name);
+                        await db.teams.update(team.id, {
+                            division: assignment.division,
+                            conference: assignment.conference
+                        });
+                    }
+                    
+                    // Reload the current league to reflect changes
+                    await loadExistingGame(currentLeagueId);
+                    
+                    alert('Divisions have been fixed! Please refresh the standings.');
+                } catch (error) {
+                    console.error('Error refixing divisions:', error);
+                    alert('Error fixing divisions. Check console for details.');
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            async function generateSeasonSchedule(leagueId, season, teamNames) {
+                const schedule = [];
+                const numTeams = teamNames.length;
+                const gamesPerTeam = 82;
+                const totalDays = 180; // 6-month season
+                const targetGamesPerDay = 10; // ~10 games per day for 30 teams
+                
+                // Helper to get random game time
+                function getRandomGameTime() {
+                    const times = ["7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM", "9:00 PM", "10:00 PM"];
+                    return times[Math.floor(Math.random() * times.length)];
+                }
+                
+                // Helper to get games played by a team
+                function getGamesPlayed(teamName) {
+                    return schedule.filter(g => g.homeTeam === teamName || g.awayTeam === teamName).length;
+                }
+                
+                // Helper to get team's last game day
+                function getLastGameDay(teamName) {
+                    const teamGames = schedule.filter(g => g.homeTeam === teamName || g.awayTeam === teamName);
+                    if (teamGames.length === 0) return 0;
+                    return Math.max(...teamGames.map(g => g.day));
+                }
+                
+                // Helper to count consecutive game days
+                function getConsecutiveGameDays(teamName, currentDay) {
+                    const teamGames = schedule
+                        .filter(g => g.homeTeam === teamName || g.awayTeam === teamName)
+                        .sort((a, b) => b.day - a.day); // Sort by day descending
+                    
+                    let consecutiveDays = 0;
+                    for (let checkDay = currentDay - 1; checkDay > 0; checkDay--) {
+                        const hasGame = teamGames.some(g => g.day === checkDay);
+                        if (hasGame) {
+                            consecutiveDays++;
+                        } else {
+                            break; // Stop counting when we find a rest day
+                        }
+                    }
+                    return consecutiveDays;
+                }
+                
+                // Track home/away games needed and opponent matchups
+                const gamesNeeded = {};
+                teamNames.forEach(team => {
+                    gamesNeeded[team] = {
+                        home: gamesPerTeam / 2,
+                        away: gamesPerTeam / 2,
+                        opponents: {}
+                    };
+                    
+                    teamNames.forEach(opp => {
+                        if (team !== opp) {
+                            gamesNeeded[team].opponents[opp] = 0;
+                        }
+                    });
+                });
+                
+                let gameId = 1;
+                
+                // Schedule games day by day across the season
+                for (let currentDay = 1; currentDay <= totalDays; currentDay++) {
+                    const teamsPlayingToday = new Set();
+                    let gamesScheduledToday = 0;
+                    
+                    // Try to schedule ~10 games this day
+                    let attempts = 0;
+                    const maxAttempts = numTeams * 2;
+                    
+                    while (gamesScheduledToday < targetGamesPerDay && attempts < maxAttempts) {
+                        attempts++;
+                        
+                        // Find available teams that can play today
+                        const availableTeams = teamNames.filter(team => {
+                            // Skip if already playing today
+                            if (teamsPlayingToday.has(team)) return false;
+                            
+                            // Skip if team has played all their games
+                            if (getGamesPlayed(team) >= gamesPerTeam) return false;
+                            
+                            const lastGameDay = getLastGameDay(team);
+                            const daysSinceLastGame = currentDay - lastGameDay;
+                            
+                            // Allow back-to-backs (0 days rest) 15% of the time
+                            // But NEVER allow 3 games in a row (2+ consecutive game days)
+                            const consecutiveGameDays = getConsecutiveGameDays(team, currentDay);
+                            
+                            if (consecutiveGameDays >= 2) {
+                                // Team has played 2+ days in a row, MUST rest
+                                return false;
+                            } else if (daysSinceLastGame === 0) {
+                                // Same day - never allow
+                                return false;
+                            } else if (daysSinceLastGame === 1) {
+                                // Back-to-back - allow 15% of the time
+                                return Math.random() < 0.15;
+                            } else {
+                                // 2+ days rest - always allow
+                                return true;
+                            }
+                        });
+                        
+                        if (availableTeams.length < 2) break;
+                        
+                        // Pick first team randomly
+                        const team1 = availableTeams[Math.floor(Math.random() * availableTeams.length)];
+                        
+                        // Find valid opponent
+                        const validOpponents = availableTeams.filter(team2 => {
+                            if (team1 === team2) return false;
+                            // Check if they haven't played too many times (max 4 games)
+                            if (gamesNeeded[team1].opponents[team2] >= 4) return false;
+                            return true;
+                        });
+                        
+                        if (validOpponents.length === 0) continue;
+                        
+                        const team2 = validOpponents[Math.floor(Math.random() * validOpponents.length)];
+                        
+                        // Determine home/away
+                        const team1NeedsHome = gamesNeeded[team1].home > 0;
+                        const team1NeedsAway = gamesNeeded[team1].away > 0;
+                        const team2NeedsHome = gamesNeeded[team2].home > 0;
+                        const team2NeedsAway = gamesNeeded[team2].away > 0;
+                        
+                        let homeTeam, awayTeam;
+                        
+                        if (team1NeedsHome && team2NeedsAway) {
+                            homeTeam = team1;
+                            awayTeam = team2;
+                        } else if (team1NeedsAway && team2NeedsHome) {
+                            homeTeam = team2;
+                            awayTeam = team1;
+                        } else if (team1NeedsHome && team2NeedsHome) {
+                            // Both need home - choose randomly
+                            if (Math.random() > 0.5) {
+                                homeTeam = team1;
+                                awayTeam = team2;
+                            } else {
+                                homeTeam = team2;
+                                awayTeam = team1;
+                            }
+                        } else if (team1NeedsAway && team2NeedsAway) {
+                            // Both need away - choose randomly
+                            if (Math.random() > 0.5) {
+                                homeTeam = team2;
+                                awayTeam = team1;
+                            } else {
+                                homeTeam = team1;
+                                awayTeam = team2;
+                            }
+                        } else {
+                            continue;
+                        }
+                        
+                        // Create the game
+                        schedule.push({
+                            leagueId,
+                            season,
+                            gameNumber: gameId++,
+                            day: currentDay,
+                            time: getRandomGameTime(),
+                            homeTeam,
+                            awayTeam,
+                            result: null,
+                            homeScore: null,
+                            awayScore: null,
+                            overtime: false
+                        });
+                        
+                        // Update tracking
+                        teamsPlayingToday.add(team1);
+                        teamsPlayingToday.add(team2);
+                        
+                        if (homeTeam === team1) {
+                            gamesNeeded[team1].home--;
+                            gamesNeeded[team2].away--;
+                        } else {
+                            gamesNeeded[team2].home--;
+                            gamesNeeded[team1].away--;
+                        }
+                        
+                        gamesNeeded[team1].opponents[team2]++;
+                        gamesNeeded[team2].opponents[team1]++;
+                        
+                        gamesScheduledToday++;
+                    }
+                }
+                
+                // Save schedule to database
+                await db.schedule.bulkAdd(schedule);
+                
+                console.log(`Schedule generated: ${schedule.length} total games across ${totalDays} days`);
+                
+                return schedule;
+            }
+
+            // ============================================
+            // DRAFT SYSTEM FUNCTIONS
+            // ============================================
+            
+            async function generateDraftClass(leagueId, season) {
+                const prospects = [];
+                const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                const firstNames = ['Marcus', 'Tyler', 'Brandon', 'Jaylen', 'Zach', 'Malik', 'Jordan', 'Cameron', 'Isaiah', 'Xavier', 'Jalen', 'Trevor', 'Austin', 'Devon', 'Kyle', 'Andre', 'Derek', 'Ryan', 'Blake', 'Cody'];
+                const lastNames = ['Johnson', 'Williams', 'Smith', 'Brown', 'Davis', 'Miller', 'Wilson', 'Anderson', 'Taylor', 'Thomas', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Robinson', 'Clark', 'Lewis', 'Walker', 'Hall'];
+                
+                const colleges = ['Duke', 'Kentucky', 'North Carolina', 'Kansas', 'UCLA', 'Gonzaga', 'Michigan', 'Arizona', 'Villanova', 'Syracuse', 'Louisville', 'Michigan State', 'Florida', 'Texas', 'Memphis', 'Ohio State', 'USC', 'Stanford', 'International', 'France', 'Spain', 'Australia', 'Serbia'];
+                
+                const strengths = ['Elite shooter', 'Defensive anchor', 'High IQ', 'Athletic freak', 'Great passer', 'Rebounding machine', 'Versatile scorer', 'Lockdown defender', 'Court vision', 'Three-level scorer', 'Pick and roll maestro', 'Transition threat'];
+                
+                const weaknesses = ['Needs strength', 'Ball handling', 'Defensive consistency', 'Three-point shooting', 'Free throw shooting', 'Decision making', 'Lateral quickness', 'Finishing at rim', 'Passing', 'Rebounding'];
+                
+                const workEthics = ['Elite', 'High', 'Above Average', 'Average', 'Questionable'];
+                const intangibles = ['Natural leader', 'High motor', 'Team player', 'Competitive', 'Gym rat', 'Clutch gene', 'Winner', 'Raw talent'];
+                
+                // Generate 60 prospects (2 rounds x 30 teams)
+                for (let i = 0; i < 60; i++) {
+                    const position = positions[Math.floor(Math.random() * positions.length)];
+                    const age = 19 + Math.floor(Math.random() * 4); // 19-22
+                    
+                    // Top picks have higher potential
+                    let potentialBase;
+                    if (i < 5) potentialBase = 80; // Top 5: Elite potential
+                    else if (i < 14) potentialBase = 75; // Lottery: High potential
+                    else if (i < 30) potentialBase = 70; // First round: Good potential
+                    else potentialBase = 65; // Second round: Decent potential
+                    
+                    const potential = potentialBase + Math.floor(Math.random() * 15) - 5; // ±5 variance
+                    const currentRating = Math.max(45, potential - 15 - Math.floor(Math.random() * 15)); // 10-25 below potential
+                    
+                    // Physical attributes
+                    const heights = {
+                        'PG': [72, 76],
+                        'SG': [74, 78],
+                        'SF': [77, 81],
+                        'PF': [80, 84],
+                        'C': [82, 88]
+                    };
+                    const range = heights[position];
+                    const heightInches = range[0] + Math.floor(Math.random() * (range[1] - range[0]));
+                    const feet = Math.floor(heightInches / 12);
+                    const inches = heightInches % 12;
+                    const height = `${feet}'${inches}"`;
+                    const weight = 160 + (heightInches - 72) * 5 + Math.floor(Math.random() * 40);
+                    
+                    // Generate detailed skills
+                    const variation = () => Math.floor(Math.random() * 20) - 10;
+                    const skills = {
+                        insideScoring: Math.max(35, Math.min(90, currentRating + variation() + (['C', 'PF'].includes(position) ? 10 : -10))),
+                        midRange: Math.max(35, Math.min(90, currentRating + variation())),
+                        threePoint: Math.max(30, Math.min(95, currentRating + variation() + (['PG', 'SG'].includes(position) ? 10 : -10))),
+                        passing: Math.max(35, Math.min(90, currentRating + variation() + (position === 'PG' ? 15 : 0))),
+                        defense: Math.max(40, Math.min(90, currentRating + variation())),
+                        rebounding: Math.max(35, Math.min(90, currentRating + variation() + (['C', 'PF'].includes(position) ? 15 : -5))),
+                        athleticism: Math.max(50, Math.min(98, currentRating + variation() + Math.floor(Math.random() * 10))),
+                        bbIQ: Math.max(40, Math.min(90, currentRating + variation()))
+                    };
+                    
+                    // Scouting grade
+                    let grade;
+                    if (potential >= 90) grade = 'A+';
+                    else if (potential >= 85) grade = 'A';
+                    else if (potential >= 80) grade = 'A-';
+                    else if (potential >= 75) grade = 'B+';
+                    else if (potential >= 70) grade = 'B';
+                    else if (potential >= 65) grade = 'B-';
+                    else if (potential >= 60) grade = 'C+';
+                    else grade = 'C';
+                    
+                    // Get random strengths/weaknesses
+                    const prospectStrengths = [];
+                    const prospectWeaknesses = [];
+                    for (let j = 0; j < 2; j++) {
+                        prospectStrengths.push(strengths[Math.floor(Math.random() * strengths.length)]);
+                        prospectWeaknesses.push(weaknesses[Math.floor(Math.random() * weaknesses.length)]);
+                    }
+                    
+                    prospects.push({
+                        leagueId,
+                        season,
+                        name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                        position,
+                        age,
+                        height,
+                        weight,
+                        college: colleges[Math.floor(Math.random() * colleges.length)],
+                        currentRating,
+                        potential,
+                        skills,
+                        scoutingGrade: grade,
+                        projectedPick: i + 1,
+                        strengths: prospectStrengths,
+                        weaknesses: prospectWeaknesses,
+                        workEthic: workEthics[Math.floor(Math.random() * workEthics.length)],
+                        intangibles: intangibles[Math.floor(Math.random() * intangibles.length)],
+                        drafted: false,
+                        draftedBy: null,
+                        draftPick: null,
+                        scoutingLevel: 0 // 0 = unscouted, 1 = basic, 2 = full
+                    });
+                }
+                
+                // Save prospects to database
+                await db.draftProspects.bulkAdd(prospects);
+                return prospects;
+            }
+            
+            async function loadDraftProspects() {
+                try {
+                    const prospects = await db.draftProspects
+                        .where('[leagueId+season]')
+                        .equals([currentLeagueId, currentSeason])
+                        .toArray();
+                    
+                    setDraftProspects(prospects);
+                    
+                    // Initialize big board if empty
+                    if (bigBoard.length === 0 && prospects.length > 0) {
+                        setBigBoard([...prospects].sort((a, b) => a.projectedPick - b.projectedPick));
+                    }
+                } catch (error) {
+                    console.error('Error loading draft prospects:', error);
+                }
+            }
+            
+            function scoutProspect(prospectId, level = 2) {
+                if (scoutingBudget <= 0 && level === 2) {
+                    alert('No scouting budget remaining!');
+                    return;
+                }
+                
+                // Update prospect scouting level
+                setDraftProspects(prev => prev.map(p => 
+                    p.id === prospectId ? { ...p, scoutingLevel: level } : p
+                ));
+                
+                if (level === 2) {
+                    setScoutedPlayers(prev => new Set([...prev, prospectId]));
+                    setScoutingBudget(prev => prev - 1);
+                }
+            }
+            
+            async function calculateDraftOrder() {
+                // Based on standings (worst teams pick first)
+                const standingsArray = getStandingsData();
+                const order = [];
+                
+                // Reverse standings for draft order (worst team picks 1st)
+                const reversed = [...standingsArray].reverse();
+                
+                // Round 1
+                reversed.forEach((team, idx) => {
+                    order.push({
+                        pick: idx + 1,
+                        round: 1,
+                        team: team.team,
+                        traded: false
+                    });
+                });
+                
+                // Round 2 (same order)
+                reversed.forEach((team, idx) => {
+                    order.push({
+                        pick: idx + 31,
+                        round: 2,
+                        team: team.team,
+                        traded: false
+                    });
+                });
+                
+                setDraftOrder(order);
+                return order;
+            }
+            
+            function aiDraftPick(team, availableProspects) {
+                // Analyze team needs
+                const teamNeeds = ['PG', 'SG', 'SF', 'PF', 'C']; // Simplified - all positions
+                
+                // Score each prospect
+                const scoredProspects = availableProspects.map(prospect => {
+                    let score = prospect.potential * 0.7 + prospect.currentRating * 0.3;
+                    
+                    // Bonus for team needs (random for now)
+                    if (Math.random() > 0.5) {
+                        score += 10;
+                    }
+                    
+                    // Add randomness (±15 points)
+                    score += (Math.random() * 30 - 15);
+                    
+                    return { prospect, score };
+                });
+                
+                // Pick highest scored
+                scoredProspects.sort((a, b) => b.score - a.score);
+                return scoredProspects[0].prospect;
+            }
+            
+            async function simulateDraft(mode = 'auto') {
+                setDraftInProgress(true);
+                const order = draftOrder.length > 0 ? draftOrder : await calculateDraftOrder();
+                const results = [];
+                let available = [...draftProspects].filter(p => !p.drafted);
+                
+                for (let i = 0; i < order.length; i++) {
+                    const pickInfo = order[i];
+                    
+                    if (available.length === 0) break;
+                    
+                    let selectedProspect;
+                    
+                    // Check if it's user's team
+                    if (pickInfo.team === currentTeam && mode === 'live') {
+                        // In live mode, pause for user selection
+                        setCurrentDraftPick(i + 1);
+                        return; // Wait for user to make selection
+                    } else {
+                        // AI makes pick (including auto-draft for user)
+                        if (pickInfo.team === currentTeam && bigBoard.length > 0) {
+                            // Use user's big board for auto-draft
+                            selectedProspect = bigBoard.find(p => available.some(a => a.id === p.id));
+                        } else {
+                            // AI team picks
+                            selectedProspect = aiDraftPick(pickInfo.team, available);
+                        }
+                    }
+                    
+                    if (selectedProspect) {
+                        // Mark as drafted
+                        selectedProspect.drafted = true;
+                        selectedProspect.draftedBy = pickInfo.team;
+                        selectedProspect.draftPick = pickInfo.pick;
+                        
+                        results.push({
+                            pick: pickInfo.pick,
+                            round: pickInfo.round,
+                            team: pickInfo.team,
+                            prospect: selectedProspect
+                        });
+                        
+                        // Remove from available
+                        available = available.filter(p => p.id !== selectedProspect.id);
+                        
+                        // Update database
+                        await db.draftProspects.update(selectedProspect.id, {
+                            drafted: true,
+                            draftedBy: pickInfo.team,
+                            draftPick: pickInfo.pick
+                        });
+                    }
+                }
+                
+                setDraftResults(results);
+                setDraftInProgress(false);
+                setDraftProspects(prev => prev.map(p => {
+                    const result = results.find(r => r.prospect.id === p.id);
+                    return result ? { ...p, drafted: true, draftedBy: result.team, draftPick: result.pick } : p;
+                }));
+                
+                // Add drafted players to respective teams
+                await addDraftedPlayersToRosters(results);
+            }
+            
+            async function addDraftedPlayersToRosters(draftResults) {
+                const newPlayers = [];
+                
+                for (const result of draftResults) {
+                    const prospect = result.prospect;
+                    
+                    // Determine rookie salary based on draft position
+                    let salary;
+                    if (result.pick <= 5) salary = 8000000 + Math.random() * 2000000; // $8-10M
+                    else if (result.pick <= 10) salary = 5000000 + Math.random() * 2000000; // $5-7M
+                    else if (result.pick <= 20) salary = 3000000 + Math.random() * 1500000; // $3-4.5M
+                    else if (result.pick <= 30) salary = 1500000 + Math.random() * 1000000; // $1.5-2.5M
+                    else salary = 1000000 + Math.random() * 500000; // $1-1.5M
+                    
+                    newPlayers.push({
+                        leagueId: currentLeagueId,
+                        team: result.team,
+                        season: currentSeason,
+                        name: prospect.name,
+                        age: prospect.age,
+                        position: prospect.position,
+                        rating: prospect.currentRating,
+                        potential: prospect.potential,
+                        contractYears: 4, // Rookie contracts
+                        salary: Math.round(salary),
+                        hometown: generateHometown(),
+                        college: prospect.college,
+                        heightInches: parseInt(prospect.height.split("'")[0]) * 12 + parseInt(prospect.height.split("'")[1]),
+                        weight: prospect.weight,
+                        draftYear: currentSeason,
+                        draftRound: result.round,
+                        draftPick: result.pick,
+                        draftTeam: result.team,
+                        ppg: 0,
+                        rpg: 0,
+                        apg: 0,
+                        // Copy skills from prospect
+                        insideScoring: prospect.skills.insideScoring,
+                        midRange: prospect.skills.midRange,
+                        threePoint: prospect.skills.threePoint,
+                        passing: prospect.skills.passing,
+                        defense: prospect.skills.defense,
+                        rebounding: prospect.skills.rebounding
+                    });
+                }
+                
+                await db.players.bulkAdd(newPlayers);
+                
+                // Reload current team's players if they drafted
+                if (draftResults.some(r => r.team === currentTeam)) {
+                    const updatedPlayers = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, currentTeam, currentSeason])
+                        .toArray();
+                    setMyPlayers(updatedPlayers);
+                }
+            }
+            
+            async function userMakeDraftPick(prospectId) {
+                const pickInfo = draftOrder[currentDraftPick - 1];
+                const prospect = draftProspects.find(p => p.id === prospectId);
+                
+                if (!prospect || prospect.drafted) {
+                    alert('This player is no longer available!');
+                    return;
+                }
+                
+                // Mark as drafted
+                prospect.drafted = true;
+                prospect.draftedBy = currentTeam;
+                prospect.draftPick = pickInfo.pick;
+                
+                setDraftResults(prev => [...prev, {
+                    pick: pickInfo.pick,
+                    round: pickInfo.round,
+                    team: currentTeam,
+                    prospect
+                }]);
+                
+                await db.draftProspects.update(prospectId, {
+                    drafted: true,
+                    draftedBy: currentTeam,
+                    draftPick: pickInfo.pick
+                });
+                
+                // Continue simulation for remaining picks
+                setCurrentDraftPick(prev => prev + 1);
+                simulateDraft('live');
             }
 
             async function exitToHome() {
@@ -1946,8 +3102,9 @@
                                     {[
                                         { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
                                         { id: 'roster', icon: '👥', label: 'Roster' },
+                                        { id: 'schedule', icon: '📅', label: 'Schedule' },
                                         { id: 'standings', icon: '📊', label: 'League Standings' },
-                                        { id: 'draft', icon: '🎯', label: 'Draft', disabled: true },
+                                        { id: 'draft', icon: '🎯', label: 'Draft' },
                                         { id: 'trades', icon: '🔄', label: 'Trades', disabled: true },
                                         { id: 'free-agency', icon: '✍️', label: 'Free Agency', disabled: true },
                                         { id: 'finances', icon: '💰', label: 'Finances' },
@@ -2296,8 +3453,35 @@
 
                                 {currentPage === 'roster' && !viewingPlayerProfile && (
                                     <div>
-                                        <h2 className="text-3xl font-bold mb-6">Team Roster</h2>
-                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                        <div className="mb-6 flex justify-between items-center">
+                                            <h2 className="text-3xl font-bold">Team Roster</h2>
+                                            <div className="flex items-center gap-3">
+                                                <label className="text-gray-300 font-semibold">View Team:</label>
+                                                <select
+                                                    value={viewingTeam || currentTeam}
+                                                    onChange={(e) => {
+                                                        const team = e.target.value;
+                                                        if (team === currentTeam) {
+                                                            setViewingTeam(null);
+                                                            setViewingTeamPlayers([]);
+                                                        } else {
+                                                            viewTeamRoster(team);
+                                                        }
+                                                    }}
+                                                    className="bg-slate-700 border border-slate-600 rounded px-4 py-2 text-white font-semibold"
+                                                >
+                                                    <option value={currentTeam}>Your Team ({currentTeam})</option>
+                                                    <optgroup label="Other Teams">
+                                                        {allTeamNames.filter(t => t !== currentTeam).sort().map(team => (
+                                                            <option key={team} value={team}>{team}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        {!viewingTeam && (
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
                                             <div className="overflow-x-auto">
                                                 <table className="w-full">
                                                     <thead className="bg-slate-700">
@@ -2353,6 +3537,82 @@
                                                 </table>
                                             </div>
                                         </div>
+                                        )}
+
+                                        {/* Viewing Other Team Roster */}
+                                        {viewingTeam && (
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                <div className="mb-4 p-4 bg-blue-900 bg-opacity-30 rounded-lg">
+                                                    <div className="text-center">
+                                                        <div className="text-2xl font-bold text-blue-400 mb-2">{viewingTeam}</div>
+                                                        <div className="grid grid-cols-3 gap-4 text-sm">
+                                                            <div>
+                                                                <div className="text-gray-400">Roster Size</div>
+                                                                <div className="font-bold">{viewingTeamPlayers.length}</div>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-gray-400">Avg Rating</div>
+                                                                <div className="font-bold text-blue-400">
+                                                                    {viewingTeamPlayers.length > 0 ? Math.round(viewingTeamPlayers.reduce((sum, p) => sum + p.rating, 0) / viewingTeamPlayers.length) : 0}
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-gray-400">Total Salary</div>
+                                                                <div className="font-bold text-green-400">
+                                                                    ${(viewingTeamPlayers.reduce((sum, p) => sum + p.salary, 0) / 1000000).toFixed(1)}M
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full">
+                                                        <thead className="bg-slate-700">
+                                                            <tr>
+                                                                <th className="px-4 py-3 text-left">Name</th>
+                                                                <th className="px-4 py-3">Pos</th>
+                                                                <th className="px-4 py-3">Age</th>
+                                                                <th className="px-4 py-3">Ovr</th>
+                                                                <th className="px-4 py-3">Pot</th>
+                                                                <th className="px-4 py-3">Contract</th>
+                                                                <th className="px-4 py-3">Salary</th>
+                                                                <th className="px-4 py-3">PPG</th>
+                                                                <th className="px-4 py-3">RPG</th>
+                                                                <th className="px-4 py-3">APG</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {viewingTeamPlayers.sort((a, b) => b.rating - a.rating).map(player => (
+                                                                <tr key={player.id} className="border-b border-slate-700 hover:bg-slate-700">
+                                                                    <td className="px-4 py-3">
+                                                                        <button 
+                                                                            onClick={() => openPlayerProfile(player)}
+                                                                            className="font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                                                                        >
+                                                                            {player.name}
+                                                                        </button>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center">{player.position}</td>
+                                                                    <td className="px-4 py-3 text-center">{player.age}</td>
+                                                                    <td className="px-4 py-3 text-center">
+                                                                        <span className={player.rating >= 80 ? 'text-green-400 font-bold' : player.rating >= 70 ? 'text-blue-400' : 'text-gray-400'}>
+                                                                            {player.rating}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center text-purple-400">{player.potential}</td>
+                                                                    <td className="px-4 py-3 text-center">{player.contractYears}yr</td>
+                                                                    <td className="px-4 py-3 text-center">${(player.salary / 1000000).toFixed(1)}M</td>
+                                                                    <td className="px-4 py-3 text-center">{player.ppg}</td>
+                                                                    <td className="px-4 py-3 text-center">{player.rpg}</td>
+                                                                    <td className="px-4 py-3 text-center">{player.apg}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -2415,8 +3675,12 @@
                                                 <div className="flex justify-between items-start">
                                                     <div>
                                                         <h1 className="text-5xl font-bold mb-2">{selectedPlayer.name}</h1>
-                                                        <div className="flex gap-4 text-xl">
-                                                            <span>{currentTeam}</span>
+                                                        <div className="flex gap-4 text-xl items-center">
+                                                            <span className={selectedPlayer.team === currentTeam ? 'text-green-300' : 'text-orange-300'}>
+                                                                {selectedPlayer.team}
+                                                                {selectedPlayer.team === currentTeam && <span className="ml-2 text-xs bg-green-600 px-2 py-1 rounded">YOUR PLAYER</span>}
+                                                                {selectedPlayer.team !== currentTeam && <span className="ml-2 text-xs bg-orange-600 px-2 py-1 rounded">OTHER TEAM</span>}
+                                                            </span>
                                                             <span>•</span>
                                                             <span>#{selectedPlayer.jerseyNumber || 0}</span>
                                                             <span>•</span>
@@ -2837,23 +4101,34 @@
                                                     >
                                                         ← Back to Roster
                                                     </button>
-                                                    <button 
-                                                        className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold flex-1"
-                                                        disabled
-                                                    >
-                                                        📊 Trade Player (Coming Soon)
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => {
-                                                            if (confirm(`Are you sure you want to release ${selectedPlayer.name}?`)) {
-                                                                releasePlayer(selectedPlayer.id);
-                                                                closePlayerProfile();
-                                                            }
-                                                        }}
-                                                        className="bg-red-600 hover:bg-red-700 px-8 py-3 rounded-lg font-bold flex-1"
-                                                    >
-                                                        🗑️ Release Player
-                                                    </button>
+                                                    {selectedPlayer.team === currentTeam ? (
+                                                        <>
+                                                            <button 
+                                                                className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                                disabled
+                                                            >
+                                                                📊 Trade Player (Coming Soon)
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (confirm(`Are you sure you want to release ${selectedPlayer.name}?`)) {
+                                                                        releasePlayer(selectedPlayer.id);
+                                                                        closePlayerProfile();
+                                                                    }
+                                                                }}
+                                                                className="bg-red-600 hover:bg-red-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                            >
+                                                                🗑️ Release Player
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <button 
+                                                            className="bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-lg font-bold flex-1"
+                                                            disabled
+                                                        >
+                                                            📊 Trade Proposal (Coming Soon)
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -2861,32 +4136,532 @@
                                 })()}
 
 
-                                {currentPage === 'standings' && (
-                                    <div>
-                                        <h2 className="text-3xl font-bold mb-6">League Standings</h2>
-                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                {Object.entries(standings)
-                                                    .sort((a, b) => b[1].wins - a[1].wins)
-                                                    .map(([team, record], index) => (
-                                                        <div 
-                                                            key={team} 
-                                                            className={`p-4 rounded-lg ${team === currentTeam ? 'bg-blue-700' : 'bg-slate-700'}`}
-                                                        >
-                                                            <div className="flex justify-between items-start">
-                                                                <div>
-                                                                    <div className="text-sm text-gray-400">#{index + 1}</div>
-                                                                    <div className="font-bold text-lg">{team}</div>
-                                                                    <div className="text-2xl font-bold">{record.wins}-{record.losses}</div>
-                                                                </div>
-                                                                {championships[team] > 0 && (
-                                                                    <div className="text-yellow-400">
-                                                                        🏆 {championships[team]}
-                                                                    </div>
+                                {/* SCHEDULE PAGE */}
+                                {currentPage === 'schedule' && (() => {
+                                    // Filter games based on active tab
+                                    let filteredGames = scheduleGames;
+                                    
+                                    if (scheduleTab === 'myteam') {
+                                        filteredGames = scheduleGames.filter(g => 
+                                            g.homeTeam === currentTeam || g.awayTeam === currentTeam
+                                        );
+                                    } else if (scheduleTab === 'today') {
+                                        // Get current day (simulate as day 1 for now)
+                                        const currentDay = 1;
+                                        filteredGames = scheduleGames.filter(g => g.day === currentDay);
+                                    } else if (scheduleTab === 'week') {
+                                        // Get current week (days 1-7 for now)
+                                        const currentDay = 1;
+                                        filteredGames = scheduleGames.filter(g => 
+                                            g.day >= currentDay && g.day <= currentDay + 7
+                                        );
+                                    }
+                                    
+                                    // Sort games by day
+                                    filteredGames = filteredGames.sort((a, b) => a.day - b.day);
+                                    
+                                    return (
+                                        <div>
+                                            <h2 className="text-3xl font-bold mb-6">Season Schedule</h2>
+                                            
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                <button
+                                                    onClick={() => setScheduleTab('all')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        scheduleTab === 'all' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    All Games
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleTab('myteam')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        scheduleTab === 'myteam' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    My Team
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleTab('today')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        scheduleTab === 'today' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    Today
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleTab('week')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        scheduleTab === 'week' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    This Week
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Schedule Table */}
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                {filteredGames.length === 0 ? (
+                                                    <div className="text-center py-12">
+                                                        <p className="text-xl text-gray-400">No games scheduled</p>
+                                                        <p className="text-sm text-gray-500 mt-2">
+                                                            Schedule will be generated at the start of the season
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full">
+                                                            <thead className="border-b border-slate-700">
+                                                                <tr className="text-left">
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold">Day</th>
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold">Time</th>
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold">Away</th>
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold text-center">@</th>
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold">Home</th>
+                                                                    <th className="px-3 py-3 text-gray-400 font-semibold text-center">Result</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {filteredGames.map((game, idx) => {
+                                                                    const isMyTeamGame = game.homeTeam === currentTeam || game.awayTeam === currentTeam;
+                                                                    const isCompleted = game.result === 'final';
+                                                                    
+                                                                    return (
+                                                                        <tr 
+                                                                            key={game.id || idx}
+                                                                            className={`border-b border-slate-700 hover:bg-slate-700 transition ${
+                                                                                isMyTeamGame ? 'bg-blue-900 bg-opacity-20' : ''
+                                                                            }`}
+                                                                        >
+                                                                            <td className="px-3 py-3 font-semibold text-blue-400">
+                                                                                Day {game.day}
+                                                                            </td>
+                                                                            <td className="px-3 py-3 text-gray-400">
+                                                                                {game.time || '7:30 PM'}
+                                                                            </td>
+                                                                            <td className={`px-3 py-3 ${game.awayTeam === currentTeam ? 'font-bold text-blue-400' : ''}`}>
+                                                                                {game.awayTeam}
+                                                                            </td>
+                                                                            <td className="px-3 py-3 text-center text-gray-500">@</td>
+                                                                            <td className={`px-3 py-3 ${game.homeTeam === currentTeam ? 'font-bold text-blue-400' : ''}`}>
+                                                                                {game.homeTeam}
+                                                                            </td>
+                                                                            <td className="px-3 py-3 text-center">
+                                                                                {isCompleted ? (
+                                                                                    <span className="text-sm">
+                                                                                        <span className={game.awayScore > game.homeScore ? 'font-bold text-green-400' : ''}>
+                                                                                            {game.awayScore}
+                                                                                        </span>
+                                                                                        {' - '}
+                                                                                        <span className={game.homeScore > game.awayScore ? 'font-bold text-green-400' : ''}>
+                                                                                            {game.homeScore}
+                                                                                        </span>
+                                                                                        {game.overtime && <span className="text-xs text-orange-400 ml-1">OT</span>}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-sm text-gray-500">Scheduled</span>
+                                                                                )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                                
+                                                {filteredGames.length > 0 && (
+                                                    <div className="mt-4 text-sm text-gray-400">
+                                                        <p>Showing {filteredGames.length} game{filteredGames.length !== 1 ? 's' : ''}</p>
+                                                        {scheduleTab === 'myteam' && (
+                                                            <p className="mt-1">
+                                                                {filteredGames.filter(g => g.result === 'final').length} completed, 
+                                                                {' '}{filteredGames.filter(g => g.result === null).length} remaining
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+
+                                {currentPage === 'standings' && !viewingTeam && (() => {
+                                    const standingsData = getStandingsData();
+                                    const leaderWins = standingsData[0]?.wins || 0;
+                                    const leaderLosses = standingsData[0]?.losses || 0;
+                                    
+                                    // Filter data based on active tab
+                                    let displayData = [];
+                                    let groupedData = {};
+                                    
+                                    if (standingsTab === 'overall') {
+                                        displayData = standingsData;
+                                    } else if (standingsTab === 'playoffs') {
+                                        // Show top playoff teams (configurable)
+                                        displayData = standingsData.slice(0, playoffTeams);
+                                    } else if (standingsTab === 'conference') {
+                                        // Group by conference
+                                        groupedData = {
+                                            East: standingsData.filter(t => t.conference === 'Eastern').sort((a, b) => b.winPct - a.winPct),
+                                            West: standingsData.filter(t => t.conference === 'Western').sort((a, b) => b.winPct - a.winPct)
+                                        };
+                                    } else if (standingsTab === 'division') {
+                                        // Group by division
+                                        const divisions = [...new Set(standingsData.map(t => t.division))];
+                                        divisions.forEach(div => {
+                                            groupedData[div] = standingsData.filter(t => t.division === div).sort((a, b) => b.winPct - a.winPct);
+                                        });
+                                    }
+                                    
+                                    const StandingsTable = ({ data, showRank = true, useLocalLeader = false }) => {
+                                        const localLeader = useLocalLeader && data.length > 0 ? data[0] : null;
+                                        const leaderW = localLeader ? localLeader.wins : leaderWins;
+                                        const leaderL = localLeader ? localLeader.losses : leaderLosses;
+                                        
+                                        return (
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-slate-700">
+                                                    <tr>
+                                                        {showRank && <th className="px-3 py-2 text-left">#</th>}
+                                                        <th className="px-3 py-2 text-left">Team</th>
+                                                        <th className="px-3 py-2 text-center">W</th>
+                                                        <th className="px-3 py-2 text-center">L</th>
+                                                        <th className="px-3 py-2 text-center">Win%</th>
+                                                        <th className="px-3 py-2 text-center">GB</th>
+                                                        <th className="px-3 py-2 text-center">Conf</th>
+                                                        <th className="px-3 py-2 text-center">Home</th>
+                                                        <th className="px-3 py-2 text-center">Away</th>
+                                                        <th className="px-3 py-2 text-center">L10</th>
+                                                        <th className="px-3 py-2 text-center">Streak</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {data.map((team, index) => {
+                                                        const isMyTeam = team.team === currentTeam;
+                                                        const isPlayoffTeam = standingsData.indexOf(team) < playoffTeams;
+                                                        const isBelowFiveHundred = team.winPct < 0.5;
+                                                        
+                                                        return (
+                                                            <tr 
+                                                                key={team.team}
+                                                                onClick={() => viewTeamRoster(team.team)}
+                                                                className={`border-b border-slate-700 cursor-pointer hover:bg-slate-600 transition
+                                                                    ${isMyTeam ? 'font-bold bg-blue-900 bg-opacity-30' : ''}
+                                                                    ${isPlayoffTeam && standingsTab !== 'playoffs' ? 'bg-green-900 bg-opacity-10' : ''}
+                                                                    ${isBelowFiveHundred ? 'bg-red-900 bg-opacity-5' : ''}
+                                                                `}
+                                                            >
+                                                                {showRank && (
+                                                                    <td className="px-3 py-2 text-gray-400">{index + 1}</td>
                                                                 )}
+                                                                <td className="px-3 py-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="hover:text-blue-300">{team.team}</span>
+                                                                        {championships[team.team] > 0 && (
+                                                                            <span className="text-yellow-400 text-xs">🏆{championships[team.team]}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center">{team.wins}</td>
+                                                                <td className="px-3 py-2 text-center">{team.losses}</td>
+                                                                <td className="px-3 py-2 text-center">{team.winPct.toFixed(3)}</td>
+                                                                <td className="px-3 py-2 text-center text-gray-400">
+                                                                    {calculateGamesBack(team.wins, team.losses, leaderW, leaderL)}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center text-gray-300">
+                                                                    {team.confWins}-{team.confLosses}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center text-gray-300">
+                                                                    {team.homeWins}-{team.homeLosses}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center text-gray-300">
+                                                                    {team.awayWins}-{team.awayLosses}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center text-gray-300">
+                                                                    {calculateLast10(team.last10)}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-center">
+                                                                    <span className={calculateStreak(team.last10).startsWith('W') ? 'text-green-400' : 'text-red-400'}>
+                                                                        {calculateStreak(team.last10)}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {standingsTab === 'playoffs' && data.length > 0 && (
+                                                        <tr className="border-t-2 border-red-500">
+                                                            <td colSpan="11" className="px-3 py-2 text-center text-red-400 text-xs">
+                                                                ↑ PLAYOFF CUT LINE ↑
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        );
+                                    };
+                                    
+                                    return (
+                                        <div>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h2 className="text-3xl font-bold">League Standings</h2>
+                                                <button
+                                                    onClick={refixDivisions}
+                                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded transition"
+                                                    title="Fix team divisions based on correct mapping"
+                                                >
+                                                    🔧 Fix Divisions
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Tabbed Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                <button
+                                                    onClick={() => setStandingsTab('overall')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        standingsTab === 'overall' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    Overall
+                                                </button>
+                                                <button
+                                                    onClick={() => setStandingsTab('playoffs')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        standingsTab === 'playoffs' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    Playoffs
+                                                </button>
+                                                <button
+                                                    onClick={() => setStandingsTab('conference')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        standingsTab === 'conference' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    Conference
+                                                </button>
+                                                <button
+                                                    onClick={() => setStandingsTab('division')}
+                                                    className={`px-6 py-3 font-semibold transition ${
+                                                        standingsTab === 'division' 
+                                                            ? 'bg-blue-600 text-white' 
+                                                            : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    Division
+                                                </button>
+                                            </div>
+                                            
+                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                {/* Overall & Playoffs Tabs */}
+                                                {(standingsTab === 'overall' || standingsTab === 'playoffs') && (
+                                                    <div>
+                                                        {standingsTab === 'playoffs' && (
+                                                            <div className="mb-4 p-4 bg-blue-900 bg-opacity-20 rounded-lg">
+                                                                <div className="text-lg font-semibold mb-2">Playoff Picture</div>
+                                                                <div className="text-sm text-gray-400">
+                                                                    Top {playoffTeams} teams make the playoffs
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        )}
+                                                        <StandingsTable data={displayData} />
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Conference Tab */}
+                                                {standingsTab === 'conference' && (
+                                                    <div className="space-y-8">
+                                                        {Object.entries(groupedData).map(([conf, teams]) => (
+                                                            <div key={conf}>
+                                                                <h3 className="text-2xl font-bold mb-4 text-blue-400">{conf}ern Conference</h3>
+                                                                <StandingsTable data={teams} useLocalLeader={true} />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Division Tab */}
+                                                {standingsTab === 'division' && (
+                                                    <div className="space-y-8">
+                                                        {/* Atlantic Division */}
+                                                        {groupedData['Atlantic'] && groupedData['Atlantic'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-cyan-400">
+                                                                    Atlantic Division (Eastern Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Atlantic']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Central Division */}
+                                                        {groupedData['Central'] && groupedData['Central'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-cyan-400">
+                                                                    Central Division (Eastern Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Central']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Southeast Division */}
+                                                        {groupedData['Southeast'] && groupedData['Southeast'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-cyan-400">
+                                                                    Southeast Division (Eastern Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Southeast']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Pacific Division */}
+                                                        {groupedData['Pacific'] && groupedData['Pacific'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-emerald-400">
+                                                                    Pacific Division (Western Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Pacific']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Southwest Division */}
+                                                        {groupedData['Southwest'] && groupedData['Southwest'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-emerald-400">
+                                                                    Southwest Division (Western Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Southwest']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Northwest Division */}
+                                                        {groupedData['Northwest'] && groupedData['Northwest'].length > 0 && (
+                                                            <div className="w-full">
+                                                                <h2 className="text-2xl font-bold mb-4 text-emerald-400">
+                                                                    Northwest Division (Western Conference)
+                                                                </h2>
+                                                                <div className="overflow-x-auto">
+                                                                    <StandingsTable data={groupedData['Northwest']} showRank={true} useLocalLeader={true} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="mt-4 text-sm text-gray-400">
+                                                <p>💚 Green tint = Playoff position | 🔴 Red tint = Below .500 | <strong>Bold</strong> = Your team</p>
+                                                <p className="mt-1">Click any team to view their roster</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+
+                                {/* TEAM ROSTER VIEW (from standings) */}
+                                {currentPage === 'standings' && viewingTeam && (
+                                    <div>
+                                        <div className="mb-6 flex justify-between items-center">
+                                            <h2 className="text-3xl font-bold">{viewingTeam} - Roster</h2>
+                                            <button
+                                                onClick={closeTeamRoster}
+                                                className="bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded-lg font-semibold"
+                                            >
+                                                ← Back to Standings
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl mb-6">
+                                            <div className="grid grid-cols-3 gap-6 text-center">
+                                                <div>
+                                                    <div className="text-gray-400 text-sm">Roster Size</div>
+                                                    <div className="text-3xl font-bold">{viewingTeamPlayers.length}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-gray-400 text-sm">Avg Rating</div>
+                                                    <div className="text-3xl font-bold text-blue-400">
+                                                        {viewingTeamPlayers.length > 0 ? Math.round(viewingTeamPlayers.reduce((sum, p) => sum + p.rating, 0) / viewingTeamPlayers.length) : 0}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-gray-400 text-sm">Total Salary</div>
+                                                    <div className="text-3xl font-bold text-green-400">
+                                                        ${(viewingTeamPlayers.reduce((sum, p) => sum + p.salary, 0) / 1000000).toFixed(1)}M
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full">
+                                                    <thead className="bg-slate-700">
+                                                        <tr>
+                                                            <th className="px-4 py-3 text-left">Name</th>
+                                                            <th className="px-4 py-3">Pos</th>
+                                                            <th className="px-4 py-3">Age</th>
+                                                            <th className="px-4 py-3">Ovr</th>
+                                                            <th className="px-4 py-3">Pot</th>
+                                                            <th className="px-4 py-3">Contract</th>
+                                                            <th className="px-4 py-3">Salary</th>
+                                                            <th className="px-4 py-3">PPG</th>
+                                                            <th className="px-4 py-3">RPG</th>
+                                                            <th className="px-4 py-3">APG</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {viewingTeamPlayers.sort((a, b) => b.rating - a.rating).map(player => (
+                                                            <tr key={player.id} className="border-b border-slate-700 hover:bg-slate-700">
+                                                                <td className="px-4 py-3">
+                                                                    <button 
+                                                                        onClick={() => openPlayerProfile(player)}
+                                                                        className="font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                                                                    >
+                                                                        {player.name}
+                                                                    </button>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">{player.position}</td>
+                                                                <td className="px-4 py-3 text-center">{player.age}</td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <span className={player.rating >= 80 ? 'text-green-400 font-bold' : player.rating >= 70 ? 'text-blue-400' : 'text-gray-400'}>
+                                                                        {player.rating}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-purple-400">{player.potential}</td>
+                                                                <td className="px-4 py-3 text-center">{player.contractYears}yr</td>
+                                                                <td className="px-4 py-3 text-center">${(player.salary / 1000000).toFixed(1)}M</td>
+                                                                <td className="px-4 py-3 text-center">{player.ppg}</td>
+                                                                <td className="px-4 py-3 text-center">{player.rpg}</td>
+                                                                <td className="px-4 py-3 text-center">{player.apg}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
                                     </div>
@@ -2945,6 +4720,347 @@
                                         </div>
                                     </div>
                                 )}
+
+                                {/* DRAFT PAGE */}
+                                {currentPage === 'draft' && (() => {
+                                    const availableProspects = draftProspects.filter(p => !p.drafted);
+                                    const draftedProspects = draftProspects.filter(p => p.drafted);
+                                    const myPicks = draftOrder.filter(p => p.team === currentTeam);
+                                    
+                                    return (
+                                        <div>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h2 className="text-3xl font-bold">NBA Draft {currentSeason}</h2>
+                                                <div className="flex gap-3">
+                                                    <div className="bg-blue-900 bg-opacity-30 px-4 py-2 rounded-lg">
+                                                        <span className="text-sm text-gray-400">Scouting Budget: </span>
+                                                        <span className="font-bold text-blue-400">{scoutingBudget} / 20</span>
+                                                    </div>
+                                                    {!draftInProgress && draftProspects.length === 0 && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                await generateDraftClass(currentLeagueId, currentSeason);
+                                                                await loadDraftProspects();
+                                                                await calculateDraftOrder();
+                                                            }}
+                                                            className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-semibold"
+                                                        >
+                                                            Generate Draft Class
+                                                        </button>
+                                                    )}
+                                                    {draftProspects.length > 0 && !draftInProgress && (
+                                                        <button
+                                                            onClick={() => simulateDraft('auto')}
+                                                            className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold"
+                                                        >
+                                                            Auto-Draft
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {draftProspects.length === 0 ? (
+                                                <div className="bg-slate-800 rounded-lg p-12 shadow-xl text-center">
+                                                    <div className="text-6xl mb-4">🎯</div>
+                                                    <h3 className="text-2xl font-bold mb-2">No Draft Class Generated</h3>
+                                                    <p className="text-gray-400 mb-6">Generate a draft class to begin scouting prospects</p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    {/* Tab Navigation */}
+                                                    <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                        <button
+                                                            onClick={() => setDraftTab('prospects')}
+                                                            className={`px-6 py-3 font-semibold transition ${
+                                                                draftTab === 'prospects' 
+                                                                    ? 'bg-blue-600 text-white' 
+                                                                    : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                            }`}
+                                                        >
+                                                            All Prospects ({draftProspects.length})
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDraftTab('mypicks')}
+                                                            className={`px-6 py-3 font-semibold transition ${
+                                                                draftTab === 'mypicks' 
+                                                                    ? 'bg-blue-600 text-white' 
+                                                                    : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                            }`}
+                                                        >
+                                                            My Picks ({myPicks.length})
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDraftTab('results')}
+                                                            className={`px-6 py-3 font-semibold transition ${
+                                                                draftTab === 'results' 
+                                                                    ? 'bg-blue-600 text-white' 
+                                                                    : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                                                            }`}
+                                                        >
+                                                            Draft Results ({draftedProspects.length})
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Prospects Tab */}
+                                                    {draftTab === 'prospects' && (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-sm">
+                                                                    <thead className="border-b border-slate-700">
+                                                                        <tr>
+                                                                            <th className="px-3 py-3 text-left">#</th>
+                                                                            <th className="px-3 py-3 text-left">Name</th>
+                                                                            <th className="px-3 py-3 text-center">Pos</th>
+                                                                            <th className="px-3 py-3 text-center">Age</th>
+                                                                            <th className="px-3 py-3 text-left">College</th>
+                                                                            <th className="px-3 py-3 text-center">Grade</th>
+                                                                            <th className="px-3 py-3 text-center">Ovr</th>
+                                                                            <th className="px-3 py-3 text-center">Pot</th>
+                                                                            <th className="px-3 py-3 text-center">Status</th>
+                                                                            <th className="px-3 py-3 text-center">Actions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {draftProspects.sort((a, b) => a.projectedPick - b.projectedPick).map((prospect, idx) => (
+                                                                            <tr 
+                                                                                key={prospect.id}
+                                                                                className={`border-b border-slate-700 hover:bg-slate-700 transition ${
+                                                                                    prospect.drafted ? 'opacity-50' : ''
+                                                                                }`}
+                                                                            >
+                                                                                <td className="px-3 py-3 text-gray-400">{prospect.projectedPick}</td>
+                                                                                <td className="px-3 py-3">
+                                                                                    <button
+                                                                                        onClick={() => setSelectedProspect(prospect)}
+                                                                                        className="font-semibold text-blue-400 hover:text-blue-300 underline"
+                                                                                    >
+                                                                                        {prospect.name}
+                                                                                    </button>
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center">{prospect.position}</td>
+                                                                                <td className="px-3 py-3 text-center">{prospect.age}</td>
+                                                                                <td className="px-3 py-3">{prospect.college}</td>
+                                                                                <td className="px-3 py-3 text-center">
+                                                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                                                        prospect.scoutingGrade.startsWith('A') ? 'bg-green-900 text-green-300' :
+                                                                                        prospect.scoutingGrade.startsWith('B') ? 'bg-blue-900 text-blue-300' :
+                                                                                        'bg-gray-700 text-gray-300'
+                                                                                    }`}>
+                                                                                        {prospect.scoutingGrade}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center">
+                                                                                    {prospect.scoutingLevel >= 1 ? prospect.currentRating : '??'}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center text-purple-400">
+                                                                                    {prospect.scoutingLevel >= 2 ? prospect.potential : '??'}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center">
+                                                                                    {prospect.drafted ? (
+                                                                                        <span className="text-sm text-red-400">Drafted</span>
+                                                                                    ) : (
+                                                                                        <span className="text-sm text-green-400">Available</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="px-3 py-3 text-center">
+                                                                                    {!prospect.drafted && prospect.scoutingLevel < 2 && (
+                                                                                        <button
+                                                                                            onClick={() => scoutProspect(prospect.id, 2)}
+                                                                                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-xs font-semibold"
+                                                                                            disabled={scoutingBudget <= 0}
+                                                                                        >
+                                                                                            Scout ({scoutingBudget})
+                                                                                        </button>
+                                                                                    )}
+                                                                                    {prospect.scoutingLevel === 2 && (
+                                                                                        <span className="text-xs text-indigo-400">✓ Scouted</span>
+                                                                                    )}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* My Picks Tab */}
+                                                    {draftTab === 'mypicks' && (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">Your Draft Picks</h3>
+                                                            <div className="space-y-3">
+                                                                {myPicks.map(pick => {
+                                                                    const result = draftResults.find(r => r.pick === pick.pick);
+                                                                    return (
+                                                                        <div key={pick.pick} className="bg-slate-700 p-4 rounded-lg flex justify-between items-center">
+                                                                            <div>
+                                                                                <span className="font-bold text-blue-400">Pick #{pick.pick}</span>
+                                                                                <span className="text-gray-400 ml-2">(Round {pick.round})</span>
+                                                                            </div>
+                                                                            {result ? (
+                                                                                <div className="text-right">
+                                                                                    <div className="font-semibold">{result.prospect.name}</div>
+                                                                                    <div className="text-sm text-gray-400">{result.prospect.position} • {result.prospect.college}</div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-gray-500 italic">Not yet drafted</span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Draft Results Tab */}
+                                                    {draftTab === 'results' && (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">Draft Results</h3>
+                                                            {draftResults.length === 0 ? (
+                                                                <div className="text-center py-12 text-gray-400">
+                                                                    Draft has not started yet
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    {draftResults.map(result => (
+                                                                        <div key={result.pick} className={`p-3 rounded-lg flex justify-between items-center ${
+                                                                            result.team === currentTeam ? 'bg-blue-900 bg-opacity-30 border-l-4 border-blue-500' : 'bg-slate-700'
+                                                                        }`}>
+                                                                            <div className="flex items-center gap-4">
+                                                                                <span className="font-bold text-gray-400 w-12">#{result.pick}</span>
+                                                                                <div>
+                                                                                    <div className="font-semibold">{result.prospect.name}</div>
+                                                                                    <div className="text-sm text-gray-400">
+                                                                                        {result.prospect.position} • {result.prospect.height} • {result.prospect.college}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-right">
+                                                                                <div className="text-sm text-gray-400">{result.team}</div>
+                                                                                <div className="text-xs">
+                                                                                    <span className="text-gray-400">Rating:</span> {result.prospect.currentRating}
+                                                                                    <span className="text-purple-400 ml-2">Pot:</span> {result.prospect.potential}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Prospect Detail Modal */}
+                                            {selectedProspect && (
+                                                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setSelectedProspect(null)}>
+                                                    <div className="bg-slate-800 rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                                        <div className="flex justify-between items-start mb-6">
+                                                            <div>
+                                                                <h3 className="text-3xl font-bold">{selectedProspect.name}</h3>
+                                                                <div className="text-gray-400 mt-1">
+                                                                    {selectedProspect.position} • {selectedProspect.height} • {selectedProspect.weight} lbs • Age {selectedProspect.age}
+                                                                </div>
+                                                                <div className="text-blue-400 mt-1">{selectedProspect.college}</div>
+                                                            </div>
+                                                            <button onClick={() => setSelectedProspect(null)} className="text-gray-400 hover:text-white text-3xl">×</button>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-6 mb-6">
+                                                            <div className="bg-slate-700 p-4 rounded-lg">
+                                                                <div className="text-sm text-gray-400">Scouting Grade</div>
+                                                                <div className="text-3xl font-bold text-green-400">{selectedProspect.scoutingGrade}</div>
+                                                            </div>
+                                                            <div className="bg-slate-700 p-4 rounded-lg">
+                                                                <div className="text-sm text-gray-400">Projected Pick</div>
+                                                                <div className="text-3xl font-bold text-blue-400">#{selectedProspect.projectedPick}</div>
+                                                            </div>
+                                                            <div className="bg-slate-700 p-4 rounded-lg">
+                                                                <div className="text-sm text-gray-400">Current Rating</div>
+                                                                <div className="text-3xl font-bold">
+                                                                    {selectedProspect.scoutingLevel >= 1 ? selectedProspect.currentRating : '??'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-slate-700 p-4 rounded-lg">
+                                                                <div className="text-sm text-gray-400">Potential</div>
+                                                                <div className="text-3xl font-bold text-purple-400">
+                                                                    {selectedProspect.scoutingLevel >= 2 ? selectedProspect.potential : '??'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {selectedProspect.scoutingLevel >= 2 && (
+                                                            <div>
+                                                                <h4 className="font-bold text-lg mb-3">Skills</h4>
+                                                                <div className="grid grid-cols-2 gap-3 mb-6">
+                                                                    {Object.entries(selectedProspect.skills).map(([skill, value]) => (
+                                                                        <div key={skill} className="bg-slate-700 p-3 rounded">
+                                                                            <div className="flex justify-between mb-1">
+                                                                                <span className="text-sm capitalize">{skill.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                                                <span className="font-bold">{value}</span>
+                                                                            </div>
+                                                                            <div className="w-full bg-slate-600 rounded-full h-2">
+                                                                                <div className={`h-2 rounded-full ${value >= 80 ? 'bg-green-500' : value >= 60 ? 'bg-blue-500' : 'bg-gray-500'}`} style={{width: `${value}%`}}></div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+
+                                                                <div className="grid grid-cols-2 gap-6 mb-6">
+                                                                    <div>
+                                                                        <h4 className="font-bold text-green-400 mb-2">Strengths</h4>
+                                                                        <ul className="space-y-1">
+                                                                            {selectedProspect.strengths.map((s, i) => (
+                                                                                <li key={i} className="text-sm">✓ {s}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="font-bold text-red-400 mb-2">Weaknesses</h4>
+                                                                        <ul className="space-y-1">
+                                                                            {selectedProspect.weaknesses.map((w, i) => (
+                                                                                <li key={i} className="text-sm">✗ {w}</li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="bg-slate-700 p-4 rounded-lg">
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div>
+                                                                            <span className="text-gray-400 text-sm">Work Ethic:</span>
+                                                                            <span className="ml-2 font-semibold">{selectedProspect.workEthic}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-gray-400 text-sm">Intangibles:</span>
+                                                                            <span className="ml-2 font-semibold">{selectedProspect.intangibles}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {selectedProspect.scoutingLevel < 2 && (
+                                                            <div className="bg-slate-700 p-6 rounded-lg text-center">
+                                                                <p className="text-gray-400 mb-4">Full scouting report not available</p>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        scoutProspect(selectedProspect.id, 2);
+                                                                        setSelectedProspect({...selectedProspect, scoutingLevel: 2});
+                                                                    }}
+                                                                    className="bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-semibold"
+                                                                    disabled={scoutingBudget <= 0}
+                                                                >
+                                                                    Scout Player (Budget: {scoutingBudget})
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
