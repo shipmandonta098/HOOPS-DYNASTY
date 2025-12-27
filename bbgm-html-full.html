@@ -106,6 +106,21 @@
             const [bigBoard, setBigBoard] = useState([]); // User's personal rankings
             const [selectedProspect, setSelectedProspect] = useState(null);
             const [draftResults, setDraftResults] = useState([]);
+            
+            // Trade state
+            const [tradeTab, setTradeTab] = useState('builder'); // builder, finder, offers, history
+            const [tradePartnerTeam, setTradePartnerTeam] = useState(null);
+            const [tradePartnerPlayers, setTradePartnerPlayers] = useState([]);
+            const [yourTradeAssets, setYourTradeAssets] = useState([]);
+            const [theirTradeAssets, setTheirTradeAssets] = useState([]);
+            const [tradeOffers, setTradeOffers] = useState([]);
+            const [tradeHistory, setTradeHistory] = useState([]);
+            const [tradeSuggestions, setTradeSuggestions] = useState([]);
+            const [tradeDeadlineDay, setTradeDeadlineDay] = useState(120);
+            const [currentDay, setCurrentDay] = useState(1);
+            const [selectedTradeOffer, setSelectedTradeOffer] = useState(null);
+            const [tradeBlock, setTradeBlock] = useState([]);
+            const [untouchables, setUntouchables] = useState([]);
 
             useEffect(() => {
                 checkForExistingLeague();
@@ -2181,6 +2196,545 @@
                 }
             }
 
+            // ============================================
+            // TRADE SYSTEM FUNCTIONS
+            // ============================================
+            
+            // Calculate trade value for an asset
+            function calculateAssetValue(asset) {
+                if (asset.type === 'player') {
+                    const player = asset.data;
+                    let value = player.rating * 10;
+                    
+                    // Age factor
+                    if (player.age < 25) value *= 1.2; // Young players worth more
+                    if (player.age > 30) value *= 0.8; // Veterans worth less
+                    if (player.age > 33) value *= 0.6; // Old players worth even less
+                    
+                    // Contract factor
+                    const yearsLeft = player.contract?.years || 1;
+                    if (yearsLeft > 3) value *= 0.9; // Long contracts slightly negative
+                    if (yearsLeft === 1) value *= 1.1; // Expiring contracts valuable
+                    
+                    // Salary factor
+                    if (player.salary > 30000000) value *= 0.85; // Big contracts hurt value
+                    if (player.salary < 5000000) value *= 1.1; // Cheap players worth more
+                    
+                    // Potential factor (young players with high potential)
+                    if (player.potential && player.potential > player.rating + 10) {
+                        value *= 1.15;
+                    }
+                    
+                    return Math.max(1, Math.round(value));
+                }
+                
+                if (asset.type === 'pick') {
+                    // Draft pick values by position
+                    const pick = asset.data;
+                    const pickValues = {
+                        1: 1000, 2: 900, 3: 850, 4: 800, 5: 750,
+                        6: 700, 7: 650, 8: 600, 9: 550, 10: 500,
+                        11: 450, 12: 425, 13: 400, 14: 375, 15: 350,
+                        16: 325, 17: 300, 18: 280, 19: 260, 20: 240,
+                        21: 220, 22: 200, 23: 185, 24: 170, 25: 155,
+                        26: 140, 27: 125, 28: 110, 29: 95, 30: 80,
+                        31: 70, 32: 65, 33: 60, 34: 55, 35: 50,
+                        36: 45, 37: 42, 38: 40, 39: 38, 40: 36,
+                        41: 34, 42: 32, 43: 30, 44: 28, 45: 26,
+                        46: 24, 47: 22, 48: 20, 49: 18, 50: 16,
+                        51: 15, 52: 14, 53: 13, 54: 12, 55: 11,
+                        56: 10, 57: 9, 58: 8, 59: 7, 60: 6
+                    };
+                    
+                    let value = pickValues[pick.pickNumber] || 5;
+                    
+                    // Future picks worth less (20% discount per year)
+                    const yearsDiff = pick.year - currentSeason;
+                    if (yearsDiff > 0) {
+                        value *= Math.pow(0.8, yearsDiff);
+                    }
+                    
+                    return Math.round(value);
+                }
+                
+                if (asset.type === 'cash') {
+                    // $50,000 = 1 value point
+                    return Math.round(asset.data.amount / 50000);
+                }
+                
+                return 0;
+            }
+            
+            // Calculate total trade value
+            function calculateTradeValue(assets) {
+                return assets.reduce((total, asset) => total + calculateAssetValue(asset), 0);
+            }
+            
+            // Get trade balance assessment
+            function getTradeBalanceAssessment(yourValue, theirValue) {
+                const ratio = theirValue === 0 ? 999 : yourValue / theirValue;
+                
+                if (ratio > 1.3) return { text: 'Heavily Favors You 🟢🟢🟢', color: 'text-green-400', level: 3 };
+                if (ratio > 1.15) return { text: 'Favors You 🟢🟢', color: 'text-green-400', level: 2 };
+                if (ratio > 1.05) return { text: 'Slightly Favors You 🟢', color: 'text-green-300', level: 1 };
+                if (ratio > 0.95) return { text: 'Balanced ⚖️', color: 'text-yellow-400', level: 0 };
+                if (ratio > 0.85) return { text: 'Slightly Favors Them 🔴', color: 'text-orange-400', level: -1 };
+                if (ratio > 0.7) return { text: 'Favors Them 🔴🔴', color: 'text-red-400', level: -2 };
+                return { text: 'Heavily Favors Them 🔴🔴🔴', color: 'text-red-600', level: -3 };
+            }
+            
+            // Check if player can be traded
+            function canTradePlayer(player) {
+                // Check untouchables
+                if (untouchables.includes(player.id)) {
+                    return { canTrade: false, reason: 'Player marked as untouchable' };
+                }
+                
+                // Check if recently acquired (would need trade history)
+                // For now, all players can be traded
+                
+                return { canTrade: true, reason: '' };
+            }
+            
+            // Determine team strategy
+            function getTeamStrategy(teamName) {
+                const team = teams[teamName];
+                if (!team) return 'balanced';
+                
+                const teamStandings = standings[teamName];
+                if (!teamStandings) return 'balanced';
+                
+                const winPct = teamStandings.wins / (teamStandings.wins + teamStandings.losses || 1);
+                
+                if (winPct > 0.6) return 'contending';
+                if (winPct < 0.35) return 'rebuilding';
+                return 'balanced';
+            }
+            
+            // Check if asset fills team need
+            function fillsTeamNeed(asset, teamName) {
+                if (asset.type !== 'player') return false;
+                
+                const player = asset.data;
+                // Simple logic: high-rated players always fill needs
+                if (player.rating > 80) return true;
+                
+                // Could add position-based needs here
+                return player.rating > 70;
+            }
+            
+            // Check if losing asset creates roster gap
+            function createsRosterGap(asset, teamName) {
+                if (asset.type !== 'player') return false;
+                
+                const player = asset.data;
+                // Losing a high-rated player creates gap
+                return player.rating > 75;
+            }
+            
+            // Calculate salary change for trade
+            function calculateSalaryChange(assetsGiven, assetsReceived) {
+                const givenSalary = assetsGiven
+                    .filter(a => a.type === 'player')
+                    .reduce((sum, a) => sum + a.data.salary, 0);
+                
+                const receivedSalary = assetsReceived
+                    .filter(a => a.type === 'player')
+                    .reduce((sum, a) => sum + a.data.salary, 0);
+                
+                return receivedSalary - givenSalary;
+            }
+            
+            // Main AI trade evaluation function
+            function evaluateTrade(yourAssets, theirAssets, theirTeamName) {
+                const yourValue = calculateTradeValue(yourAssets);
+                const theirValue = calculateTradeValue(theirAssets);
+                const valueRatio = theirValue === 0 ? 999 : yourValue / theirValue;
+                
+                // Step 1: Value must be within acceptable range
+                if (valueRatio < 0.85 || valueRatio > 1.15) {
+                    return { 
+                        accept: false, 
+                        reason: 'Trade value too unbalanced',
+                        likelihood: 5
+                    };
+                }
+                
+                // Step 2: Check team needs
+                let needsFilled = 0;
+                let needsCreated = 0;
+                
+                yourAssets.forEach(asset => {
+                    if (fillsTeamNeed(asset, theirTeamName)) needsFilled++;
+                });
+                
+                theirAssets.forEach(asset => {
+                    if (createsRosterGap(asset, theirTeamName)) needsCreated++;
+                });
+                
+                if (needsCreated > needsFilled + 1) {
+                    return { 
+                        accept: false, 
+                        reason: 'Creates too many roster holes',
+                        likelihood: 20
+                    };
+                }
+                
+                // Step 3: Check salary cap
+                const team = teams[theirTeamName];
+                const teamStandings = standings[theirTeamName] || { wins: 0, losses: 0 };
+                
+                // Get team's current salary (simplified)
+                const salaryChange = calculateSalaryChange(theirAssets, yourAssets);
+                const currentTeamSalary = 100000000; // Simplified
+                
+                if (currentTeamSalary + salaryChange > SALARY_CAP * 1.15) {
+                    return { 
+                        accept: false, 
+                        reason: 'Would exceed salary cap',
+                        likelihood: 10
+                    };
+                }
+                
+                // Step 4: Team strategy alignment
+                const strategy = getTeamStrategy(theirTeamName);
+                
+                if (strategy === 'rebuilding') {
+                    const getsYoungTalent = yourAssets.some(a => 
+                        (a.type === 'player' && a.data.age < 25) || 
+                        a.type === 'pick'
+                    );
+                    const givesUpYouth = theirAssets.some(a => 
+                        a.type === 'player' && a.data.age < 25 && a.data.potential > 75
+                    );
+                    
+                    if (!getsYoungTalent || givesUpYouth) {
+                        return { 
+                            accept: false, 
+                            reason: 'Not aligned with rebuild strategy',
+                            likelihood: 30
+                        };
+                    }
+                }
+                
+                if (strategy === 'contending') {
+                    const getsVeteran = yourAssets.some(a => 
+                        a.type === 'player' && a.data.age > 27 && a.data.rating > 80
+                    );
+                    const givesUpStar = theirAssets.some(a => 
+                        a.type === 'player' && a.data.rating > 85
+                    );
+                    
+                    if (!getsVeteran || givesUpStar) {
+                        return { 
+                            accept: false, 
+                            reason: 'Not aligned with championship push',
+                            likelihood: 25
+                        };
+                    }
+                }
+                
+                // Calculate acceptance likelihood
+                let likelihood = 70; // Base acceptance
+                
+                // Adjust based on value ratio
+                if (valueRatio > 1.05 && valueRatio <= 1.15) likelihood += 10;
+                if (valueRatio < 0.95 && valueRatio >= 0.85) likelihood -= 10;
+                
+                // Adjust based on needs
+                if (needsFilled > needsCreated) likelihood += 15;
+                
+                // Add randomness
+                likelihood += Math.floor(Math.random() * 20) - 10;
+                
+                return { 
+                    accept: likelihood > 60, 
+                    reason: likelihood > 60 ? 'Fair trade that fits team needs' : 'Doesn\'t quite work for us',
+                    likelihood: Math.max(0, Math.min(100, likelihood))
+                };
+            }
+            
+            // Generate AI trade offer
+            async function generateAITradeOffer() {
+                // AI teams analyze user's roster and make offers
+                const aiTeams = allTeamNames.filter(t => t !== currentTeam);
+                
+                // Only generate 1-2 offers at a time
+                if (tradeOffers.length >= 3) return;
+                
+                // Random chance to generate offer
+                if (Math.random() < 0.3) return;
+                
+                const offeringTeam = aiTeams[Math.floor(Math.random() * aiTeams.length)];
+                
+                // Load their players
+                const theirPlayers = await db.players
+                    .where('[leagueId+team+season]')
+                    .equals([currentLeagueId, offeringTeam, currentSeason])
+                    .toArray();
+                
+                if (theirPlayers.length === 0) return;
+                
+                // Pick a player they want from user's team
+                const targetPlayer = myPlayers[Math.floor(Math.random() * myPlayers.length)];
+                
+                // Offer 1-2 of their players
+                const numOffered = Math.random() < 0.7 ? 1 : 2;
+                const offeredPlayers = [];
+                
+                for (let i = 0; i < numOffered && i < theirPlayers.length; i++) {
+                    offeredPlayers.push(theirPlayers[Math.floor(Math.random() * theirPlayers.length)]);
+                }
+                
+                // Maybe add a pick
+                const includePick = Math.random() < 0.3;
+                const offeredPicks = includePick ? [{
+                    year: currentSeason + 1,
+                    round: Math.random() < 0.3 ? 1 : 2,
+                    pickNumber: Math.floor(Math.random() * 30) + 1,
+                    fromTeam: offeringTeam
+                }] : [];
+                
+                const newOffer = {
+                    id: Date.now(),
+                    fromTeam: offeringTeam,
+                    toTeam: currentTeam,
+                    theyWant: [{ type: 'player', data: targetPlayer }],
+                    theyOffer: [
+                        ...offeredPlayers.map(p => ({ type: 'player', data: p })),
+                        ...offeredPicks.map(p => ({ type: 'pick', data: p }))
+                    ],
+                    expiresIn: 3,
+                    created: new Date().toISOString()
+                };
+                
+                setTradeOffers(prev => [...prev, newOffer]);
+            }
+            
+            // Generate trade suggestions for user
+            async function generateTradeSuggestions() {
+                const suggestions = [];
+                
+                // Find roster needs (simplified)
+                const positionCounts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
+                myPlayers.forEach(p => positionCounts[p.position]++);
+                
+                const needsPosition = Object.entries(positionCounts)
+                    .sort((a, b) => a[1] - b[1])[0][0];
+                
+                // Look for trades that fill this need
+                for (const teamName of allTeamNames) {
+                    if (teamName === currentTeam) continue;
+                    
+                    const theirPlayers = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, teamName, currentSeason])
+                        .toArray();
+                    
+                    const matchingPlayers = theirPlayers.filter(p => p.position === needsPosition && p.rating > 70);
+                    
+                    if (matchingPlayers.length > 0) {
+                        const targetPlayer = matchingPlayers[0];
+                        
+                        // Find suitable player to trade from our team
+                        const surplus = Object.entries(positionCounts)
+                            .sort((a, b) => b[1] - a[1])[0][0];
+                        
+                        const ourTradePlayer = myPlayers.find(p => 
+                            p.position === surplus && 
+                            Math.abs(p.rating - targetPlayer.rating) < 10
+                        );
+                        
+                        if (ourTradePlayer) {
+                            suggestions.push({
+                                id: `suggestion-${teamName}-${Date.now()}`,
+                                withTeam: teamName,
+                                youGive: [{ type: 'player', data: ourTradePlayer }],
+                                youGet: [{ type: 'player', data: targetPlayer }],
+                                reason: `Fills your ${needsPosition} need, trades from surplus ${surplus}`,
+                                likelihood: 75
+                            });
+                        }
+                    }
+                    
+                    if (suggestions.length >= 5) break;
+                }
+                
+                setTradeSuggestions(suggestions);
+            }
+            
+            // Propose trade to AI team
+            async function proposeTrade() {
+                if (yourTradeAssets.length === 0 || theirTradeAssets.length === 0) {
+                    alert('Both sides must offer at least one asset');
+                    return;
+                }
+                
+                if (!tradePartnerTeam) {
+                    alert('No trade partner selected');
+                    return;
+                }
+                
+                // Evaluate trade
+                const evaluation = evaluateTrade(yourTradeAssets, theirTradeAssets, tradePartnerTeam);
+                
+                if (evaluation.accept) {
+                    // Execute trade
+                    await executeTrade(currentTeam, tradePartnerTeam, yourTradeAssets, theirTradeAssets);
+                    
+                    alert(`Trade accepted! ${tradePartnerTeam} has agreed to the deal.`);
+                    
+                    // Clear trade builder
+                    setYourTradeAssets([]);
+                    setTheirTradeAssets([]);
+                    setTradePartnerTeam(null);
+                    
+                } else {
+                    alert(`Trade rejected by ${tradePartnerTeam}.\nReason: ${evaluation.reason}\nAcceptance likelihood was ${evaluation.likelihood}%`);
+                }
+            }
+            
+            // Execute a trade
+            async function executeTrade(team1, team2, team1Gives, team2Gives) {
+                // Process player swaps
+                const team1Players = team1Gives.filter(a => a.type === 'player');
+                const team2Players = team2Gives.filter(a => a.type === 'player');
+                
+                // Update player teams
+                for (const asset of team1Players) {
+                    await db.players.update(asset.data.id, { team: team2 });
+                }
+                
+                for (const asset of team2Players) {
+                    await db.players.update(asset.data.id, { team: team1 });
+                }
+                
+                // Record trade in history
+                const tradeRecord = {
+                    id: Date.now(),
+                    date: new Date().toISOString(),
+                    team1,
+                    team2,
+                    team1Gives,
+                    team2Gives,
+                    season: currentSeason,
+                    day: currentDay
+                };
+                
+                setTradeHistory(prev => [tradeRecord, ...prev]);
+                
+                // Reload your roster if you were involved
+                if (team1 === currentTeam || team2 === currentTeam) {
+                    const updatedPlayers = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, currentTeam, currentSeason])
+                        .toArray();
+                    setMyPlayers(updatedPlayers);
+                }
+            }
+            
+            // Accept incoming trade offer
+            async function acceptTradeOffer(offer) {
+                await executeTrade(
+                    currentTeam,
+                    offer.fromTeam,
+                    offer.theyWant,
+                    offer.theyOffer
+                );
+                
+                // Remove offer
+                setTradeOffers(prev => prev.filter(o => o.id !== offer.id));
+                
+                alert('Trade completed successfully!');
+            }
+            
+            // Reject trade offer
+            function rejectTradeOffer(offerId) {
+                setTradeOffers(prev => prev.filter(o => o.id !== offerId));
+            }
+            
+            // Counter trade offer
+            function counterTradeOffer(offer) {
+                // Load into trade builder
+                setTradePartnerTeam(offer.fromTeam);
+                setYourTradeAssets(offer.theyWant);
+                setTheirTradeAssets(offer.theyOffer);
+                setTradeTab('builder');
+                
+                // Remove original offer
+                setTradeOffers(prev => prev.filter(o => o.id !== offer.id));
+            }
+            
+            // Select trade partner
+            async function selectTradePartner(teamName) {
+                setTradePartnerTeam(teamName);
+                
+                // Load their players
+                const players = await db.players
+                    .where('[leagueId+team+season]')
+                    .equals([currentLeagueId, teamName, currentSeason])
+                    .toArray();
+                
+                setTradePartnerPlayers(players);
+            }
+            
+            // Toggle asset in trade
+            function toggleYourAsset(asset) {
+                const exists = yourTradeAssets.some(a => 
+                    a.type === asset.type && 
+                    (a.type === 'player' ? a.data.id === asset.data.id : a.data.pickNumber === asset.data.pickNumber)
+                );
+                
+                if (exists) {
+                    setYourTradeAssets(prev => prev.filter(a => 
+                        !(a.type === asset.type && 
+                          (a.type === 'player' ? a.data.id === asset.data.id : a.data.pickNumber === asset.data.pickNumber))
+                    ));
+                } else {
+                    setYourTradeAssets(prev => [...prev, asset]);
+                }
+            }
+            
+            function toggleTheirAsset(asset) {
+                const exists = theirTradeAssets.some(a => 
+                    a.type === asset.type && 
+                    (a.type === 'player' ? a.data.id === asset.data.id : a.data.pickNumber === asset.data.pickNumber)
+                );
+                
+                if (exists) {
+                    setTheirTradeAssets(prev => prev.filter(a => 
+                        !(a.type === asset.type && 
+                          (a.type === 'player' ? a.data.id === asset.data.id : a.data.pickNumber === asset.data.pickNumber))
+                    ));
+                } else {
+                    setTheirTradeAssets(prev => [...prev, asset]);
+                }
+            }
+            
+            // Clear trade builder
+            function clearTrade() {
+                setYourTradeAssets([]);
+                setTheirTradeAssets([]);
+            }
+            
+            // Toggle player on trade block
+            function toggleTradeBlock(playerId) {
+                if (tradeBlock.includes(playerId)) {
+                    setTradeBlock(prev => prev.filter(id => id !== playerId));
+                } else {
+                    setTradeBlock(prev => [...prev, playerId]);
+                }
+            }
+            
+            // Toggle player as untouchable
+            function toggleUntouchable(playerId) {
+                if (untouchables.includes(playerId)) {
+                    setUntouchables(prev => prev.filter(id => id !== playerId));
+                } else {
+                    setUntouchables(prev => [...prev, playerId]);
+                }
+            }
+
             const totalSalary = myPlayers.reduce((sum, p) => sum + p.salary, 0);
             const capSpace = SALARY_CAP - totalSalary;
             const avgRating = myPlayers.length > 0 
@@ -3099,7 +3653,7 @@
                                         { id: 'schedule', icon: '📅', label: 'Schedule' },
                                         { id: 'standings', icon: '📊', label: 'League Standings' },
                                         { id: 'draft', icon: '🎯', label: 'Draft' },
-                                        { id: 'trades', icon: '🔄', label: 'Trades', disabled: true },
+                                        { id: 'trades', icon: '🔄', label: 'Trades' },
                                         { id: 'free-agency', icon: '✍️', label: 'Free Agency', disabled: true },
                                         { id: 'finances', icon: '💰', label: 'Finances' },
                                         { id: 'history', icon: '📜', label: 'History', disabled: true }
@@ -4714,6 +5268,673 @@
                                         </div>
                                     </div>
                                 )}
+
+                                {/* TRADES PAGE */}
+                                {currentPage === 'trades' && (() => {
+                                    const yourValue = calculateTradeValue(yourTradeAssets);
+                                    const theirValue = calculateTradeValue(theirTradeAssets);
+                                    const balance = getTradeBalanceAssessment(yourValue, theirValue);
+                                    const daysUntilDeadline = Math.max(0, tradeDeadlineDay - currentDay);
+                                    
+                                    return (
+                                        <div>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h2 className="text-3xl font-bold">🔄 Trade Center</h2>
+                                                <div className="flex gap-3 items-center">
+                                                    <div className={`px-4 py-2 rounded-lg font-semibold ${daysUntilDeadline <= 10 ? 'bg-red-900 bg-opacity-30 text-red-400' : 'bg-blue-900 bg-opacity-30 text-blue-400'}`}>
+                                                        Trade Deadline: {daysUntilDeadline} days
+                                                    </div>
+                                                    {tradeOffers.length > 0 && (
+                                                        <div className="bg-green-900 bg-opacity-30 px-4 py-2 rounded-lg">
+                                                            <span className="font-bold text-green-400">{tradeOffers.length} Pending Offer{tradeOffers.length !== 1 ? 's' : ''}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                <button
+                                                    onClick={() => setTradeTab('builder')}
+                                                    className={`px-6 py-3 font-semibold transition ${tradeTab === 'builder' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Propose Trade
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setTradeTab('finder');
+                                                        if (tradeSuggestions.length === 0) generateTradeSuggestions();
+                                                    }}
+                                                    className={`px-6 py-3 font-semibold transition ${tradeTab === 'finder' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Trade Finder
+                                                </button>
+                                                <button
+                                                    onClick={() => setTradeTab('offers')}
+                                                    className={`px-6 py-3 font-semibold transition relative ${tradeTab === 'offers' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Trade Offers
+                                                    {tradeOffers.length > 0 && (
+                                                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                                            {tradeOffers.length}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => setTradeTab('history')}
+                                                    className={`px-6 py-3 font-semibold transition ${tradeTab === 'history' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Trade History
+                                                </button>
+                                            </div>
+
+                                            {/* TRADE BUILDER TAB */}
+                                            {tradeTab === 'builder' && (
+                                                <div>
+                                                    {/* Trade Partner Selection */}
+                                                    {!tradePartnerTeam ? (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">Select Trade Partner</h3>
+                                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                                                {allTeamNames.filter(t => t !== currentTeam).map(teamName => (
+                                                                    <button
+                                                                        key={teamName}
+                                                                        onClick={() => selectTradePartner(teamName)}
+                                                                        className="bg-slate-700 hover:bg-slate-600 p-4 rounded-lg text-center font-semibold transition"
+                                                                    >
+                                                                        {teamName}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            {/* Trade Interface */}
+                                                            <div className="mb-4 flex justify-between items-center">
+                                                                <div className="text-lg">
+                                                                    Trading with: <span className="font-bold text-blue-400">{tradePartnerTeam}</span>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTradePartnerTeam(null);
+                                                                        clearTrade();
+                                                                    }}
+                                                                    className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm"
+                                                                >
+                                                                    Change Team
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                                                {/* Your Assets */}
+                                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                    <h3 className="text-xl font-bold mb-4 text-blue-400">{currentTeam} - Your Assets</h3>
+                                                                    
+                                                                    <div className="space-y-2 mb-4 max-h-96 overflow-y-auto">
+                                                                        <div className="text-sm font-semibold text-gray-400 mb-2">Players</div>
+                                                                        {myPlayers.map(player => {
+                                                                            const isSelected = yourTradeAssets.some(a => a.type === 'player' && a.data.id === player.id);
+                                                                            const canTrade = canTradePlayer(player);
+                                                                            const isUntouchable = untouchables.includes(player.id);
+                                                                            
+                                                                            return (
+                                                                                <div
+                                                                                    key={player.id}
+                                                                                    onClick={() => canTrade.canTrade && toggleYourAsset({ type: 'player', data: player })}
+                                                                                    className={`p-3 rounded-lg cursor-pointer transition ${
+                                                                                        isSelected 
+                                                                                            ? 'bg-blue-600' 
+                                                                                            : !canTrade.canTrade 
+                                                                                                ? 'bg-slate-700 opacity-50 cursor-not-allowed' 
+                                                                                                : 'bg-slate-700 hover:bg-slate-600'
+                                                                                    }`}
+                                                                                >
+                                                                                    <div className="flex justify-between items-center">
+                                                                                        <div>
+                                                                                            <div className="font-semibold">{player.name}</div>
+                                                                                            <div className="text-sm text-gray-400">
+                                                                                                {player.position} • {player.age}y • {player.rating} OVR
+                                                                                            </div>
+                                                                                            <div className="text-xs text-gray-500">
+                                                                                                ${(player.salary / 1000000).toFixed(1)}M
+                                                                                            </div>
+                                                                                            {isUntouchable && (
+                                                                                                <div className="text-xs text-red-400 mt-1">🔒 Untouchable</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        {isSelected && (
+                                                                                            <div className="text-2xl">✓</div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                        
+                                                                        <div className="text-sm font-semibold text-gray-400 mb-2 mt-4">Draft Picks</div>
+                                                                        {[currentSeason + 1, currentSeason + 2, currentSeason + 3].map(year => (
+                                                                            <div key={year}>
+                                                                                {[1, 2].map(round => {
+                                                                                    const pick = { year, round, pickNumber: 15, fromTeam: currentTeam };
+                                                                                    const isSelected = yourTradeAssets.some(a => 
+                                                                                        a.type === 'pick' && a.data.year === year && a.data.round === round
+                                                                                    );
+                                                                                    
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={`${year}-${round}`}
+                                                                                            onClick={() => toggleYourAsset({ type: 'pick', data: pick })}
+                                                                                            className={`p-3 rounded-lg cursor-pointer transition mb-2 ${
+                                                                                                isSelected ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <div className="flex justify-between items-center">
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{year} Round {round} Pick</div>
+                                                                                                    <div className="text-xs text-gray-400">Est. Pick #{pick.pickNumber}</div>
+                                                                                                </div>
+                                                                                                {isSelected && <div className="text-2xl">✓</div>}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Their Assets */}
+                                                                <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                    <h3 className="text-xl font-bold mb-4 text-purple-400">{tradePartnerTeam} - Their Assets</h3>
+                                                                    
+                                                                    <div className="space-y-2 mb-4 max-h-96 overflow-y-auto">
+                                                                        <div className="text-sm font-semibold text-gray-400 mb-2">Players</div>
+                                                                        {tradePartnerPlayers.map(player => {
+                                                                            const isSelected = theirTradeAssets.some(a => a.type === 'player' && a.data.id === player.id);
+                                                                            
+                                                                            return (
+                                                                                <div
+                                                                                    key={player.id}
+                                                                                    onClick={() => toggleTheirAsset({ type: 'player', data: player })}
+                                                                                    className={`p-3 rounded-lg cursor-pointer transition ${
+                                                                                        isSelected ? 'bg-purple-600' : 'bg-slate-700 hover:bg-slate-600'
+                                                                                    }`}
+                                                                                >
+                                                                                    <div className="flex justify-between items-center">
+                                                                                        <div>
+                                                                                            <div className="font-semibold">{player.name}</div>
+                                                                                            <div className="text-sm text-gray-400">
+                                                                                                {player.position} • {player.age}y • {player.rating} OVR
+                                                                                            </div>
+                                                                                            <div className="text-xs text-gray-500">
+                                                                                                ${(player.salary / 1000000).toFixed(1)}M
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        {isSelected && <div className="text-2xl">✓</div>}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                        
+                                                                        <div className="text-sm font-semibold text-gray-400 mb-2 mt-4">Draft Picks</div>
+                                                                        {[currentSeason + 1, currentSeason + 2, currentSeason + 3].map(year => (
+                                                                            <div key={year}>
+                                                                                {[1, 2].map(round => {
+                                                                                    const pick = { year, round, pickNumber: 15, fromTeam: tradePartnerTeam };
+                                                                                    const isSelected = theirTradeAssets.some(a => 
+                                                                                        a.type === 'pick' && a.data.year === year && a.data.round === round
+                                                                                    );
+                                                                                    
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={`${year}-${round}`}
+                                                                                            onClick={() => toggleTheirAsset({ type: 'pick', data: pick })}
+                                                                                            className={`p-3 rounded-lg cursor-pointer transition mb-2 ${
+                                                                                                isSelected ? 'bg-purple-600' : 'bg-slate-700 hover:bg-slate-600'
+                                                                                            }`}
+                                                                                        >
+                                                                                            <div className="flex justify-between items-center">
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{year} Round {round} Pick</div>
+                                                                                                    <div className="text-xs text-gray-400">Est. Pick #{pick.pickNumber}</div>
+                                                                                                </div>
+                                                                                                {isSelected && <div className="text-2xl">✓</div>}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Trade Summary */}
+                                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                <h3 className="text-2xl font-bold mb-4 text-center">Trade Summary</h3>
+                                                                
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                                                    <div>
+                                                                        <div className="text-lg font-semibold mb-2 text-blue-400">You Give:</div>
+                                                                        {yourTradeAssets.length === 0 ? (
+                                                                            <div className="text-gray-500 italic p-3 bg-slate-700 rounded-lg">Click assets to add</div>
+                                                                        ) : (
+                                                                            <div className="space-y-2">
+                                                                                {yourTradeAssets.map((asset, idx) => (
+                                                                                    <div key={idx} className="p-3 bg-blue-900 bg-opacity-30 rounded-lg">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <div>
+                                                                                                <div className="font-semibold">{asset.data.name}</div>
+                                                                                                <div className="text-sm text-gray-400">
+                                                                                                    {asset.data.position} • {asset.data.rating} OVR • ${(asset.data.salary / 1000000).toFixed(1)}M
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <div className="font-semibold">
+                                                                                                {asset.data.year} Round {asset.data.round} Pick
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                                <div className="text-sm text-gray-400 mt-2">
+                                                                                    Total Value: {yourValue} points
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div>
+                                                                        <div className="text-lg font-semibold mb-2 text-purple-400">You Receive:</div>
+                                                                        {theirTradeAssets.length === 0 ? (
+                                                                            <div className="text-gray-500 italic p-3 bg-slate-700 rounded-lg">Click assets to add</div>
+                                                                        ) : (
+                                                                            <div className="space-y-2">
+                                                                                {theirTradeAssets.map((asset, idx) => (
+                                                                                    <div key={idx} className="p-3 bg-purple-900 bg-opacity-30 rounded-lg">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <div>
+                                                                                                <div className="font-semibold">{asset.data.name}</div>
+                                                                                                <div className="text-sm text-gray-400">
+                                                                                                    {asset.data.position} • {asset.data.rating} OVR • ${(asset.data.salary / 1000000).toFixed(1)}M
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <div className="font-semibold">
+                                                                                                {asset.data.year} Round {asset.data.round} Pick
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                                <div className="text-sm text-gray-400 mt-2">
+                                                                                    Total Value: {theirValue} points
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Trade Balance */}
+                                                                <div className={`p-4 rounded-lg text-center mb-4 ${
+                                                                    balance.level > 1 ? 'bg-green-900 bg-opacity-30' :
+                                                                    balance.level < -1 ? 'bg-red-900 bg-opacity-30' :
+                                                                    'bg-yellow-900 bg-opacity-30'
+                                                                }`}>
+                                                                    <div className="text-lg font-semibold mb-1">Trade Balance</div>
+                                                                    <div className={`text-2xl font-bold ${balance.color}`}>
+                                                                        {balance.text}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Action Buttons */}
+                                                                <div className="flex gap-4">
+                                                                    <button
+                                                                        onClick={proposeTrade}
+                                                                        disabled={yourTradeAssets.length === 0 || theirTradeAssets.length === 0}
+                                                                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-semibold text-lg"
+                                                                    >
+                                                                        Propose Trade
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={clearTrade}
+                                                                        className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-semibold"
+                                                                    >
+                                                                        Clear
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* TRADE FINDER TAB */}
+                                            {tradeTab === 'finder' && (
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-6">
+                                                        <h3 className="text-2xl font-bold">AI Trade Suggestions</h3>
+                                                        <button
+                                                            onClick={generateTradeSuggestions}
+                                                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold"
+                                                        >
+                                                            Refresh Suggestions
+                                                        </button>
+                                                    </div>
+
+                                                    {tradeSuggestions.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">🔍</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Suggestions Yet</h3>
+                                                            <p className="text-gray-400 mb-6">Click "Refresh Suggestions" to find trade opportunities</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                            {tradeSuggestions.map(suggestion => {
+                                                                const sugYourValue = calculateTradeValue(suggestion.youGive);
+                                                                const sugTheirValue = calculateTradeValue(suggestion.youGet);
+                                                                const sugBalance = getTradeBalanceAssessment(sugYourValue, sugTheirValue);
+                                                                
+                                                                return (
+                                                                    <div key={suggestion.id} className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <div className="text-sm text-gray-400">WITH</div>
+                                                                                <div className="text-xl font-bold text-blue-400">{suggestion.withTeam}</div>
+                                                                            </div>
+                                                                            <div className={`px-3 py-1 rounded-lg text-sm font-semibold ${
+                                                                                suggestion.likelihood >= 70 ? 'bg-green-900 bg-opacity-30 text-green-400' :
+                                                                                suggestion.likelihood >= 50 ? 'bg-yellow-900 bg-opacity-30 text-yellow-400' :
+                                                                                'bg-red-900 bg-opacity-30 text-red-400'
+                                                                            }`}>
+                                                                                {suggestion.likelihood}% Likely
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                                                            <div>
+                                                                                <div className="text-sm font-semibold text-gray-400 mb-2">YOU GIVE</div>
+                                                                                <div className="space-y-1">
+                                                                                    {suggestion.youGive.map((asset, idx) => (
+                                                                                        <div key={idx} className="text-sm bg-slate-700 p-2 rounded">
+                                                                                            {asset.type === 'player' ? (
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{asset.data.name}</div>
+                                                                                                    <div className="text-xs text-gray-400">{asset.data.position} • {asset.data.rating} OVR</div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="font-semibold">{asset.data.year} R{asset.data.round} Pick</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <div className="text-sm font-semibold text-gray-400 mb-2">YOU GET</div>
+                                                                                <div className="space-y-1">
+                                                                                    {suggestion.youGet.map((asset, idx) => (
+                                                                                        <div key={idx} className="text-sm bg-slate-700 p-2 rounded">
+                                                                                            {asset.type === 'player' ? (
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{asset.data.name}</div>
+                                                                                                    <div className="text-xs text-gray-400">{asset.data.position} • {asset.data.rating} OVR</div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="font-semibold">{asset.data.year} R{asset.data.round} Pick</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="bg-slate-700 p-3 rounded-lg mb-4">
+                                                                            <div className="text-xs text-gray-400 mb-1">WHY THIS TRADE</div>
+                                                                            <div className="text-sm">{suggestion.reason}</div>
+                                                                        </div>
+
+                                                                        <div className={`text-center text-sm font-semibold mb-4 ${sugBalance.color}`}>
+                                                                            {sugBalance.text}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    selectTradePartner(suggestion.withTeam);
+                                                                                    setYourTradeAssets(suggestion.youGive);
+                                                                                    setTheirTradeAssets(suggestion.youGet);
+                                                                                    setTradeTab('builder');
+                                                                                }}
+                                                                                className="flex-1 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold"
+                                                                            >
+                                                                                Propose This Trade
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    selectTradePartner(suggestion.withTeam);
+                                                                                    setYourTradeAssets(suggestion.youGive);
+                                                                                    setTheirTradeAssets(suggestion.youGet);
+                                                                                    setTradeTab('builder');
+                                                                                }}
+                                                                                className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold"
+                                                                            >
+                                                                                Modify
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* TRADE OFFERS TAB */}
+                                            {tradeTab === 'offers' && (
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-6">
+                                                        <h3 className="text-2xl font-bold">Incoming Trade Offers</h3>
+                                                        <button
+                                                            onClick={generateAITradeOffer}
+                                                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold"
+                                                        >
+                                                            Simulate AI Offer
+                                                        </button>
+                                                    </div>
+
+                                                    {tradeOffers.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">📨</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Trade Offers</h3>
+                                                            <p className="text-gray-400">AI teams may send you trade proposals during the season</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-6">
+                                                            {tradeOffers.map(offer => {
+                                                                const offerYourValue = calculateTradeValue(offer.theyWant);
+                                                                const offerTheirValue = calculateTradeValue(offer.theyOffer);
+                                                                const offerBalance = getTradeBalanceAssessment(offerTheirValue, offerYourValue);
+                                                                
+                                                                return (
+                                                                    <div key={offer.id} className="bg-slate-800 rounded-lg p-6 shadow-xl border-l-4 border-blue-500">
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <div className="text-sm text-gray-400">TRADE OFFER FROM</div>
+                                                                                <div className="text-2xl font-bold text-blue-400">{offer.fromTeam}</div>
+                                                                            </div>
+                                                                            <div className="bg-red-900 bg-opacity-30 px-3 py-1 rounded-lg">
+                                                                                <span className="text-red-400 font-semibold">Expires in {offer.expiresIn} days</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                                                                            <div>
+                                                                                <div className="text-lg font-semibold mb-2 text-blue-400">They Want:</div>
+                                                                                <div className="space-y-2">
+                                                                                    {offer.theyWant.map((asset, idx) => (
+                                                                                        <div key={idx} className="bg-slate-700 p-3 rounded-lg">
+                                                                                            {asset.type === 'player' ? (
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{asset.data.name}</div>
+                                                                                                    <div className="text-sm text-gray-400">
+                                                                                                        {asset.data.position} • {asset.data.rating} OVR • ${(asset.data.salary / 1000000).toFixed(1)}M
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="font-semibold">
+                                                                                                    {asset.data.year} Round {asset.data.round} Pick
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div>
+                                                                                <div className="text-lg font-semibold mb-2 text-purple-400">They Offer:</div>
+                                                                                <div className="space-y-2">
+                                                                                    {offer.theyOffer.map((asset, idx) => (
+                                                                                        <div key={idx} className="bg-slate-700 p-3 rounded-lg">
+                                                                                            {asset.type === 'player' ? (
+                                                                                                <div>
+                                                                                                    <div className="font-semibold">{asset.data.name}</div>
+                                                                                                    <div className="text-sm text-gray-400">
+                                                                                                        {asset.data.position} • {asset.data.rating} OVR • ${(asset.data.salary / 1000000).toFixed(1)}M
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ) : (
+                                                                                                <div className="font-semibold">
+                                                                                                    {asset.data.year} Round {asset.data.round} Pick
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className={`p-3 rounded-lg text-center mb-4 ${
+                                                                            offerBalance.level > 0 ? 'bg-green-900 bg-opacity-30' :
+                                                                            offerBalance.level < 0 ? 'bg-red-900 bg-opacity-30' :
+                                                                            'bg-yellow-900 bg-opacity-30'
+                                                                        }`}>
+                                                                            <div className={`font-semibold ${offerBalance.color}`}>
+                                                                                Trade Balance: {offerBalance.text}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex gap-3">
+                                                                            <button
+                                                                                onClick={() => acceptTradeOffer(offer)}
+                                                                                className="flex-1 bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold"
+                                                                            >
+                                                                                Accept
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => counterTradeOffer(offer)}
+                                                                                className="flex-1 bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold"
+                                                                            >
+                                                                                Counter-Offer
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => rejectTradeOffer(offer.id)}
+                                                                                className="flex-1 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold"
+                                                                            >
+                                                                                Reject
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* TRADE HISTORY TAB */}
+                                            {tradeTab === 'history' && (
+                                                <div>
+                                                    <h3 className="text-2xl font-bold mb-6">Trade History - Season {currentSeason}</h3>
+
+                                                    {tradeHistory.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">📜</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Trades Yet</h3>
+                                                            <p className="text-gray-400">Completed trades will appear here</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-6">
+                                                            {tradeHistory.map(trade => (
+                                                                <div key={trade.id} className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                    <div className="flex justify-between items-center mb-4">
+                                                                        <div className="text-sm text-gray-400">
+                                                                            Day {trade.day} of Season {trade.season}
+                                                                        </div>
+                                                                        <div className="text-sm text-gray-400">
+                                                                            {new Date(trade.date).toLocaleDateString()}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                        <div>
+                                                                            <div className="text-lg font-bold mb-3 text-blue-400">{trade.team1}</div>
+                                                                            <div className="space-y-2">
+                                                                                <div className="text-sm text-gray-400 mb-1">Sent:</div>
+                                                                                {trade.team1Gives.map((asset, idx) => (
+                                                                                    <div key={idx} className="bg-slate-700 p-2 rounded text-sm">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <span>{asset.data.name} ({asset.data.position}, {asset.data.rating} OVR)</span>
+                                                                                        ) : (
+                                                                                            <span>{asset.data.year} R{asset.data.round} Pick</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                                <div className="text-sm text-gray-400 mb-1 mt-3">Received:</div>
+                                                                                {trade.team2Gives.map((asset, idx) => (
+                                                                                    <div key={idx} className="bg-slate-700 p-2 rounded text-sm">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <span>{asset.data.name} ({asset.data.position}, {asset.data.rating} OVR)</span>
+                                                                                        ) : (
+                                                                                            <span>{asset.data.year} R{asset.data.round} Pick</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <div className="text-lg font-bold mb-3 text-purple-400">{trade.team2}</div>
+                                                                            <div className="space-y-2">
+                                                                                <div className="text-sm text-gray-400 mb-1">Sent:</div>
+                                                                                {trade.team2Gives.map((asset, idx) => (
+                                                                                    <div key={idx} className="bg-slate-700 p-2 rounded text-sm">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <span>{asset.data.name} ({asset.data.position}, {asset.data.rating} OVR)</span>
+                                                                                        ) : (
+                                                                                            <span>{asset.data.year} R{asset.data.round} Pick</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                                <div className="text-sm text-gray-400 mb-1 mt-3">Received:</div>
+                                                                                {trade.team1Gives.map((asset, idx) => (
+                                                                                    <div key={idx} className="bg-slate-700 p-2 rounded text-sm">
+                                                                                        {asset.type === 'player' ? (
+                                                                                            <span>{asset.data.name} ({asset.data.position}, {asset.data.rating} OVR)</span>
+                                                                                        ) : (
+                                                                                            <span>{asset.data.year} R{asset.data.round} Pick</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* DRAFT PAGE */}
                                 {currentPage === 'draft' && (() => {
