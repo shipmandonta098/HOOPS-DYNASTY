@@ -37,6 +37,10 @@
             gameState: '++id, leagueId',
             schedule: '++id, [leagueId+season], leagueId, season, day, homeTeam, awayTeam, result, homeScore, awayScore, overtime, time',
             draftProspects: '++id, [leagueId+season], leagueId, season, drafted, projectedPick'
+        }).upgrade(tx => {
+            console.log('✅ Database upgraded to version 2: Added schedule and draftProspects tables');
+            console.log('⚠️ Please refresh the page if you encounter any errors');
+            return Promise.resolve();
         });
 
         const SALARY_CAP = 140000000;
@@ -1212,6 +1216,9 @@
                 
                 // Generate season schedule
                 await generateSeasonSchedule(leagueId, 2025, teamNames);
+                
+                // Auto-generate draft class for the upcoming season
+                await generateDraftClass(leagueId, 2025);
                 
                 return leagueId;
             }
