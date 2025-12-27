@@ -19,10 +19,10 @@
         // IndexedDB Setup with Dexie
         const db = new Dexie('BasketballGM');
         
-        // Version 2: Current schema with all tables
-        db.version(2).stores({
+        // Version 3: Added [leagueId+season] index for free agency
+        db.version(3).stores({
             leagues: '++id, name, createdDate, lastPlayed',
-            players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
+            players: '++id, leagueId, [leagueId+season], [leagueId+team+season], team, season, age, rating',
             teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season, conference, division',
             seasons: '++id, [leagueId+year], leagueId, year',
             gameState: '++id, leagueId',
@@ -132,6 +132,18 @@
             const [offerBuilder, setOfferBuilder] = useState(null);
             const [faFilters, setFaFilters] = useState({ position: 'All', minRating: 0, maxPrice: 999 });
             const [faSortBy, setFaSortBy] = useState('rating'); // rating, age, price, position
+            
+            // Finances state
+            const [financesTab, setFinancesTab] = useState('overview'); // overview, salaries, projections, budget, history
+            const [scoutingBudgetAmount, setScoutingBudgetAmount] = useState(5000000);
+            const [medicalBudgetAmount, setMedicalBudgetAmount] = useState(12000000);
+            const [developmentBudgetAmount, setDevelopmentBudgetAmount] = useState(6000000);
+            const [coachingBudgetAmount, setCoachingBudgetAmount] = useState(15000000);
+            const [marketingBudgetAmount, setMarketingBudgetAmount] = useState(10000000);
+            const [ownerType, setOwnerType] = useState('balanced'); // cheap, balanced, win-now, patient
+            const [ownerHappiness, setOwnerHappiness] = useState(7);
+            const [financialHistory, setFinancialHistory] = useState([]);
+            const [contractSimulator, setContractSimulator] = useState(null);
 
             useEffect(() => {
                 checkForExistingLeague();
@@ -157,6 +169,20 @@
                     }
                 }
             }, [currentPage, currentLeagueId, currentSeason]);
+            
+            // Auto-generate free agents when visiting Free Agency page
+            useEffect(() => {
+                if (currentPage === 'freeagency' && currentLeagueId && currentSeason && freeAgents.length === 0) {
+                    generateFreeAgentPool();
+                }
+            }, [currentPage, currentLeagueId, currentSeason]);
+            
+            // Load financial history when visiting Finances page
+            useEffect(() => {
+                if (currentPage === 'finances' && currentLeagueId) {
+                    loadFinancialHistory();
+                }
+            }, [currentPage, currentLeagueId]);
 
             async function loadScheduleGames() {
                 try {
@@ -2747,6 +2773,195 @@
             }
 
             // ============================================
+            // FINANCIAL SYSTEM FUNCTIONS
+            // ============================================
+            
+            // Load financial history
+            async function loadFinancialHistory() {
+                // This would load from database in full implementation
+                // For now, generate sample historical data
+                const history = [];
+                for (let year = currentSeason - 3; year < currentSeason; year++) {
+                    history.push({
+                        season: year,
+                        revenue: 220000000 + Math.random() * 30000000,
+                        expenses: 210000000 + Math.random() * 35000000,
+                        profit: 0, // Calculated below
+                        taxPaid: Math.random() > 0.7 ? Math.random() * 20000000 : 0,
+                        record: `${Math.floor(Math.random() * 30 + 30)}-${Math.floor(Math.random() * 30 + 20)}`
+                    });
+                    history[history.length - 1].profit = history[history.length - 1].revenue - history[history.length - 1].expenses;
+                }
+                setFinancialHistory(history);
+            }
+            
+            // Calculate team's total payroll
+            function calculateTotalPayroll() {
+                return myPlayers.reduce((total, player) => total + (player.salary || 0), 0);
+            }
+            
+            // Calculate cap space
+            function calculateCapSpace() {
+                const payroll = calculateTotalPayroll();
+                return SALARY_CAP - payroll;
+            }
+            
+            // Calculate luxury tax bill
+            function calculateLuxuryTax(payroll) {
+                const taxLine = LUXURY_TAX;
+                if (payroll <= taxLine) return 0;
+                
+                const amountOver = payroll - taxLine;
+                let taxBill = 0;
+                
+                // Progressive tax rates
+                const tier1 = Math.min(amountOver, 5000000);
+                taxBill += tier1 * 1.25;
+                
+                if (amountOver > 5000000) {
+                    const tier2 = Math.min(amountOver - 5000000, 5000000);
+                    taxBill += tier2 * 1.5;
+                }
+                
+                if (amountOver > 10000000) {
+                    const tier3 = Math.min(amountOver - 10000000, 5000000);
+                    taxBill += tier3 * 1.75;
+                }
+                
+                if (amountOver > 15000000) {
+                    const tier4 = Math.min(amountOver - 15000000, 5000000);
+                    taxBill += tier4 * 2.5;
+                }
+                
+                if (amountOver > 20000000) {
+                    const tier5 = amountOver - 20000000;
+                    taxBill += tier5 * 3.25;
+                }
+                
+                return taxBill;
+            }
+            
+            // Calculate team revenue based on performance, market, etc.
+            function calculateTeamRevenue() {
+                const baseRevenue = 180000000;
+                const teamWins = standings[currentTeam]?.wins || 0;
+                
+                // Ticket sales boost from wins
+                const ticketBonus = teamWins * 1000000;
+                
+                // Playoff bonus
+                const playoffBonus = seasonPhase !== 'preseason' && teamWins > 41 ? 15000000 : 0;
+                
+                // Market size (random for now, could be team-specific)
+                const marketMultiplier = 1.0 + (Math.random() * 0.4 - 0.2);
+                
+                return Math.round((baseRevenue + ticketBonus + playoffBonus) * marketMultiplier);
+            }
+            
+            // Calculate team expenses
+            function calculateTeamExpenses() {
+                const payroll = calculateTotalPayroll();
+                const luxuryTax = calculateLuxuryTax(payroll);
+                
+                return {
+                    playerSalaries: payroll,
+                    luxuryTax: luxuryTax,
+                    coaching: coachingBudgetAmount,
+                    frontOffice: 8000000,
+                    scouting: scoutingBudgetAmount,
+                    medical: medicalBudgetAmount,
+                    travel: 8000000,
+                    arena: 25000000,
+                    marketing: marketingBudgetAmount,
+                    development: developmentBudgetAmount,
+                    other: 8500000
+                };
+            }
+            
+            // Get financial health grade
+            function getFinancialHealthGrade() {
+                const revenue = calculateTeamRevenue();
+                const expenses = Object.values(calculateTeamExpenses()).reduce((a, b) => a + b, 0);
+                const profit = revenue - expenses;
+                const profitMargin = (profit / revenue) * 100;
+                
+                if (profitMargin > 15) return { grade: 'A+', color: 'text-green-400' };
+                if (profitMargin > 10) return { grade: 'A', color: 'text-green-400' };
+                if (profitMargin > 5) return { grade: 'B+', color: 'text-blue-400' };
+                if (profitMargin > 0) return { grade: 'B', color: 'text-blue-400' };
+                if (profitMargin > -5) return { grade: 'C', color: 'text-yellow-400' };
+                if (profitMargin > -10) return { grade: 'D', color: 'text-orange-400' };
+                return { grade: 'F', color: 'text-red-400' };
+            }
+            
+            // Project future cap space
+            function projectFutureCapSpace(yearsAhead) {
+                const projections = [];
+                const futureSalaryCap = [140000000, 145000000, 150000000, 155000000, 160000000];
+                
+                for (let i = 1; i <= yearsAhead; i++) {
+                    const year = currentSeason + i;
+                    const cap = futureSalaryCap[i] || 140000000;
+                    
+                    // Calculate committed salary for that year
+                    const committed = myPlayers.reduce((total, player) => {
+                        const yearsLeft = player.contractYears || 1;
+                        if (yearsLeft >= i) {
+                            return total + (player.salary || 0);
+                        }
+                        return total;
+                    }, 0);
+                    
+                    projections.push({
+                        season: year,
+                        cap: cap,
+                        committed: committed,
+                        capSpace: cap - committed,
+                        percentUsed: (committed / cap) * 100
+                    });
+                }
+                
+                return projections;
+            }
+            
+            // Get expiring contracts for a specific year
+            function getExpiringContracts(yearsFromNow = 0) {
+                return myPlayers.filter(player => {
+                    const yearsLeft = player.contractYears || 1;
+                    return yearsLeft === yearsFromNow + 1;
+                });
+            }
+            
+            // Calculate owner happiness
+            function updateOwnerHappiness() {
+                let happiness = 5; // Base neutral
+                
+                const teamWins = standings[currentTeam]?.wins || 0;
+                const revenue = calculateTeamRevenue();
+                const expenses = Object.values(calculateTeamExpenses()).reduce((a, b) => a + b, 0);
+                const profit = revenue - expenses;
+                const payroll = calculateTotalPayroll();
+                const overTax = payroll > LUXURY_TAX;
+                
+                // Performance factor
+                if (teamWins > 50) happiness += 2;
+                else if (teamWins > 41) happiness += 1;
+                else if (teamWins < 30) happiness -= 2;
+                
+                // Profitability factor
+                if (profit > 20000000) happiness += 2;
+                else if (profit > 0) happiness += 1;
+                else if (profit < -10000000) happiness -= 2;
+                
+                // Owner type preferences
+                if (ownerType === 'cheap' && overTax) happiness -= 3;
+                if (ownerType === 'win-now' && teamWins < 45) happiness -= 2;
+                if (ownerType === 'patient' && payroll > SALARY_CAP * 0.9) happiness -= 1;
+                
+                setOwnerHappiness(Math.max(1, Math.min(10, happiness)));
+            }
+
+            // ============================================
             // FREE AGENCY SYSTEM FUNCTIONS
             // ============================================
             
@@ -2828,64 +3043,79 @@
             
             // Generate free agent pool
             async function generateFreeAgentPool() {
-                const freeAgentPool = [];
-                
-                // Get all players from previous season
-                const allPlayers = await db.players
-                    .where('[leagueId+season]')
-                    .equals([currentLeagueId, currentSeason - 1])
-                    .toArray();
-                
-                // Find players whose contracts expired (simplified - random 20-30% become FA)
-                const expiredPlayers = allPlayers.filter(() => Math.random() < 0.25);
-                
-                // Add some undrafted rookies
-                const undraftedCount = 10 + Math.floor(Math.random() * 10);
-                const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
-                const firstNames = ['Marcus', 'Tyler', 'Brandon', 'Jaylen', 'Zach', 'Malik', 'Jordan', 'Cameron', 'Isaiah', 'Xavier'];
-                const lastNames = ['Johnson', 'Williams', 'Smith', 'Brown', 'Davis', 'Miller', 'Wilson', 'Anderson', 'Taylor', 'Thomas'];
-                
-                for (let i = 0; i < undraftedCount; i++) {
-                    const age = 22 + Math.floor(Math.random() * 3);
-                    const rating = 55 + Math.floor(Math.random() * 15); // 55-69
-                    const potential = rating + Math.floor(Math.random() * 20);
+                try {
+                    console.log('Generating free agent pool...');
+                    console.log('League ID:', currentLeagueId, 'Season:', currentSeason);
                     
-                    const undrafted = {
-                        id: `fa-undrafted-${i}-${Date.now()}`,
-                        name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
-                        position: positions[Math.floor(Math.random() * positions.length)],
-                        age,
-                        rating,
-                        potential,
-                        team: 'Free Agent',
-                        season: currentSeason,
-                        leagueId: currentLeagueId,
-                        salary: 0
-                    };
+                    const freeAgentPool = [];
                     
-                    freeAgentPool.push(undrafted);
+                    // Get all players from current season
+                    const allPlayers = await db.players
+                        .where('[leagueId+season]')
+                        .equals([currentLeagueId, currentSeason])
+                        .toArray();
+                    
+                    console.log('Total players in league:', allPlayers.length);
+                    
+                    // Find players whose contracts expired (simplified - random 20-30% become FA)
+                    const expiredPlayers = allPlayers.filter(() => Math.random() < 0.25);
+                    console.log('Expired contract players:', expiredPlayers.length);
+                    
+                    // Add some undrafted rookies
+                    const undraftedCount = 10 + Math.floor(Math.random() * 10);
+                    const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                    const firstNames = ['Marcus', 'Tyler', 'Brandon', 'Jaylen', 'Zach', 'Malik', 'Jordan', 'Cameron', 'Isaiah', 'Xavier'];
+                    const lastNames = ['Johnson', 'Williams', 'Smith', 'Brown', 'Davis', 'Miller', 'Wilson', 'Anderson', 'Taylor', 'Thomas'];
+                    
+                    for (let i = 0; i < undraftedCount; i++) {
+                        const age = 22 + Math.floor(Math.random() * 3);
+                        const rating = 55 + Math.floor(Math.random() * 15); // 55-69
+                        const potential = rating + Math.floor(Math.random() * 20);
+                        
+                        const undrafted = {
+                            id: `fa-undrafted-${i}-${Date.now()}`,
+                            name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                            position: positions[Math.floor(Math.random() * positions.length)],
+                            age,
+                            rating,
+                            potential,
+                            team: 'Free Agent',
+                            season: currentSeason,
+                            leagueId: currentLeagueId,
+                            salary: 0
+                        };
+                        
+                        freeAgentPool.push(undrafted);
+                    }
+                    
+                    console.log('Undrafted rookies created:', freeAgentPool.length);
+                    
+                    // Process all free agents
+                    const processedFAs = [...expiredPlayers, ...freeAgentPool].map(player => {
+                        const asking = calculateAskingPrice(player);
+                        const priorities = generatePlayerPriorities(player);
+                        
+                        return {
+                            ...player,
+                            status: 'available',
+                            asking,
+                            priorities,
+                            offers: [],
+                            interested: [],
+                            daysOnMarket: 0,
+                            preferredTeams: [],
+                            avoidTeams: []
+                        };
+                    });
+                    
+                    console.log('Total free agents to set:', processedFAs.length);
+                    setFreeAgents(processedFAs);
+                    console.log('Free agents state updated');
+                    return processedFAs;
+                } catch (error) {
+                    console.error('Error generating free agent pool:', error);
+                    alert('Error generating free agents: ' + error.message);
                 }
-                
-                // Process all free agents
-                const processedFAs = [...expiredPlayers, ...freeAgentPool].map(player => {
-                    const asking = calculateAskingPrice(player);
-                    const priorities = generatePlayerPriorities(player);
-                    
-                    return {
-                        ...player,
-                        status: 'available',
-                        asking,
-                        priorities,
-                        offers: [],
-                        interested: [],
-                        daysOnMarket: 0,
-                        preferredTeams: [],
-                        avoidTeams: []
-                    };
-                });
-                
-                setFreeAgents(processedFAs);
-                return processedFAs;
             }
             
             // Make contract offer to free agent
@@ -5652,59 +5882,472 @@
                                     </div>
                                 )}
 
-                                {currentPage === 'finances' && (
-                                    <div>
-                                        <h2 className="text-3xl font-bold mb-6">Team Finances</h2>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                                <h3 className="text-xl font-bold mb-4">Salary Overview</h3>
-                                                <div className="space-y-4">
-                                                    <div>
-                                                        <div className="flex justify-between mb-2">
-                                                            <span>Total Payroll</span>
-                                                            <span className="font-bold">${(totalSalary / 1000000).toFixed(2)}M</span>
-                                                        </div>
-                                                        <div className="w-full bg-slate-700 rounded-full h-4">
-                                                            <div 
-                                                                className={`h-4 rounded-full ${totalSalary > LUXURY_TAX ? 'bg-red-600' : totalSalary > SALARY_CAP ? 'bg-yellow-600' : 'bg-green-600'}`}
-                                                                style={{width: `${Math.min(100, (totalSalary / LUXURY_TAX) * 100)}%`}}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span>Salary Cap</span>
-                                                        <span>${(SALARY_CAP / 1000000).toFixed(1)}M</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span>Luxury Tax Line</span>
-                                                        <span>${(LUXURY_TAX / 1000000).toFixed(1)}M</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="font-bold">Cap Space</span>
-                                                        <span className={`font-bold ${capSpace < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                                            ${(capSpace / 1000000).toFixed(2)}M
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                {currentPage === 'finances' && (() => {
+                                    const payroll = calculateTotalPayroll();
+                                    const capSpace = SALARY_CAP - payroll;
+                                    const luxuryTax = calculateLuxuryTax(payroll);
+                                    const revenue = calculateTeamRevenue();
+                                    const expenses = calculateTeamExpenses();
+                                    const totalExpenses = Object.values(expenses).reduce((a, b) => a + b, 0);
+                                    const profit = revenue - totalExpenses;
+                                    const healthGrade = getFinancialHealthGrade();
+                                    const projections = projectFutureCapSpace(3);
+                                    const expiringContracts = getExpiringContracts(0);
+                                    
+                                    return (
+                                        <div>
+                                            <h2 className="text-3xl font-bold mb-6">💰 Team Finances</h2>
+                                            
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                {['overview', 'salaries', 'projections', 'budget', 'history'].map(tab => (
+                                                    <button
+                                                        key={tab}
+                                                        onClick={() => setFinancesTab(tab)}
+                                                        className={`px-6 py-3 font-semibold transition-all ${
+                                                            financesTab === tab
+                                                                ? 'border-b-2 border-blue-500 text-blue-400'
+                                                                : 'text-gray-400 hover:text-gray-200'
+                                                        }`}
+                                                    >
+                                                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                                    </button>
+                                                ))}
                                             </div>
-
-                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
-                                                <h3 className="text-xl font-bold mb-4">Top Salaries</h3>
-                                                <div className="space-y-2">
-                                                    {myPlayers
-                                                        .sort((a, b) => b.salary - a.salary)
-                                                        .slice(0, 5)
-                                                        .map(player => (
-                                                            <div key={player.id} className="flex justify-between items-center p-2 bg-slate-700 rounded">
-                                                                <span>{player.name}</span>
-                                                                <span className="font-bold">${(player.salary / 1000000).toFixed(1)}M</span>
+                                            
+                                            {/* OVERVIEW TAB */}
+                                            {financesTab === 'overview' && (
+                                                <div className="space-y-6">
+                                                    {/* Top Row - Key Metrics */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <div className="text-gray-400 text-sm mb-2">Cap Space</div>
+                                                            <div className={`text-2xl font-bold ${capSpace < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                ${(capSpace / 1000000).toFixed(1)}M
                                                             </div>
-                                                        ))}
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                {((payroll / SALARY_CAP) * 100).toFixed(1)}% of cap used
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <div className="text-gray-400 text-sm mb-2">Luxury Tax</div>
+                                                            <div className={`text-2xl font-bold ${luxuryTax > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                ${(luxuryTax / 1000000).toFixed(1)}M
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                {luxuryTax > 0 ? `$${((payroll - LUXURY_TAX) / 1000000).toFixed(1)}M over` : 'Under tax line'}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <div className="text-gray-400 text-sm mb-2">Profit/Loss</div>
+                                                            <div className={`text-2xl font-bold ${profit < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                {profit < 0 ? '-' : ''}${(Math.abs(profit) / 1000000).toFixed(1)}M
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                {((profit / revenue) * 100).toFixed(1)}% margin
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <div className="text-gray-400 text-sm mb-2">Financial Health</div>
+                                                            <div className={`text-2xl font-bold ${healthGrade.color}`}>
+                                                                {healthGrade.grade}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                League Rank: #{Math.floor(Math.random() * 10 + 5)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Salary Cap Status */}
+                                                    <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                        <h3 className="text-xl font-bold mb-4">💰 Salary Cap Status - Season {currentSeason}</h3>
+                                                        <div className="space-y-3">
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-400">Salary Cap:</span>
+                                                                <span className="font-bold">${(SALARY_CAP / 1000000).toFixed(1)}M</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-400">Luxury Tax Line:</span>
+                                                                <span className="font-bold">${(LUXURY_TAX / 1000000).toFixed(1)}M</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-400">Apron (Hard Cap):</span>
+                                                                <span className="font-bold">$178.0M</span>
+                                                            </div>
+                                                            <div className="h-px bg-slate-700 my-3"></div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-400">Your Total Payroll:</span>
+                                                                <span className="font-bold text-blue-400">${(payroll / 1000000).toFixed(1)}M</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="text-gray-400">Cap Space:</span>
+                                                                <span className={`font-bold ${capSpace < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                    ${(capSpace / 1000000).toFixed(1)}M {capSpace > 0 ? '✓' : ''}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-4">
+                                                                <div className="flex justify-between text-sm mb-2">
+                                                                    <span>Status: {payroll < SALARY_CAP ? 'UNDER CAP (Healthy)' : payroll < LUXURY_TAX ? 'OVER CAP' : 'OVER LUXURY TAX'}</span>
+                                                                    <span>{((payroll / SALARY_CAP) * 100).toFixed(1)}%</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-700 rounded-full h-6">
+                                                                    <div 
+                                                                        className={`h-6 rounded-full transition-all ${
+                                                                            payroll > LUXURY_TAX ? 'bg-red-600' : 
+                                                                            payroll > SALARY_CAP * 0.95 ? 'bg-yellow-600' : 
+                                                                            'bg-green-600'
+                                                                        }`}
+                                                                        style={{width: `${Math.min(100, (payroll / (SALARY_CAP * 1.2)) * 100)}%`}}
+                                                                    ></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Revenue & Expenses */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">💵 Team Revenue</h3>
+                                                            <div className="space-y-2">
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Ticket Sales:</span>
+                                                                    <span>${(revenue * 0.34 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">TV/Media Rights:</span>
+                                                                    <span>${(revenue * 0.18 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Sponsorships:</span>
+                                                                    <span>${(revenue * 0.11 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Merchandise:</span>
+                                                                    <span>${(revenue * 0.09 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Concessions:</span>
+                                                                    <span>${(revenue * 0.07 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Other:</span>
+                                                                    <span>${(revenue * 0.21 / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="h-px bg-slate-700 my-3"></div>
+                                                                <div className="flex justify-between font-bold text-lg">
+                                                                    <span>TOTAL REVENUE:</span>
+                                                                    <span className="text-green-400">${(revenue / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">💸 Team Expenses</h3>
+                                                            <div className="space-y-2">
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Player Salaries:</span>
+                                                                    <span>${(expenses.playerSalaries / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Luxury Tax:</span>
+                                                                    <span className={luxuryTax > 0 ? 'text-red-400' : ''}>${(expenses.luxuryTax / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Coaching Staff:</span>
+                                                                    <span>${(expenses.coaching / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Arena Operations:</span>
+                                                                    <span>${(expenses.arena / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Medical/Training:</span>
+                                                                    <span>${(expenses.medical / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Other:</span>
+                                                                    <span>${((expenses.frontOffice + expenses.scouting + expenses.travel + expenses.marketing + expenses.development + expenses.other) / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="h-px bg-slate-700 my-3"></div>
+                                                                <div className="flex justify-between font-bold text-lg">
+                                                                    <span>TOTAL EXPENSES:</span>
+                                                                    <span className="text-red-400">${(totalExpenses / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="h-px bg-slate-700 my-1"></div>
+                                                                <div className="flex justify-between font-bold text-xl">
+                                                                    <span>NET PROFIT:</span>
+                                                                    <span className={profit < 0 ? 'text-red-400' : 'text-green-400'}>
+                                                                        {profit < 0 ? '-' : ''}${(Math.abs(profit) / 1000000).toFixed(1)}M {profit > 0 ? '✓' : ''}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Owner Expectations */}
+                                                    <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                        <h3 className="text-xl font-bold mb-4">👔 Owner Expectations</h3>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                            <div>
+                                                                <div className="mb-3">
+                                                                    <span className="text-gray-400">Owner: </span>
+                                                                    <span className="font-bold">Robert Sterling</span>
+                                                                </div>
+                                                                <div className="mb-3">
+                                                                    <span className="text-gray-400">Type: </span>
+                                                                    <span className="font-bold capitalize">{ownerType.replace('-', ' ')}</span>
+                                                                </div>
+                                                                <div className="mb-3">
+                                                                    <span className="text-gray-400">Happiness: </span>
+                                                                    <span className="text-2xl">
+                                                                        {ownerHappiness >= 8 ? '😊' : ownerHappiness >= 6 ? '😐' : ownerHappiness >= 4 ? '😕' : '😠'}
+                                                                    </span>
+                                                                    <span className="ml-2 font-bold">{ownerHappiness}/10</span>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-green-400">✓</span>
+                                                                        <span>Make playoffs</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={profit > 0 ? 'text-green-400' : 'text-red-400'}>{profit > 0 ? '✓' : '✗'}</span>
+                                                                        <span>Stay profitable</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={luxuryTax === 0 ? 'text-green-400' : 'text-yellow-400'}>{luxuryTax === 0 ? '✓' : '⚠️'}</span>
+                                                                        <span>Avoid luxury tax</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
+                                            
+                                            {/* SALARIES TAB */}
+                                            {financesTab === 'salaries' && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg shadow-xl overflow-hidden">
+                                                        <div className="px-6 py-4 border-b border-slate-700">
+                                                            <h3 className="text-xl font-bold">Player Salary Breakdown</h3>
+                                                        </div>
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full">
+                                                                <thead className="bg-slate-700">
+                                                                    <tr>
+                                                                        <th className="px-6 py-3 text-left">Player</th>
+                                                                        <th className="px-6 py-3 text-left">Position</th>
+                                                                        <th className="px-6 py-3 text-right">Salary</th>
+                                                                        <th className="px-6 py-3 text-right">% of Cap</th>
+                                                                        <th className="px-6 py-3 text-right">Years Left</th>
+                                                                        <th className="px-6 py-3 text-left">Status</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-700">
+                                                                    {myPlayers
+                                                                        .sort((a, b) => (b.salary || 0) - (a.salary || 0))
+                                                                        .map((player, idx) => {
+                                                                            const yearsLeft = player.contractYears || 1;
+                                                                            const isExpiring = yearsLeft === 1;
+                                                                            return (
+                                                                                <tr key={player.id} className="hover:bg-slate-700">
+                                                                                    <td className="px-6 py-3">
+                                                                                        <div className="font-semibold">{player.name}</div>
+                                                                                    </td>
+                                                                                    <td className="px-6 py-3 text-gray-400">{player.position}</td>
+                                                                                    <td className="px-6 py-3 text-right font-bold">
+                                                                                        ${((player.salary || 0) / 1000000).toFixed(1)}M
+                                                                                    </td>
+                                                                                    <td className="px-6 py-3 text-right text-gray-400">
+                                                                                        {(((player.salary || 0) / SALARY_CAP) * 100).toFixed(1)}%
+                                                                                    </td>
+                                                                                    <td className="px-6 py-3 text-right">{yearsLeft}</td>
+                                                                                    <td className="px-6 py-3">
+                                                                                        {isExpiring && (
+                                                                                            <span className="px-2 py-1 bg-yellow-900 bg-opacity-30 text-yellow-400 rounded text-xs">
+                                                                                                Expiring ⚠️
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Luxury Tax Calculator */}
+                                                    {luxuryTax > 0 && (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl border-2 border-red-900">
+                                                            <h3 className="text-xl font-bold mb-4 text-red-400">🚨 Luxury Tax Calculator</h3>
+                                                            <div className="space-y-3">
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Current Payroll:</span>
+                                                                    <span className="font-bold">${(payroll / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Luxury Tax Line:</span>
+                                                                    <span className="font-bold">${(LUXURY_TAX / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-400">Amount Over Tax:</span>
+                                                                    <span className="font-bold text-red-400">${((payroll - LUXURY_TAX) / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                                <div className="h-px bg-slate-700 my-3"></div>
+                                                                <div className="flex justify-between font-bold text-lg">
+                                                                    <span>Total Tax Bill:</span>
+                                                                    <span className="text-red-400">${(luxuryTax / 1000000).toFixed(1)}M 💸</span>
+                                                                </div>
+                                                                <div className="flex justify-between font-bold text-xl">
+                                                                    <span>TOTAL COST:</span>
+                                                                    <span className="text-red-400">${((payroll + luxuryTax) / 1000000).toFixed(1)}M</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* PROJECTIONS TAB */}
+                                            {financesTab === 'projections' && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                        <h3 className="text-xl font-bold mb-4">📊 Future Cap Projections</h3>
+                                                        <div className="space-y-4">
+                                                            {projections.map(proj => (
+                                                                <div key={proj.season} className="bg-slate-700 rounded-lg p-4">
+                                                                    <div className="flex justify-between mb-2">
+                                                                        <span className="font-bold">Season {proj.season}:</span>
+                                                                        <span>${(proj.committed / 1000000).toFixed(1)}M / ${(proj.cap / 1000000).toFixed(1)}M ({proj.percentUsed.toFixed(1)}%)</span>
+                                                                    </div>
+                                                                    <div className="w-full bg-slate-800 rounded-full h-6">
+                                                                        <div 
+                                                                            className={`h-6 rounded-full ${
+                                                                                proj.percentUsed > 100 ? 'bg-red-600' : 
+                                                                                proj.percentUsed > 90 ? 'bg-yellow-600' : 
+                                                                                'bg-green-600'
+                                                                            }`}
+                                                                            style={{width: `${Math.min(100, proj.percentUsed)}%`}}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <div className="mt-2 text-sm">
+                                                                        <span className={`font-bold ${proj.capSpace > 20000000 ? 'text-green-400' : 'text-gray-400'}`}>
+                                                                            Cap Space: ${(proj.capSpace / 1000000).toFixed(1)}M
+                                                                            {proj.capSpace > 20000000 && ' 🎉'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Expiring Contracts */}
+                                                    {expiringContracts.length > 0 && (
+                                                        <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                            <h3 className="text-xl font-bold mb-4">⚠️ Expiring Contracts This Year</h3>
+                                                            <div className="space-y-2">
+                                                                {expiringContracts.map(player => (
+                                                                    <div key={player.id} className="flex justify-between items-center bg-slate-700 rounded p-3">
+                                                                        <span className="font-semibold">{player.name}</span>
+                                                                        <span className="text-yellow-400 font-bold">${((player.salary || 0) / 1000000).toFixed(1)}M</span>
+                                                                    </div>
+                                                                ))}
+                                                                <div className="h-px bg-slate-600 my-2"></div>
+                                                                <div className="flex justify-between font-bold text-lg">
+                                                                    <span>Total Cap Relief:</span>
+                                                                    <span className="text-green-400">
+                                                                        ${(expiringContracts.reduce((sum, p) => sum + (p.salary || 0), 0) / 1000000).toFixed(1)}M 🎉
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* BUDGET TAB */}
+                                            {financesTab === 'budget' && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                        <h3 className="text-xl font-bold mb-4">🎯 Budget Allocation</h3>
+                                                        <div className="space-y-6">
+                                                            {[
+                                                                { name: 'Scouting', value: scoutingBudgetAmount, setter: setScoutingBudgetAmount, effect: 'Better draft picks, FA intel' },
+                                                                { name: 'Medical/Training', value: medicalBudgetAmount, setter: setMedicalBudgetAmount, effect: 'Fewer injuries, faster recovery' },
+                                                                { name: 'Player Development', value: developmentBudgetAmount, setter: setDevelopmentBudgetAmount, effect: 'Young players develop faster' },
+                                                                { name: 'Coaching Staff', value: coachingBudgetAmount, setter: setCoachingBudgetAmount, effect: 'Better game results, morale' },
+                                                                { name: 'Marketing', value: marketingBudgetAmount, setter: setMarketingBudgetAmount, effect: 'Increased revenue, FA appeal' }
+                                                            ].map(item => (
+                                                                <div key={item.name}>
+                                                                    <div className="flex justify-between mb-2">
+                                                                        <span className="font-semibold">{item.name}:</span>
+                                                                        <span className="font-bold">${(item.value / 1000000).toFixed(1)}M</span>
+                                                                    </div>
+                                                                    <input
+                                                                        type="range"
+                                                                        min="2000000"
+                                                                        max="20000000"
+                                                                        step="1000000"
+                                                                        value={item.value}
+                                                                        onChange={(e) => item.setter(parseInt(e.target.value))}
+                                                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                                                    />
+                                                                    <div className="flex justify-between text-sm text-gray-400 mt-1">
+                                                                        <span>{item.value < 5000000 ? 'Low' : item.value < 12000000 ? 'Medium' : 'High'}</span>
+                                                                        <span>{item.effect}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* HISTORY TAB */}
+                                            {financesTab === 'history' && (
+                                                <div className="bg-slate-800 rounded-lg shadow-xl overflow-hidden">
+                                                    <div className="px-6 py-4 border-b border-slate-700">
+                                                        <h3 className="text-xl font-bold">Financial History</h3>
+                                                    </div>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full">
+                                                            <thead className="bg-slate-700">
+                                                                <tr>
+                                                                    <th className="px-6 py-3 text-left">Season</th>
+                                                                    <th className="px-6 py-3 text-right">Revenue</th>
+                                                                    <th className="px-6 py-3 text-right">Expenses</th>
+                                                                    <th className="px-6 py-3 text-right">Profit</th>
+                                                                    <th className="px-6 py-3 text-right">Tax Paid</th>
+                                                                    <th className="px-6 py-3 text-center">Record</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-700">
+                                                                {financialHistory.map(year => (
+                                                                    <tr key={year.season} className="hover:bg-slate-700">
+                                                                        <td className="px-6 py-3 font-semibold">{year.season}</td>
+                                                                        <td className="px-6 py-3 text-right text-green-400">${(year.revenue / 1000000).toFixed(1)}M</td>
+                                                                        <td className="px-6 py-3 text-right text-red-400">${(year.expenses / 1000000).toFixed(1)}M</td>
+                                                                        <td className={`px-6 py-3 text-right font-bold ${year.profit < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                            {year.profit < 0 ? '-' : ''}${(Math.abs(year.profit) / 1000000).toFixed(1)}M
+                                                                        </td>
+                                                                        <td className="px-6 py-3 text-right">${(year.taxPaid / 1000000).toFixed(1)}M</td>
+                                                                        <td className="px-6 py-3 text-center text-gray-400">{year.record}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
                                 {/* TRADES PAGE */}
                                 {currentPage === 'trades' && (() => {
