@@ -16,34 +16,6 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Auto-fix for database schema issues
-        async function checkAndFixDatabase() {
-            try {
-                const testDb = new Dexie('BasketballGM');
-                await testDb.open();
-                
-                // Check if draftProspects table exists
-                if (!testDb.tables.find(t => t.name === 'draftProspects')) {
-                    console.log('⚠️ Old database detected - deleting and recreating...');
-                    testDb.close();
-                    await Dexie.delete('BasketballGM');
-                    console.log('✅ Old database deleted. Page will reload...');
-                    location.reload();
-                    return false;
-                }
-                testDb.close();
-                return true;
-            } catch (error) {
-                console.log('Database check failed, deleting...');
-                await Dexie.delete('BasketballGM');
-                location.reload();
-                return false;
-            }
-        }
-
-        // Check database before initializing
-        await checkAndFixDatabase();
-
         // IndexedDB Setup with Dexie
         const db = new Dexie('BasketballGM');
         
