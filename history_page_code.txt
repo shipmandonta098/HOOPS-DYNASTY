@@ -1,0 +1,34 @@
+This file contains the History page code to be inserted after the finances page ends.
+
+Insert this after line 6390 (after the finances page }))} section):
+
+                                {/* FRANCHISE HISTORY PAGE */}
+                                {currentPage === 'history' && (() => {
+                                    const gmLegacy = calculateGMLegacy();
+                                    const records = getFranchiseRecords();
+                                    
+                                    return (
+                                        <div>
+                                            <h2 className="text-3xl font-bold mb-6">📜 Franchise History</h2>
+                                            
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700 overflow-x-auto">
+                                                {['overview', 'seasons', 'championships', 'records', 'halloffame', 'gmlegacy', 'awards', 'draft', 'transactions'].map(tab => (
+                                                    <button
+                                                        key={tab}
+                                                        onClick={() => setHistoryTab(tab)}
+                                                        className={`px-4 py-3 font-medium capitalize whitespace-nowrap transition-colors ${
+                                                            historyTab === tab
+                                                                ? 'border-b-2 border-blue-500 text-blue-400'
+                                                                : 'text-gray-400 hover:text-gray-200'
+                                                        }`}
+                                                    >
+                                                        {tab === 'gmlegacy' ? 'GM Legacy' : (tab === 'halloffame' ? 'Hall of Fame' : tab)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Rest of tabs go here - see full implementation */}
+                                        </div>
+                                    );
+                                })()}

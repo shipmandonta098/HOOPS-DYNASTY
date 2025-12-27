@@ -144,6 +144,19 @@
             const [ownerHappiness, setOwnerHappiness] = useState(7);
             const [financialHistory, setFinancialHistory] = useState([]);
             const [contractSimulator, setContractSimulator] = useState(null);
+            
+            // Franchise History state
+            const [historyTab, setHistoryTab] = useState('overview'); // overview, seasons, championships, records, halloffame, gmlegacy, awards, draft, transactions
+            const [franchiseHistory, setFranchiseHistory] = useState(null);
+            const [seasonArchives, setSeasonArchives] = useState([]);
+            const [championshipHistory, setChampionshipHistory] = useState([]);
+            const [retiredJerseys, setRetiredJerseys] = useState([]);
+            const [gmMilestones, setGmMilestones] = useState([]);
+            const [awardWinners, setAwardWinners] = useState([]);
+            const [draftHistory, setDraftHistory] = useState([]);
+            const [transactionLog, setTransactionLog] = useState([]);
+            const [headToHeadRecords, setHeadToHeadRecords] = useState({});
+            const [selectedSeason, setSelectedSeason] = useState(null);
 
             useEffect(() => {
                 checkForExistingLeague();
@@ -181,6 +194,13 @@
             useEffect(() => {
                 if (currentPage === 'finances' && currentLeagueId) {
                     loadFinancialHistory();
+                }
+            }, [currentPage, currentLeagueId]);
+            
+            // Load franchise history when visiting History page
+            useEffect(() => {
+                if (currentPage === 'history' && currentLeagueId) {
+                    loadFranchiseHistory();
                 }
             }, [currentPage, currentLeagueId]);
 
@@ -1869,10 +1889,30 @@
             }
 
             // ============================================
-            // DRAFT SYSTEM FUNCTIONS
+            // FRANCHISE HISTORY FUNCTIONS
             // ============================================
             
-            async function generateDraftClass(leagueId, season) {
+            async function loadFranchiseHistory() {
+                // Generate comprehensive franchise history data
+                const seasons = currentSeason - 2025 + 1; // Number of seasons played
+                const establishedYear = 2025;
+                
+                // Generate season archives
+                const archives = [];
+                for (let i = 0; i < Math.min(seasons, 8); i++) {
+                    const year = 2025 + i;
+                    const wins = i === 0 ? 35 : (40 + Math.floor(Math.random() * 22));
+                    const losses = 82 - wins;
+                    
+                    archives.push({
+                        season: year,
+                        wins,
+                        losses,
+                        winPct: (wins / 82).toFixed(3),
+                        finish: i < 2 ? `${7 + i}th East` : `${Math.floor(Math.random() * 4) + 1}${['st', 'nd', 'rd', 'th'][Math.min(Math.floor(Math.random() * 4), 3)]} East`,
+                        playoffs: i === 0 ? 'Missed' : (i === 2 || i === 5 ? 'WON FINALS 🏆' : ['Lost Rd 1', 'Lost Rd 2', 'Lost Conf Finals', 'Lost Finals'][Math.floor(Math.random() * 4)]),
+                        champion: i === 2 || i === 5 ? currentTeam : (i > 0 && Math.random() > 0.5 ? ['Chicago Predators', 'Seattle Storm', 'Las Vegas Vipers'][Math.floor(Math.random() * 3)] : '-'),
+                        coach: i < 2 ? 'Mike Brown' : 'James Williams',\n                        notes: i === 0 ? 'Your first year, Rebuild began' : (i === 2 || i === 5 ? 'Beat ' + ['Portland Thunder', 'Las Vegas Vipers'][Math.floor(Math.random() * 2)] + ' 4-' + (Math.floor(Math.random() * 3) + 2) : '')\n                    });\n                }\n                setSeasonArchives(archives);\n                \n                // Generate championship history\n                const champs = archives.filter(s => s.playoffs.includes('WON FINALS')).map(s => ({\n                    season: s.season,\n                    record: `${s.wins}-${s.losses}`,\n                    winPct: s.winPct,\n                    defeated: s.notes.includes('Beat') ? s.notes.split('Beat ')[1] : 'Portland Thunder 4-3',\n                    finalsMVP: ['Bradley Johnson', 'Jason Moore'][Math.floor(Math.random() * 2)],\n                    finalsPPG: (28 + Math.random() * 6).toFixed(1),\n                    playoffRecord: `16-${Math.floor(Math.random() * 5) + 3}`,\n                    keyPlayers: ['Johnson', 'Moore', 'Davis']\n                }));\n                setChampionshipHistory(champs);\n                \n                // Generate retired jerseys\n                const retired = [];\n                if (seasons >= 7) {\n                    retired.push({\n                        number: 23,\n                        name: 'Bradley Johnson',\n                        position: 'SG',\n                        years: '2025-2031',\n                        seasons: 7,\n                        achievements: [\n                            `${champs.length}x Champion`,\n                            '1x Finals MVP',\n                            '1x League MVP',\n                            '5x All-Star'\n                        ],\n                        stats: '26.8 PPG, 5.2 RPG, 4.1 APG',\n                        legacy: 'The franchise cornerstone who led us to our first championship. An Orlando legend.'\n                    });\n                }\n                setRetiredJerseys(retired);\n                \n                // Generate GM milestones\n                const milestones = [\n                    { id: 1, name: 'First Win', achieved: true, season: 2025, game: 1 },\n                    { id: 2, name: 'First Playoff Appearance', achieved: seasons >= 2, season: 2026 },\n                    { id: 3, name: 'First Division Title', achieved: seasons >= 2, season: 2026 },\n                    { id: 4, name: 'First Conference Title', achieved: champs.length > 0, season: champs[0]?.season },\n                    { id: 5, name: 'First Championship', achieved: champs.length > 0, season: champs[0]?.season },\n                    { id: 6, name: '100th Win', achieved: seasons >= 2, season: 2026 },\n                    { id: 7, name: '250th Win', achieved: seasons >= 4, season: 2029 },\n                    { id: 8, name: '500th Win', achieved: false },\n                    { id: 9, name: 'Back-to-Back Championships', achieved: false },\n                    { id: 10, name: 'Dynasty (3+ titles in 5 years)', achieved: false }\n                ];\n                setGmMilestones(milestones);\n                \n                // Generate award winners\n                const awards = [];\n                for (let i = 0; i < Math.min(seasons, 8); i++) {\n                    const year = 2025 + i;\n                    if (i === 2) awards.push({ season: year, award: 'MVP', player: 'Bradley Johnson' });\n                    if (i === 4) awards.push({ season: year, award: 'MVP', player: 'Jason Moore' });\n                    if (i === 2 || i === 6) awards.push({ season: year, award: 'DPOY', player: 'Marcus Davis' });\n                    if (i === 1) awards.push({ season: year, award: 'ROY', player: 'Tyler Williams' });\n                    if (i === 2 || i === 5) awards.push({ season: year, award: '6th Man', player: i === 2 ? 'Tyler Williams' : 'Kevin Harris' });\n                    if (i === 3) awards.push({ season: year, award: 'MIP', player: 'Jason Moore' });\n                }\n                setAwardWinners(awards);\n                \n                // Generate draft history\n                const drafts = [\n                    { season: 2025, pick: 8, player: 'Jason Moore', position: 'PG', grade: '🌟', summary: 'Franchise player' },\n                    { season: 2026, pick: 3, player: 'Tyler Williams', position: 'SF', grade: '⭐', summary: 'All-Star' },\n                    { season: 2027, pick: 28, player: 'Tyler Brown', position: 'SG', grade: '✗', summary: 'Bust (cut 2029)' },\n                    { season: 2028, pick: 15, player: 'Ryan Moore', position: 'PF', grade: '✓', summary: 'Solid starter' },\n                    { season: 2029, pick: 12, player: 'Kevin Harris', position: 'SG', grade: '~', summary: '6th Man Award \\'30' },\n                    { season: 2030, pick: 22, player: 'Mike Davis', position: 'C', grade: '~', summary: 'Rotation player' },\n                    { season: 2031, pick: 18, player: 'Chris Lee', position: 'SF', grade: '~', summary: 'Role player' },\n                    { season: 2032, pick: 5, player: 'Alex Johnson', position: 'PG', grade: '?', summary: 'Rookie (TBD)' }\n                ].slice(0, Math.min(seasons, 8));\n                setDraftHistory(drafts);\n                \n                // Generate transaction log\n                const transactions = [\n                    {\n                        date: 'Feb 10, 2027',\n                        type: 'Trade',\n                        description: 'Acquired Marcus Davis (SF, 88 OVR)',\n                        details: 'Traded Kevin Thompson (PF, 76 OVR) + 2028 1st',\n                        grade: 'A+',\n                        note: 'Championship piece acquired'\n                    },\n                    {\n                        date: 'July 5, 2027',\n                        type: 'Signing',\n                        description: 'Signed Tyler Williams (SF, 85 OVR)',\n                        details: '4 years, $68M ($17M/year)',\n                        grade: 'A',\n                        note: 'Key rotation addition'\n                    },\n                    {\n                        date: 'Nov 15, 2027',\n                        type: 'Release',\n                        description: 'Released Kevin Johnson (C, 58 OVR)',\n                        details: 'Roster spot for playoff push',\n                        grade: 'B',\n                        note: ''\n                    },\n                    {\n                        date: 'June 20, 2026',\n                        type: 'Draft',\n                        description: 'Drafted Tyler Williams #3 overall',\n                        details: 'SF from Duke, 84 potential',\n                        grade: 'A+',\n                        note: 'Future All-Star'\n                    }\n                ];\n                setTransactionLog(transactions);\n                \n                // Generate head-to-head records\n                const h2h = {\n                    'Las Vegas Vipers': { wins: 12, losses: 8, lastMeeting: 'W 105-98 (2032)' },\n                    'Chicago Predators': { wins: 15, losses: 9, lastMeeting: 'L 92-95 (2032)' },\n                    'Seattle Storm': { wins: 10, losses: 14, lastMeeting: 'W 108-102 (2031)' },\n                    'Portland Thunder': { wins: 14, losses: 10, lastMeeting: 'W 110-107 (2031)' },\n                    'Boston Knights': { wins: 11, losses: 13, lastMeeting: 'L 98-101 (2032)' }\n                };\n                setHeadToHeadRecords(h2h);\n                \n                // Calculate overall franchise stats\n                const totalWins = archives.reduce((sum, s) => sum + s.wins, 0);\n                const totalLosses = archives.reduce((sum, s) => sum + s.losses, 0);\n                const playoffWins = champs.reduce((sum, c) => sum + parseInt(c.playoffRecord.split('-')[0]), 0);\n                const playoffLosses = champs.reduce((sum, c) => sum + parseInt(c.playoffRecord.split('-')[1]), 0);\n                \n                setFranchiseHistory({\n                    established: establishedYear,\n                    seasonsPlayed: seasons,\n                    gmTenure: `${seasons} seasons (${establishedYear}-${currentSeason})`,\n                    regularSeasonRecord: `${totalWins}-${totalLosses}`,\n                    regularSeasonPct: (totalWins / (totalWins + totalLosses)).toFixed(3),\n                    playoffRecord: `${playoffWins}-${playoffLosses}`,\n                    playoffPct: playoffWins > 0 ? (playoffWins / (playoffWins + playoffLosses)).toFixed(3) : '.000',\n                    overallRecord: `${totalWins + playoffWins}-${totalLosses + playoffLosses}`,\n                    championships: champs.length,\n                    conferenceTitles: champs.length + 1,\n                    divisionTitles: Math.min(seasons - 1, 5),\n                    playoffAppearances: Math.max(0, seasons - 2),\n                    bestSeason: archives.reduce((best, s) => s.wins > best.wins ? s : best, archives[0]),\n                    worstSeason: archives.reduce((worst, s) => s.wins < worst.wins ? s : worst, archives[0])\n                });\n            }\n            \n            function calculateGMLegacy() {\n                if (!franchiseHistory) return null;\n                \n                const seasons = franchiseHistory.seasonsPlayed;\n                const champs = championshipHistory.length;\n                const drafts = draftHistory.length;\n                const allStarsDrafted = draftHistory.filter(d => d.grade === '🌟' || d.grade === '⭐').length;\n                \n                return {\n                    tenure: franchiseHistory.gmTenure,\n                    status: champs >= 2 ? 'Hall of Fame GM 🌟' : (champs >= 1 ? 'Elite GM' : 'Developing GM'),\n                    championships: champs,\n                    conferenceTitles: franchiseHistory.conferenceTitles,\n                    divisionTitles: franchiseHistory.divisionTitles,\n                    playoffAppearances: franchiseHistory.playoffAppearances,\n                    playoffPct: ((franchiseHistory.playoffAppearances / seasons) * 100).toFixed(0),\n                    record: franchiseHistory.regularSeasonRecord,\n                    winPct: franchiseHistory.regularSeasonPct,\n                    draftPicks: drafts,\n                    allStarsDrafted,\n                    draftGrade: allStarsDrafted >= 3 ? 'A' : (allStarsDrafted >= 2 ? 'A-' : 'B+'),\n                    tradesCompleted: transactionLog.filter(t => t.type === 'Trade').length,\n                    tradeWinPct: 67,\n                    bestTrade: 'Acquired Marcus Davis (2027)',\n                    signingsCompleted: transactionLog.filter(t => t.type === 'Signing').length,\n                    bestSigning: 'Tyler Williams (2027)',\n                    freeAgencyGrade: 'B+',\n                    avgProfit: 15,\n                    yearsInTax: 2,\n                    financialGrade: 'A',\n                    overallRating: Math.min(99, 70 + (champs * 10) + (allStarsDrafted * 3))\n                };\n            }\n            \n            function getFranchiseRecords() {\n                if (!seasonArchives.length) return null;\n                \n                const bestSeason = seasonArchives.reduce((best, s) => s.wins > best.wins ? s : best);\n                const worstSeason = seasonArchives.reduce((worst, s) => s.wins < worst.wins ? s : worst);\n                \n                return {\n                    singleSeason: {\n                        mostWins: { value: bestSeason.wins, season: bestSeason.season },\n                        bestWinPct: { value: bestSeason.winPct, season: bestSeason.season, record: `${bestSeason.wins}-${bestSeason.losses}` },\n                        mostPoints: { value: 9845, season: 2028 },\n                        bestDefense: { value: 95.2, season: 2030 },\n                        longestWinStreak: { value: 14, season: 2027 },\n                        longestLoseStreak: { value: 8, season: 2025 }\n                    },\n                    playoff: {\n                        mostPlayoffWins: { value: 16, season: 2030 },\n                        deepestRun: 'Won Championship',\n                        mostAppearances: `${franchiseHistory?.playoffAppearances || 0} of ${franchiseHistory?.seasonsPlayed || 0} seasons`\n                    },\n                    individual: {\n                        points: { player: 'Bradley Johnson', value: 2322, season: 2027 },\n                        rebounds: { player: 'Marcus Davis', value: 1051, season: 2028 },\n                        assists: { player: 'Jason Moore', value: 756, season: 2029 },\n                        steals: { player: 'Tyler Williams', value: 198, season: 2027 },\n                        blocks: { player: 'Kevin Davis', value: 234, season: 2026 },\n                        ppg: { player: 'Bradley Johnson', value: 28.4, season: 2027 },\n                        rpg: { player: 'Marcus Davis', value: 12.8, season: 2027 },\n                        apg: { player: 'Jason Moore', value: 9.2, season: 2029 }\n                    },\n                    career: [\n                        { stat: 'Most Games Played', player: 'Jason Moore', value: 574, years: '2025-2032' },\n                        { stat: 'Most Points', player: 'Bradley Johnson', value: 12458, years: '2025-2031' },\n                        { stat: 'Most Rebounds', player: 'Marcus Davis', value: 7234, years: '2027-2032' },\n                        { stat: 'Most Assists', player: 'Jason Moore', value: 4521, years: '2025-2032' },\n                        { stat: 'Highest PPG Career', player: 'Bradley Johnson', value: 26.8, years: '2025-2031' }\n                    ]\n                };\n            }\n\n            // ============================================\n            // DRAFT SYSTEM FUNCTIONS\n            // ============================================\n            \n            async function generateDraftClass(leagueId, season) {
                 const prospects = [];
                 const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
                 const firstNames = ['Marcus', 'Tyler', 'Brandon', 'Jaylen', 'Zach', 'Malik', 'Jordan', 'Cameron', 'Isaiah', 'Xavier', 'Jalen', 'Trevor', 'Austin', 'Devon', 'Kyle', 'Andre', 'Derek', 'Ryan', 'Blake', 'Cody'];
@@ -4323,7 +4363,7 @@
                                         { id: 'trades', icon: '🔄', label: 'Trades' },
                                         { id: 'free-agency', icon: '✍️', label: 'Free Agency' },
                                         { id: 'finances', icon: '💰', label: 'Finances' },
-                                        { id: 'history', icon: '📜', label: 'History', disabled: true }
+                                        { id: 'history', icon: '📜', label: 'History' }
                                     ].map(item => (
                                         <button
                                             key={item.id}
@@ -6342,6 +6382,318 @@
                                                                 ))}
                                                             </tbody>
                                                         </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* FRANCHISE HISTORY PAGE */}
+                                {currentPage === 'history' && (() => {
+                                    const gmLegacy = calculateGMLegacy();
+                                    const records = getFranchiseRecords();
+                                    
+                                    return (
+                                        <div>
+                                            <h2 className="text-3xl font-bold mb-6">📜 Franchise History</h2>
+                                            
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700 overflow-x-auto">
+                                                {['overview', 'seasons', 'championships', 'gmlegacy'].map(tab => (
+                                                    <button
+                                                        key={tab}
+                                                        onClick={() => setHistoryTab(tab)}
+                                                        className={`px-6 py-3 font-semibold capitalize whitespace-nowrap transition-all ${
+                                                            historyTab === tab
+                                                                ? 'border-b-2 border-blue-500 text-blue-400'
+                                                                : 'text-gray-400 hover:text-gray-200'
+                                                        }`}
+                                                    >
+                                                        {tab === 'gmlegacy' ? 'GM Legacy' : tab}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            
+                                            {/* OVERVIEW TAB */}
+                                            {historyTab === 'overview' && franchiseHistory && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg p-8 shadow-xl">
+                                                        <h3 className="text-2xl font-bold mb-4">🏆 {currentTeam.toUpperCase()} FRANCHISE HISTORY</h3>
+                                                        <div className="border-t border-slate-700 pt-6 space-y-4">
+                                                            <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                                                                <div><span className="text-gray-400">Established:</span> <span className="font-semibold">{franchiseHistory.established}</span></div>
+                                                                <div><span className="text-gray-400">Seasons Played:</span> <span className="font-semibold">{franchiseHistory.seasonsPlayed}</span></div>
+                                                                <div className="col-span-2"><span className="text-gray-400">Your Tenure as GM:</span> <span className="font-semibold">{franchiseHistory.gmTenure}</span></div>
+                                                            </div>
+                                                            
+                                                            <div className="pt-4">
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-2">ALL-TIME RECORD:</h4>
+                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pl-4">
+                                                                    <div>
+                                                                        <div className="text-gray-400 text-sm">Regular Season:</div>
+                                                                        <div className="text-xl font-bold">{franchiseHistory.regularSeasonRecord} <span className="text-gray-500">({franchiseHistory.regularSeasonPct})</span></div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-gray-400 text-sm">Playoffs:</div>
+                                                                        <div className="text-xl font-bold">{franchiseHistory.playoffRecord} <span className="text-gray-500">({franchiseHistory.playoffPct})</span></div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-gray-400 text-sm">Overall:</div>
+                                                                        <div className="text-xl font-bold">{franchiseHistory.overallRecord}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="pt-4">
+                                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                                    <div className="bg-slate-900 rounded-lg p-4">
+                                                                        <div className="text-4xl mb-2">{'🏆'.repeat(franchiseHistory.championships)}</div>
+                                                                        <div className="text-sm text-gray-400">Championships</div>
+                                                                        <div className="text-2xl font-bold text-yellow-400">{franchiseHistory.championships}</div>
+                                                                    </div>
+                                                                    <div className="bg-slate-900 rounded-lg p-4">
+                                                                        <div className="text-sm text-gray-400">Conference Titles</div>
+                                                                        <div className="text-3xl font-bold text-blue-400">{franchiseHistory.conferenceTitles}</div>
+                                                                    </div>
+                                                                    <div className="bg-slate-900 rounded-lg p-4">
+                                                                        <div className="text-sm text-gray-400">Division Titles</div>
+                                                                        <div className="text-3xl font-bold text-green-400">{franchiseHistory.divisionTitles}</div>
+                                                                    </div>
+                                                                    <div className="bg-slate-900 rounded-lg p-4">
+                                                                        <div className="text-sm text-gray-400">Playoff Appearances</div>
+                                                                        <div className="text-3xl font-bold">{franchiseHistory.playoffAppearances} <span className="text-lg text-gray-500">/ {franchiseHistory.seasonsPlayed}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
+                                                                    <div className="text-sm text-gray-400 mb-1">Best Season:</div>
+                                                                    <div className="text-xl font-bold">{franchiseHistory.bestSeason.season}</div>
+                                                                    <div className="text-lg">{franchiseHistory.bestSeason.wins}-{franchiseHistory.bestSeason.losses}{franchiseHistory.bestSeason.playoffs.includes('WON') ? ' 🏆' : ''}</div>
+                                                                    <div className="text-sm text-gray-400">{franchiseHistory.bestSeason.playoffs}</div>
+                                                                </div>
+                                                                <div className="bg-red-900/30 border border-red-700 rounded-lg p-4">
+                                                                    <div className="text-sm text-gray-400 mb-1">Worst Season:</div>
+                                                                    <div className="text-xl font-bold">{franchiseHistory.worstSeason.season}</div>
+                                                                    <div className="text-lg">{franchiseHistory.worstSeason.wins}-{franchiseHistory.worstSeason.losses}</div>
+                                                                    <div className="text-sm text-gray-400">{franchiseHistory.worstSeason.playoffs}</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Milestones */}
+                                                    <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                        <h3 className="text-xl font-bold mb-4">🎯 FRANCHISE MILESTONES</h3>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                            {gmMilestones.map(m => (
+                                                                <div key={m.id} className={`flex items-center gap-2 p-2 rounded ${m.achieved ? 'bg-green-900/30' : 'bg-slate-700/30'}`}>
+                                                                    <span className="text-xl">{m.achieved ? '✓' : '○'}</span>
+                                                                    <span className={m.achieved ? 'text-green-400' : 'text-gray-500'}>{m.name}</span>
+                                                                    {m.achieved && m.season && <span className="text-xs text-gray-400 ml-auto">({m.season}{m.game ? `, Game ${m.game}` : ''})</span>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* SEASON ARCHIVES TAB */}
+                                            {historyTab === 'seasons' && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg shadow-xl overflow-hidden">
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full">
+                                                                <thead className="bg-slate-900">
+                                                                    <tr>
+                                                                        <th className="px-6 py-3 text-left">Season</th>
+                                                                        <th className="px-6 py-3 text-left">Record</th>
+                                                                        <th className="px-6 py-3 text-left">Win%</th>
+                                                                        <th className="px-6 py-3 text-left">Finish</th>
+                                                                        <th className="px-6 py-3 text-left">Playoffs</th>
+                                                                        <th className="px-6 py-3 text-left">Champion</th>
+                                                                        <th className="px-6 py-3 text-left">Coach</th>
+                                                                        <th className="px-6 py-3 text-left">Notes</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-700">
+                                                                    {seasonArchives.slice().reverse().map(season => (
+                                                                        <tr 
+                                                                            key={season.season} 
+                                                                            className="hover:bg-slate-700 cursor-pointer"
+                                                                            onClick={() => setSelectedSeason(season)}
+                                                                        >
+                                                                            <td className="px-6 py-4 font-bold">{season.season}</td>
+                                                                            <td className="px-6 py-4">{season.wins}-{season.losses}</td>
+                                                                            <td className="px-6 py-4">{season.winPct}</td>
+                                                                            <td className="px-6 py-4 text-gray-400">{season.finish}</td>
+                                                                            <td className="px-6 py-4 text-sm">{season.playoffs}</td>
+                                                                            <td className="px-6 py-4 text-gray-400">{season.champion}</td>
+                                                                            <td className="px-6 py-4 text-gray-400">{season.coach}</td>
+                                                                            <td className="px-6 py-4 text-sm text-gray-500">{season.notes}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Season Detail Modal */}
+                                                    {selectedSeason && (
+                                                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setSelectedSeason(null)}>
+                                                            <div className="bg-slate-800 rounded-lg max-w-2xl w-full p-8" onClick={e => e.stopPropagation()}>
+                                                                <h3 className="text-2xl font-bold mb-6">📅 {selectedSeason.season} SEASON BREAKDOWN</h3>
+                                                                <div className="space-y-4">
+                                                                    <div className="border-b border-slate-700 pb-4">
+                                                                        <p><span className="text-gray-400">Record:</span> <span className="font-bold text-xl">{selectedSeason.wins}-{selectedSeason.losses}</span> <span className="text-gray-500">({selectedSeason.winPct})</span></p>
+                                                                        <p><span className="text-gray-400">Finish:</span> <span className="font-semibold">{selectedSeason.finish}</span></p>
+                                                                        <p><span className="text-gray-400">Playoffs:</span> <span className="font-semibold">{selectedSeason.playoffs}</span></p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h4 className="font-bold text-blue-400 mb-2">SEASON LEADERS:</h4>
+                                                                        <p className="text-sm">PPG: Bradley Johnson (28.4)</p>
+                                                                        <p className="text-sm">RPG: Marcus Davis (12.8)</p>
+                                                                        <p className="text-sm">APG: Jason Moore (9.2)</p>
+                                                                    </div>
+                                                                    {selectedSeason.notes && (
+                                                                        <div>
+                                                                            <h4 className="font-bold text-blue-400 mb-2">NOTES:</h4>
+                                                                            <p className="text-sm text-gray-300">{selectedSeason.notes}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => setSelectedSeason(null)}
+                                                                    className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors"
+                                                                >
+                                                                    Close
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* CHAMPIONSHIPS TAB */}
+                                            {historyTab === 'championships' && (
+                                                <div className="space-y-6">
+                                                    {championshipHistory.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">🏆</div>
+                                                            <h3 className="text-2xl font-bold text-gray-400 mb-2">No Championships Yet</h3>
+                                                            <p className="text-gray-500">Build your dynasty and bring home the title!</p>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {championshipHistory.map((champ, idx) => (
+                                                                <div key={champ.season} className="bg-slate-800 rounded-lg p-8 shadow-xl border-2 border-yellow-600">
+                                                                    <div className="flex items-center gap-4 mb-4">
+                                                                        <div className="text-6xl">🏆</div>
+                                                                        <div>
+                                                                            <h3 className="text-3xl font-bold text-yellow-400">{champ.season} CHAMPIONS</h3>
+                                                                            <p className="text-xl text-gray-300">{currentTeam}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="border-t border-slate-700 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        <div>
+                                                                            <p><span className="text-gray-400">Record:</span> <span className="font-bold">{champ.record}</span> <span className="text-gray-500">({champ.winPct})</span></p>
+                                                                            <p><span className="text-gray-400">Defeated:</span> <span className="font-semibold">{champ.defeated}</span></p>
+                                                                            <p><span className="text-gray-400">Playoff Record:</span> <span className="font-semibold">{champ.playoffRecord}</span></p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p><span className="text-gray-400">Finals MVP:</span> <span className="font-bold text-yellow-400">{champ.finalsMVP}</span></p>
+                                                                            <p className="text-sm text-gray-400">{champ.finalsPPG} PPG in Finals</p>
+                                                                            <p className="mt-2"><span className="text-gray-400">Key Players:</span> <span className="text-sm">{champ.keyPlayers.join(', ')}</span></p>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                            
+                                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl">
+                                                                <h3 className="text-xl font-bold mb-4">Championship Banners</h3>
+                                                                <div className="flex flex-wrap gap-8 justify-center">
+                                                                    {championshipHistory.map(c => (
+                                                                        <div key={c.season} className="text-center">
+                                                                            <div className="text-5xl mb-2">🏆</div>
+                                                                            <div className="font-bold text-yellow-400">{c.season}</div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* GM LEGACY TAB */}
+                                            {historyTab === 'gmlegacy' && gmLegacy && (
+                                                <div className="space-y-6">
+                                                    <div className="bg-slate-800 rounded-lg p-8 shadow-xl">
+                                                        <h3 className="text-3xl font-bold mb-4">🎯 YOUR LEGACY AS GM</h3>
+                                                        <div className="border-t border-slate-700 pt-6 space-y-6">
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div><span className="text-gray-400">Tenure:</span> <span className="font-bold">{gmLegacy.tenure}</span></div>
+                                                                <div><span className="text-gray-400">Status:</span> <span className="font-bold text-yellow-400">{gmLegacy.status}</span></div>
+                                                            </div>
+                                                            
+                                                            <div>
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-3">ACHIEVEMENTS:</h4>
+                                                                <div className="grid grid-cols-2 gap-2 pl-4">
+                                                                    <p>✓ {gmLegacy.championships} Championships</p>
+                                                                    <p>✓ {gmLegacy.conferenceTitles} Conference Titles</p>
+                                                                    <p>✓ {gmLegacy.divisionTitles} Division Titles</p>
+                                                                    <p>✓ {gmLegacy.playoffAppearances} Playoff Appearances ({gmLegacy.playoffPct}%)</p>
+                                                                    <p>✓ Winning Record ({gmLegacy.record}, {gmLegacy.winPct})</p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="border-t border-slate-700 pt-4">
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-3">DRAFT SUCCESS:</h4>
+                                                                <div className="pl-4 space-y-1">
+                                                                    <p>• {gmLegacy.draftPicks} draft picks made</p>
+                                                                    <p>• {gmLegacy.allStarsDrafted} All-Stars drafted</p>
+                                                                    <p>• Best Pick: Jason Moore (#8, 2025)</p>
+                                                                    <p>• <span className="text-gray-400">Draft Grade:</span> <span className="font-bold text-green-400">{gmLegacy.draftGrade}</span></p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="border-t border-slate-700 pt-4">
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-3">TRADE SUCCESS:</h4>
+                                                                <div className="pl-4 space-y-1">
+                                                                    <p>• {gmLegacy.tradesCompleted} trades completed</p>
+                                                                    <p>• Trade Win%: {gmLegacy.tradeWinPct}% (trades that improved team)</p>
+                                                                    <p>• Best Trade: {gmLegacy.bestTrade}</p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="border-t border-slate-700 pt-4">
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-3">FREE AGENCY SUCCESS:</h4>
+                                                                <div className="pl-4 space-y-1">
+                                                                    <p>• {gmLegacy.signingsCompleted} significant signings</p>
+                                                                    <p>• Best Signing: {gmLegacy.bestSigning}</p>
+                                                                    <p>• <span className="text-gray-400">Free Agency Grade:</span> <span className="font-bold text-blue-400">{gmLegacy.freeAgencyGrade}</span></p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="border-t border-slate-700 pt-4">
+                                                                <h4 className="text-lg font-bold text-blue-400 mb-3">FINANCIAL MANAGEMENT:</h4>
+                                                                <div className="pl-4 space-y-1">
+                                                                    <p>• Average Profit: ${gmLegacy.avgProfit}M/year</p>
+                                                                    <p>• Years in Luxury Tax: {gmLegacy.yearsInTax} of {gmLegacy.tenure.split(' ')[0]}</p>
+                                                                    <p>• <span className="text-gray-400">Financial Grade:</span> <span className="font-bold text-green-400">{gmLegacy.financialGrade}</span></p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="border-t border-slate-700 pt-4 mt-6">
+                                                                <div className="bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg p-6 text-center">
+                                                                    <div className="text-lg text-gray-400 mb-2">OVERALL GM RATING</div>
+                                                                    <div className="text-6xl font-bold text-yellow-400 mb-2">{gmLegacy.overallRating}/100</div>
+                                                                    <div className="text-xl font-semibold">{gmLegacy.overallRating >= 90 ? 'Elite 🏆' : gmLegacy.overallRating >= 80 ? 'Great' : gmLegacy.overallRating >= 70 ? 'Good' : 'Developing'}</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
