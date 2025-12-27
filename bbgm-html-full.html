@@ -16,19 +16,38 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // IndexedDB Setup with Dexie - Fresh start
+        // Auto-fix for database schema issues
+        async function checkAndFixDatabase() {
+            try {
+                const testDb = new Dexie('BasketballGM');
+                await testDb.open();
+                
+                // Check if draftProspects table exists
+                if (!testDb.tables.find(t => t.name === 'draftProspects')) {
+                    console.log('⚠️ Old database detected - deleting and recreating...');
+                    testDb.close();
+                    await Dexie.delete('BasketballGM');
+                    console.log('✅ Old database deleted. Page will reload...');
+                    location.reload();
+                    return false;
+                }
+                testDb.close();
+                return true;
+            } catch (error) {
+                console.log('Database check failed, deleting...');
+                await Dexie.delete('BasketballGM');
+                location.reload();
+                return false;
+            }
+        }
+
+        // Check database before initializing
+        await checkAndFixDatabase();
+
+        // IndexedDB Setup with Dexie
         const db = new Dexie('BasketballGM');
         
-        // Version 1: Original schema
-        db.version(1).stores({
-            leagues: '++id, name, createdDate, lastPlayed',
-            players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
-            teams: '++id, [leagueId+season], [leagueId+name+season], leagueId, name, season, conference, division',
-            seasons: '++id, [leagueId+year], leagueId, year',
-            gameState: '++id, leagueId'
-        });
-        
-        // Version 2: Added schedule table
+        // Version 2: Current schema with all tables
         db.version(2).stores({
             leagues: '++id, name, createdDate, lastPlayed',
             players: '++id, leagueId, [leagueId+team+season], team, season, age, rating',
@@ -37,10 +56,6 @@
             gameState: '++id, leagueId',
             schedule: '++id, [leagueId+season], leagueId, season, day, homeTeam, awayTeam, result, homeScore, awayScore, overtime, time',
             draftProspects: '++id, [leagueId+season], leagueId, season, drafted, projectedPick'
-        }).upgrade(tx => {
-            console.log('✅ Database upgraded to version 2: Added schedule and draftProspects tables');
-            console.log('⚠️ Please refresh the page if you encounter any errors');
-            return Promise.resolve();
         });
 
         const SALARY_CAP = 140000000;
