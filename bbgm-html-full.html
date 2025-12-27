@@ -121,6 +121,17 @@
             const [selectedTradeOffer, setSelectedTradeOffer] = useState(null);
             const [tradeBlock, setTradeBlock] = useState([]);
             const [untouchables, setUntouchables] = useState([]);
+            
+            // Free Agency state
+            const [freeAgents, setFreeAgents] = useState([]);
+            const [freeAgencyTab, setFreeAgencyTab] = useState('available'); // available, offers, signings
+            const [freeAgencyPhase, setFreeAgencyPhase] = useState('pre'); // pre, open, late, camp
+            const [yourOffers, setYourOffers] = useState([]);
+            const [recentSignings, setRecentSignings] = useState([]);
+            const [selectedFreeAgent, setSelectedFreeAgent] = useState(null);
+            const [offerBuilder, setOfferBuilder] = useState(null);
+            const [faFilters, setFaFilters] = useState({ position: 'All', minRating: 0, maxPrice: 999 });
+            const [faSortBy, setFaSortBy] = useState('rating'); // rating, age, price, position
 
             useEffect(() => {
                 checkForExistingLeague();
@@ -2735,6 +2746,432 @@
                 }
             }
 
+            // ============================================
+            // FREE AGENCY SYSTEM FUNCTIONS
+            // ============================================
+            
+            // Calculate player's asking price based on rating, age, performance
+            function calculateAskingPrice(player) {
+                let annualSalary;
+                
+                // Base salary by rating
+                if (player.rating >= 90) {
+                    annualSalary = 35000000 + Math.random() * 10000000; // Max: $35-45M
+                } else if (player.rating >= 85) {
+                    annualSalary = 25000000 + Math.random() * 8000000; // Star: $25-33M
+                } else if (player.rating >= 80) {
+                    annualSalary = 18000000 + Math.random() * 7000000; // Solid starter: $18-25M
+                } else if (player.rating >= 75) {
+                    annualSalary = 12000000 + Math.random() * 6000000; // Good role player: $12-18M
+                } else if (player.rating >= 70) {
+                    annualSalary = 8000000 + Math.random() * 4000000;  // Role player: $8-12M
+                } else if (player.rating >= 65) {
+                    annualSalary = 4000000 + Math.random() * 4000000;  // Bench: $4-8M
+                } else {
+                    annualSalary = 2000000 + Math.random() * 2000000;  // Min: $2-4M
+                }
+                
+                // Age adjustments
+                if (player.age < 25) annualSalary *= 1.1; // Young upside
+                if (player.age > 32) annualSalary *= 0.7; // Aging veteran
+                if (player.age > 35) annualSalary *= 0.5; // Very old
+                
+                // Preferred contract length
+                let years;
+                if (player.age < 27) {
+                    years = 4; // Young players want long deals
+                } else if (player.age < 32) {
+                    years = 3; // Prime players want security
+                } else {
+                    years = 2; // Veterans want shorter deals
+                }
+                
+                return {
+                    annualSalary: Math.round(annualSalary),
+                    years,
+                    totalValue: Math.round(annualSalary * years)
+                };
+            }
+            
+            // Generate player priorities (what they care about)
+            function generatePlayerPriorities(player) {
+                // Each priority rated 1-5
+                const priorities = {};
+                
+                // Younger players prioritize money and playing time
+                if (player.age < 28) {
+                    priorities.money = 4 + Math.floor(Math.random() * 2);
+                    priorities.winning = 2 + Math.floor(Math.random() * 2);
+                    priorities.playingTime = 4 + Math.floor(Math.random() * 2);
+                    priorities.location = 2 + Math.floor(Math.random() * 2);
+                    priorities.role = 4;
+                } 
+                // Veterans prioritize winning
+                else if (player.age > 32) {
+                    priorities.money = 2 + Math.floor(Math.random() * 2);
+                    priorities.winning = 5;
+                    priorities.playingTime = 2;
+                    priorities.location = 3 + Math.floor(Math.random() * 2);
+                    priorities.role = 3;
+                }
+                // Prime players balance everything
+                else {
+                    priorities.money = 4;
+                    priorities.winning = 4;
+                    priorities.playingTime = 3;
+                    priorities.location = 3;
+                    priorities.role = 4;
+                }
+                
+                return priorities;
+            }
+            
+            // Generate free agent pool
+            async function generateFreeAgentPool() {
+                const freeAgentPool = [];
+                
+                // Get all players from previous season
+                const allPlayers = await db.players
+                    .where('[leagueId+season]')
+                    .equals([currentLeagueId, currentSeason - 1])
+                    .toArray();
+                
+                // Find players whose contracts expired (simplified - random 20-30% become FA)
+                const expiredPlayers = allPlayers.filter(() => Math.random() < 0.25);
+                
+                // Add some undrafted rookies
+                const undraftedCount = 10 + Math.floor(Math.random() * 10);
+                const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+                const firstNames = ['Marcus', 'Tyler', 'Brandon', 'Jaylen', 'Zach', 'Malik', 'Jordan', 'Cameron', 'Isaiah', 'Xavier'];
+                const lastNames = ['Johnson', 'Williams', 'Smith', 'Brown', 'Davis', 'Miller', 'Wilson', 'Anderson', 'Taylor', 'Thomas'];
+                
+                for (let i = 0; i < undraftedCount; i++) {
+                    const age = 22 + Math.floor(Math.random() * 3);
+                    const rating = 55 + Math.floor(Math.random() * 15); // 55-69
+                    const potential = rating + Math.floor(Math.random() * 20);
+                    
+                    const undrafted = {
+                        id: `fa-undrafted-${i}-${Date.now()}`,
+                        name: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${lastNames[Math.floor(Math.random() * lastNames.length)]}`,
+                        position: positions[Math.floor(Math.random() * positions.length)],
+                        age,
+                        rating,
+                        potential,
+                        team: 'Free Agent',
+                        season: currentSeason,
+                        leagueId: currentLeagueId,
+                        salary: 0
+                    };
+                    
+                    freeAgentPool.push(undrafted);
+                }
+                
+                // Process all free agents
+                const processedFAs = [...expiredPlayers, ...freeAgentPool].map(player => {
+                    const asking = calculateAskingPrice(player);
+                    const priorities = generatePlayerPriorities(player);
+                    
+                    return {
+                        ...player,
+                        status: 'available',
+                        asking,
+                        priorities,
+                        offers: [],
+                        interested: [],
+                        daysOnMarket: 0,
+                        preferredTeams: [],
+                        avoidTeams: []
+                    };
+                });
+                
+                setFreeAgents(processedFAs);
+                return processedFAs;
+            }
+            
+            // Make contract offer to free agent
+            function makeContractOffer(freeAgent, offerDetails) {
+                const offer = {
+                    id: Date.now(),
+                    playerId: freeAgent.id,
+                    playerName: freeAgent.name,
+                    team: currentTeam,
+                    years: offerDetails.years,
+                    annualSalary: offerDetails.annualSalary,
+                    totalValue: offerDetails.years * offerDetails.annualSalary,
+                    playerOption: offerDetails.playerOption || false,
+                    teamOption: offerDetails.teamOption || false,
+                    noTradeClause: offerDetails.noTradeClause || false,
+                    pitchPoints: offerDetails.pitchPoints || [],
+                    submitted: currentDay,
+                    status: 'pending'
+                };
+                
+                // Add to your offers
+                setYourOffers(prev => [...prev, offer]);
+                
+                // Add to player's offers
+                setFreeAgents(prev => prev.map(fa => {
+                    if (fa.id === freeAgent.id) {
+                        return {
+                            ...fa,
+                            offers: [...fa.offers, offer]
+                        };
+                    }
+                    return fa;
+                }));
+                
+                // Evaluate offer after a delay (simulate player thinking)
+                setTimeout(() => evaluatePlayerOffer(freeAgent, offer), 100);
+                
+                return offer;
+            }
+            
+            // Evaluate if player accepts offer
+            function evaluatePlayerOffer(player, offer) {
+                let score = 0;
+                
+                // Factor 1: Money (0-100 points)
+                const moneyRatio = offer.annualSalary / player.asking.annualSalary;
+                const moneyScore = Math.min(100, moneyRatio * 100) * (player.priorities.money / 5);
+                score += moneyScore;
+                
+                // Factor 2: Winning (0-100 points)
+                const team = teams[offer.team];
+                const teamStandings = standings[offer.team] || { wins: 0, losses: 0 };
+                const winPct = teamStandings.wins / (teamStandings.wins + teamStandings.losses || 1);
+                const winningScore = winPct * 100 * (player.priorities.winning / 5);
+                score += winningScore;
+                
+                // Factor 3: Playing Time (0-100 points)
+                const playingTimeScore = 70 * (player.priorities.playingTime / 5); // Simplified
+                score += playingTimeScore;
+                
+                // Factor 4: Role (0-100 points)
+                const roleScore = offer.pitchPoints?.includes('Starting role guaranteed') ? 100 : 50;
+                score += roleScore * (player.priorities.role / 5);
+                
+                // Factor 5: Location (0-100 points)
+                const locationScore = player.preferredTeams.includes(offer.team) ? 100 : 50;
+                score += locationScore * (player.priorities.location / 5);
+                
+                // Bonuses
+                if (offer.noTradeClause) score += 10;
+                if (offer.playerOption) score += 15;
+                if (offer.pitchPoints?.includes('Contending team') && winPct > 0.6) score += 20;
+                
+                // Add randomness
+                score += Math.random() * 30 - 15;
+                
+                // Decision
+                let decision;
+                if (score > 280) {
+                    decision = 'accept';
+                } else if (score > 220) {
+                    // Maybe counter-offer
+                    if (Math.random() < 0.5) {
+                        decision = 'counter';
+                    } else {
+                        decision = 'accept';
+                    }
+                } else if (score > 180) {
+                    decision = 'counter';
+                } else {
+                    decision = 'reject';
+                }
+                
+                // Update offer status
+                setYourOffers(prev => prev.map(o => {
+                    if (o.id === offer.id) {
+                        return {
+                            ...o,
+                            status: decision,
+                            score,
+                            counterOffer: decision === 'counter' ? generateCounterOffer(player, offer) : null
+                        };
+                    }
+                    return o;
+                }));
+                
+                // If accepted, sign the player
+                if (decision === 'accept') {
+                    signFreeAgent(player, offer);
+                }
+            }
+            
+            // Generate counter-offer from player
+            function generateCounterOffer(player, originalOffer) {
+                return {
+                    years: originalOffer.years,
+                    annualSalary: Math.round(originalOffer.annualSalary * (1.1 + Math.random() * 0.15)),
+                    playerOption: true,
+                    noTradeClause: player.rating > 80
+                };
+            }
+            
+            // Sign free agent to team
+            async function signFreeAgent(player, offer) {
+                // Create player record for new season
+                const newPlayer = {
+                    ...player,
+                    team: offer.team,
+                    season: currentSeason,
+                    salary: offer.annualSalary,
+                    contract: {
+                        years: offer.years,
+                        annualSalary: offer.annualSalary,
+                        playerOption: offer.playerOption,
+                        teamOption: offer.teamOption,
+                        noTradeClause: offer.noTradeClause
+                    }
+                };
+                
+                // Add to database
+                await db.players.add(newPlayer);
+                
+                // Remove from free agents
+                setFreeAgents(prev => prev.filter(fa => fa.id !== player.id));
+                
+                // Add to recent signings
+                setRecentSignings(prev => [{
+                    id: Date.now(),
+                    player: player.name,
+                    team: offer.team,
+                    contract: `${offer.years} years, $${(offer.totalValue / 1000000).toFixed(1)}M`,
+                    annualSalary: offer.annualSalary,
+                    day: currentDay
+                }, ...prev]);
+                
+                // Reload roster if signed to your team
+                if (offer.team === currentTeam) {
+                    const updatedPlayers = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, currentTeam, currentSeason])
+                        .toArray();
+                    setMyPlayers(updatedPlayers);
+                }
+            }
+            
+            // Accept counter-offer from player
+            async function acceptCounterOffer(originalOffer, counterOffer) {
+                const player = freeAgents.find(fa => fa.id === originalOffer.playerId);
+                
+                if (!player) return;
+                
+                const updatedOffer = {
+                    ...originalOffer,
+                    years: counterOffer.years,
+                    annualSalary: counterOffer.annualSalary,
+                    totalValue: counterOffer.years * counterOffer.annualSalary,
+                    playerOption: counterOffer.playerOption,
+                    noTradeClause: counterOffer.noTradeClause,
+                    status: 'accept'
+                };
+                
+                await signFreeAgent(player, updatedOffer);
+                
+                // Update offers
+                setYourOffers(prev => prev.map(o => 
+                    o.id === originalOffer.id ? updatedOffer : o
+                ));
+            }
+            
+            // Withdraw offer
+            function withdrawOffer(offerId) {
+                setYourOffers(prev => prev.filter(o => o.id !== offerId));
+            }
+            
+            // AI teams make free agency moves
+            async function simulateAIFreeAgency() {
+                const aiTeams = allTeamNames.filter(t => t !== currentTeam);
+                
+                for (const teamName of aiTeams) {
+                    const team = teams[teamName];
+                    const teamStandings = standings[teamName] || { wins: 0, losses: 0 };
+                    
+                    // Get team's current roster
+                    const roster = await db.players
+                        .where('[leagueId+team+season]')
+                        .equals([currentLeagueId, teamName, currentSeason])
+                        .toArray();
+                    
+                    const teamSalary = roster.reduce((sum, p) => sum + p.salary, 0);
+                    const capSpace = SALARY_CAP - teamSalary;
+                    
+                    if (capSpace < 5000000) continue; // Team has no cap space
+                    
+                    // Find position needs
+                    const positionCounts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
+                    roster.forEach(p => positionCounts[p.position]++);
+                    
+                    const needsPosition = Object.entries(positionCounts)
+                        .sort((a, b) => a[1] - b[1])[0][0];
+                    
+                    // Find suitable free agents
+                    const targets = freeAgents.filter(fa =>
+                        fa.position === needsPosition &&
+                        fa.asking.annualSalary <= capSpace * 0.7 &&
+                        fa.offers.length < 3 // Not too many offers yet
+                    );
+                    
+                    if (targets.length === 0) continue;
+                    
+                    // Sign 1-2 players
+                    const numToSign = Math.min(2, targets.length);
+                    for (let i = 0; i < numToSign; i++) {
+                        const target = targets[i];
+                        
+                        const offer = {
+                            id: `ai-${Date.now()}-${i}`,
+                            playerId: target.id,
+                            playerName: target.name,
+                            team: teamName,
+                            years: target.asking.years,
+                            annualSalary: target.asking.annualSalary * (0.95 + Math.random() * 0.1),
+                            totalValue: 0,
+                            playerOption: false,
+                            teamOption: false,
+                            noTradeClause: false,
+                            pitchPoints: [],
+                            submitted: currentDay,
+                            status: 'accept'
+                        };
+                        
+                        offer.totalValue = offer.years * offer.annualSalary;
+                        
+                        // Sign immediately (AI auto-accepts)
+                        await signFreeAgent(target, offer);
+                    }
+                }
+            }
+            
+            // Get filtered and sorted free agents
+            function getFilteredFreeAgents() {
+                let filtered = freeAgents.filter(fa => {
+                    if (faFilters.position !== 'All' && fa.position !== faFilters.position) return false;
+                    if (fa.rating < faFilters.minRating) return false;
+                    if (fa.asking.annualSalary / 1000000 > faFilters.maxPrice) return false;
+                    return true;
+                });
+                
+                // Sort
+                filtered.sort((a, b) => {
+                    switch (faSortBy) {
+                        case 'rating':
+                            return b.rating - a.rating;
+                        case 'age':
+                            return a.age - b.age;
+                        case 'price':
+                            return b.asking.annualSalary - a.asking.annualSalary;
+                        case 'position':
+                            return a.position.localeCompare(b.position);
+                        default:
+                            return 0;
+                    }
+                });
+                
+                return filtered;
+            }
+
             const totalSalary = myPlayers.reduce((sum, p) => sum + p.salary, 0);
             const capSpace = SALARY_CAP - totalSalary;
             const avgRating = myPlayers.length > 0 
@@ -3654,7 +4091,7 @@
                                         { id: 'standings', icon: '📊', label: 'League Standings' },
                                         { id: 'draft', icon: '🎯', label: 'Draft' },
                                         { id: 'trades', icon: '🔄', label: 'Trades' },
-                                        { id: 'free-agency', icon: '✍️', label: 'Free Agency', disabled: true },
+                                        { id: 'free-agency', icon: '✍️', label: 'Free Agency' },
                                         { id: 'finances', icon: '💰', label: 'Finances' },
                                         { id: 'history', icon: '📜', label: 'History', disabled: true }
                                     ].map(item => (
@@ -5932,6 +6369,460 @@
                                                     )}
                                                 </div>
                                             )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* FREE AGENCY PAGE */}
+                                {currentPage === 'free-agency' && (() => {
+                                    const filteredFAs = getFilteredFreeAgents();
+                                    const pendingOffers = yourOffers.filter(o => o.status === 'pending');
+                                    const counterOffers = yourOffers.filter(o => o.status === 'counter');
+                                    
+                                    return (
+                                        <div>
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h2 className="text-3xl font-bold">✍️ Free Agency</h2>
+                                                <div className="flex gap-3">
+                                                    <div className="bg-green-900 bg-opacity-30 px-4 py-2 rounded-lg">
+                                                        <span className="text-sm text-gray-400">Cap Space: </span>
+                                                        <span className="font-bold text-green-400">${(capSpace / 1000000).toFixed(1)}M</span>
+                                                    </div>
+                                                    <div className="bg-blue-900 bg-opacity-30 px-4 py-2 rounded-lg">
+                                                        <span className="text-sm text-gray-400">Phase: </span>
+                                                        <span className="font-bold text-blue-400 capitalize">{freeAgencyPhase}</span>
+                                                    </div>
+                                                    {counterOffers.length > 0 && (
+                                                        <div className="bg-orange-900 bg-opacity-30 px-4 py-2 rounded-lg">
+                                                            <span className="font-bold text-orange-400">{counterOffers.length} Counter{counterOffers.length !== 1 ? 's' : ''}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Tab Navigation */}
+                                            <div className="flex gap-2 mb-6 border-b border-slate-700">
+                                                <button
+                                                    onClick={() => setFreeAgencyTab('available')}
+                                                    className={`px-6 py-3 font-semibold transition ${freeAgencyTab === 'available' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Available Free Agents ({freeAgents.length})
+                                                </button>
+                                                <button
+                                                    onClick={() => setFreeAgencyTab('offers')}
+                                                    className={`px-6 py-3 font-semibold transition relative ${freeAgencyTab === 'offers' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Your Offers ({yourOffers.length})
+                                                    {counterOffers.length > 0 && (
+                                                        <span className="absolute -top-1 -right-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                                            {counterOffers.length}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => setFreeAgencyTab('signings')}
+                                                    className={`px-6 py-3 font-semibold transition ${freeAgencyTab === 'signings' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-gray-400 hover:text-white'}`}
+                                                >
+                                                    Recent Signings ({recentSignings.length})
+                                                </button>
+                                            </div>
+
+                                            {/* AVAILABLE FREE AGENTS TAB */}
+                                            {freeAgencyTab === 'available' && (
+                                                <div>
+                                                    {freeAgents.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">✍️</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Free Agents Available</h3>
+                                                            <p className="text-gray-400 mb-6">Generate free agent pool for this season</p>
+                                                            <button
+                                                                onClick={generateFreeAgentPool}
+                                                                className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold"
+                                                            >
+                                                                Generate Free Agent Pool
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            {/* Filters */}
+                                                            <div className="bg-slate-800 rounded-lg p-4 mb-4 shadow-xl">
+                                                                <div className="flex gap-4 items-center flex-wrap">
+                                                                    <div>
+                                                                        <label className="text-sm text-gray-400 mr-2">Position:</label>
+                                                                        <select
+                                                                            value={faFilters.position}
+                                                                            onChange={(e) => setFaFilters({...faFilters, position: e.target.value})}
+                                                                            className="bg-slate-700 px-3 py-1 rounded"
+                                                                        >
+                                                                            <option>All</option>
+                                                                            <option>PG</option>
+                                                                            <option>SG</option>
+                                                                            <option>SF</option>
+                                                                            <option>PF</option>
+                                                                            <option>C</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-sm text-gray-400 mr-2">Min Rating:</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={faFilters.minRating}
+                                                                            onChange={(e) => setFaFilters({...faFilters, minRating: parseInt(e.target.value)})}
+                                                                            className="bg-slate-700 px-3 py-1 rounded w-20"
+                                                                            min="0"
+                                                                            max="99"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-sm text-gray-400 mr-2">Max Price ($M):</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={faFilters.maxPrice}
+                                                                            onChange={(e) => setFaFilters({...faFilters, maxPrice: parseInt(e.target.value)})}
+                                                                            className="bg-slate-700 px-3 py-1 rounded w-20"
+                                                                            min="0"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="ml-auto">
+                                                                        <label className="text-sm text-gray-400 mr-2">Sort by:</label>
+                                                                        <select
+                                                                            value={faSortBy}
+                                                                            onChange={(e) => setFaSortBy(e.target.value)}
+                                                                            className="bg-slate-700 px-3 py-1 rounded"
+                                                                        >
+                                                                            <option value="rating">Rating</option>
+                                                                            <option value="age">Age</option>
+                                                                            <option value="price">Price</option>
+                                                                            <option value="position">Position</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={simulateAIFreeAgency}
+                                                                        className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-semibold text-sm"
+                                                                    >
+                                                                        Simulate AI Signings
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Free Agents Table */}
+                                                            <div className="bg-slate-800 rounded-lg p-6 shadow-xl overflow-x-auto">
+                                                                <table className="w-full">
+                                                                    <thead className="border-b border-slate-700">
+                                                                        <tr>
+                                                                            <th className="px-3 py-3 text-left">Name</th>
+                                                                            <th className="px-3 py-3 text-center">Pos</th>
+                                                                            <th className="px-3 py-3 text-center">Age</th>
+                                                                            <th className="px-3 py-3 text-center">Ovr</th>
+                                                                            <th className="px-3 py-3 text-center">Pot</th>
+                                                                            <th className="px-3 py-3 text-right">Asking</th>
+                                                                            <th className="px-3 py-3 text-center">Years</th>
+                                                                            <th className="px-3 py-3 text-center">Status</th>
+                                                                            <th className="px-3 py-3 text-center">Actions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {filteredFAs.map(fa => {
+                                                                            const hasOffer = yourOffers.some(o => o.playerId === fa.id);
+                                                                            const interest = fa.offers?.length || 0;
+                                                                            
+                                                                            return (
+                                                                                <tr key={fa.id} className="border-b border-slate-700 hover:bg-slate-700 transition">
+                                                                                    <td className="px-3 py-3">
+                                                                                        <button
+                                                                                            onClick={() => setSelectedFreeAgent(fa)}
+                                                                                            className="font-semibold text-blue-400 hover:text-blue-300 underline"
+                                                                                        >
+                                                                                            {fa.name}
+                                                                                        </button>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-3 text-center">{fa.position}</td>
+                                                                                    <td className="px-3 py-3 text-center">{fa.age}</td>
+                                                                                    <td className="px-3 py-3 text-center font-semibold">{fa.rating}</td>
+                                                                                    <td className="px-3 py-3 text-center text-purple-400">{fa.potential || fa.rating + 5}</td>
+                                                                                    <td className="px-3 py-3 text-right">${(fa.asking.annualSalary / 1000000).toFixed(1)}M</td>
+                                                                                    <td className="px-3 py-3 text-center">{fa.asking.years}</td>
+                                                                                    <td className="px-3 py-3 text-center">
+                                                                                        {interest >= 3 ? (
+                                                                                            <span className="text-xs bg-red-900 bg-opacity-30 text-red-400 px-2 py-1 rounded">🔥 High</span>
+                                                                                        ) : interest > 0 ? (
+                                                                                            <span className="text-xs bg-yellow-900 bg-opacity-30 text-yellow-400 px-2 py-1 rounded">Interest</span>
+                                                                                        ) : (
+                                                                                            <span className="text-xs text-gray-500">Available</span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="px-3 py-3 text-center">
+                                                                                        {hasOffer ? (
+                                                                                            <span className="text-sm text-blue-400">✓ Offered</span>
+                                                                                        ) : (
+                                                                                            <button
+                                                                                                onClick={() => setOfferBuilder(fa)}
+                                                                                                className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm font-semibold"
+                                                                                            >
+                                                                                                Make Offer
+                                                                                            </button>
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* YOUR OFFERS TAB */}
+                                            {freeAgencyTab === 'offers' && (
+                                                <div>
+                                                    {yourOffers.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">📋</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Active Offers</h3>
+                                                            <p className="text-gray-400">Make contract offers to free agents</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-6">
+                                                            {yourOffers.map(offer => {
+                                                                const player = freeAgents.find(fa => fa.id === offer.playerId);
+                                                                
+                                                                return (
+                                                                    <div key={offer.id} className={`bg-slate-800 rounded-lg p-6 shadow-xl border-l-4 ${
+                                                                        offer.status === 'accept' ? 'border-green-500' :
+                                                                        offer.status === 'counter' ? 'border-orange-500' :
+                                                                        offer.status === 'reject' ? 'border-red-500' :
+                                                                        'border-blue-500'
+                                                                    }`}>
+                                                                        <div className="flex justify-between items-start mb-4">
+                                                                            <div>
+                                                                                <div className="text-2xl font-bold">{offer.playerName}</div>
+                                                                                {player && (
+                                                                                    <div className="text-sm text-gray-400">{player.position} • {player.age}y • {player.rating} OVR</div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className={`px-4 py-2 rounded-lg font-semibold ${
+                                                                                offer.status === 'accept' ? 'bg-green-900 bg-opacity-30 text-green-400' :
+                                                                                offer.status === 'counter' ? 'bg-orange-900 bg-opacity-30 text-orange-400' :
+                                                                                offer.status === 'reject' ? 'bg-red-900 bg-opacity-30 text-red-400' :
+                                                                                'bg-blue-900 bg-opacity-30 text-blue-400'
+                                                                            }`}>
+                                                                                {offer.status === 'accept' ? '✅ Accepted' :
+                                                                                 offer.status === 'counter' ? '🔄 Counter-Offer' :
+                                                                                 offer.status === 'reject' ? '❌ Rejected' :
+                                                                                 '⏳ Pending'}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                                            <div className="bg-slate-700 p-4 rounded-lg">
+                                                                                <div className="text-sm text-gray-400 mb-2">Your Offer</div>
+                                                                                <div className="text-xl font-bold">{offer.years} years, ${(offer.totalValue / 1000000).toFixed(1)}M</div>
+                                                                                <div className="text-sm text-gray-400">${(offer.annualSalary / 1000000).toFixed(1)}M per year</div>
+                                                                                {offer.playerOption && <div className="text-xs text-blue-400 mt-1">+ Player option</div>}
+                                                                                {offer.noTradeClause && <div className="text-xs text-blue-400">+ No-trade clause</div>}
+                                                                            </div>
+
+                                                                            {offer.status === 'counter' && offer.counterOffer && (
+                                                                                <div className="bg-orange-900 bg-opacity-20 p-4 rounded-lg border border-orange-500">
+                                                                                    <div className="text-sm text-orange-400 mb-2">Player Counter-Offer</div>
+                                                                                    <div className="text-xl font-bold">{offer.counterOffer.years} years, ${(offer.counterOffer.years * offer.counterOffer.annualSalary / 1000000).toFixed(1)}M</div>
+                                                                                    <div className="text-sm text-gray-400">${(offer.counterOffer.annualSalary / 1000000).toFixed(1)}M per year</div>
+                                                                                    {offer.counterOffer.playerOption && <div className="text-xs text-orange-400 mt-1">+ Player option</div>}
+                                                                                    {offer.counterOffer.noTradeClause && <div className="text-xs text-orange-400">+ No-trade clause</div>}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {offer.status === 'counter' && (
+                                                                            <div className="flex gap-3">
+                                                                                <button
+                                                                                    onClick={() => acceptCounterOffer(offer, offer.counterOffer)}
+                                                                                    className="flex-1 bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold"
+                                                                                >
+                                                                                    Accept Counter
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => withdrawOffer(offer.id)}
+                                                                                    className="flex-1 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold"
+                                                                                >
+                                                                                    Withdraw
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {offer.status === 'pending' && (
+                                                                            <button
+                                                                                onClick={() => withdrawOffer(offer.id)}
+                                                                                className="w-full bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-semibold"
+                                                                            >
+                                                                                Withdraw Offer
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* RECENT SIGNINGS TAB */}
+                                            {freeAgencyTab === 'signings' && (
+                                                <div>
+                                                    {recentSignings.length === 0 ? (
+                                                        <div className="bg-slate-800 rounded-lg p-12 text-center shadow-xl">
+                                                            <div className="text-6xl mb-4">📰</div>
+                                                            <h3 className="text-2xl font-bold mb-2">No Signings Yet</h3>
+                                                            <p className="text-gray-400">Recent free agent signings will appear here</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-4">
+                                                            {recentSignings.map(signing => (
+                                                                <div key={signing.id} className="bg-slate-800 rounded-lg p-6 shadow-xl flex justify-between items-center">
+                                                                    <div>
+                                                                        <div className="text-xl font-bold">{signing.player}</div>
+                                                                        <div className="text-sm text-gray-400">
+                                                                            → <span className="text-blue-400 font-semibold">{signing.team}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <div className="font-semibold text-green-400">{signing.contract}</div>
+                                                                        <div className="text-sm text-gray-400">${(signing.annualSalary / 1000000).toFixed(1)}M/yr</div>
+                                                                        <div className="text-xs text-gray-500 mt-1">Day {signing.day}</div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Offer Builder Modal */}
+                                {offerBuilder && (() => {
+                                    const [offerYears, setOfferYears] = useState(offerBuilder.asking.years);
+                                    const [offerSalary, setOfferSalary] = useState(offerBuilder.asking.annualSalary);
+                                    const [playerOption, setPlayerOption] = useState(false);
+                                    const [noTrade, setNoTrade] = useState(false);
+                                    const [pitchPoints, setPitchPoints] = useState([]);
+                                    
+                                    const totalValue = offerYears * offerSalary;
+                                    const salaryRatio = offerSalary / offerBuilder.asking.annualSalary;
+                                    const likelihood = Math.min(95, Math.max(5, Math.round(salaryRatio * 75)));
+                                    
+                                    return (
+                                        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                                            <div className="bg-slate-800 rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                                                <h2 className="text-3xl font-bold mb-6">Contract Offer: {offerBuilder.name}</h2>
+                                                
+                                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                                    <div>
+                                                        <div className="text-sm text-gray-400">Rating:</div>
+                                                        <div className="text-2xl font-bold">{offerBuilder.rating}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm text-gray-400">Asking:</div>
+                                                        <div className="text-xl font-bold">${(offerBuilder.asking.annualSalary / 1000000).toFixed(1)}M x {offerBuilder.asking.years}yr</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-6">
+                                                    <div>
+                                                        <label className="block text-sm font-semibold mb-2">Contract Length</label>
+                                                        <div className="flex gap-2">
+                                                            {[1, 2, 3, 4, 5].map(years => (
+                                                                <button
+                                                                    key={years}
+                                                                    onClick={() => setOfferYears(years)}
+                                                                    className={`flex-1 py-3 rounded-lg font-semibold ${
+                                                                        offerYears === years ? 'bg-blue-600' : 'bg-slate-700 hover:bg-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    {years} yr
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-sm font-semibold mb-2">Annual Salary</label>
+                                                        <input
+                                                            type="number"
+                                                            value={Math.round(offerSalary)}
+                                                            onChange={(e) => setOfferSalary(parseInt(e.target.value))}
+                                                            className="w-full bg-slate-700 px-4 py-3 rounded-lg text-xl font-bold"
+                                                            step="1000000"
+                                                        />
+                                                        <div className="text-sm text-gray-400 mt-1">
+                                                            Total: ${(totalValue / 1000000).toFixed(1)}M over {offerYears} years
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex gap-4">
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={playerOption}
+                                                                onChange={(e) => setPlayerOption(e.target.checked)}
+                                                                className="w-5 h-5"
+                                                            />
+                                                            <span>Player Option (final year)</span>
+                                                        </label>
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={noTrade}
+                                                                onChange={(e) => setNoTrade(e.target.checked)}
+                                                                className="w-5 h-5"
+                                                            />
+                                                            <span>No-Trade Clause</span>
+                                                        </label>
+                                                    </div>
+
+                                                    <div className={`p-4 rounded-lg text-center ${
+                                                        likelihood >= 70 ? 'bg-green-900 bg-opacity-30' :
+                                                        likelihood >= 40 ? 'bg-yellow-900 bg-opacity-30' :
+                                                        'bg-red-900 bg-opacity-30'
+                                                    }`}>
+                                                        <div className="text-sm text-gray-400 mb-1">AI Prediction</div>
+                                                        <div className={`text-2xl font-bold ${
+                                                            likelihood >= 70 ? 'text-green-400' :
+                                                            likelihood >= 40 ? 'text-yellow-400' :
+                                                            'text-red-400'
+                                                        }`}>
+                                                            {likelihood}% Accepts {likelihood >= 70 ? '✓' : likelihood >= 40 ? '?' : '✗'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-4 mt-6">
+                                                    <button
+                                                        onClick={() => {
+                                                            makeContractOffer(offerBuilder, {
+                                                                years: offerYears,
+                                                                annualSalary: offerSalary,
+                                                                playerOption,
+                                                                noTradeClause: noTrade,
+                                                                pitchPoints
+                                                            });
+                                                            setOfferBuilder(null);
+                                                        }}
+                                                        className="flex-1 bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold text-lg"
+                                                    >
+                                                        Submit Offer
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setOfferBuilder(null)}
+                                                        className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-semibold"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                 })()}
