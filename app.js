@@ -2488,6 +2488,7 @@ function finalizeExpansionDraft() {
 
 let activeGameDrawer = null;
 let liveGameIntervals = new Map(); // gameId -> intervalId
+let activeLiveView = 'pbp'; // 'pbp' | 'box' | 'compare'
 
 function renderSchedule() {
   const el = document.getElementById('schedule-tab');
@@ -2657,6 +2658,34 @@ function renderScheduleGameRow(game) {
   `;
 }
 
+function switchLiveView(view) {
+  console.log('Switching live view to:', view);
+  activeLiveView = view;
+  
+  // Update tab styles
+  const tabs = ['pbp', 'box', 'compare'];
+  tabs.forEach(tab => {
+    const btn = document.getElementById(`tab-${tab}`);
+    if (btn) {
+      btn.style.background = tab === view ? '#4CAF50' : 'transparent';
+    }
+  });
+  
+  // Show/hide views
+  const views = ['pbp', 'box', 'compare'];
+  views.forEach(v => {
+    const viewEl = document.getElementById(`view-${v}`);
+    if (viewEl) {
+      viewEl.style.display = v === view ? (v === 'pbp' ? 'flex' : 'block') : 'none';
+    }
+  });
+  
+  // Update content for new view if live game is active
+  if (activeGameDrawer) {
+    updateLiveGameDisplay(activeGameDrawer);
+  }
+}
+
 function navigateScheduleDay(direction) {
   const currentDay = getCurrentDay();
   const totalDays = getTotalScheduleDays(league.season);
@@ -2807,26 +2836,82 @@ function renderGameDrawer() {
           </div>
         </div>
         
-        <!-- Play-by-Play Feed (for Watch Live) -->
-        <div id="playByPlayContainer" style="display: none; flex: 1; overflow: hidden; padding: 20px; background: #16213e;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="margin: 0; color: #4CAF50;">Live Play-by-Play</h4>
-            <span id="pbp-event-count" style="color: #888; font-size: 0.9em;">0 events</span>
+        <!-- Live Game Views Container -->
+        <div id="liveGameContainer" style="display: ${game.status === 'live' ? 'flex' : 'none'}; flex: 1; overflow: hidden; flex-direction: column; background: #16213e;">
+          
+          <!-- View Toggle Tabs -->
+          <div style="display: flex; border-bottom: 2px solid #2a2a40; background: #0f1624;">
+            <button id="tab-pbp" onclick="switchLiveView('pbp')" style="
+              flex: 1;
+              padding: 14px;
+              background: ${activeLiveView === 'pbp' ? '#4CAF50' : 'transparent'};
+              color: white;
+              border: none;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 0.95em;
+              transition: all 0.2s;
+            ">📋 Play-by-Play</button>
+            <button id="tab-box" onclick="switchLiveView('box')" style="
+              flex: 1;
+              padding: 14px;
+              background: ${activeLiveView === 'box' ? '#4CAF50' : 'transparent'};
+              color: white;
+              border: none;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 0.95em;
+              transition: all 0.2s;
+            ">📊 Box Score</button>
+            <button id="tab-compare" onclick="switchLiveView('compare')" style="
+              flex: 1;
+              padding: 14px;
+              background: ${activeLiveView === 'compare' ? '#4CAF50' : 'transparent'};
+              color: white;
+              border: none;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 0.95em;
+              transition: all 0.2s;
+            ">⚖️ Team Comparison</button>
           </div>
-          <div id="playByPlayFeed" class="pbp-feed" style="
-            background: #0f1624;
-            border: 1px solid #2a2a40;
-            border-radius: 8px;
-            padding: 15px;
-            height: 320px;
-            overflow-y: auto;
-            font-family: monospace;
-            color: #e0e0e0;
-          "></div>
+          
+          <!-- View Content Area -->
+          <div style="flex: 1; overflow: hidden; padding: 20px;">
+            
+            <!-- Play-by-Play View -->
+            <div id="view-pbp" style="display: ${activeLiveView === 'pbp' ? 'flex' : 'none'}; flex-direction: column; height: 100%;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; color: #4CAF50;">Live Play-by-Play</h4>
+                <span id="pbp-event-count" style="color: #888; font-size: 0.9em;">0 events</span>
+              </div>
+              <div id="playByPlayFeed" class="pbp-feed" style="
+                background: #0f1624;
+                border: 1px solid #2a2a40;
+                border-radius: 8px;
+                padding: 15px;
+                flex: 1;
+                overflow-y: auto;
+                font-family: monospace;
+                color: #e0e0e0;
+              "></div>
+            </div>
+            
+            <!-- Box Score View -->
+            <div id="view-box" style="display: ${activeLiveView === 'box' ? 'block' : 'none'}; height: 100%; overflow-y: auto;">
+              <div id="boxScoreContent"></div>
+            </div>
+            
+            <!-- Team Comparison View -->
+            <div id="view-compare" style="display: ${activeLiveView === 'compare' ? 'block' : 'none'}; height: 100%; overflow-y: auto;">
+              <div id="teamCompareContent"></div>
+            </div>
+            
+          </div>
         </div>
         
-        <!-- Content -->
-        <div style="flex: 1; overflow-y: auto; padding: 20px;">
+        <!-- Content (Summary/Box Score) - Hidden during live games -->
+        <div id="game-drawer-content" style="flex: 1; overflow-y: auto; padding: 20px; display: ${game.status === 'live' ? 'none' : 'block'};">
           ${renderGameDrawerContent(game, homeTeam, awayTeam)}
         </div>
         
@@ -2835,6 +2920,7 @@ function renderGameDrawer() {
       </div>
     </div>
   `;
+  }
 }
 
 function renderGameDrawerContent(game, homeTeam, awayTeam) {
@@ -2954,7 +3040,7 @@ function renderLiveGameControls(gameId) {
   const isRunning = liveGameIntervals.has(gameId);
   
   return `
-    <div style="border-top: 2px solid #2a2a40; padding: 15px; background: #16213e;">
+    <div style="border-top: 2px solid #2a2a40; padding: 15px; background: #0f1624;">
       <div style="display: flex; gap: 10px; align-items: center; justify-content: space-between;">
         <div style="display: flex; gap: 10px;">
           ${isRunning ? `
@@ -2994,15 +3080,20 @@ function simGameInstantUI(gameId) {
 function startWatchLiveUI(gameId) {
   console.log('Starting Watch Live for game:', gameId);
   
+  // Reset to play-by-play view
+  activeLiveView = 'pbp';
+  
   if (startLiveGame(gameId)) {
     save();
     
-    // Show play-by-play container and hide action buttons
-    const pbpContainer = document.getElementById('playByPlayContainer');
+    // Show live game container and hide other sections
+    const liveContainer = document.getElementById('liveGameContainer');
     const actionButtons = document.getElementById('game-action-buttons');
+    const drawerContent = document.getElementById('game-drawer-content');
     
     if (pbpContainer) {
       pbpContainer.style.display = 'flex';
+      pbpContainer.style.flexDirection = 'column';
       console.log('✓ Play-by-play container shown');
     } else {
       console.error('✗ Play-by-play container not found!');
@@ -3012,11 +3103,46 @@ function startWatchLiveUI(gameId) {
       actionButtons.style.display = 'none';
     }
     
+    if (drawerContent) {
+      drawerContent.style.display = 'none';
+      console.log('✓ Game summary hidden');
+    }
+    
     // Clear feed and initialize
     const feed = document.getElementById('playByPlayFeed');
     if (feed) {
       feed.innerHTML = '';
       console.log('✓ Play-by-play feed cleared and ready');
+      
+      // Add initial game log entries if they exist
+      const game = league.schedule.games[gameId];
+      if (game && game.log && game.log.length > 0) {
+        console.log('Adding', game.log.length, 'existing log entries');
+        game.log.forEach(entry => {
+          const eventDiv = document.createElement('div');
+          eventDiv.style.cssText = `
+            padding: 10px;
+            border-bottom: 1px solid #2a2a40;
+            ${entry.scored ? 'background: rgba(76, 175, 80, 0.15); border-left: 3px solid #4CAF50; margin-left: -3px; padding-left: 12px;' : ''}
+          `;
+          
+          eventDiv.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="color: #888; font-size: 0.85em; font-weight: bold;">Q${entry.quarter} ${entry.time}</span>
+                <span style="margin-left: 12px; font-size: 1.0em; color: #e0e0e0;">${entry.text}</span>
+              </div>
+              ${entry.score ? `<span style="font-weight: bold; font-size: 1.05em; color: #4CAF50;">${entry.score.away} - ${entry.score.home}</span>` : ''}
+            </div>
+          `;
+          
+          feed.appendChild(eventDiv);
+        });
+        feed.scrollTop = feed.scrollHeight;
+        
+        const eventCount = document.getElementById('pbp-event-count');
+        if (eventCount) eventCount.textContent = `${game.log.length} events`;
+      }
     } else {
       console.error('✗ Play-by-play feed element not found!');
     }
@@ -3056,7 +3182,7 @@ function updateLiveGameDisplay(gameId) {
   const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
   const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
   
-  // Update scores
+  // Update header scores
   const awayScoreEl = document.getElementById('away-score');
   const homeScoreEl = document.getElementById('home-score');
   if (awayScoreEl) awayScoreEl.textContent = game.score.away;
@@ -3072,7 +3198,18 @@ function updateLiveGameDisplay(gameId) {
     }
   }
   
-  // Update play-by-play feed
+  // Update Play-by-Play view
+  updatePlayByPlayView(game);
+  
+  // Update Box Score view (if visible or in background)
+  updateBoxScoreView(game, homeTeam, awayTeam);
+  
+  // Update Team Comparison view
+  updateTeamComparisonView(game, homeTeam, awayTeam);
+}
+
+// Play-by-Play View Update
+function updatePlayByPlayView(game) {
   const feed = document.getElementById('playByPlayFeed');
   const eventCount = document.getElementById('pbp-event-count');
   
@@ -3080,8 +3217,6 @@ function updateLiveGameDisplay(gameId) {
     // Get last event that hasn't been displayed yet
     const currentEventCount = feed.children.length;
     const newEvents = game.log.slice(currentEventCount);
-    
-    console.log(`PBP Update: ${currentEventCount} displayed, ${game.log.length} total, ${newEvents.length} new`);
     
     newEvents.forEach(entry => {
       const eventDiv = document.createElement('div');
@@ -3112,6 +3247,137 @@ function updateLiveGameDisplay(gameId) {
       eventCount.textContent = `${game.log.length} events`;
     }
   }
+}
+
+// Box Score View Update
+function updateBoxScoreView(game, homeTeam, awayTeam) {
+  const container = document.getElementById('boxScoreContent');
+  if (!container) return;
+  
+  // Generate box score if not exists
+  if (!game.boxScore) {
+    game.boxScore = generateBasicBoxScore(homeTeam, awayTeam, {
+      homeScore: game.score.home,
+      awayScore: game.score.away
+    });
+  }
+  
+  container.innerHTML = `
+    <div style="margin-bottom: 30px;">
+      <h4 style="margin: 0 0 15px 0; color: #4CAF50; border-bottom: 2px solid #2a2a40; padding-bottom: 8px;">${awayTeam.name} - ${game.score.away}</h4>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #0f1624; color: #4CAF50;">
+              <th style="text-align: left; padding: 10px; border-bottom: 2px solid #2a2a40;">Player</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">MIN</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">PTS</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">REB</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">AST</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${game.boxScore.away.players.map(p => `
+              <tr style="border-bottom: 1px solid #2a2a40;">
+                <td style="padding: 10px; color: #e0e0e0;">${p.name}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.min}</td>
+                <td style="text-align: center; padding: 10px; color: #4CAF50; font-weight: bold;">${p.pts}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.reb}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.ast}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div>
+      <h4 style="margin: 0 0 15px 0; color: #4CAF50; border-bottom: 2px solid #2a2a40; padding-bottom: 8px;">${homeTeam.name} - ${game.score.home}</h4>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #0f1624; color: #4CAF50;">
+              <th style="text-align: left; padding: 10px; border-bottom: 2px solid #2a2a40;">Player</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">MIN</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">PTS</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">REB</th>
+              <th style="padding: 10px; border-bottom: 2px solid #2a2a40;">AST</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${game.boxScore.home.players.map(p => `
+              <tr style="border-bottom: 1px solid #2a2a40;">
+                <td style="padding: 10px; color: #e0e0e0;">${p.name}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.min}</td>
+                <td style="text-align: center; padding: 10px; color: #4CAF50; font-weight: bold;">${p.pts}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.reb}</td>
+                <td style="text-align: center; padding: 10px; color: #ccc;">${p.ast}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// Team Comparison View Update
+function updateTeamComparisonView(game, homeTeam, awayTeam) {
+  const container = document.getElementById('teamCompareContent');
+  if (!container) return;
+  
+  // Calculate team stats
+  const awayPts = game.score.away;
+  const homePts = game.score.home;
+  
+  // Simple stat simulation based on score
+  const awayFG = Math.floor(40 + (awayPts / 120) * 20);
+  const homeFG = Math.floor(40 + (homePts / 120) * 20);
+  const away3P = Math.floor(30 + Math.random() * 15);
+  const home3P = Math.floor(30 + Math.random() * 15);
+  const awayReb = Math.floor(35 + Math.random() * 15);
+  const homeReb = Math.floor(35 + Math.random() * 15);
+  const awayAst = Math.floor(15 + Math.random() * 10);
+  const homeAst = Math.floor(15 + Math.random() * 10);
+  const awayTO = Math.floor(10 + Math.random() * 8);
+  const homeTO = Math.floor(10 + Math.random() * 8);
+  
+  const stats = [
+    { label: 'Points', away: awayPts, home: homePts },
+    { label: 'FG%', away: awayFG + '%', home: homeFG + '%' },
+    { label: '3P%', away: away3P + '%', home: home3P + '%' },
+    { label: 'Rebounds', away: awayReb, home: homeReb },
+    { label: 'Assists', away: awayAst, home: homeAst },
+    { label: 'Turnovers', away: awayTO, home: homeTO },
+  ];
+  
+  container.innerHTML = `
+    <div style="background: #0f1624; border-radius: 8px; padding: 20px;">
+      <h4 style="margin: 0 0 20px 0; text-align: center; color: #4CAF50; font-size: 1.2em;">Team Statistics</h4>
+      
+      <div style="display: grid; gap: 15px;">
+        ${stats.map(stat => `
+          <div style="background: #16213e; border-radius: 6px; padding: 15px;">
+            <div style="text-align: center; color: #888; font-size: 0.85em; margin-bottom: 8px; font-weight: bold;">${stat.label}</div>
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 15px;">
+              <div style="text-align: right; font-size: 1.3em; font-weight: bold; color: #4CAF50;">${stat.away}</div>
+              <div style="color: #666;">vs</div>
+              <div style="text-align: left; font-size: 1.3em; font-weight: bold; color: #2196F3;">${stat.home}</div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; margin-top: 8px; font-size: 0.85em; color: #888;">
+              <div style="text-align: right;">${awayTeam.name}</div>
+              <div style="text-align: left;">${homeTeam.name}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div style="margin-top: 25px; padding: 15px; background: #1a1a2e; border-radius: 6px; text-align: center;">
+        <div style="color: #888; font-size: 0.85em; margin-bottom: 8px;">Current Status</div>
+        <div style="font-size: 1.1em; color: #4CAF50; font-weight: bold;">Q${game.quarter} ${game.timeRemaining}</div>
+      </div>
+    </div>
+  `;
 }
 
 function pauseLiveGameUI(gameId) {
