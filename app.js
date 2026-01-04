@@ -2748,31 +2748,34 @@ function renderGameDrawer() {
   
   const container = document.getElementById('game-drawer-container');
   
-  container.innerHTML = `
-    <div style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    " onclick="if(event.target === this) closeGameDrawer()">
+  // Only render if container is empty (avoid re-rendering during live updates)
+  if (container.children.length === 0) {
+    console.log('Initial render of game drawer for:', game.id);
+    container.innerHTML = `
       <div style="
-        background: #1a1a2e;
-        border-radius: 12px;
-        width: ${gameDrawerTab === 'playbyplay' ? '95%' : '90%'};
-        max-width: ${gameDrawerTab === 'playbyplay' ? '1400px' : '900px'};
-        max-height: ${gameDrawerTab === 'playbyplay' ? '95vh' : '90vh'};
-        overflow: hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.8);
         display: flex;
-        flex-direction: column;
-      ">
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      " onclick="if(event.target === this) closeGameDrawer()">
+        <div id="game-drawer-modal" style="
+          background: #1a1a2e;
+          border-radius: 12px;
+          width: 90%;
+          max-width: 900px;
+          max-height: 90vh;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        ">
         <!-- Header -->
-        <div style="padding: 20px; border-bottom: 2px solid #2a2a40;">
+        <div id="game-drawer-header" style="padding: 20px; border-bottom: 2px solid #2a2a40;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin: 0;">${awayTeam.name} @ ${homeTeam.name}</h3>
             <button onclick="closeGameDrawer()" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">✕ Close</button>
@@ -2780,13 +2783,13 @@ function renderGameDrawer() {
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-size: 1.8em; font-weight: bold;">
-                ${awayTeam.name} <span style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.away}</span>
+                ${awayTeam.name} <span id="away-score" style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.away}</span>
               </div>
               <div style="font-size: 1.8em; font-weight: bold; margin-top: 5px;">
-                ${homeTeam.name} <span style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.home}</span>
+                ${homeTeam.name} <span id="home-score" style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.home}</span>
               </div>
             </div>
-            <div style="text-align: right;">
+            <div id="game-status-display" style="text-align: right;">
               ${game.status === 'final' ? '<span style="color: #4CAF50; font-weight: bold;">FINAL</span>' : ''}
               ${game.status === 'live' ? `<span style="color: #f44336; font-weight: bold;">Q${game.quarter} ${game.timeRemaining}</span>` : ''}
               ${game.status === 'scheduled' ? '<span style="color: #888;">Scheduled</span>' : ''}
@@ -2794,12 +2797,32 @@ function renderGameDrawer() {
           </div>
           
           <!-- Game Action Buttons -->
-          ${game.status === 'scheduled' ? `
-            <div style="margin-top: 15px; display: flex; gap: 10px;">
-              <button onclick="simGameInstantUI('${game.id}')" style="flex: 1; background: #4CAF50; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">⚡ Sim Instant</button>
-              <button onclick="startWatchLiveUI('${game.id}')" style="flex: 1; background: #2196F3; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">👁️ Watch Live</button>
-            </div>
-          ` : ''}
+          <div id="game-action-buttons">
+            ${game.status === 'scheduled' ? `
+              <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="simGameInstantUI('${game.id}')" style="flex: 1; background: #4CAF50; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">⚡ Sim Instant</button>
+                <button onclick="startWatchLiveUI('${game.id}')" style="flex: 1; background: #2196F3; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">👁️ Watch Live</button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <!-- Play-by-Play Feed (for Watch Live) -->
+        <div id="playByPlayContainer" style="display: none; flex: 1; overflow: hidden; padding: 20px; background: #16213e;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="margin: 0; color: #4CAF50;">Live Play-by-Play</h4>
+            <span id="pbp-event-count" style="color: #888; font-size: 0.9em;">0 events</span>
+          </div>
+          <div id="playByPlayFeed" class="pbp-feed" style="
+            background: #0f1624;
+            border: 1px solid #2a2a40;
+            border-radius: 8px;
+            padding: 15px;
+            height: 320px;
+            overflow-y: auto;
+            font-family: monospace;
+            color: #e0e0e0;
+          "></div>
         </div>
         
         <!-- Content -->
@@ -2959,16 +2982,44 @@ function setGameDrawerTab(tab) {
 }
 
 function simGameInstantUI(gameId) {
+  console.log('Sim Instant for game:', gameId);
   simGameInstant(gameId);
   save();
-  renderGameDrawer();
+  
+  // Close and reopen drawer to show results
+  closeGameDrawer();
   render();
 }
 
 function startWatchLiveUI(gameId) {
+  console.log('Starting Watch Live for game:', gameId);
+  
   if (startLiveGame(gameId)) {
     save();
-    renderGameDrawer();
+    
+    // Show play-by-play container and hide action buttons
+    const pbpContainer = document.getElementById('playByPlayContainer');
+    const actionButtons = document.getElementById('game-action-buttons');
+    
+    if (pbpContainer) {
+      pbpContainer.style.display = 'flex';
+      console.log('✓ Play-by-play container shown');
+    } else {
+      console.error('✗ Play-by-play container not found!');
+    }
+    
+    if (actionButtons) {
+      actionButtons.style.display = 'none';
+    }
+    
+    // Clear feed and initialize
+    const feed = document.getElementById('playByPlayFeed');
+    if (feed) {
+      feed.innerHTML = '';
+      console.log('✓ Play-by-play feed cleared and ready');
+    } else {
+      console.error('✗ Play-by-play feed element not found!');
+    }
     
     // Start auto-stepping
     const baseInterval = 1000; // 1 second
@@ -2977,20 +3028,89 @@ function startWatchLiveUI(gameId) {
     const intervalId = setInterval(() => {
       const game = league.schedule.games[gameId];
       if (!game || game.status === 'final') {
+        console.log('Game finished, stopping live updates');
         clearInterval(intervalId);
         liveGameIntervals.delete(gameId);
         save();
-        renderGameDrawer();
+        updateLiveGameDisplay(gameId);
         render();
         return;
       }
       
       stepLiveGame(gameId);
       save();
-      renderGameDrawer();
+      updateLiveGameDisplay(gameId);
     }, interval);
     
     liveGameIntervals.set(gameId, intervalId);
+    console.log('✓ Live game interval started at', interval, 'ms');
+  } else {
+    console.error('Failed to start live game');
+  }
+}
+
+function updateLiveGameDisplay(gameId) {
+  const game = league.schedule.games[gameId];
+  if (!game) return;
+  
+  const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
+  const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
+  
+  // Update scores
+  const awayScoreEl = document.getElementById('away-score');
+  const homeScoreEl = document.getElementById('home-score');
+  if (awayScoreEl) awayScoreEl.textContent = game.score.away;
+  if (homeScoreEl) homeScoreEl.textContent = game.score.home;
+  
+  // Update status (quarter and time)
+  const statusEl = document.getElementById('game-status-display');
+  if (statusEl) {
+    if (game.status === 'final') {
+      statusEl.innerHTML = '<span style="color: #4CAF50; font-weight: bold;">FINAL</span>';
+    } else if (game.status === 'live') {
+      statusEl.innerHTML = `<span style="color: #f44336; font-weight: bold;">Q${game.quarter} ${game.timeRemaining}</span>`;
+    }
+  }
+  
+  // Update play-by-play feed
+  const feed = document.getElementById('playByPlayFeed');
+  const eventCount = document.getElementById('pbp-event-count');
+  
+  if (feed && game.log && game.log.length > 0) {
+    // Get last event that hasn't been displayed yet
+    const currentEventCount = feed.children.length;
+    const newEvents = game.log.slice(currentEventCount);
+    
+    console.log(`PBP Update: ${currentEventCount} displayed, ${game.log.length} total, ${newEvents.length} new`);
+    
+    newEvents.forEach(entry => {
+      const eventDiv = document.createElement('div');
+      eventDiv.style.cssText = `
+        padding: 10px;
+        border-bottom: 1px solid #2a2a40;
+        ${entry.scored ? 'background: rgba(76, 175, 80, 0.15); border-left: 3px solid #4CAF50; margin-left: -3px; padding-left: 12px;' : ''}
+      `;
+      
+      eventDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="color: #888; font-size: 0.85em; font-weight: bold;">Q${entry.quarter} ${entry.time}</span>
+            <span style="margin-left: 12px; font-size: 1.0em; color: #e0e0e0;">${entry.text}</span>
+          </div>
+          ${entry.score ? `<span style="font-weight: bold; font-size: 1.05em; color: #4CAF50;">${entry.score.away} - ${entry.score.home}</span>` : ''}
+        </div>
+      `;
+      
+      feed.appendChild(eventDiv);
+    });
+    
+    // Auto-scroll to bottom
+    feed.scrollTop = feed.scrollHeight;
+    
+    // Update event count
+    if (eventCount) {
+      eventCount.textContent = `${game.log.length} events`;
+    }
   }
 }
 
@@ -2998,12 +3118,14 @@ function pauseLiveGameUI(gameId) {
   if (liveGameIntervals.has(gameId)) {
     clearInterval(liveGameIntervals.get(gameId));
     liveGameIntervals.delete(gameId);
-    renderGameDrawer();
+    console.log('Game paused');
   }
 }
 
 function resumeLiveGameUI(gameId) {
   if (liveGameIntervals.has(gameId)) return; // Already running
+  
+  console.log('Resuming game at speed', liveGameSpeed);
   
   const baseInterval = 1000;
   const interval = baseInterval / liveGameSpeed;
@@ -3011,17 +3133,18 @@ function resumeLiveGameUI(gameId) {
   const intervalId = setInterval(() => {
     const game = league.schedule.games[gameId];
     if (!game || game.status === 'final') {
+      console.log('Game finished during resume');
       clearInterval(intervalId);
       liveGameIntervals.delete(gameId);
       save();
-      renderGameDrawer();
+      updateLiveGameDisplay(gameId);
       render();
       return;
     }
     
     stepLiveGame(gameId);
     save();
-    renderGameDrawer();
+    updateLiveGameDisplay(gameId);
   }, interval);
   
   liveGameIntervals.set(gameId, intervalId);
