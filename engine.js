@@ -124,7 +124,12 @@ function createEmptyLeagueState() {
       // Immersion
       newsFrequency: 'Normal',
       moraleSystem: true,
-      rivalries: true
+      rivalries: true,
+      
+      // Player gender
+      playerGenderMode: 'men', // 'men', 'women', 'mixed'
+      mixedGenderRatio: 0.5, // 0.0 = all men, 1.0 = all women (only used when mixed)
+      lockGenderEditing: true // Prevent gender editing unless commissioner mode
     },
     
     // History & records
@@ -287,6 +292,21 @@ function convertLegacyToLeagueState(legacyLeague) {
       if (team.players) {
         team.players.forEach(player => {
           player.teamId = team.id; // Ensure stable team reference
+          
+          // Migrate gender: assign default if missing
+          if (!player.gender) {
+            const genderMode = state.settings.playerGenderMode || 'men';
+            if (genderMode === 'men') {
+              player.gender = 'M';
+            } else if (genderMode === 'women') {
+              player.gender = 'F';
+            } else {
+              // Mixed - random based on ratio
+              const ratio = state.settings.mixedGenderRatio || 0.5;
+              player.gender = Math.random() < ratio ? 'F' : 'M';
+            }
+          }
+          
           state.players.push(player);
         });
       }
@@ -297,6 +317,21 @@ function convertLegacyToLeagueState(legacyLeague) {
   state.freeAgents = legacyLeague.freeAgents || [];
   state.freeAgents.forEach(player => {
     player.teamId = null; // Free agents have null teamId
+    
+    // Migrate gender: assign default if missing
+    if (!player.gender) {
+      const genderMode = state.settings.playerGenderMode || 'men';
+      if (genderMode === 'men') {
+        player.gender = 'M';
+      } else if (genderMode === 'women') {
+        player.gender = 'F';
+      } else {
+        // Mixed - random based on ratio
+        const ratio = state.settings.mixedGenderRatio || 0.5;
+        player.gender = Math.random() < ratio ? 'F' : 'M';
+      }
+    }
+    
     state.players.push(player);
   });
   
@@ -403,6 +438,20 @@ function calculateCoachSalary(overall) {
 function makePlayer(age, isRookie = false) {
   const id = nextPlayerId++;
   const pos = POS[rand(0, POS.length - 1)];
+  
+  // Determine gender based on league settings BEFORE name generation
+  let gender = 'M'; // Default
+  if (leagueState && leagueState.settings) {
+    const mode = leagueState.settings.playerGenderMode || 'men';
+    if (mode === 'men') {
+      gender = 'M';
+    } else if (mode === 'women') {
+      gender = 'F';
+    } else if (mode === 'mixed') {
+      const ratio = leagueState.settings.mixedGenderRatio || 0.5;
+      gender = Math.random() < ratio ? 'F' : 'M';
+    }
+  }
   
   // Base ratings
   let shoot = rand(30, 85);
@@ -553,9 +602,10 @@ function makePlayer(age, isRookie = false) {
   
   return {
     id,
-    name: randName(),
+    name: randName(gender), // Pass gender to name generator
     age,
     pos,
+    gender, // Store gender in player object
     ratings: {
       ovr,
       pot,

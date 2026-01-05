@@ -559,10 +559,61 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-function randName() {
-  const first = ["James", "Michael", "Kobe", "LeBron", "Stephen", "Kevin", "Chris", "Anthony", "Dwyane", "Russell", "Tim", "Larry", "Magic", "Kareem", "Shaq", "Allen", "Ray", "Paul", "Dirk", "Hakeem", "Charles", "John", "Karl", "Moses", "David"];
-  const last = ["Johnson", "Williams", "Brown", "Jones", "Davis", "Miller", "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia", "Martinez", "Robinson", "Clark", "Rodriguez", "Lewis", "Lee", "Walker", "Hall"];
-  return `${first[rand(0, first.length - 1)]} ${last[rand(0, last.length - 1)]}`;
+/* ============================
+   NAME GENERATION WITH GENDER SUPPORT
+============================ */
+
+const MALE_FIRST_NAMES = [
+  "James", "Michael", "Kobe", "LeBron", "Stephen", "Kevin", "Chris", "Anthony", 
+  "Dwyane", "Russell", "Tim", "Larry", "Magic", "Kareem", "Shaquille", "Allen", 
+  "Ray", "Paul", "Dirk", "Hakeem", "Charles", "John", "Karl", "Moses", "David",
+  "Jason", "Gary", "Scottie", "Clyde", "Patrick", "Reggie", "Steve", "Grant",
+  "Tracy", "Vince", "Carmelo", "Dwight", "Blake", "Damian", "Kyrie", "Kawhi",
+  "Giannis", "Joel", "Nikola", "Jayson", "Devin", "Donovan", "Bradley", "Jimmy"
+];
+
+const FEMALE_FIRST_NAMES = [
+  "Maya", "Diana", "Lisa", "Sheryl", "Candace", "Sue", "Lauren", "Brittney",
+  "Elena", "Breanna", "Skylar", "Jewell", "Tamika", "Tina", "Cynthia", "Rebecca",
+  "Seimone", "Cappie", "Angel", "Sabrina", "A'ja", "Jonquel", "Nneka", "Sylvia",
+  "Cheryl", "Nancy", "Teresa", "Yolanda", "Cynthia", "Ruthie", "Katie", "Swin",
+  "Kelsey", "Alyssa", "Courtney", "Natasha", "Alana", "Odyssey", "Rhyne", "Chelsea",
+  "Aja", "Diamond", "Kelsey", "Tiffany", "Emma", "Napheesa", "Satou", "Betnijah"
+];
+
+const LAST_NAMES = [
+  "Johnson", "Williams", "Brown", "Jones", "Davis", "Miller", "Wilson", "Moore",
+  "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson",
+  "Garcia", "Martinez", "Robinson", "Clark", "Rodriguez", "Lewis", "Lee", "Walker",
+  "Hall", "Young", "Allen", "King", "Wright", "Lopez", "Hill", "Scott", "Green",
+  "Adams", "Baker", "Nelson", "Carter", "Mitchell", "Perez", "Roberts", "Turner",
+  "Phillips", "Campbell", "Parker", "Evans", "Edwards", "Collins", "Stewart", "Morris"
+];
+
+function randName(gender = null) {
+  // If gender not specified, use league setting or default to male
+  if (gender === null) {
+    if (leagueState && leagueState.settings) {
+      const mode = leagueState.settings.playerGenderMode;
+      if (mode === 'men') {
+        gender = 'M';
+      } else if (mode === 'women') {
+        gender = 'F';
+      } else {
+        // Mixed - random based on ratio
+        const ratio = leagueState.settings.mixedGenderRatio || 0.5;
+        gender = Math.random() < ratio ? 'F' : 'M';
+      }
+    } else {
+      gender = 'M'; // Default fallback
+    }
+  }
+  
+  const firstNames = gender === 'F' ? FEMALE_FIRST_NAMES : MALE_FIRST_NAMES;
+  const first = firstNames[rand(0, firstNames.length - 1)];
+  const last = LAST_NAMES[rand(0, LAST_NAMES.length - 1)];
+  
+  return `${first} ${last}`;
 }
 
 /* ============================
@@ -692,7 +743,12 @@ function showNewLeagueModal() {
       newsFrequency: 'Normal',
       moraleSystem: true,
       rivalries: true,
-      commissionerMode: false
+      commissionerMode: false,
+      
+      // Player Gender
+      playerGenderMode: 'men',
+      mixedGenderRatio: 0.5,
+      lockGenderEditing: true
     },
     expandedSections: new Set(['structure'])
   };
@@ -1033,6 +1089,24 @@ function toggleNewLeagueSection(section) {
   renderNewLeague();
 }
 
+// Update player gender mode
+function updatePlayerGenderMode(mode) {
+  if (!newLeagueState.settings) {
+    newLeagueState.settings = {};
+  }
+  newLeagueState.settings.playerGenderMode = mode;
+  renderNewLeague();
+}
+
+// Update mixed gender ratio
+function updateMixedGenderRatio(value) {
+  if (!newLeagueState.settings) {
+    newLeagueState.settings = {};
+  }
+  newLeagueState.settings.mixedGenderRatio = parseFloat(value) / 100;
+  renderNewLeague();
+}
+
 // Update new league setting
 function updateNewLeagueSetting(category, field, value) {
   if (newLeagueState.settings[field] === undefined) {
@@ -1304,6 +1378,8 @@ function renderNewLeagueSettings() {
         { label: 'Team Rivalries', field: 'rivalries', type: 'boolean' },
         { label: 'Enable Commissioner Mode', field: 'commissionerMode', type: 'boolean' }
       ])}
+      
+      ${renderPlayerGenderSection()}
     </div>
   `;
 }
@@ -1416,6 +1492,134 @@ function renderSettingField(field) {
   }
   
   return '';
+}
+
+// Render player gender section with special controls
+function renderPlayerGenderSection() {
+  const s = newLeagueState.settings;
+  const isExpanded = newLeagueState.expandedSections.has('playerGender');
+  const mode = s.playerGenderMode || 'men';
+  const ratio = (s.mixedGenderRatio || 0.5) * 100;
+  const lockEditing = s.lockGenderEditing !== false; // Default true
+  
+  return `
+    <div style="
+      background: #1a2332;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+      overflow: hidden;
+    ">
+      <div onclick="toggleNewLeagueSection('playerGender')" style="
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: ${isExpanded ? '#0f172a' : 'transparent'};
+        transition: background 0.2s;
+      ">
+        <h4 style="margin: 0; color: #3b82f6; font-size: 1.1em;">⚧️ Player Gender</h4>
+        <span style="color: #64748b; font-size: 1.3em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <!-- Gender Mode -->
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; color: #94a3b8; margin-bottom: 10px; font-size: 0.9em;">League Type</label>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="updatePlayerGenderMode('men')" style="
+                flex: 1;
+                padding: 12px;
+                background: ${mode === 'men' ? '#3b82f6' : '#1e293b'};
+                color: ${mode === 'men' ? '#fff' : '#94a3b8'};
+                border: 2px solid ${mode === 'men' ? '#3b82f6' : '#334155'};
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: ${mode === 'men' ? 'bold' : 'normal'};
+                transition: all 0.2s;
+              ">♂️ Men</button>
+              
+              <button onclick="updatePlayerGenderMode('women')" style="
+                flex: 1;
+                padding: 12px;
+                background: ${mode === 'women' ? '#ec4899' : '#1e293b'};
+                color: ${mode === 'women' ? '#fff' : '#94a3b8'};
+                border: 2px solid ${mode === 'women' ? '#ec4899' : '#334155'};
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: ${mode === 'women' ? 'bold' : 'normal'};
+                transition: all 0.2s;
+              ">♀️ Women</button>
+              
+              <button onclick="updatePlayerGenderMode('mixed')" style="
+                flex: 1;
+                padding: 12px;
+                background: ${mode === 'mixed' ? '#8b5cf6' : '#1e293b'};
+                color: ${mode === 'mixed' ? '#fff' : '#94a3b8'};
+                border: 2px solid ${mode === 'mixed' ? '#8b5cf6' : '#334155'};
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: ${mode === 'mixed' ? 'bold' : 'normal'};
+                transition: all 0.2s;
+              ">⚧️ Mixed</button>
+            </div>
+          </div>
+          
+          <!-- Mixed Ratio Slider (only when mixed) -->
+          ${mode === 'mixed' ? `
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; color: #94a3b8; margin-bottom: 8px; font-size: 0.9em;">
+                Gender Distribution
+              </label>
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                value="${ratio}"
+                oninput="updateMixedGenderRatio(this.value)"
+                style="
+                  width: 100%;
+                  height: 6px;
+                  background: linear-gradient(to right, #3b82f6 0%, #ec4899 100%);
+                  border-radius: 3px;
+                  outline: none;
+                  cursor: pointer;
+                "
+              />
+              <div style="
+                margin-top: 8px;
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.85em;
+                color: #64748b;
+              ">
+                <span>♀️ Women: <strong style="color: #ec4899;">${Math.round(ratio)}%</strong></span>
+                <span>♂️ Men: <strong style="color: #3b82f6;">${Math.round(100 - ratio)}%</strong></span>
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Lock Gender Editing -->
+          <div>
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e5e7eb;">
+              <input 
+                type="checkbox" 
+                ${lockEditing ? 'checked' : ''}
+                onchange="updateNewLeagueSetting('', 'lockGenderEditing', this.checked)"
+                style="width: 18px; height: 18px; cursor: pointer;"
+              />
+              <span>🔒 Lock gender editing (requires Commissioner Mode to change)</span>
+            </label>
+            <p style="color: #64748b; font-size: 0.85em; margin: 8px 0 0 28px;">
+              When enabled, player gender cannot be edited unless Commissioner Mode is active.
+            </p>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
 
 /* ============================
@@ -11529,7 +11733,9 @@ function showPlayerModal(playerId) {
       <div class="player-modal-header">
         <div class="player-modal-title-section">
           <h1 class="player-modal-name">${player.name}</h1>
-          <div class="player-modal-subtitle">${player.pos} • Age ${player.age}</div>
+          <div class="player-modal-subtitle">
+            ${player.pos} • Age ${player.age}${player.gender ? ` • <span style="color: ${player.gender === 'F' ? '#ec4899' : '#3b82f6'}; font-weight: 600;">${player.gender === 'F' ? '♀' : '♂'}</span>` : ''}
+          </div>
         </div>
         <button class="player-modal-close" onclick="closePlayerModal()">✕</button>
       </div>
