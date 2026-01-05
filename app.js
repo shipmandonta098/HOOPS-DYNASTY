@@ -1878,6 +1878,9 @@ function renderDashboard() {
       <!-- Alerts Section -->
       ${renderDashboardAlerts()}
       
+      <!-- Strength of Schedule Card -->
+      ${renderStrengthOfSchedule(team.id)}
+      
       <!-- Salary Cap Card -->
       <div class="dashboard-card">
         <div class="dashboard-card-title">💰 Salary Cap</div>
@@ -1931,6 +1934,132 @@ function simulateWeek() {
   }
   
   render();
+}
+
+/* ============================
+   STRENGTH OF SCHEDULE
+============================ */
+
+function calculateSOSData(teamId) {
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team || !league.schedule || !league.schedule.games) {
+    return { last10AvgOVR: null, next10AvgOVR: null, rank: null, label: 'N/A', totalTeams: league.teams.length };
+  }
+  
+  const allGames = Object.values(league.schedule.games);
+  const teamGames = allGames.filter(g => g.homeTeamId === teamId || g.awayTeamId === teamId);
+  
+  // Get completed games
+  const completedGames = teamGames.filter(g => g.status === 'final').sort((a, b) => {
+    // Sort by day number
+    return (a.day || 0) - (b.day || 0);
+  });
+  
+  // Get scheduled games
+  const scheduledGames = teamGames.filter(g => g.status === 'scheduled').sort((a, b) => {
+    return (a.day || 0) - (b.day || 0);
+  });
+  
+  // Calculate last 10 opponents average OVR
+  let last10AvgOVR = null;
+  if (completedGames.length > 0) {
+    const last10 = completedGames.slice(-10);
+    const opponentOVRs = last10.map(g => {
+      const opponentId = g.homeTeamId === teamId ? g.awayTeamId : g.homeTeamId;
+      const opponent = league.teams.find(t => t.id === opponentId);
+      return opponent ? getTeamOverall(opponent) : 0;
+    });
+    last10AvgOVR = opponentOVRs.length > 0 ? Math.round(opponentOVRs.reduce((a, b) => a + b, 0) / opponentOVRs.length) : null;
+  }
+  
+  // Calculate next 10 opponents average OVR
+  let next10AvgOVR = null;
+  if (scheduledGames.length > 0) {
+    const next10 = scheduledGames.slice(0, 10);
+    const opponentOVRs = next10.map(g => {
+      const opponentId = g.homeTeamId === teamId ? g.awayTeamId : g.homeTeamId;
+      const opponent = league.teams.find(t => t.id === opponentId);
+      return opponent ? getTeamOverall(opponent) : 0;
+    });
+    next10AvgOVR = opponentOVRs.length > 0 ? Math.round(opponentOVRs.reduce((a, b) => a + b, 0) / opponentOVRs.length) : null;
+  }
+  
+  // Calculate league-wide SOS for ranking (based on remaining schedule)
+  const allTeamsSOS = league.teams.map(t => {
+    const tGames = allGames.filter(g => g.homeTeamId === t.id || g.awayTeamId === t.id);
+    const tScheduled = tGames.filter(g => g.status === 'scheduled');
+    
+    if (tScheduled.length === 0) {
+      return { teamId: t.id, sosValue: 0 };
+    }
+    
+    const opponentOVRs = tScheduled.map(g => {
+      const oppId = g.homeTeamId === t.id ? g.awayTeamId : g.homeTeamId;
+      const opp = league.teams.find(team => team.id === oppId);
+      return opp ? getTeamOverall(opp) : 0;
+    });
+    
+    const sosValue = opponentOVRs.reduce((a, b) => a + b, 0) / opponentOVRs.length;
+    return { teamId: t.id, sosValue };
+  });
+  
+  // Sort by SOS value descending (highest = toughest)
+  allTeamsSOS.sort((a, b) => b.sosValue - a.sosValue);
+  
+  // Find this team's rank (1 = toughest)
+  const rank = allTeamsSOS.findIndex(s => s.teamId === teamId) + 1;
+  const totalTeams = league.teams.length;
+  
+  // Determine label
+  let label = 'Average';
+  const percentile = rank / totalTeams;
+  if (percentile <= 0.33) {
+    label = 'Tough';
+  } else if (percentile >= 0.67) {
+    label = 'Easy';
+  }
+  
+  return { last10AvgOVR, next10AvgOVR, rank, label, totalTeams };
+}
+
+function renderStrengthOfSchedule(teamId) {
+  const sosData = calculateSOSData(teamId);
+  
+  // Determine rank text
+  let rankText = '';
+  if (sosData.rank && sosData.label !== 'N/A') {
+    if (sosData.label === 'Tough') {
+      rankText = `(#${sosData.rank} toughest)`;
+    } else if (sosData.label === 'Easy') {
+      rankText = `(#${sosData.totalTeams - sosData.rank + 1} easiest)`;
+    } else {
+      rankText = `(#${sosData.rank} toughest)`;
+    }
+  }
+  
+  return `
+    <div class="dashboard-card">
+      <div class="dashboard-card-header">
+        <div class="dashboard-card-title">📅 STRENGTH OF SCHEDULE</div>
+        <div class="dashboard-card-summary">
+          <span class="sos-label sos-${sosData.label.toLowerCase()}">${sosData.label}</span>
+          <span class="sos-rank">${rankText}</span>
+        </div>
+      </div>
+      <div class="sos-subcards">
+        <div class="sos-subcard">
+          <div class="sos-subcard-title">Last 10 Opponents</div>
+          <div class="sos-subcard-value">${sosData.last10AvgOVR !== null ? sosData.last10AvgOVR : 'N/A'}</div>
+          <div class="sos-subcard-label">Avg OVR</div>
+        </div>
+        <div class="sos-subcard">
+          <div class="sos-subcard-title">Next 10 Opponents</div>
+          <div class="sos-subcard-value">${sosData.next10AvgOVR !== null ? sosData.next10AvgOVR : 'N/A'}</div>
+          <div class="sos-subcard-label">Avg OVR</div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 /* ============================

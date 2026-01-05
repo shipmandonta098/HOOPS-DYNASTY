@@ -933,6 +933,89 @@ input[type="text"] {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
 }
+
+/* Strength of Schedule Card */
+.dashboard-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.dashboard-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sos-label {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sos-label.sos-tough {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border: 1px solid #991b1b;
+}
+.sos-label.sos-average {
+  background: #1e3a8a;
+  color: #93c5fd;
+  border: 1px solid #1e40af;
+}
+.sos-label.sos-easy {
+  background: #14532d;
+  color: #86efac;
+  border: 1px solid #166534;
+}
+.sos-label.sos-na {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+.sos-rank {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.sos-subcards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.sos-subcard {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+.sos-subcard-title {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.sos-subcard-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #3b82f6;
+  margin-bottom: 4px;
+}
+.sos-subcard-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .sos-subcards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .setup-footer {
   position: sticky;
   bottom: 0;
