@@ -207,7 +207,124 @@ function generateTeamLogo(teamName, colors) {
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
 
+// Legacy league object for backwards compatibility
 let league = null;
+
+/* ============================
+   LEAGUE STATE HELPERS
+============================ */
+
+/**
+ * Get current user's team from leagueState
+ * Falls back to league object if leagueState not available
+ */
+function getUserTeam() {
+  if (leagueState) {
+    return leagueState.teams.find(t => t.id === leagueState.meta.userTeamId);
+  }
+  if (league) {
+    return league.teams.find(t => t.id === selectedTeamId);
+  }
+  return null;
+}
+
+/**
+ * Get team by ID from leagueState
+ */
+function getTeamById(teamId) {
+  if (leagueState) {
+    return leagueState.teams.find(t => t.id === teamId);
+  }
+  if (league) {
+    return league.teams.find(t => t.id === teamId);
+  }
+  return null;
+}
+
+/**
+ * Get player by ID from leagueState
+ */
+function getPlayerById(playerId) {
+  if (leagueState && leagueState.players) {
+    return leagueState.players.find(p => p.id === playerId);
+  }
+  // Fall back to searching all teams + free agents
+  if (league) {
+    for (const team of league.teams) {
+      const player = team.players.find(p => p.id === playerId);
+      if (player) return player;
+    }
+    return league.freeAgents.find(p => p.id === playerId);
+  }
+  return null;
+}
+
+/**
+ * Get all players for a team from leagueState
+ */
+function getTeamPlayers(teamId) {
+  if (leagueState && leagueState.players) {
+    return leagueState.players.filter(p => p.teamId === teamId);
+  }
+  if (league) {
+    const team = league.teams.find(t => t.id === teamId);
+    return team ? team.players : [];
+  }
+  return [];
+}
+
+/**
+ * Get all free agents from leagueState
+ */
+function getFreeAgents() {
+  if (leagueState) {
+    return leagueState.players.filter(p => p.teamId === null);
+  }
+  if (league) {
+    return league.freeAgents;
+  }
+  return [];
+}
+
+/**
+ * Get current league phase
+ */
+function getCurrentPhase() {
+  if (leagueState) {
+    return leagueState.meta.phase;
+  }
+  if (league) {
+    return league.phase;
+  }
+  return 'preseason';
+}
+
+/**
+ * Get current season
+ */
+function getCurrentSeason() {
+  if (leagueState) {
+    return leagueState.meta.season;
+  }
+  if (league) {
+    return league.season;
+  }
+  return new Date().getFullYear();
+}
+
+/**
+ * Check if commissioner mode is active
+ */
+function isCommissionerMode() {
+  if (leagueState) {
+    return leagueState.meta.commissionerMode === true;
+  }
+  if (league && league.meta) {
+    return league.meta.commissionerEnabled === true;
+  }
+  return false;
+}
+
 let DEBUG_PLAYS = false; // Set to true to see play-by-play debug logs
 
 // Console command to enable/disable play debug logging

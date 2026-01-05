@@ -23,23 +23,36 @@ function openDB() {
 }
 
 async function saveLeague() {
-  if (!league) return;
+  // If we have leagueState, save it (preferred)
+  // Otherwise fall back to legacy league object
+  const stateToSave = leagueState ? leagueState : (league ? convertLegacyToLeagueState(league) : null);
+  
+  if (!stateToSave) return;
+  
+  // Update lastSaved timestamp
+  stateToSave.meta.lastSaved = Date.now();
+  
+  // Convert to legacy format for storage (backwards compatibility)
+  const legacyFormat = convertLeagueStateToLegacy(stateToSave);
   
   // Ensure league has an ID
-  if (!league.id) {
-    league.id = 'league_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  if (!legacyFormat.id) {
+    legacyFormat.id = 'league_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    stateToSave.meta.leagueId = legacyFormat.id;
   }
   
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put({
-      id: league.id,
-      name: league.name || 'My League',
-      season: league.season,
-      userTeamId: selectedTeamId,
+      id: legacyFormat.id,
+      name: legacyFormat.name || 'My League',
+      season: legacyFormat.season,
+      userTeamId: selectedTeamId || stateToSave.meta.userTeamId,
       updatedAt: Date.now(),
-      league: league
+      league: legacyFormat,
+      // Store new leagueState format (for future use)
+      leagueState: stateToSave
     });
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
@@ -65,27 +78,64 @@ async function loadLeague(id) {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).get(id);
     req.onsuccess = async () => {
-      const result = req.result?.league ?? null;
-      if (result) {
-        league = result;
+      const savedData = req.result;
+      if (!savedData) {
+        resolve(null);
+        return;
+      }
+      
+      // Try to load new leagueState format first, fall back to legacy
+      if (savedData.leagueState) {
+        console.log('[LEAGUE STATE] Loading from new leagueState format');
+        leagueState = savedData.leagueState;
         
-        // Run migrations if needed
+        // Ensure schemaVersion is up to date
+        if (!leagueState.meta.schemaVersion || leagueState.meta.schemaVersion < CURRENT_SCHEMA_VERSION) {
+          console.log('[LEAGUE STATE] Migrating from schema', leagueState.meta.schemaVersion, 'to', CURRENT_SCHEMA_VERSION);
+          // Run migrations here if needed
+          leagueState.meta.schemaVersion = CURRENT_SCHEMA_VERSION;
+        }
+        
+        // Convert to legacy format for backwards compatibility
+        league = convertLeagueStateToLegacy(leagueState);
+      } else if (savedData.league) {
+        console.log('[LEAGUE STATE] Loading from legacy league format, converting...');
+        league = savedData.league;
+        
+        // Run legacy migrations
         const didMigrate = migrateLeague(league);
         
-        nextPlayerId = Math.max(...league.teams.flatMap(t => t.players.map(p => p.id)), 
-                                ...league.freeAgents.map(p => p.id)) + 1;
-        selectedTeamId = req.result.userTeamId || league.teams[0].id;
-        console.log('Loaded league with userTeamId:', req.result.userTeamId, 'selectedTeamId:', selectedTeamId);
-        appView = 'league';
-        render();
+        // Convert legacy to new leagueState
+        leagueState = convertLegacyToLeagueState(league);
         
-        // Auto-save if migrations were applied
         if (didMigrate) {
-          console.log('Migrations applied, auto-saving league...');
-          await save();
+          console.log('[LEAGUE STATE] Migrations applied during conversion');
         }
+      } else {
+        resolve(null);
+        return;
       }
-      resolve(result);
+      
+      // Set nextPlayerId
+      if (leagueState.players && leagueState.players.length > 0) {
+        nextPlayerId = Math.max(...leagueState.players.map(p => p.id || 0)) + 1;
+      } else {
+        nextPlayerId = Math.max(...league.teams.flatMap(t => t.players.map(p => p.id || 0)), 
+                                ...league.freeAgents.map(p => p.id || 0)) + 1;
+      }
+      
+      // Set selected team
+      selectedTeamId = savedData.userTeamId || leagueState.meta.userTeamId || league.teams[0].id;
+      console.log('[LEAGUE STATE] Loaded league with userTeamId:', leagueState.meta.userTeamId, 'selectedTeamId:', selectedTeamId);
+      
+      appView = 'league';
+      render();
+      
+      // Auto-save to persist any migrations or conversions
+      console.log('[LEAGUE STATE] Auto-saving after load...');
+      await save();
+      
+      resolve(league);
     };
     req.onerror = () => reject(req.error);
   });

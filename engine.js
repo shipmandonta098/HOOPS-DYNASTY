@@ -3,7 +3,319 @@
 ============================ */
 
 // Schema Version for League Migrations
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5; // Incremented for leagueState refactor
+
+/* ============================
+   CENTRALIZED LEAGUE STATE
+============================ */
+
+/**
+ * leagueState - The single source of truth for all league data
+ * 
+ * Rules:
+ * - UI components READ ONLY from this state
+ * - All mutations through dedicated update functions
+ * - Persisted to storage on every change
+ * - No duplicated state across tabs
+ * - No hardcoded team names (e.g., "Free Agent")
+ */
+let leagueState = null;
+
+/**
+ * Initialize empty league state structure
+ */
+function createEmptyLeagueState() {
+  return {
+    // League metadata
+    meta: {
+      leagueId: `league_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: 'My League',
+      season: new Date().getFullYear(),
+      phase: 'preseason', // preseason, season, playoffs, offseason, draft
+      day: 0, // Season day counter (not calendar dates)
+      userTeamId: null, // Stable team reference
+      commissionerMode: false,
+      modified: false,
+      hasSeenWelcome: false,
+      createdAt: Date.now(),
+      lastSaved: Date.now(),
+      schemaVersion: CURRENT_SCHEMA_VERSION
+    },
+    
+    // Teams - stable teamId references
+    teams: [],
+    
+    // Players - never store team names as strings
+    players: [],
+    
+    // Schedule - uses season days, not calendar dates
+    schedule: {
+      games: {}, // { [gameId]: gameObject }
+      days: {}, // { [season]: dayArray }
+      currentDay: 0
+    },
+    
+    // Draft state - prospects visible even when inactive
+    draft: {
+      year: new Date().getFullYear(),
+      rounds: 2,
+      prospects: [],
+      order: [],
+      picks: [],
+      active: false,
+      currentRound: 1,
+      currentPick: 1
+    },
+    
+    // Free agents - uses null teamId, not "Free Agent" string
+    freeAgents: [],
+    
+    // Settings - apply to both new and existing leagues
+    settings: {
+      // League structure
+      conferencesEnabled: true,
+      divisionsEnabled: true,
+      playoffTeams: 16,
+      playInTournament: false,
+      
+      // Season format
+      gamesPerSeason: 82,
+      backToBackFrequency: 'Normal',
+      allStarBreak: true,
+      
+      // Salary cap & economy
+      capSystem: 'soft', // 'hard' or 'soft'
+      salaryCap: 123.5, // in millions
+      capGrowthRate: 3, // percentage
+      luxuryTax: true,
+      luxuryTaxLine: 150, // in millions
+      apronEnabled: false,
+      minRosterSize: 13,
+      maxRosterSize: 15,
+      
+      // Contracts & free agency
+      maxContractYears: 5,
+      playerOptions: true,
+      teamOptions: true,
+      restrictedFA: true,
+      noTradeClauses: true,
+      signAndTrade: true,
+      
+      // Draft
+      draftRounds: 2,
+      lotterySystem: 'NBA', // 'NBA', 'Simple', 'Flat'
+      prospectClassSize: 60,
+      autoDraftClasses: true,
+      
+      // Gameplay & simulation
+      injuryFrequency: 'Normal', // 'Low', 'Normal', 'High'
+      injurySeverity: 'Normal',
+      fatigueImpact: 'Normal',
+      statEnvironment: 'Modern', // 'Modern', 'Realistic', 'High Scoring', 'Low Scoring'
+      playerDevelopment: 'Normal', // 'Slow', 'Normal', 'Fast', 'Realistic'
+      playerAging: 'Normal', // 'Slow', 'Normal', 'Fast'
+      
+      // AI & difficulty
+      aiTradeLogic: 'Normal', // 'Low', 'Normal', 'High'
+      aiContractIntelligence: 'Normal',
+      aiTankingBehavior: 'Realistic', // 'Minimal', 'Realistic', 'Aggressive'
+      fogOfWar: false,
+      
+      // Immersion
+      newsFrequency: 'Normal',
+      moraleSystem: true,
+      rivalries: true
+    },
+    
+    // History & records
+    history: {
+      seasons: {}, // { [year]: seasonData }
+      championsByYear: [],
+      awardsByYear: {},
+      draftsByYear: {},
+      records: {
+        team: [],
+        player: []
+      },
+      transactionLog: [],
+      commissionerLog: [],
+      startYear: new Date().getFullYear()
+    },
+    
+    // Expansion state
+    expansion: {
+      active: false,
+      year: null,
+      teams: [],
+      draftPool: [],
+      protectionRules: {}
+    }
+  };
+}
+
+/**
+ * State mutation functions - ONLY way to modify leagueState
+ */
+
+// Update league phase
+function updateLeaguePhase(newPhase) {
+  if (!leagueState) return;
+  leagueState.meta.phase = newPhase;
+  leagueState.meta.lastSaved = Date.now();
+  persistLeagueState();
+}
+
+// Advance season day
+function advanceDay() {
+  if (!leagueState) return;
+  leagueState.meta.day++;
+  leagueState.meta.lastSaved = Date.now();
+  persistLeagueState();
+  return leagueState.meta.day;
+}
+
+// Update user's selected team
+function setUserTeam(teamId) {
+  if (!leagueState) return;
+  const team = leagueState.teams.find(t => t.id === teamId);
+  if (!team) {
+    console.error('setUserTeam: Invalid team ID', teamId);
+    return;
+  }
+  leagueState.meta.userTeamId = teamId;
+  leagueState.meta.lastSaved = Date.now();
+  persistLeagueState();
+}
+
+// Toggle commissioner mode
+function setCommissionerMode(enabled) {
+  if (!leagueState) return;
+  leagueState.meta.commissionerMode = enabled;
+  leagueState.meta.modified = enabled ? true : leagueState.meta.modified;
+  leagueState.meta.lastSaved = Date.now();
+  persistLeagueState();
+}
+
+// Log commissioner action
+function logCommissionerAction(actionType, details) {
+  if (!leagueState || !leagueState.meta.commissionerMode) return;
+  
+  if (!leagueState.history.commissionerLog) {
+    leagueState.history.commissionerLog = [];
+  }
+  
+  leagueState.history.commissionerLog.push({
+    timestamp: Date.now(),
+    season: leagueState.meta.season,
+    day: leagueState.meta.day,
+    phase: leagueState.meta.phase,
+    actionType,
+    details
+  });
+  
+  persistLeagueState();
+}
+
+// Persist leagueState to storage
+function persistLeagueState() {
+  if (!leagueState) return;
+  
+  // Update legacy 'league' variable for backwards compatibility
+  league = convertLeagueStateToLegacy(leagueState);
+  
+  // Save to storage
+  save();
+}
+
+// Convert leagueState to legacy league format
+function convertLeagueStateToLegacy(state) {
+  if (!state) return null;
+  
+  return {
+    id: state.meta.leagueId,
+    name: state.meta.name,
+    season: state.meta.season,
+    phase: state.meta.phase,
+    teams: state.teams,
+    freeAgents: state.freeAgents,
+    history: state.history,
+    draftClass: state.draft.prospects,
+    draftPicks: state.draft.picks,
+    draftProspects: state.draft.prospects,
+    expansion: state.expansion,
+    schedule: state.schedule,
+    schemaVersion: state.meta.schemaVersion,
+    userTid: state.meta.userTeamId,
+    meta: {
+      hasSeenWelcome: state.meta.hasSeenWelcome,
+      settings: state.settings,
+      commissionerEnabled: state.meta.commissionerMode,
+      modified: state.meta.modified
+    }
+  };
+}
+
+// Convert legacy league to leagueState
+function convertLegacyToLeagueState(legacyLeague) {
+  if (!legacyLeague) return null;
+  
+  const state = createEmptyLeagueState();
+  
+  // Migrate meta
+  state.meta.leagueId = legacyLeague.id || state.meta.leagueId;
+  state.meta.name = legacyLeague.name || state.meta.name;
+  state.meta.season = legacyLeague.season || state.meta.season;
+  state.meta.phase = legacyLeague.phase || state.meta.phase;
+  state.meta.userTeamId = legacyLeague.userTid || null;
+  state.meta.schemaVersion = legacyLeague.schemaVersion || CURRENT_SCHEMA_VERSION;
+  state.meta.hasSeenWelcome = legacyLeague.meta?.hasSeenWelcome || false;
+  state.meta.commissionerMode = legacyLeague.meta?.commissionerEnabled || false;
+  state.meta.modified = legacyLeague.meta?.modified || false;
+  
+  // Migrate settings
+  if (legacyLeague.meta?.settings) {
+    state.settings = { ...state.settings, ...legacyLeague.meta.settings };
+  }
+  
+  // Migrate teams
+  state.teams = legacyLeague.teams || [];
+  
+  // Migrate players (all players from teams + free agents)
+  state.players = [];
+  if (legacyLeague.teams) {
+    legacyLeague.teams.forEach(team => {
+      if (team.players) {
+        team.players.forEach(player => {
+          player.teamId = team.id; // Ensure stable team reference
+          state.players.push(player);
+        });
+      }
+    });
+  }
+  
+  // Migrate free agents
+  state.freeAgents = legacyLeague.freeAgents || [];
+  state.freeAgents.forEach(player => {
+    player.teamId = null; // Free agents have null teamId
+    state.players.push(player);
+  });
+  
+  // Migrate schedule
+  state.schedule = legacyLeague.schedule || state.schedule;
+  
+  // Migrate draft
+  state.draft.prospects = legacyLeague.draftProspects || legacyLeague.draftClass || [];
+  state.draft.picks = legacyLeague.draftPicks || [];
+  state.draft.year = legacyLeague.season || state.draft.year;
+  
+  // Migrate history
+  state.history = legacyLeague.history || state.history;
+  
+  // Migrate expansion
+  state.expansion = legacyLeague.expansion || state.expansion;
+  
+  return state;
+}
 
 // Draft Configuration
 const DRAFT_PROSPECT_POOL_SIZE = 120;
@@ -3282,13 +3594,30 @@ function migrateLeague(league) {
    LEAGUE CREATION
 ============================ */
 
-function createLeague(leagueName, seasonYear, teamCount, newLeagueState, userTeamId) {
+function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTeamId) {
   nextPlayerId = 1;
-  const teams = [];
   
+  // Create new leagueState
+  leagueState = createEmptyLeagueState();
+  
+  // Set meta information
+  leagueState.meta.name = leagueName;
+  leagueState.meta.season = seasonYear;
+  leagueState.meta.phase = 'preseason';
+  leagueState.meta.userTeamId = userTeamId;
+  leagueState.meta.day = 0;
+  leagueState.draft.year = seasonYear;
+  
+  // Apply settings from new league setup
+  if (newLeagueSetup && newLeagueSetup.settings) {
+    leagueState.settings = { ...leagueState.settings, ...newLeagueSetup.settings };
+  }
+  
+  // Create teams
+  const teams = [];
   for (let i = 0; i < Math.min(teamCount, 30); i++) {
-    // Use customized team from newLeagueState if available, otherwise use TEAM_META
-    const teamMeta = (newLeagueState && newLeagueState.teams && newLeagueState.teams.length > i) ? newLeagueState.teams[i] : TEAM_META[i];
+    // Use customized team from newLeagueSetup if available, otherwise use TEAM_META
+    const teamMeta = (newLeagueSetup && newLeagueSetup.teams && newLeagueSetup.teams.length > i) ? newLeagueSetup.teams[i] : TEAM_META[i];
     if (teamMeta) {
       const fullName = `${teamMeta.city} ${teamMeta.name}`;
       teams.push(makeTeam(i + 1, fullName, {
@@ -3306,35 +3635,49 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueState, userTea
     }
   }
   
-  league = {
-    id: 'league_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-    name: leagueName,
-    season: seasonYear,
-    phase: 'preseason', // preseason, season, offseason, draft
-    teams,
-    freeAgents: generateFreeAgents(30),
-    history: [],
-    draftClass: [],
-    draftPicks: initializeDraftPicks(teams, seasonYear),
-    draftProspects: generateDraftClass(seasonYear), // Always generate prospects
-    expansion: initExpansionState(),
-    schedule: initScheduleState(),
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-    userTid: userTeamId || teams[0].id,
-    meta: {
-      hasSeenWelcome: false,
-      settings: newLeagueState && newLeagueState.settings ? { ...newLeagueState.settings } : {}
-    }
-  };
+  // Assign teams to leagueState
+  leagueState.teams = teams;
   
+  // Generate free agents
+  leagueState.freeAgents = generateFreeAgents(30);
+  
+  // Collect all players (from teams + free agents)
+  leagueState.players = [];
+  teams.forEach(team => {
+    if (team.players) {
+      team.players.forEach(player => {
+        player.teamId = team.id; // Stable team reference
+        leagueState.players.push(player);
+      });
+    }
+  });
+  leagueState.freeAgents.forEach(player => {
+    player.teamId = null; // Free agents have null teamId
+    leagueState.players.push(player);
+  });
+  
+  // Initialize draft
+  leagueState.draft.picks = initializeDraftPicks(teams, seasonYear);
+  leagueState.draft.prospects = generateDraftClass(seasonYear);
+  
+  // Initialize expansion
+  leagueState.expansion = initExpansionState();
+  
+  // Initialize schedule
+  leagueState.schedule = initScheduleState();
+  
+  // Update payrolls
   updateTeamPayrolls();
   
-  // Set selected team to user's choice, NOT the first team
+  // Set selected team to user's choice
   selectedTeamId = userTeamId || teams[0].id;
-  console.log('League created with userTeamId:', userTeamId, 'selectedTeamId:', selectedTeamId);
+  console.log('[LEAGUE STATE] League created with userTeamId:', userTeamId, 'selectedTeamId:', selectedTeamId);
   
-  // Generate schedule for the season (AFTER league is assigned)
+  // Generate schedule for the season (AFTER leagueState is set up)
   generateSeasonSchedule(seasonYear);
+  
+  // Convert to legacy format and save
+  league = convertLeagueStateToLegacy(leagueState);
   
   appView = 'league';
   save();
@@ -3342,3 +3685,4 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueState, userTea
   // Show welcome overlay for new leagues
   openWelcomeOverlay();
 }
+
