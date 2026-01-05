@@ -307,6 +307,29 @@ function convertLegacyToLeagueState(legacyLeague) {
             }
           }
           
+          // Migrate body measurements: generate if missing
+          if (!player.bio || !player.bio.heightInches || !player.bio.wingspanInches || !player.bio.weightLbs) {
+            const body = generatePlayerBody(player.pos, player.gender);
+            
+            if (!player.bio) {
+              player.bio = {};
+            }
+            
+            // Only replace missing measurements
+            if (!player.bio.heightInches) {
+              player.bio.height = body.height;
+              player.bio.heightInches = body.heightInches;
+            }
+            if (!player.bio.wingspanInches) {
+              player.bio.wingspan = body.wingspan;
+              player.bio.wingspanInches = body.wingspanInches;
+            }
+            if (!player.bio.weightLbs) {
+              player.bio.weight = body.weight;
+              player.bio.weightLbs = body.weightLbs;
+            }
+          }
+          
           state.players.push(player);
         });
       }
@@ -329,6 +352,29 @@ function convertLegacyToLeagueState(legacyLeague) {
         // Mixed - random based on ratio
         const ratio = state.settings.mixedGenderRatio || 0.5;
         player.gender = Math.random() < ratio ? 'F' : 'M';
+      }
+    }
+    
+    // Migrate body measurements: generate if missing
+    if (!player.bio || !player.bio.heightInches || !player.bio.wingspanInches || !player.bio.weightLbs) {
+      const body = generatePlayerBody(player.pos, player.gender);
+      
+      if (!player.bio) {
+        player.bio = {};
+      }
+      
+      // Only replace missing measurements
+      if (!player.bio.heightInches) {
+        player.bio.height = body.height;
+        player.bio.heightInches = body.heightInches;
+      }
+      if (!player.bio.wingspanInches) {
+        player.bio.wingspan = body.wingspan;
+        player.bio.wingspanInches = body.wingspanInches;
+      }
+      if (!player.bio.weightLbs) {
+        player.bio.weight = body.weight;
+        player.bio.weightLbs = body.weightLbs;
       }
     }
     
@@ -362,6 +408,134 @@ function calculateSeasonDays(gamesPerTeam) {
   // Formula: seasonDays = round(gamesPerTeam × 2.12)
   // Accounts for rest days, back-to-backs, and realistic scheduling
   return Math.round(gamesPerTeam * 2.12);
+}
+
+/* ============================
+   REALISTIC BODY GENERATION
+============================ */
+
+// Box-Muller transform for generating normally distributed random numbers
+function normalRandom(mean, stdDev) {
+  let u1 = 0, u2 = 0;
+  while (u1 === 0) u1 = Math.random(); // Converting [0,1) to (0,1)
+  while (u2 === 0) u2 = Math.random();
+  const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  return z0 * stdDev + mean;
+}
+
+// Body generation profiles by position and gender
+const BODY_PROFILES = {
+  M: {
+    PG: {
+      height: { mean: 74.5, sd: 2, min: 70, max: 79 },
+      ape: { mean: 2.0, sd: 1.5, min: -1, max: 6 },
+      weight: { base: 185, heightMean: 74.5, slope: 6, sd: 10, min: 160, max: 215 }
+    },
+    SG: {
+      height: { mean: 76.5, sd: 2, min: 72, max: 81 },
+      ape: { mean: 2.5, sd: 1.7, min: 0, max: 7 },
+      weight: { base: 200, heightMean: 76.5, slope: 6, sd: 12, min: 170, max: 235 }
+    },
+    SF: {
+      height: { mean: 79, sd: 2.2, min: 75, max: 84 },
+      ape: { mean: 3.0, sd: 2, min: 0, max: 8 },
+      weight: { base: 220, heightMean: 79, slope: 7, sd: 14, min: 190, max: 260 }
+    },
+    PF: {
+      height: { mean: 81.5, sd: 2.2, min: 78, max: 86 },
+      ape: { mean: 3.5, sd: 2, min: 1, max: 9 },
+      weight: { base: 240, heightMean: 81.5, slope: 7.5, sd: 15, min: 210, max: 280 }
+    },
+    C: {
+      height: { mean: 83.5, sd: 2.3, min: 80, max: 89 },
+      ape: { mean: 4.0, sd: 2.2, min: 1, max: 10 },
+      weight: { base: 255, heightMean: 83.5, slope: 8, sd: 18, min: 225, max: 305 }
+    }
+  },
+  F: {
+    PG: {
+      height: { mean: 69.5, sd: 1.8, min: 65, max: 74 },
+      ape: { mean: 1.5, sd: 1.3, min: -1, max: 5 },
+      weight: { base: 145, heightMean: 69.5, slope: 5, sd: 9, min: 120, max: 175 }
+    },
+    SG: {
+      height: { mean: 71, sd: 1.8, min: 67, max: 76 },
+      ape: { mean: 2.0, sd: 1.4, min: 0, max: 6 },
+      weight: { base: 155, heightMean: 71, slope: 5.5, sd: 10, min: 130, max: 190 }
+    },
+    SF: {
+      height: { mean: 72.5, sd: 2, min: 68, max: 78 },
+      ape: { mean: 2.5, sd: 1.6, min: 0, max: 7 },
+      weight: { base: 170, heightMean: 72.5, slope: 6, sd: 12, min: 145, max: 215 }
+    },
+    PF: {
+      height: { mean: 74.5, sd: 2, min: 70, max: 80 },
+      ape: { mean: 3.0, sd: 1.8, min: 1, max: 8 },
+      weight: { base: 185, heightMean: 74.5, slope: 6.5, sd: 13, min: 160, max: 235 }
+    },
+    C: {
+      height: { mean: 76.5, sd: 2.1, min: 72, max: 82 },
+      ape: { mean: 3.5, sd: 2.0, min: 1, max: 9 },
+      weight: { base: 200, heightMean: 76.5, slope: 7, sd: 14, min: 175, max: 255 }
+    }
+  }
+};
+
+// Convert inches to feet-inches string
+function inchesToFeetInches(inches) {
+  const feet = Math.floor(inches / 12);
+  const remainingInches = Math.round(inches % 12);
+  return `${feet}'${remainingInches}"`;
+}
+
+// Generate realistic body measurements for a player
+function generatePlayerBody(position, gender) {
+  // Default to male PG if invalid inputs
+  const g = (gender === 'F') ? 'F' : 'M';
+  const pos = ['PG', 'SG', 'SF', 'PF', 'C'].includes(position) ? position : 'PG';
+  
+  const profile = BODY_PROFILES[g][pos];
+  
+  // Generate height using normal distribution, then clamp
+  const heightInches = Math.round(
+    clamp(
+      normalRandom(profile.height.mean, profile.height.sd),
+      profile.height.min,
+      profile.height.max
+    )
+  );
+  
+  // Generate ape index (wingspan - height), then clamp
+  const apeIndex = Math.round(
+    clamp(
+      normalRandom(profile.ape.mean, profile.ape.sd),
+      profile.ape.min,
+      profile.ape.max
+    )
+  );
+  
+  // Calculate wingspan
+  const wingspanInches = heightInches + apeIndex;
+  
+  // Generate weight based on height deviation from mean, then clamp
+  const heightDiff = heightInches - profile.weight.heightMean;
+  const baseWeight = profile.weight.base + (heightDiff * profile.weight.slope);
+  const weightLbs = Math.round(
+    clamp(
+      normalRandom(baseWeight, profile.weight.sd),
+      profile.weight.min,
+      profile.weight.max
+    )
+  );
+  
+  return {
+    heightInches,
+    height: inchesToFeetInches(heightInches),
+    wingspanInches,
+    wingspan: inchesToFeetInches(wingspanInches),
+    weightLbs,
+    weight: `${weightLbs} lbs`
+  };
 }
 
 // Coach Generation
@@ -522,12 +696,12 @@ function makePlayer(age, isRookie = false) {
     }
   };
   
+  // Generate realistic body measurements based on position and gender
+  const body = generatePlayerBody(pos, gender);
+  
   // Generate bio data
-  const heights = ['5\'10"', '5\'11"', '6\'0"', '6\'1"', '6\'2"', '6\'3"', '6\'4"', '6\'5"', '6\'6"', '6\'7"', '6\'8"', '6\'9"', '6\'10"', '6\'11"', '7\'0"'];
   const cities = ['Los Angeles, CA', 'New York, NY', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ', 'Philadelphia, PA', 'San Antonio, TX', 'Dallas, TX', 'Atlanta, GA', 'Miami, FL'];
   const colleges = ['Duke', 'Kentucky', 'North Carolina', 'UCLA', 'Kansas', 'Michigan', 'Villanova', 'Gonzaga', 'Syracuse', 'Louisville', 'None'];
-  
-  const heightIdx = clamp(rand(0, heights.length - 1), 0, heights.length - 1);
   
   // 80% chance drafted, 20% undrafted
   const isDrafted = Math.random() > 0.2;
@@ -539,9 +713,12 @@ function makePlayer(age, isRookie = false) {
   }
   
   const bio = {
-    height: heights[heightIdx],
-    weight: `${rand(175, 250)} lbs`,
-    wingspan: heights[Math.min(heightIdx + rand(0, 2), heights.length - 1)],
+    height: body.height,
+    heightInches: body.heightInches,
+    weight: body.weight,
+    weightLbs: body.weightLbs,
+    wingspan: body.wingspan,
+    wingspanInches: body.wingspanInches,
     hometown: cities[rand(0, cities.length - 1)],
     country: 'USA',
     college: colleges[rand(0, colleges.length - 1)]
