@@ -208,9 +208,148 @@ function generateTeamLogo(teamName, colors) {
 }
 
 let league = null;
+let DEBUG_PLAYS = false; // Set to true to see play-by-play debug logs
+
+// Console command to enable/disable play debug logging
+window.togglePlayDebug = function() {
+  DEBUG_PLAYS = !DEBUG_PLAYS;
+  console.log(`[PLAYS] Debug logging ${DEBUG_PLAYS ? 'ENABLED' : 'DISABLED'}`);
+  if (DEBUG_PLAYS) {
+    console.log('[PLAYS] Type "togglePlayDebug()" in console to disable');
+  }
+  return DEBUG_PLAYS;
+};
+
+// Utility: Ensure game.log exists and is an array
+// Initialize league history if missing
+function initHistoryIfMissing(league) {
+  if (!league.history) {
+    league.history = {
+      seasons: {}, // { [year]: seasonData }
+      championsByYear: [],
+      awardsByYear: {},
+      draftsByYear: {},
+      records: {
+        team: [],
+        player: []
+      },
+      transactionLog: [],
+      startYear: league.season // Track when history recording began
+    };
+  }
+  return league.history;
+}
+
+// Archive season at end of playoffs
+function archiveSeasonIfNeeded(league, year) {
+  const history = initHistoryIfMissing(league);
+  
+  // Don't overwrite existing archives
+  if (history.seasons[year]) return;
+  
+  // Create season archive
+  history.seasons[year] = {
+    year: year,
+    champion: null, // Set after finals
+    finalist: null,
+    finalsResult: null, // e.g., "4-2"
+    mvp: null,
+    awards: {
+      mvp: null,
+      dpoy: null,
+      roy: null,
+      sixmoy: null,
+      mip: null,
+      coty: null,
+      allLeague: { first: [], second: [], third: [] }
+    },
+    standings: league.teams.map(t => ({
+      teamId: t.id,
+      name: t.name,
+      wins: t.wins,
+      losses: t.losses,
+      conference: t.conference,
+      playoffSeed: t.playoffSeed || null
+    })),
+    playoffBracket: null, // Store playoff matchups if implemented
+    draftResults: league.draft?.results || [],
+    teamStatsLeaders: {},
+    playerStatsLeaders: {},
+    notableEvents: []
+  };
+  
+  save();
+}
+
+// Log transaction
+function logTransaction(league, entry) {
+  const history = initHistoryIfMissing(league);
+  
+  history.transactionLog.unshift({
+    id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    season: league.season,
+    day: getCurrentDay(),
+    timestamp: Date.now(),
+    type: entry.type, // 'trade', 'signing', 'release', 'extension', 'draft'
+    summary: entry.summary,
+    details: entry.details || {},
+    teams: entry.teams || []
+  });
+  
+  // Keep last 500 transactions
+  if (history.transactionLog.length > 500) {
+    history.transactionLog = history.transactionLog.slice(0, 500);
+  }
+  
+  save();
+}
+
+function ensureGameLog(game) {
+  if (!game) return;
+  if (!game.log || !Array.isArray(game.log)) {
+    game.log = [];
+    if (DEBUG_PLAYS) {
+      console.log(`[PLAYS] ensureGameLog: Initialized log for game ${game.id}`);
+    }
+  }
+}
+
 let appView = 'home'; // 'home', 'myLeagues', 'newLeague', 'editTeam', or 'league'
 let standingsView = 'record'; // 'record' or 'power'
 let currentTab = 'dashboard';
+let historyTab = 'seasons'; // 'seasons', 'champions', 'awards', 'drafts', 'records', 'transactions'
+let historyFilters = {
+  season: null, // null = current season
+  team: null, // null = all teams
+  awardType: 'mvp', // for awards tab
+  recordType: 'team', // 'team' or 'player'
+  transactionType: 'all' // 'all', 'trade', 'signing', 'release', etc.
+};
+
+// Stats tab state
+let statsSubTab = 'playerLeaders'; // playerLeaders | playerTable | teamLeaders | teamTable | advanced | gameLogs
+let statsFilters = {
+  season: null, // null = current season
+  phase: 'regular', // regular | playoffs | preseason
+  perGame: true, // true = per game, false = totals
+  search: '',
+  conference: 'all', // all | East | West
+  team: 'all', // all | team ID
+  position: 'all', // all | PG | SG | SF | PF | C
+  minGP: 1,
+  sortBy: 'pts',
+  sortDir: 'desc'
+};
+
+// News tab state
+let newsSubTab = 'feed'; // feed | inbox | breaking
+let newsFilters = {
+  category: 'all', // all | league | myteam | transactions | injuries | rumors | games | awards | draft | finance | chemistry
+  search: '',
+  showRead: true
+};
+let expandedNewsItems = new Set(); // Track which news items are expanded
+
 let selectedTeamId = null;
 let selectedPlayerId = null;
 let nextPlayerId = 1;
@@ -933,7 +1072,9 @@ function render() {
   if (currentTab === 'draft') renderDraft();
   if (currentTab === 'expansion') renderExpansion();
   if (currentTab === 'schedule') renderSchedule();
-  if (currentTab === 'history') renderHistory();
+  if (currentTab === 'stats') renderStatsTab();
+  if (currentTab === 'news') renderNewsTab();
+  if (currentTab === 'history') renderHistoryView();
   if (currentTab === 'rotations') renderRotations();
   if (currentTab === 'finances') renderFinances();
   if (currentTab === 'trades') renderTrades();
@@ -2483,12 +2624,1854 @@ function finalizeExpansionDraft() {
 }
 
 /* ============================
+   NEWS TAB (News Feed)
+============================ */
+
+// Initialize news feed if missing
+function initNewsFeed(league) {
+  if (!league.news) {
+    league.news = {
+      items: [],
+      nextId: 1,
+      readItems: new Set()
+    };
+    
+    // Add welcome news for existing leagues
+    addNewsItem(league, 'welcome', {
+      leagueName: league.name,
+      season: league.season
+    });
+  }
+  return league.news;
+}
+
+// News item templates
+const NEWS_TEMPLATES = {
+  welcome: (data) => ({
+    category: 'league',
+    importance: 3,
+    headline: `Welcome to ${data.leagueName}`,
+    summary: `Your basketball management journey begins in Season ${data.season}. Build your dynasty, make smart moves, and lead your team to glory.`,
+    body: `The ${data.leagueName} season is underway! Navigate through the tabs to manage your roster, scout free agents, make trades, and guide your team through the season. Check back here for all league updates, transactions, and breaking news.`,
+    entities: {}
+  }),
+  
+  gameSummary: (data) => ({
+    category: 'games',
+    importance: data.upset ? 4 : 2,
+    headline: `${data.winner} ${data.upset ? 'upset' : 'defeat'} ${data.loser}, ${data.winnerScore}–${data.loserScore}`,
+    summary: `${data.leadScorer} led all scorers with ${data.leadPoints} points. ${data.winner} ${data.winStreak > 2 ? `extend win streak to ${data.winStreak}` : `improve to ${data.winnerRecord}`}.`,
+    body: `In a ${data.upset ? 'stunning upset' : 'hard-fought battle'}, the ${data.winner} came away with a ${data.winnerScore}-${data.loserScore} victory over the ${data.loser}. ${data.leadScorer} was the star of the show with ${data.leadPoints} points, ${data.leadRebs} rebounds, and ${data.leadAsts} assists. The ${data.winner} now sit at ${data.winnerRecord} while the ${data.loser} fall to ${data.loserRecord}.`,
+    entities: { gameId: data.gameId, teams: [data.winnerTeamId, data.loserTeamId], players: [data.leadPlayerId] }
+  }),
+  
+  injury: (data) => ({
+    category: 'injuries',
+    importance: data.severity === 'major' ? 5 : 3,
+    headline: `${data.playerName} ${data.severity === 'major' ? 'sidelined' : 'exits'} with ${data.injury}`,
+    summary: `The ${data.teamName} ${data.position} is expected to miss ${data.games} games. ${data.replacement} likely to see increased minutes.`,
+    body: `${data.playerName} suffered a ${data.injury} during ${data.context || 'today\'s game'} and will be out for approximately ${data.games} games. This is a significant blow to the ${data.teamName}, who have relied heavily on ${data.playerName}'s ${data.stat} per game this season. Look for ${data.replacement} to step into an expanded role during the absence.`,
+    entities: { players: [data.playerId], teams: [data.teamId] }
+  }),
+  
+  signing: (data) => ({
+    category: 'transactions',
+    importance: data.major ? 4 : 2,
+    headline: `${data.teamName} sign ${data.playerName} to ${data.years}-year deal`,
+    summary: `${data.playerName} joins the ${data.teamName} on a ${data.years}yr/${data.totalValue}M contract. Expected to ${data.role}.`,
+    body: `The ${data.teamName} have officially signed ${data.position} ${data.playerName} to a ${data.years}-year, $${data.totalValue}M contract (${data.annualValue}M/yr). ${data.playerName} is expected to ${data.role} and should provide ${data.strengths}. This signing ${data.capImpact}.`,
+    entities: { players: [data.playerId], teams: [data.teamId] }
+  }),
+  
+  trade: (data) => ({
+    category: 'transactions',
+    importance: data.blockbuster ? 5 : 3,
+    headline: `${data.blockbuster ? 'BLOCKBUSTER: ' : ''}${data.team1Name} acquire ${data.headliner}`,
+    summary: `${data.team1Name} get ${data.team1Gets}. ${data.team2Name} receive ${data.team2Gets}.`,
+    body: `In a ${data.blockbuster ? 'massive' : 'significant'} trade, the ${data.team1Name} have acquired ${data.team1Gets} from the ${data.team2Name} in exchange for ${data.team2Gets}. ${data.analysis}`,
+    entities: { teams: [data.team1Id, data.team2Id], players: data.playerIds || [] }
+  }),
+  
+  rumor: (data) => ({
+    category: 'rumors',
+    importance: 2,
+    headline: `${data.likelihood === 'high' ? 'RUMOR: ' : 'Whispers: '}${data.headline}`,
+    summary: `${data.summary} (Likelihood: ${data.likelihood.toUpperCase()})`,
+    body: `${data.body} League sources caution that this is unconfirmed and subject to change.`,
+    entities: { teams: data.teamIds || [], players: data.playerIds || [] }
+  }),
+  
+  milestone: (data) => ({
+    category: 'awards',
+    importance: 4,
+    headline: `${data.playerName} ${data.achievement}`,
+    summary: `The ${data.teamName} ${data.position} becomes ${data.context}.`,
+    body: `${data.playerName} has reached a major career milestone, ${data.achievement}. ${data.details} "${data.quote || 'I\'m honored and grateful for this moment'}," ${data.playerName} said after the game.`,
+    entities: { players: [data.playerId], teams: [data.teamId] }
+  }),
+  
+  mvpRace: (data) => ({
+    category: 'awards',
+    importance: 3,
+    headline: `MVP Ladder: ${data.week}`,
+    summary: `${data.leader} leads the pack with ${data.leaderStats}. ${data.challenger} close behind.`,
+    body: `As we reach ${data.week} of the season, here are the top MVP candidates:\n\n1. ${data.top5[0]}\n2. ${data.top5[1]}\n3. ${data.top5[2]}\n4. ${data.top5[3]}\n5. ${data.top5[4]}\n\n${data.analysis}`,
+    entities: { players: data.playerIds || [] }
+  }),
+  
+  chemistry: (data) => ({
+    category: 'chemistry',
+    importance: 3,
+    headline: `${data.headline}`,
+    summary: `${data.summary}`,
+    body: `${data.body} This could impact team performance and chemistry going forward.`,
+    entities: { teams: [data.teamId], players: data.playerIds || [] }
+  }),
+  
+  capAlert: (data) => ({
+    category: 'finance',
+    importance: 3,
+    headline: `${data.teamName} ${data.status} salary cap`,
+    summary: `Currently ${data.overUnder} by $${data.amount}M. ${data.consequence}`,
+    body: `The ${data.teamName} are projected to ${data.status} the salary cap threshold, sitting ${data.overUnder} by approximately $${data.amount}M. ${data.details}`,
+    entities: { teams: [data.teamId] }
+  })
+};
+
+// Create news item
+function createNewsItem(template, data) {
+  const templateFn = NEWS_TEMPLATES[template];
+  if (!templateFn) {
+    console.error(`Unknown news template: ${template}`);
+    return null;
+  }
+  
+  const newsData = templateFn(data);
+  return {
+    ...newsData,
+    day: league.currentDay || 0,
+    phase: league.phase || 'preseason',
+    readByUser: false,
+    timestamp: Date.now()
+  };
+}
+
+// Add news to league
+function addNewsItem(league, template, data = {}) {
+  const news = initNewsFeed(league);
+  const item = createNewsItem(template, data);
+  
+  if (!item) return;
+  
+  item.id = news.nextId++;
+  news.items.unshift(item); // Add to front (newest first)
+  
+  // Keep last 500 items
+  if (news.items.length > 500) {
+    news.items = news.items.slice(0, 500);
+  }
+  
+  save();
+  return item;
+}
+
+// Get filtered news
+function getFilteredNews(league, filters) {
+  const news = initNewsFeed(league);
+  let items = [...news.items];
+  
+  // Category filter
+  if (filters.category !== 'all') {
+    if (filters.category === 'myteam') {
+      const userTeamId = league.userTeamId;
+      items = items.filter(item => 
+        item.entities?.teams?.includes(userTeamId) ||
+        item.entities?.players?.some(pid => {
+          const player = findPlayerById(pid);
+          return player && player.teamId === userTeamId;
+        })
+      );
+    } else {
+      items = items.filter(item => item.category === filters.category);
+    }
+  }
+  
+  // Search filter
+  if (filters.search) {
+    const search = filters.search.toLowerCase();
+    items = items.filter(item =>
+      item.headline.toLowerCase().includes(search) ||
+      item.summary.toLowerCase().includes(search)
+    );
+  }
+  
+  // Read/unread filter
+  if (!filters.showRead) {
+    items = items.filter(item => !news.readItems.has(item.id));
+  }
+  
+  return items;
+}
+
+// Mark news as read
+function markNewsAsRead(newsId) {
+  const news = initNewsFeed(league);
+  news.readItems.add(newsId);
+  save();
+}
+
+// Mark all as read
+function markAllNewsAsRead() {
+  const news = initNewsFeed(league);
+  news.items.forEach(item => news.readItems.add(item.id));
+  save();
+  render();
+}
+
+// Toggle news item expansion
+function toggleNewsExpanded(newsId) {
+  if (expandedNewsItems.has(newsId)) {
+    expandedNewsItems.delete(newsId);
+  } else {
+    expandedNewsItems.add(newsId);
+    markNewsAsRead(newsId);
+  }
+  render();
+}
+
+// Main News Tab Renderer
+function renderNewsTab() {
+  const el = document.getElementById('news-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+  
+  const news = initNewsFeed(league);
+  const currentDay = getCurrentDay();
+  const phaseLabel = league.phase === 'preseason' ? 'Preseason' :
+                     league.phase === 'regular' ? 'Regular Season' :
+                     league.phase === 'playoffs' ? 'Playoffs' : 'Offseason';
+  
+  const unreadCount = news.items.filter(item => !news.readItems.has(item.id)).length;
+  
+  el.innerHTML = `
+    <div style="min-height: 100vh; background: #0f1624; padding-bottom: 40px;">
+      <!-- Header -->
+      <div style="
+        background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);
+        padding: 30px 20px 20px 20px;
+        border-bottom: 2px solid #2a2a40;
+      ">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h1 style="margin: 0 0 8px 0; color: #fff; font-size: 2em;">📰 News</h1>
+            <div style="color: #888; font-size: 0.95em;">
+              Season ${league.season} • Day ${currentDay} • ${phaseLabel}
+            </div>
+          </div>
+          ${unreadCount > 0 ? `
+            <div style="
+              background: #2196F3;
+              color: #fff;
+              padding: 6px 12px;
+              border-radius: 20px;
+              font-size: 0.85em;
+              font-weight: bold;
+            ">${unreadCount} unread</div>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Controls -->
+      ${renderNewsControls()}
+
+      <!-- Sub-tabs -->
+      <div style="
+        background: #0f1624;
+        padding: 0 10px;
+        border-bottom: 2px solid #2a2a40;
+        display: flex;
+        overflow-x: auto;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      ">
+        ${['feed', 'inbox', 'breaking'].map(tab => {
+          const labels = { feed: 'Feed', inbox: 'My Team', breaking: 'Breaking' };
+          return `
+            <button onclick="switchNewsSubTab('${tab}')" style="
+              padding: 14px 20px;
+              background: ${newsSubTab === tab ? '#2196F3' : 'transparent'};
+              color: ${newsSubTab === tab ? '#fff' : '#888'};
+              border: none;
+              border-bottom: 3px solid ${newsSubTab === tab ? '#2196F3' : 'transparent'};
+              cursor: pointer;
+              font-weight: ${newsSubTab === tab ? 'bold' : 'normal'};
+              white-space: nowrap;
+              transition: all 0.2s;
+            ">${labels[tab]}</button>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Content -->
+      <div style="max-width: 900px; margin: 0 auto; padding: 20px;">
+        ${renderNewsFeed()}
+      </div>
+    </div>
+  `;
+}
+
+function renderNewsControls() {
+  return `
+    <div style="
+      background: #1a2332;
+      padding: 15px 20px;
+      border-bottom: 1px solid #2a2a40;
+      display: grid;
+      grid-template-columns: 1fr 2fr auto;
+      gap: 12px;
+      align-items: center;
+    ">
+      <select onchange="setNewsCategory(this.value)" style="
+        padding: 10px 12px;
+        background: #0f1624;
+        color: #fff;
+        border: 1px solid #2a2a40;
+        border-radius: 6px;
+        cursor: pointer;
+      ">
+        <option value="all" ${newsFilters.category === 'all' ? 'selected' : ''}>All News</option>
+        <option value="myteam" ${newsFilters.category === 'myteam' ? 'selected' : ''}>My Team</option>
+        <option value="transactions" ${newsFilters.category === 'transactions' ? 'selected' : ''}>Transactions</option>
+        <option value="games" ${newsFilters.category === 'games' ? 'selected' : ''}>Games</option>
+        <option value="injuries" ${newsFilters.category === 'injuries' ? 'selected' : ''}>Injuries</option>
+        <option value="rumors" ${newsFilters.category === 'rumors' ? 'selected' : ''}>Rumors</option>
+        <option value="awards" ${newsFilters.category === 'awards' ? 'selected' : ''}>Awards</option>
+        <option value="chemistry" ${newsFilters.category === 'chemistry' ? 'selected' : ''}>Chemistry</option>
+        <option value="finance" ${newsFilters.category === 'finance' ? 'selected' : ''}>Finance</option>
+      </select>
+
+      <input 
+        type="text" 
+        placeholder="Search news..."
+        value="${newsFilters.search}"
+        oninput="setNewsSearch(this.value)"
+        style="
+          padding: 10px 12px;
+          background: #0f1624;
+          color: #fff;
+          border: 1px solid #2a2a40;
+          border-radius: 6px;
+        "
+      />
+
+      <button onclick="markAllNewsAsRead()" style="
+        padding: 10px 20px;
+        background: #2a2a40;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        white-space: nowrap;
+      ">Mark All Read</button>
+    </div>
+  `;
+}
+
+function switchNewsSubTab(tab) {
+  newsSubTab = tab;
+  render();
+}
+
+function setNewsCategory(category) {
+  newsFilters.category = category;
+  render();
+}
+
+function setNewsSearch(value) {
+  newsFilters.search = value;
+  render();
+}
+
+function renderNewsFeed() {
+  let items = getFilteredNews(league, newsFilters);
+  
+  // Filter by sub-tab
+  if (newsSubTab === 'inbox') {
+    const userTeamId = league.userTeamId;
+    items = items.filter(item =>
+      item.entities?.teams?.includes(userTeamId) ||
+      item.entities?.players?.some(pid => {
+        const player = findPlayerById(pid);
+        return player && player.teamId === userTeamId;
+      })
+    );
+  } else if (newsSubTab === 'breaking') {
+    items = items.filter(item => item.importance >= 4);
+  }
+  
+  if (items.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">📰</div>
+        <div style="font-size: 1.2em; margin-bottom: 10px;">No news yet</div>
+        <div style="font-size: 0.9em;">Check back after simulating days or making transactions</div>
+      </div>
+    `;
+  }
+  
+  // Show first 50 items (pagination can be added later)
+  return `
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+      ${items.slice(0, 50).map(item => renderNewsCard(item)).join('')}
+    </div>
+  `;
+}
+
+function renderNewsCard(item) {
+  const news = initNewsFeed(league);
+  const isRead = news.readItems.has(item.id);
+  const isExpanded = expandedNewsItems.has(item.id);
+  
+  const categoryColors = {
+    games: '#2196F3',
+    injuries: '#f44336',
+    transactions: '#4CAF50',
+    rumors: '#9C27B0',
+    awards: '#FFD700',
+    league: '#2196F3',
+    chemistry: '#FF9800',
+    finance: '#00BCD4',
+    draft: '#E91E63'
+  };
+  
+  const categoryColor = categoryColors[item.category] || '#2196F3';
+  
+  return `
+    <div style="
+      background: ${isRead ? '#141e2e' : 'linear-gradient(135deg, #1a2332 0%, #1a2840 100%)'};
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid ${isRead ? '#2a2a40' : '#2196F3'};
+      ${!isRead ? 'box-shadow: 0 0 20px rgba(33, 150, 243, 0.2);' : ''}
+      position: relative;
+      transition: all 0.3s;
+    ">
+      ${!isRead ? `
+        <div style="
+          position: absolute;
+          top: 15px;
+          right: 15px;
+          width: 10px;
+          height: 10px;
+          background: #2196F3;
+          border-radius: 50%;
+          box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+        "></div>
+      ` : ''}
+      
+      <!-- Category Badge & Timestamp -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span style="
+          background: ${categoryColor};
+          color: #fff;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 0.75em;
+          font-weight: bold;
+          text-transform: uppercase;
+        ">${item.category}</span>
+        <span style="color: #888; font-size: 0.85em;">
+          Day ${item.day} ${item.importance >= 4 ? '• 🔥 BREAKING' : ''}
+        </span>
+      </div>
+      
+      <!-- Headline -->
+      <h3 style="
+        color: #fff;
+        margin: 0 0 10px 0;
+        font-size: 1.3em;
+        line-height: 1.4;
+      ">${item.headline}</h3>
+      
+      <!-- Summary -->
+      <p style="
+        color: ${isRead ? '#888' : '#ccc'};
+        margin: 0 0 15px 0;
+        line-height: 1.6;
+        font-size: 0.95em;
+      ">${item.summary}</p>
+      
+      <!-- Expanded Body -->
+      ${isExpanded ? `
+        <div style="
+          color: #aaa;
+          margin: 15px 0;
+          padding: 15px;
+          background: #0f1624;
+          border-radius: 8px;
+          line-height: 1.7;
+          white-space: pre-wrap;
+        ">${item.body}</div>
+      ` : ''}
+      
+      <!-- Actions -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button onclick="toggleNewsExpanded(${item.id})" style="
+          padding: 8px 16px;
+          background: #2a2a40;
+          color: #2196F3;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 0.85em;
+        ">${isExpanded ? '▲ Show Less' : '▼ Read More'}</button>
+        
+        ${renderNewsActions(item)}
+      </div>
+    </div>
+  `;
+}
+
+function renderNewsActions(item) {
+  const actions = [];
+  
+  if (item.entities?.players && item.entities.players.length > 0) {
+    actions.push(`
+      <button onclick="alert('Player page coming soon!')" style="
+        padding: 8px 16px;
+        background: #2a2a40;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+      ">👤 View Player</button>
+    `);
+  }
+  
+  if (item.entities?.teams && item.entities.teams.length > 0) {
+    actions.push(`
+      <button onclick="alert('Team page coming soon!')" style="
+        padding: 8px 16px;
+        background: #2a2a40;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+      ">🏀 View Team</button>
+    `);
+  }
+  
+  if (item.entities?.gameId) {
+    actions.push(`
+      <button onclick="alert('Box score coming soon!')" style="
+        padding: 8px 16px;
+        background: #2a2a40;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+      ">📊 Box Score</button>
+    `);
+  }
+  
+  return actions.join('');
+}
+
+function findPlayerById(playerId) {
+  if (!league || !league.teams) return null;
+  for (const team of league.teams) {
+    const player = team.players?.find(p => p.id === playerId);
+    if (player) return player;
+  }
+  return null;
+}
+
+/* ============================
+   STATS TAB
+============================ */
+
+function renderStatsTab() {
+  const el = document.getElementById('stats-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+
+  const selectedSeason = statsFilters.season || league.season;
+  const phaseLabel = statsFilters.phase === 'regular' ? 'Regular Season' : 
+                     statsFilters.phase === 'playoffs' ? 'Playoffs' : 'Preseason';
+
+  el.innerHTML = `
+    <div style="min-height: 100vh; background: #0f1624; padding-bottom: 40px;">
+      <!-- Header -->
+      <div style="
+        background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);
+        padding: 30px 20px 20px 20px;
+        border-bottom: 2px solid #2a2a40;
+      ">
+        <h1 style="margin: 0 0 8px 0; color: #fff; font-size: 2em;">📊 Stats</h1>
+        <div style="color: #888; font-size: 0.95em;">
+          Season ${selectedSeason} • ${phaseLabel}
+        </div>
+      </div>
+
+      <!-- Controls -->
+      ${renderStatsControls(selectedSeason)}
+
+      <!-- Sub-tabs -->
+      <div style="
+        background: #0f1624;
+        padding: 0 10px;
+        border-bottom: 2px solid #2a2a40;
+        display: flex;
+        overflow-x: auto;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      ">
+        ${['playerLeaders', 'playerTable', 'teamLeaders', 'teamTable', 'advanced', 'gameLogs'].map(tab => {
+          const labels = {
+            playerLeaders: 'Player Leaders',
+            playerTable: 'Player Table',
+            teamLeaders: 'Team Leaders',
+            teamTable: 'Team Table',
+            advanced: 'Advanced',
+            gameLogs: 'Game Logs'
+          };
+          return `
+            <button onclick="switchStatsSubTab('${tab}')" style="
+              padding: 14px 20px;
+              background: ${statsSubTab === tab ? '#2196F3' : 'transparent'};
+              color: ${statsSubTab === tab ? '#fff' : '#888'};
+              border: none;
+              border-bottom: 3px solid ${statsSubTab === tab ? '#2196F3' : 'transparent'};
+              cursor: pointer;
+              font-weight: ${statsSubTab === tab ? 'bold' : 'normal'};
+              white-space: nowrap;
+              transition: all 0.2s;
+            ">${labels[tab]}</button>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Content -->
+      <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+        ${renderStatsTabContent()}
+      </div>
+    </div>
+  `;
+}
+
+function renderStatsControls(selectedSeason) {
+  return `
+    <div style="
+      background: #1a2332;
+      padding: 15px 20px;
+      border-bottom: 1px solid #2a2a40;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    ">
+      <select onchange="setStatsSeason(this.value)" style="
+        padding: 10px 12px;
+        background: #0f1624;
+        color: #fff;
+        border: 1px solid #2a2a40;
+        border-radius: 6px;
+        cursor: pointer;
+      ">
+        <option value="${league.season}" ${!statsFilters.season ? 'selected' : ''}>Current Season (${league.season})</option>
+      </select>
+
+      <div style="display: flex; gap: 8px; background: #0f1624; border-radius: 6px; padding: 4px;">
+        ${['regular', 'playoffs', 'preseason'].map(phase => `
+          <button onclick="setStatsPhase('${phase}')" style="
+            flex: 1;
+            padding: 8px;
+            background: ${statsFilters.phase === phase ? '#2196F3' : 'transparent'};
+            color: ${statsFilters.phase === phase ? '#fff' : '#888'};
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: ${statsFilters.phase === phase ? 'bold' : 'normal'};
+          ">${phase.charAt(0).toUpperCase() + phase.slice(1)}</button>
+        `).join('')}
+      </div>
+
+      <div style="display: flex; gap: 8px; background: #0f1624; border-radius: 6px; padding: 4px;">
+        <button onclick="togglePerGame(true)" style="
+          flex: 1;
+          padding: 8px;
+          background: ${statsFilters.perGame ? '#2196F3' : 'transparent'};
+          color: ${statsFilters.perGame ? '#fff' : '#888'};
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.85em;
+          font-weight: ${statsFilters.perGame ? 'bold' : 'normal'};
+        ">Per Game</button>
+        <button onclick="togglePerGame(false)" style="
+          flex: 1;
+          padding: 8px;
+          background: ${!statsFilters.perGame ? '#2196F3' : 'transparent'};
+          color: ${!statsFilters.perGame ? '#fff' : '#888'};
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.85em;
+          font-weight: ${!statsFilters.perGame ? 'bold' : 'normal'};
+        ">Totals</button>
+      </div>
+
+      <input 
+        type="text" 
+        placeholder="Search player/team..."
+        value="${statsFilters.search}"
+        oninput="setStatsSearch(this.value)"
+        style="
+          padding: 10px 12px;
+          background: #0f1624;
+          color: #fff;
+          border: 1px solid #2a2a40;
+          border-radius: 6px;
+        "
+      />
+    </div>
+  `;
+}
+
+function switchStatsSubTab(tab) {
+  statsSubTab = tab;
+  render();
+}
+
+function setStatsSeason(season) {
+  statsFilters.season = season === String(league.season) ? null : season;
+  render();
+}
+
+function setStatsPhase(phase) {
+  statsFilters.phase = phase;
+  render();
+}
+
+function togglePerGame(perGame) {
+  statsFilters.perGame = perGame;
+  render();
+}
+
+function setStatsSearch(value) {
+  statsFilters.search = value;
+  render();
+}
+
+function renderStatsTabContent() {
+  switch(statsSubTab) {
+    case 'playerLeaders':
+      return renderPlayerLeaders();
+    case 'playerTable':
+      return renderPlayerTable();
+    case 'teamLeaders':
+      return renderTeamLeaders();
+    case 'teamTable':
+      return renderTeamTable();
+    case 'advanced':
+      return renderAdvancedStats();
+    case 'gameLogs':
+      return renderGameLogs();
+    default:
+      return '<div style="padding: 20px; color: #888;">Select a view</div>';
+  }
+}
+
+// Get player season stats
+function getPlayerSeasonStats() {
+  if (!league || !league.teams) return [];
+  
+  const stats = [];
+  league.teams.forEach(team => {
+    if (!team.players) return;
+    team.players.forEach(player => {
+      const seasonStats = player.seasonStats || player.stats || {};
+      const gp = seasonStats.gp || seasonStats.gamesPlayed || 0;
+      
+      if (gp === 0) return; // Skip players with no games
+      
+      const pts = seasonStats.pts || seasonStats.points || 0;
+      const reb = seasonStats.reb || seasonStats.rebounds || 0;
+      const ast = seasonStats.ast || seasonStats.assists || 0;
+      const stl = seasonStats.stl || seasonStats.steals || 0;
+      const blk = seasonStats.blk || seasonStats.blocks || 0;
+      const tov = seasonStats.tov || seasonStats.turnovers || 0;
+      const fgm = seasonStats.fgm || 0;
+      const fga = seasonStats.fga || 1;
+      const tpm = seasonStats.tpm || seasonStats['3pm'] || 0;
+      const tpa = seasonStats.tpa || seasonStats['3pa'] || 1;
+      const ftm = seasonStats.ftm || 0;
+      const fta = seasonStats.fta || 1;
+      const min = seasonStats.min || seasonStats.minutes || 0;
+      
+      stats.push({
+        playerId: player.id,
+        name: `${player.firstName} ${player.lastName}`,
+        teamId: team.id,
+        teamName: team.name,
+        position: player.position || 'F',
+        gp: gp,
+        min: min,
+        pts: pts,
+        reb: reb,
+        ast: ast,
+        stl: stl,
+        blk: blk,
+        tov: tov,
+        fgm: fgm,
+        fga: fga,
+        tpm: tpm,
+        tpa: tpa,
+        ftm: ftm,
+        fta: fta,
+        fgPct: fga > 0 ? (fgm / fga * 100) : 0,
+        tpPct: tpa > 0 ? (tpm / tpa * 100) : 0,
+        ftPct: fta > 0 ? (ftm / fta * 100) : 0,
+        ppg: gp > 0 ? pts / gp : 0,
+        rpg: gp > 0 ? reb / gp : 0,
+        apg: gp > 0 ? ast / gp : 0,
+        spg: gp > 0 ? stl / gp : 0,
+        bpg: gp > 0 ? blk / gp : 0,
+        topg: gp > 0 ? tov / gp : 0,
+        mpg: gp > 0 ? min / gp : 0
+      });
+    });
+  });
+  
+  return stats;
+}
+
+// Get team season stats
+function getTeamSeasonStats() {
+  if (!league || !league.teams) return [];
+  
+  return league.teams.map(team => {
+    const stats = team.seasonStats || team.stats || {};
+    const gp = stats.gp || team.wins + team.losses || 0;
+    
+    return {
+      teamId: team.id,
+      name: team.name,
+      wins: team.wins || 0,
+      losses: team.losses || 0,
+      gp: gp,
+      pts: stats.pts || 0,
+      oppPts: stats.oppPts || 0,
+      fgm: stats.fgm || 0,
+      fga: stats.fga || 1,
+      tpm: stats.tpm || 0,
+      tpa: stats.tpa || 1,
+      ftm: stats.ftm || 0,
+      fta: stats.fta || 1,
+      reb: stats.reb || 0,
+      ast: stats.ast || 0,
+      stl: stats.stl || 0,
+      blk: stats.blk || 0,
+      tov: stats.tov || 0,
+      ppg: gp > 0 ? stats.pts / gp : 0,
+      oppPpg: gp > 0 ? stats.oppPts / gp : 0,
+      diff: gp > 0 ? (stats.pts - stats.oppPts) / gp : 0,
+      fgPct: stats.fga > 0 ? (stats.fgm / stats.fga * 100) : 0,
+      tpPct: stats.tpa > 0 ? (stats.tpm / stats.tpa * 100) : 0,
+      ftPct: stats.fta > 0 ? (stats.ftm / stats.fta * 100) : 0
+    };
+  });
+}
+
+// 1) PLAYER LEADERS
+function renderPlayerLeaders() {
+  const playerStats = getPlayerSeasonStats();
+  
+  if (playerStats.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">📊</div>
+        <div style="font-size: 1.2em;">No player stats available</div>
+      </div>
+    `;
+  }
+  
+  const leaders = {
+    ppg: [...playerStats].sort((a, b) => b.ppg - a.ppg).slice(0, 5),
+    rpg: [...playerStats].sort((a, b) => b.rpg - a.rpg).slice(0, 5),
+    apg: [...playerStats].sort((a, b) => b.apg - a.apg).slice(0, 5),
+    spg: [...playerStats].sort((a, b) => b.spg - a.spg).slice(0, 5),
+    bpg: [...playerStats].sort((a, b) => b.bpg - a.bpg).slice(0, 5),
+    tpm: [...playerStats].sort((a, b) => b.tpm - a.tpm).slice(0, 5),
+    fgPct: [...playerStats].filter(p => p.fga >= 50).sort((a, b) => b.fgPct - a.fgPct).slice(0, 5),
+    ftPct: [...playerStats].filter(p => p.fta >= 20).sort((a, b) => b.ftPct - a.ftPct).slice(0, 5)
+  };
+  
+  return `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      ${renderLeaderCard('Points', 'ppg', leaders.ppg, 'PPG', '🏀')}
+      ${renderLeaderCard('Rebounds', 'rpg', leaders.rpg, 'RPG', '💪')}
+      ${renderLeaderCard('Assists', 'apg', leaders.apg, 'APG', '🎯')}
+      ${renderLeaderCard('Steals', 'spg', leaders.spg, 'SPG', '👐')}
+      ${renderLeaderCard('Blocks', 'bpg', leaders.bpg, 'BPG', '🚫')}
+      ${renderLeaderCard('3-Pointers', 'tpm', leaders.tpm, '3PM', '🎯')}
+      ${renderLeaderCard('FG%', 'fgPct', leaders.fgPct, '%', '🎯')}
+      ${renderLeaderCard('FT%', 'ftPct', leaders.ftPct, '%', '🎯')}
+    </div>
+  `;
+}
+
+function renderLeaderCard(title, stat, leaders, suffix, icon) {
+  if (!leaders || leaders.length === 0) {
+    return `
+      <div style="
+        background: #1a2332;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #2a2a40;
+      ">
+        <div style="font-size: 1.5em; margin-bottom: 10px;">${icon}</div>
+        <h3 style="color: #2196F3; margin: 0 0 15px 0;">${title}</h3>
+        <div style="color: #888;">No data</div>
+      </div>
+    `;
+  }
+  
+  const leader = leaders[0];
+  const value = suffix === '%' ? leader[stat].toFixed(1) : leader[stat].toFixed(1);
+  
+  return `
+    <div style="
+      background: #1a2332;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #2a2a40;
+    ">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+        <div>
+          <div style="font-size: 1.5em; margin-bottom: 5px;">${icon}</div>
+          <h3 style="color: #2196F3; margin: 0;">${title}</h3>
+        </div>
+        <div style="text-align: right;">
+          <div style="color: #4CAF50; font-size: 2em; font-weight: bold;">${value}</div>
+          <div style="color: #888; font-size: 0.85em;">${suffix}</div>
+        </div>
+      </div>
+      
+      <div style="border-top: 1px solid #2a2a40; padding-top: 12px;">
+        <div style="margin-bottom: 8px;">
+          <div style="color: #fff; font-weight: bold; font-size: 1.1em;">${leader.name}</div>
+          <div style="color: #888; font-size: 0.9em;">${leader.teamName}</div>
+        </div>
+        
+        <details>
+          <summary style="color: #2196F3; cursor: pointer; font-size: 0.9em; margin-top: 10px;">View Top 5</summary>
+          <div style="margin-top: 10px;">
+            ${leaders.slice(1, 5).map((p, idx) => `
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a40;">
+                <div>
+                  <span style="color: #888; margin-right: 8px;">${idx + 2}.</span>
+                  <span style="color: #ccc;">${p.name}</span>
+                  <span style="color: #666; font-size: 0.85em; margin-left: 8px;">${p.teamName}</span>
+                </div>
+                <span style="color: #4CAF50; font-weight: bold;">${suffix === '%' ? p[stat].toFixed(1) : p[stat].toFixed(1)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+    </div>
+  `;
+}
+
+// 2) PLAYER TABLE
+function renderPlayerTable() {
+  let playerStats = getPlayerSeasonStats();
+  
+  // Apply filters
+  if (statsFilters.search) {
+    const search = statsFilters.search.toLowerCase();
+    playerStats = playerStats.filter(p => 
+      p.name.toLowerCase().includes(search) || 
+      p.teamName.toLowerCase().includes(search)
+    );
+  }
+  
+  if (statsFilters.position !== 'all') {
+    playerStats = playerStats.filter(p => p.position === statsFilters.position);
+  }
+  
+  if (statsFilters.minGP > 1) {
+    playerStats = playerStats.filter(p => p.gp >= statsFilters.minGP);
+  }
+  
+  // Sort
+  const sortKey = statsFilters.sortBy;
+  const sortDir = statsFilters.sortDir;
+  playerStats.sort((a, b) => {
+    const valA = statsFilters.perGame ? a[sortKey + 'g'] || a[sortKey] : a[sortKey];
+    const valB = statsFilters.perGame ? b[sortKey + 'g'] || b[sortKey] : b[sortKey];
+    return sortDir === 'desc' ? valB - valA : valA - valB;
+  });
+  
+  return `
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; background: #1a2332; border-radius: 12px; overflow: hidden;">
+        <thead style="position: sticky; top: 0; z-index: 5;">
+          <tr style="background: #0f1624; color: #2196F3;">
+            ${renderSortableHeader('Name', 'name')}
+            ${renderSortableHeader('Team', 'teamName')}
+            ${renderSortableHeader('Pos', 'position')}
+            ${renderSortableHeader('GP', 'gp')}
+            ${renderSortableHeader('MIN', statsFilters.perGame ? 'mpg' : 'min')}
+            ${renderSortableHeader('PTS', statsFilters.perGame ? 'ppg' : 'pts')}
+            ${renderSortableHeader('REB', statsFilters.perGame ? 'rpg' : 'reb')}
+            ${renderSortableHeader('AST', statsFilters.perGame ? 'apg' : 'ast')}
+            ${renderSortableHeader('STL', statsFilters.perGame ? 'spg' : 'stl')}
+            ${renderSortableHeader('BLK', statsFilters.perGame ? 'bpg' : 'blk')}
+            ${renderSortableHeader('TOV', statsFilters.perGame ? 'topg' : 'tov')}
+            ${renderSortableHeader('FG%', 'fgPct')}
+            ${renderSortableHeader('3P%', 'tpPct')}
+            ${renderSortableHeader('FT%', 'ftPct')}
+          </tr>
+        </thead>
+        <tbody>
+          ${playerStats.slice(0, 100).map((p, idx) => `
+            <tr style="border-bottom: 1px solid #2a2a40; ${idx % 2 === 0 ? 'background: #1a2332;' : 'background: #141e2e;'}">
+              <td style="padding: 12px; color: #fff; font-weight: bold;">${p.name}</td>
+              <td style="padding: 12px; color: #888;">${p.teamName}</td>
+              <td style="padding: 12px; color: #888; text-align: center;">${p.position}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${p.gp}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.mpg : p.min).toFixed(1)}</td>
+              <td style="padding: 12px; color: #4CAF50; font-weight: bold; text-align: center;">${(statsFilters.perGame ? p.ppg : p.pts).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.rpg : p.reb).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.apg : p.ast).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.spg : p.stl).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.bpg : p.blk).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${(statsFilters.perGame ? p.topg : p.tov).toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${p.fgPct.toFixed(1)}%</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${p.tpPct.toFixed(1)}%</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${p.ftPct.toFixed(1)}%</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSortableHeader(label, key) {
+  const isActive = statsFilters.sortBy === key;
+  const arrow = isActive ? (statsFilters.sortDir === 'desc' ? '▼' : '▲') : '';
+  
+  return `
+    <th onclick="sortStatsTable('${key}')" style="
+      padding: 12px;
+      text-align: ${key === 'name' || key === 'teamName' ? 'left' : 'center'};
+      cursor: pointer;
+      user-select: none;
+      font-weight: bold;
+    ">
+      ${label} ${arrow}
+    </th>
+  `;
+}
+
+function sortStatsTable(key) {
+  if (statsFilters.sortBy === key) {
+    statsFilters.sortDir = statsFilters.sortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    statsFilters.sortBy = key;
+    statsFilters.sortDir = 'desc';
+  }
+  render();
+}
+
+// 3) TEAM LEADERS
+function renderTeamLeaders() {
+  const teamStats = getTeamSeasonStats();
+  
+  if (teamStats.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">📊</div>
+        <div style="font-size: 1.2em;">No team stats available</div>
+      </div>
+    `;
+  }
+  
+  const leaders = {
+    ppg: [...teamStats].sort((a, b) => b.ppg - a.ppg).slice(0, 5),
+    oppPpg: [...teamStats].sort((a, b) => a.oppPpg - b.oppPpg).slice(0, 5),
+    diff: [...teamStats].sort((a, b) => b.diff - a.diff).slice(0, 5),
+    fgPct: [...teamStats].sort((a, b) => b.fgPct - a.fgPct).slice(0, 5),
+    tpPct: [...teamStats].sort((a, b) => b.tpPct - a.tpPct).slice(0, 5)
+  };
+  
+  return `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      ${renderTeamLeaderCard('Offensive Rating (PPG)', 'ppg', leaders.ppg, 'PPG', '⚡')}
+      ${renderTeamLeaderCard('Defensive Rating (Opp PPG)', 'oppPpg', leaders.oppPpg, 'PPG', '🛡️')}
+      ${renderTeamLeaderCard('Point Differential', 'diff', leaders.diff, '+/-', '📈')}
+      ${renderTeamLeaderCard('FG%', 'fgPct', leaders.fgPct, '%', '🎯')}
+      ${renderTeamLeaderCard('3P%', 'tpPct', leaders.tpPct, '%', '🎯')}
+    </div>
+  `;
+}
+
+function renderTeamLeaderCard(title, stat, leaders, suffix, icon) {
+  if (!leaders || leaders.length === 0) return '<div></div>';
+  
+  const leader = leaders[0];
+  const value = suffix === '%' || suffix === '+/-' ? leader[stat].toFixed(1) : leader[stat].toFixed(1);
+  
+  return `
+    <div style="
+      background: #1a2332;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #2a2a40;
+    ">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+        <div>
+          <div style="font-size: 1.5em; margin-bottom: 5px;">${icon}</div>
+          <h3 style="color: #2196F3; margin: 0;">${title}</h3>
+        </div>
+        <div style="text-align: right;">
+          <div style="color: #4CAF50; font-size: 2em; font-weight: bold;">${value}</div>
+          <div style="color: #888; font-size: 0.85em;">${suffix}</div>
+        </div>
+      </div>
+      
+      <div style="border-top: 1px solid #2a2a40; padding-top: 12px;">
+        <div style="margin-bottom: 8px;">
+          <div style="color: #fff; font-weight: bold; font-size: 1.1em;">${leader.name}</div>
+          <div style="color: #888; font-size: 0.9em;">${leader.wins}-${leader.losses}</div>
+        </div>
+        
+        <details>
+          <summary style="color: #2196F3; cursor: pointer; font-size: 0.9em; margin-top: 10px;">View Top 5</summary>
+          <div style="margin-top: 10px;">
+            ${leaders.slice(1, 5).map((t, idx) => `
+              <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2a2a40;">
+                <div>
+                  <span style="color: #888; margin-right: 8px;">${idx + 2}.</span>
+                  <span style="color: #ccc;">${t.name}</span>
+                </div>
+                <span style="color: #4CAF50; font-weight: bold;">${(suffix === '%' || suffix === '+/-' ? t[stat].toFixed(1) : t[stat].toFixed(1))}</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+    </div>
+  `;
+}
+
+// 4) TEAM TABLE
+function renderTeamTable() {
+  let teamStats = getTeamSeasonStats();
+  
+  teamStats.sort((a, b) => {
+    const winsA = a.wins / (a.wins + a.losses || 1);
+    const winsB = b.wins / (b.wins + b.losses || 1);
+    return winsB - winsA;
+  });
+  
+  return `
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; background: #1a2332; border-radius: 12px; overflow: hidden;">
+        <thead>
+          <tr style="background: #0f1624; color: #2196F3;">
+            <th style="padding: 12px; text-align: left;">Team</th>
+            <th style="padding: 12px; text-align: center;">W-L</th>
+            <th style="padding: 12px; text-align: center;">PPG</th>
+            <th style="padding: 12px; text-align: center;">Opp PPG</th>
+            <th style="padding: 12px; text-align: center;">Diff</th>
+            <th style="padding: 12px; text-align: center;">FG%</th>
+            <th style="padding: 12px; text-align: center;">3P%</th>
+            <th style="padding: 12px; text-align: center;">FT%</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${teamStats.map((t, idx) => `
+            <tr style="border-bottom: 1px solid #2a2a40; ${idx % 2 === 0 ? 'background: #1a2332;' : 'background: #141e2e;'}">
+              <td style="padding: 12px; color: #fff; font-weight: bold;">${t.name}</td>
+              <td style="padding: 12px; color: #4CAF50; text-align: center; font-weight: bold;">${t.wins}-${t.losses}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${t.ppg.toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${t.oppPpg.toFixed(1)}</td>
+              <td style="padding: 12px; color: ${t.diff >= 0 ? '#4CAF50' : '#f44336'}; text-align: center; font-weight: bold;">${t.diff >= 0 ? '+' : ''}${t.diff.toFixed(1)}</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${t.fgPct.toFixed(1)}%</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${t.tpPct.toFixed(1)}%</td>
+              <td style="padding: 12px; color: #ccc; text-align: center;">${t.ftPct.toFixed(1)}%</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// 5) ADVANCED STATS
+function renderAdvancedStats() {
+  return `
+    <div style="text-align: center; padding: 80px 20px; color: #888;">
+      <div style="font-size: 3em; margin-bottom: 20px;">📈</div>
+      <div style="font-size: 1.2em; margin-bottom: 10px;">Advanced Stats</div>
+      <div style="font-size: 0.9em;">Coming soon: PER, TS%, eFG%, USG%, ORtg, DRtg, NetRtg, and more</div>
+    </div>
+  `;
+}
+
+// 6) GAME LOGS
+function renderGameLogs() {
+  return `
+    <div style="text-align: center; padding: 80px 20px; color: #888;">
+      <div style="font-size: 3em; margin-bottom: 20px;">📅</div>
+      <div style="font-size: 1.2em; margin-bottom: 10px;">Game Logs</div>
+      <div style="font-size: 0.9em;">Coming soon: Player and team game-by-game statistics</div>
+    </div>
+  `;
+}
+
+/* ============================
+   HISTORY TAB
+============================ */
+
+// Initialize league history if missing
+function initHistoryIfMissing(league) {
+  if (!league.history) {
+    league.history = {
+      seasons: {}, // { [year]: seasonData }
+      championsByYear: [],
+      awardsByYear: {},
+      draftsByYear: {},
+      records: {
+        team: [],
+        player: []
+      },
+      transactionLog: [],
+      startYear: league.season // Track when history recording began
+    };
+  }
+  return league.history;
+}
+
+// Archive season at end of playoffs
+function archiveSeasonIfNeeded(league, year) {
+  const history = initHistoryIfMissing(league);
+  
+  // Don't overwrite existing archives
+  if (history.seasons[year]) return;
+  
+  // Create season archive
+  history.seasons[year] = {
+    year: year,
+    champion: null, // Set after finals
+    finalist: null,
+    finalsResult: null, // e.g., "4-2"
+    mvp: null,
+    awards: {
+      mvp: null,
+      dpoy: null,
+      roy: null,
+      sixmoy: null,
+      mip: null,
+      coty: null,
+      allLeague: { first: [], second: [], third: [] }
+    },
+    standings: league.teams.map(t => ({
+      teamId: t.id,
+      name: t.name,
+      wins: t.wins,
+      losses: t.losses,
+      conference: t.conference,
+      playoffSeed: t.playoffSeed || null
+    })),
+    playoffBracket: null, // Store playoff matchups if implemented
+    draftResults: league.draft?.results || [],
+    teamStatsLeaders: {},
+    playerStatsLeaders: {},
+    notableEvents: []
+  };
+  
+  save();
+}
+
+// Log transaction
+function logTransaction(league, entry) {
+  const history = initHistoryIfMissing(league);
+  
+  history.transactionLog.unshift({
+    id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    season: league.season,
+    day: getCurrentDay(),
+    timestamp: Date.now(),
+    type: entry.type, // 'trade', 'signing', 'release', 'extension', 'draft'
+    summary: entry.summary,
+    details: entry.details || {},
+    teams: entry.teams || []
+  });
+  
+  // Keep last 500 transactions
+  if (history.transactionLog.length > 500) {
+    history.transactionLog = history.transactionLog.slice(0, 500);
+  }
+  
+  save();
+}
+
+// Main History Tab Renderer
+function renderHistoryView() {
+  const el = document.getElementById('history-tab');
+  console.log('renderHistoryView called', { el, league });
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded. Create or load a league first.</div>';
+    return;
+  }
+  
+  const history = initHistoryIfMissing(league);
+  const selectedSeason = historyFilters.season || league.season;
+  
+  el.innerHTML = `
+    <div style="min-height: 100vh; background: #0f1624; padding-bottom: 40px;">
+      <!-- Header -->
+      <div style="
+        background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);
+        padding: 30px 20px;
+        border-bottom: 2px solid #2a2a40;
+      ">
+        <h1 style="margin: 0 0 8px 0; color: #fff; font-size: 2em;">📜 History</h1>
+        <div style="color: #888; font-size: 0.95em;">
+          ${league.name} • Season ${league.season} ${history.startYear !== league.season ? `• Archive starts Season ${history.startYear}` : ''}
+        </div>
+      </div>
+      
+      <!-- Sub-tabs -->
+      <div style="
+        background: #0f1624;
+        padding: 0 10px;
+        border-bottom: 2px solid #2a2a40;
+        display: flex;
+        overflow-x: auto;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      ">
+        ${['seasons', 'champions', 'awards', 'drafts', 'records', 'transactions'].map(tab => `
+          <button onclick="switchHistoryTab('${tab}')" style="
+            padding: 14px 20px;
+            background: ${historyTab === tab ? '#2196F3' : 'transparent'};
+            color: ${historyTab === tab ? '#fff' : '#888'};
+            border: none;
+            border-bottom: 3px solid ${historyTab === tab ? '#2196F3' : 'transparent'};
+            cursor: pointer;
+            font-weight: ${historyTab === tab ? 'bold' : 'normal'};
+            white-space: nowrap;
+            transition: all 0.2s;
+          ">${tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+        `).join('')}
+      </div>
+      
+      <!-- Filters -->
+      ${renderHistoryFilters(history, selectedSeason)}
+      
+      <!-- Content -->
+      <div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+        ${renderHistoryContent(history, selectedSeason)}
+      </div>
+    </div>
+  `;
+}
+
+function switchHistoryTab(tab) {
+  historyTab = tab;
+  render();
+}
+
+function renderHistoryFilters(history, selectedSeason) {
+  const seasons = Object.keys(history.seasons || {}).sort((a, b) => b - a);
+  
+  return `
+    <div style="
+      background: #1a2332;
+      padding: 15px 20px;
+      border-bottom: 1px solid #2a2a40;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+    ">
+      ${historyTab !== 'transactions' && historyTab !== 'records' ? `
+        <select onchange="setHistorySeasonFilter(this.value)" style="
+          padding: 8px 12px;
+          background: #0f1624;
+          color: #fff;
+          border: 1px solid #2a2a40;
+          border-radius: 6px;
+          cursor: pointer;
+        ">
+          <option value="">Current Season (${league.season})</option>
+          ${seasons.map(s => `
+            <option value="${s}" ${selectedSeason == s ? 'selected' : ''}>Season ${s}</option>
+          `).join('')}
+        </select>
+      ` : ''}
+      
+      ${historyTab === 'awards' ? `
+        <select onchange="setAwardTypeFilter(this.value)" style="
+          padding: 8px 12px;
+          background: #0f1624;
+          color: #fff;
+          border: 1px solid #2a2a40;
+          border-radius: 6px;
+          cursor: pointer;
+        ">
+          <option value="mvp" ${historyFilters.awardType === 'mvp' ? 'selected' : ''}>MVP</option>
+          <option value="dpoy" ${historyFilters.awardType === 'dpoy' ? 'selected' : ''}>DPOY</option>
+          <option value="roy" ${historyFilters.awardType === 'roy' ? 'selected' : ''}>ROY</option>
+          <option value="sixmoy" ${historyFilters.awardType === 'sixmoy' ? 'selected' : ''}>6MOY</option>
+          <option value="mip" ${historyFilters.awardType === 'mip' ? 'selected' : ''}>MIP</option>
+          <option value="coty" ${historyFilters.awardType === 'coty' ? 'selected' : ''}>COTY</option>
+        </select>
+      ` : ''}
+      
+      ${historyTab === 'records' ? `
+        <div style="display: flex; gap: 8px;">
+          <button onclick="setRecordType('team')" style="
+            padding: 8px 16px;
+            background: ${historyFilters.recordType === 'team' ? '#2196F3' : '#2a2a40'};
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Team Records</button>
+          <button onclick="setRecordType('player')" style="
+            padding: 8px 16px;
+            background: ${historyFilters.recordType === 'player' ? '#2196F3' : '#2a2a40'};
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Player Records</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function setHistorySeasonFilter(season) {
+  historyFilters.season = season || null;
+  render();
+}
+
+function setAwardTypeFilter(type) {
+  historyFilters.awardType = type;
+  render();
+}
+
+function setRecordType(type) {
+  historyFilters.recordType = type;
+  render();
+}
+
+function renderHistoryContent(history, selectedSeason) {
+  switch(historyTab) {
+    case 'seasons':
+      return renderSeasonsHistory(history);
+    case 'champions':
+      return renderChampionsHistory(history);
+    case 'awards':
+      return renderAwardsHistory(history);
+    case 'drafts':
+      return renderDraftsHistory(history, selectedSeason);
+    case 'records':
+      return renderRecordsHistory(history);
+    case 'transactions':
+      return renderTransactionsHistory(history);
+    default:
+      return '<div style="padding: 20px; color: #888;">Select a category</div>';
+  }
+}
+
+// 1) SEASONS
+function renderSeasonsHistory(history) {
+  const seasons = Object.values(history.seasons || {}).sort((a, b) => b.year - a.year);
+  
+  if (seasons.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">📜</div>
+        <div style="font-size: 1.2em; margin-bottom: 10px;">No seasons archived yet</div>
+        <div style="font-size: 0.9em;">Season history will be recorded automatically at the end of each season</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      ${seasons.map(season => `
+        <div style="
+          background: #1a2332;
+          border-radius: 12px;
+          padding: 20px;
+          border: 1px solid #2a2a40;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+            <div>
+              <h3 style="margin: 0 0 8px 0; color: #2196F3; font-size: 1.5em;">Season ${season.year}</h3>
+              ${season.champion ? `
+                <div style="color: #4CAF50; font-weight: bold; font-size: 1.1em;">
+                  🏆 ${league.teams.find(t => t.id === season.champion)?.name || 'Unknown'} ${season.finalsResult ? `(${season.finalsResult})` : ''}
+                </div>
+              ` : '<div style="color: #888;">Season in progress</div>'}
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+            ${season.mvp ? `
+              <div>
+                <div style="color: #888; font-size: 0.85em; margin-bottom: 4px;">MVP</div>
+                <div style="color: #fff; font-weight: bold;">${season.mvp}</div>
+              </div>
+            ` : ''}
+            ${season.standings && season.standings.length > 0 ? `
+              <div>
+                <div style="color: #888; font-size: 0.85em; margin-bottom: 4px;">Best Record</div>
+                <div style="color: #fff; font-weight: bold;">
+                  ${season.standings.sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses))[0].name} 
+                  (${season.standings[0].wins}-${season.standings[0].losses})
+                </div>
+              </div>
+            ` : ''}
+          </div>
+          
+          <button onclick="viewSeasonDetails(${season.year})" style="
+            padding: 10px 20px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">View Season Details</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function viewSeasonDetails(year) {
+  // TODO: Implement season detail modal/page
+  alert(`Season ${year} details coming soon!`);
+}
+
+// 2) CHAMPIONS
+function renderChampionsHistory(history) {
+  const champions = Object.values(history.seasons || {})
+    .filter(s => s.champion)
+    .sort((a, b) => b.year - a.year);
+  
+  if (champions.length === 0) {
+    return '<div style="text-align: center; padding: 80px 20px; color: #888;">No champions crowned yet</div>';
+  }
+  
+  // Count championships
+  const dynasties = {};
+  champions.forEach(s => {
+    if (!dynasties[s.champion]) {
+      dynasties[s.champion] = { count: 0, lastYear: s.year, teamName: league.teams.find(t => t.id === s.champion)?.name };
+    }
+    dynasties[s.champion].count++;
+    if (s.year > dynasties[s.champion].lastYear) dynasties[s.champion].lastYear = s.year;
+  });
+  
+  const sortedDynasties = Object.entries(dynasties).sort((a, b) => b[1].count - a[1].count);
+  
+  return `
+    <div>
+      <!-- Dynasties Section -->
+      <div style="margin-bottom: 40px;">
+        <h3 style="color: #2196F3; margin-bottom: 15px;">🏆 Championships</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
+          ${sortedDynasties.map(([teamId, data]) => `
+            <div style="
+              background: #1a2332;
+              border-radius: 12px;
+              padding: 20px;
+              border: 1px solid #2a2a40;
+              text-align: center;
+            ">
+              <div style="font-size: 2.5em; margin-bottom: 10px;">${'🏆'.repeat(Math.min(data.count, 5))}</div>
+              <div style="color: #fff; font-weight: bold; font-size: 1.2em; margin-bottom: 5px;">${data.teamName}</div>
+              <div style="color: #4CAF50; font-size: 1.1em; font-weight: bold;">${data.count} ${data.count === 1 ? 'Championship' : 'Championships'}</div>
+              <div style="color: #888; font-size: 0.85em; margin-top: 5px;">Last: ${data.lastYear}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      
+      <!-- Champions List -->
+      <h3 style="color: #2196F3; margin-bottom: 15px;">Champions by Year</h3>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; background: #1a2332; border-radius: 12px; overflow: hidden;">
+          <thead>
+            <tr style="background: #0f1624; color: #2196F3;">
+              <th style="padding: 12px; text-align: left;">Year</th>
+              <th style="padding: 12px; text-align: left;">Champion</th>
+              <th style="padding: 12px; text-align: left;">Opponent</th>
+              <th style="padding: 12px; text-align: center;">Series</th>
+              <th style="padding: 12px; text-align: left;">Finals MVP</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${champions.map(s => `
+              <tr style="border-bottom: 1px solid #2a2a40;">
+                <td style="padding: 12px; color: #fff; font-weight: bold;">${s.year}</td>
+                <td style="padding: 12px; color: #4CAF50; font-weight: bold;">
+                  ${league.teams.find(t => t.id === s.champion)?.name || 'Unknown'}
+                </td>
+                <td style="padding: 12px; color: #ccc;">
+                  ${s.finalist ? league.teams.find(t => t.id === s.finalist)?.name || 'Unknown' : 'TBD'}
+                </td>
+                <td style="padding: 12px; text-align: center; color: #ccc;">${s.finalsResult || '-'}</td>
+                <td style="padding: 12px; color: #ccc;">${s.awards?.mvp || 'TBD'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// 3) AWARDS
+function renderAwardsHistory(history) {
+  const awardType = historyFilters.awardType;
+  const awards = [];
+  
+  Object.values(history.seasons || {}).forEach(s => {
+    if (s.awards && s.awards[awardType]) {
+      awards.push({
+        year: s.year,
+        winner: s.awards[awardType]
+      });
+    }
+  });
+  
+  awards.sort((a, b) => b.year - a.year);
+  
+  const awardNames = {
+    mvp: 'Most Valuable Player',
+    dpoy: 'Defensive Player of the Year',
+    roy: 'Rookie of the Year',
+    sixmoy: 'Sixth Man of the Year',
+    mip: 'Most Improved Player',
+    coty: 'Coach of the Year'
+  };
+  
+  return `
+    <div>
+      <h3 style="color: #2196F3; margin-bottom: 15px;">${awardNames[awardType]}</h3>
+      
+      ${awards.length === 0 ? `
+        <div style="text-align: center; padding: 60px 20px; color: #888;">
+          No ${awardNames[awardType]} awards recorded yet
+        </div>
+      ` : `
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; background: #1a2332; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background: #0f1624; color: #2196F3;">
+                <th style="padding: 12px; text-align: left;">Year</th>
+                <th style="padding: 12px; text-align: left;">Winner</th>
+                <th style="padding: 12px; text-align: left;">Team</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${awards.map(a => `
+                <tr style="border-bottom: 1px solid #2a2a40;">
+                  <td style="padding: 12px; color: #fff; font-weight: bold;">${a.year}</td>
+                  <td style="padding: 12px; color: #4CAF50; font-weight: bold;">${a.winner}</td>
+                  <td style="padding: 12px; color: #ccc;">TBD</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// 4) DRAFTS
+function renderDraftsHistory(history, selectedSeason) {
+  const season = (history.seasons || {})[selectedSeason];
+  
+  if (!season || !season.draftResults || season.draftResults.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">🎯</div>
+        <div style="font-size: 1.2em;">No draft results for Season ${selectedSeason}</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div>
+      <h3 style="color: #2196F3; margin-bottom: 15px;">Season ${selectedSeason} Draft</h3>
+      
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; background: #1a2332; border-radius: 12px; overflow: hidden;">
+          <thead>
+            <tr style="background: #0f1624; color: #2196F3;">
+              <th style="padding: 12px; text-align: center;">Pick</th>
+              <th style="padding: 12px; text-align: left;">Team</th>
+              <th style="padding: 12px; text-align: left;">Player</th>
+              <th style="padding: 12px; text-align: center;">Pos</th>
+              <th style="padding: 12px; text-align: center;">OVR</th>
+              <th style="padding: 12px; text-align: center;">POT</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${season.draftResults.slice(0, 30).map((pick, idx) => `
+              <tr style="border-bottom: 1px solid #2a2a40;">
+                <td style="padding: 12px; text-align: center; color: #2196F3; font-weight: bold;">${idx + 1}</td>
+                <td style="padding: 12px; color: #ccc;">${pick.teamName || 'Unknown'}</td>
+                <td style="padding: 12px; color: #fff; font-weight: bold;">${pick.playerName || 'Unknown'}</td>
+                <td style="padding: 12px; text-align: center; color: #888;">${pick.position || '-'}</td>
+                <td style="padding: 12px; text-align: center; color: #4CAF50;">${pick.overall || '-'}</td>
+                <td style="padding: 12px; text-align: center; color: #2196F3;">${pick.potential || '-'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// 5) RECORDS
+function renderRecordsHistory(history) {
+  const recordType = historyFilters.recordType;
+  
+  const teamRecords = [
+    { name: 'Best Single-Season Record', holder: 'TBD', value: '-', season: '-' },
+    { name: 'Longest Win Streak', holder: 'TBD', value: '-', season: '-' },
+    { name: 'Most Points in a Game', holder: 'TBD', value: '-', season: '-' }
+  ];
+  
+  const playerRecords = [
+    { name: 'Most Points in a Game', holder: 'TBD', value: '-', season: '-' },
+    { name: 'Most Rebounds in a Game', holder: 'TBD', value: '-', season: '-' },
+    { name: 'Most Assists in a Game', holder: 'TBD', value: '-', season: '-' }
+  ];
+  
+  const records = recordType === 'team' ? teamRecords : playerRecords;
+  
+  return `
+    <div>
+      <h3 style="color: #2196F3; margin-bottom: 15px;">${recordType === 'team' ? 'Team' : 'Player'} Records</h3>
+      
+      <div style="display: flex; flex-direction: column; gap: 15px;">
+        ${records.map(record => `
+          <div style="
+            background: #1a2332;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #2a2a40;
+          ">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="color: #2196F3; font-weight: bold; font-size: 1.1em; margin-bottom: 5px;">${record.name}</div>
+                <div style="color: #fff; font-size: 1.2em; font-weight: bold;">${record.holder}</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="color: #4CAF50; font-size: 1.5em; font-weight: bold;">${record.value}</div>
+                <div style="color: #888; font-size: 0.85em;">${record.season}</div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div style="margin-top: 20px; padding: 20px; background: #1a2332; border-radius: 12px; text-align: center; color: #888;">
+        Record tracking will be implemented in a future update
+      </div>
+    </div>
+  `;
+}
+
+// 6) TRANSACTIONS
+function renderTransactionsHistory(history) {
+  const transactions = history.transactionLog || [];
+  
+  if (transactions.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">📋</div>
+        <div style="font-size: 1.2em; margin-bottom: 10px;">No transactions logged yet</div>
+        <div style="font-size: 0.9em;">Transactions will be recorded automatically going forward</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+      ${transactions.map(txn => `
+        <div style="
+          background: #1a2332;
+          border-radius: 12px;
+          padding: 20px;
+          border: 1px solid #2a2a40;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+            <div>
+              <span style="
+                background: ${txn.type === 'trade' ? '#2196F3' : txn.type === 'signing' ? '#4CAF50' : '#ff9800'};
+                color: #fff;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 0.8em;
+                font-weight: bold;
+                text-transform: uppercase;
+              ">${txn.type}</span>
+            </div>
+            <div style="color: #888; font-size: 0.85em;">
+              Season ${txn.season} • Day ${txn.day}
+            </div>
+          </div>
+          <div style="color: #fff; font-size: 1.05em;">${txn.summary}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/* ============================
    SCHEDULE TAB
 ============================ */
 
 let activeGameDrawer = null;
 let liveGameIntervals = new Map(); // gameId -> intervalId
 let activeLiveView = 'pbp'; // 'pbp' | 'box' | 'compare'
+let activeGamecastTab = 'plays'; // 'matchup' | 'odds' | 'plays' | 'stats'
+let activeStatsView = 'game'; // 'away' | 'game' | 'home'
+let activeStatsTabView = 'team'; // 'team' | 'boxscore'
+let autoScrollPlays = true; // Auto-scroll play-by-play to latest
 
 function renderSchedule() {
   const el = document.getElementById('schedule-tab');
@@ -2658,6 +4641,76 @@ function renderScheduleGameRow(game) {
   `;
 }
 
+function switchGamecastTab(tab) {
+  activeGamecastTab = tab;
+  
+  // Update tab buttons
+  const tabs = ['plays', 'stats'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`tab-${t}`);
+    if (btn) {
+      btn.style.borderBottom = t === tab ? '3px solid #2196F3' : 'none';
+      btn.style.color = t === tab ? '#2196F3' : '#888';
+    }
+  });
+  
+  // Update content
+  updateGamecastContent();
+}
+
+function switchStatsView(view) {
+  activeStatsView = view;
+  updateGamecastContent();
+}
+
+function switchStatsTabView(view) {
+  activeStatsTabView = view;
+  // When switching to box score, ensure we have a team selected (not 'game')
+  if (view === 'boxscore' && activeStatsView === 'game') {
+    const container = document.getElementById('gamecast-content');
+    if (container) {
+      const gameId = container.dataset.gameId;
+      const game = league.schedule.games[gameId];
+      if (game) {
+        const userTeam = league.userTeamId;
+        if (game.homeTeamId === userTeam || game.awayTeamId === userTeam) {
+          activeStatsView = game.homeTeamId === userTeam ? 'home' : 'away';
+        } else {
+          activeStatsView = 'away';
+        }
+      }
+    }
+  }
+  updateGamecastContent();
+}
+
+function toggleAutoScroll(enabled) {
+  autoScrollPlays = enabled;
+}
+
+function jumpToLatestPlay() {
+  const container = document.getElementById('playsScrollContainer');
+  if (container) {
+    container.scrollTop = 0; // Scroll to top (latest plays)
+  }
+}
+
+function updateGamecastContent() {
+  const container = document.getElementById('gamecast-content');
+  if (!container) return;
+  
+  const gameId = container.dataset.gameId;
+  if (!gameId) return;
+  
+  const game = league.schedule.games[gameId];
+  if (!game) return;
+  
+  const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
+  const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
+  
+  container.innerHTML = renderGamecastContent(game, homeTeam, awayTeam);
+}
+
 function switchLiveView(view) {
   console.log('Switching live view to:', view);
   activeLiveView = view;
@@ -2772,6 +4825,9 @@ function renderGameDrawer() {
   const game = league.schedule.games[activeGameDrawer];
   if (!game) return;
   
+  // Ensure game has a log array
+  ensureGameLog(game);
+  
   const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
   const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
   
@@ -2779,7 +4835,10 @@ function renderGameDrawer() {
   
   // Only render if container is empty (avoid re-rendering during live updates)
   if (container.children.length === 0) {
-    console.log('Initial render of game drawer for:', game.id);
+    console.log('Initial render of NBA-style gamecast for:', game.id);
+    
+    activeGamecastTab = game.status === 'live' ? 'plays' : 'matchup';
+    
     container.innerHTML = `
       <div style="
         position: fixed;
@@ -2787,140 +4846,855 @@ function renderGameDrawer() {
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0,0,0,0.95);
+        z-index: 1000;
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 1000;
       " onclick="if(event.target === this) closeGameDrawer()">
-        <div id="game-drawer-modal" style="
+        
+        <!-- Gamecast Container -->
+        <div id="gamecast-modal" style="
           background: #1a1a2e;
-          border-radius: 12px;
-          width: 90%;
+          width: 100%;
           max-width: 900px;
-          max-height: 90vh;
+          height: 95vh;
+          border-radius: 12px;
           overflow: hidden;
           display: flex;
           flex-direction: column;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         ">
-        <!-- Header -->
-        <div id="game-drawer-header" style="padding: 20px; border-bottom: 2px solid #2a2a40;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0;">${awayTeam.name} @ ${homeTeam.name}</h3>
-            <button onclick="closeGameDrawer()" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">✕ Close</button>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-size: 1.8em; font-weight: bold;">
-                ${awayTeam.name} <span id="away-score" style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.away}</span>
+          
+          <!-- STICKY HEADER: Scoreboard -->
+          <div id="gamecast-header" style="
+            background: linear-gradient(135deg, #16213e 0%, #0f1624 100%);
+            padding: 20px;
+            border-bottom: 3px solid #2196F3;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+          ">
+            <!-- Close Button -->
+            <button onclick="closeGameDrawer()" style="
+              position: absolute;
+              top: 10px;
+              right: 10px;
+              background: rgba(244, 67, 54, 0.2);
+              color: #f44336;
+              border: 1px solid #f44336;
+              padding: 6px 12px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 0.9em;
+            ">✕ Close</button>
+            
+            <!-- Teams Row -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <!-- Away Team -->
+              <div style="flex: 1; text-align: left;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 48px; height: 48px; background: #2a2a40; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #2196F3;">
+                    ${awayTeam.name.substring(0, 3).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #fff;">${awayTeam.name}</div>
+                    <div style="font-size: 0.85em; color: #888;">${awayTeam.wins}-${awayTeam.losses}</div>
+                  </div>
+                </div>
               </div>
-              <div style="font-size: 1.8em; font-weight: bold; margin-top: 5px;">
-                ${homeTeam.name} <span id="home-score" style="color: ${game.status === 'final' ? '#fff' : '#888'}">${game.score.home}</span>
+              
+              <!-- Score -->
+              <div style="text-align: center; min-width: 180px;">
+                <div id="gamecast-score" style="font-size: 2.5em; font-weight: bold; letter-spacing: 2px;">
+                  <span id="away-score-big" style="color: ${game.score.away > game.score.home ? '#4CAF50' : '#ccc'}">${game.score.away}</span>
+                  <span style="color: #555; margin: 0 8px;">—</span>
+                  <span id="home-score-big" style="color: ${game.score.home > game.score.away ? '#4CAF50' : '#ccc'}">${game.score.home}</span>
+                </div>
+                <div id="game-status-main" style="margin-top: 8px; font-size: 0.95em; color: #2196F3; font-weight: bold;">
+                  ${game.status === 'final' ? 'FINAL' : ''}
+                  ${game.status === 'live' ? `Q${game.quarter} ${game.timeRemaining}` : ''}
+                  ${game.status === 'scheduled' ? 'Scheduled' : ''}
+                </div>
+                ${game.day ? `<div style="font-size: 0.8em; color: #666; margin-top: 4px;">Day ${game.day}</div>` : ''}
               </div>
-            </div>
-            <div id="game-status-display" style="text-align: right;">
-              ${game.status === 'final' ? '<span style="color: #4CAF50; font-weight: bold;">FINAL</span>' : ''}
-              ${game.status === 'live' ? `<span style="color: #f44336; font-weight: bold;">Q${game.quarter} ${game.timeRemaining}</span>` : ''}
-              ${game.status === 'scheduled' ? '<span style="color: #888;">Scheduled</span>' : ''}
+              
+              <!-- Home Team -->
+              <div style="flex: 1; text-align: right;">
+                <div style="display: flex; align-items: center; gap: 12px; justify-content: flex-end;">
+                  <div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #fff;">${homeTeam.name}</div>
+                    <div style="font-size: 0.85em; color: #888;">${homeTeam.wins}-${homeTeam.losses}</div>
+                  </div>
+                  <div style="width: 48px; height: 48px; background: #2a2a40; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #2196F3;">
+                    ${homeTeam.name.substring(0, 3).toUpperCase()}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
-          <!-- Game Action Buttons -->
-          <div id="game-action-buttons">
-            ${game.status === 'scheduled' ? `
-              <div style="margin-top: 15px; display: flex; gap: 10px;">
-                <button onclick="simGameInstantUI('${game.id}')" style="flex: 1; background: #4CAF50; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">⚡ Sim Instant</button>
-                <button onclick="startWatchLiveUI('${game.id}')" style="flex: 1; background: #2196F3; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;">👁️ Watch Live</button>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-        
-        <!-- Live Game Views Container -->
-        <div id="liveGameContainer" style="display: ${game.status === 'live' ? 'flex' : 'none'}; flex: 1; overflow: hidden; flex-direction: column; background: #16213e;">
-          
-          <!-- View Toggle Tabs -->
-          <div style="display: flex; border-bottom: 2px solid #2a2a40; background: #0f1624;">
-            <button id="tab-pbp" onclick="switchLiveView('pbp')" style="
+          <!-- STICKY TAB BAR -->
+          <div id="gamecast-tabs" style="
+            background: #0f1624;
+            display: flex;
+            border-bottom: 2px solid #2a2a40;
+            position: sticky;
+            top: 0;
+            z-index: 9;
+          ">
+            <button onclick="switchGamecastTab('plays')" id="tab-plays" style="
               flex: 1;
               padding: 14px;
-              background: ${activeLiveView === 'pbp' ? '#4CAF50' : 'transparent'};
-              color: white;
+              background: transparent;
+              color: ${activeGamecastTab === 'plays' ? '#2196F3' : '#888'};
               border: none;
+              border-bottom: 3px solid ${activeGamecastTab === 'plays' ? '#2196F3' : 'transparent'};
               cursor: pointer;
               font-weight: bold;
-              font-size: 0.95em;
+              font-size: 0.9em;
               transition: all 0.2s;
-            ">📋 Play-by-Play</button>
-            <button id="tab-box" onclick="switchLiveView('box')" style="
+            ">Plays</button>
+            <button onclick="switchGamecastTab('stats')" id="tab-stats" style="
               flex: 1;
               padding: 14px;
-              background: ${activeLiveView === 'box' ? '#4CAF50' : 'transparent'};
-              color: white;
+              background: transparent;
+              color: ${activeGamecastTab === 'stats' ? '#2196F3' : '#888'};
               border: none;
+              border-bottom: 3px solid ${activeGamecastTab === 'stats' ? '#2196F3' : 'transparent'};
               cursor: pointer;
               font-weight: bold;
-              font-size: 0.95em;
+              font-size: 0.9em;
               transition: all 0.2s;
-            ">📊 Box Score</button>
-            <button id="tab-compare" onclick="switchLiveView('compare')" style="
-              flex: 1;
-              padding: 14px;
-              background: ${activeLiveView === 'compare' ? '#4CAF50' : 'transparent'};
-              color: white;
-              border: none;
-              cursor: pointer;
-              font-weight: bold;
-              font-size: 0.95em;
-              transition: all 0.2s;
-            ">⚖️ Team Comparison</button>
+            ">Stats</button>
           </div>
           
-          <!-- View Content Area -->
-          <div style="flex: 1; overflow: hidden; padding: 20px;">
-            
-            <!-- Play-by-Play View -->
-            <div id="view-pbp" style="display: ${activeLiveView === 'pbp' ? 'flex' : 'none'}; flex-direction: column; height: 100%;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="margin: 0; color: #4CAF50;">Live Play-by-Play</h4>
-                <span id="pbp-event-count" style="color: #888; font-size: 0.9em;">0 events</span>
-              </div>
-              <div id="playByPlayFeed" class="pbp-feed" style="
-                background: #0f1624;
-                border: 1px solid #2a2a40;
-                border-radius: 8px;
-                padding: 15px;
-                flex: 1;
-                overflow-y: auto;
-                font-family: monospace;
-                color: #e0e0e0;
-              "></div>
-            </div>
-            
-            <!-- Box Score View -->
-            <div id="view-box" style="display: ${activeLiveView === 'box' ? 'block' : 'none'}; height: 100%; overflow-y: auto;">
-              <div id="boxScoreContent"></div>
-            </div>
-            
-            <!-- Team Comparison View -->
-            <div id="view-compare" style="display: ${activeLiveView === 'compare' ? 'block' : 'none'}; height: 100%; overflow-y: auto;">
-              <div id="teamCompareContent"></div>
-            </div>
-            
+          <!-- TAB CONTENT AREA -->
+          <div id="gamecast-content" data-game-id="${game.id}" style="flex: 1; overflow-y: auto; background: #1a1a2e;">
+            ${renderGamecastContent(game, homeTeam, awayTeam)}
           </div>
+          
+          <!-- STICKY BOTTOM CONTROLS -->
+          ${renderGamecastControls(game)}
+          
         </div>
-        
-        <!-- Content (Summary/Box Score) - Hidden during live games -->
-        <div id="game-drawer-content" style="flex: 1; overflow-y: auto; padding: 20px; display: ${game.status === 'live' ? 'none' : 'block'};">
-          ${renderGameDrawerContent(game, homeTeam, awayTeam)}
+      </div>
+    `;
+  }
+}
+
+function renderGamecastContent(game, homeTeam, awayTeam) {
+  // If game is scheduled, show action buttons
+  if (game.status === 'scheduled') {
+    return `
+      <div style="padding: 60px 20px; text-align: center;">
+        <div style="font-size: 3em; margin-bottom: 20px;">🏀</div>
+        <h3 style="color: #fff; margin-bottom: 30px;">Game Not Started</h3>
+        <div style="display: flex; gap: 15px; max-width: 400px; margin: 0 auto;">
+          <button onclick="simGameInstantUI('${game.id}')" style="
+            flex: 1;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1em;
+          ">⚡ Sim Instant</button>
+          <button onclick="startWatchLiveUI('${game.id}')" style="
+            flex: 1;
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1em;
+          ">👁️ Watch Live</button>
         </div>
-        
-        <!-- Live Controls -->
-        ${game.status === 'live' ? renderLiveGameControls(game.id) : ''}
+      </div>
+    `;
+  }
+  
+  // Render based on active tab
+  switch(activeGamecastTab) {
+    case 'plays':
+      return renderPlaysTab(game, homeTeam, awayTeam);
+    case 'stats':
+      return renderGamecastStatsTab(game, homeTeam, awayTeam);
+    case 'matchup':
+      return renderMatchupTab(game, homeTeam, awayTeam);
+    case 'odds':
+      return renderOddsTab(game, homeTeam, awayTeam);
+    default:
+      return '<div style="padding: 20px;">Loading...</div>';
+  }
+}
+
+function renderPlaysTab(game, homeTeam, awayTeam) {
+  // Ensure log exists and is an array
+  ensureGameLog(game);
+  
+  if (DEBUG_PLAYS) {
+    console.log(`[PLAYS] renderPlaysTab: game ${game.id}, log has ${game.log.length} entries`);
+  }
+  
+  if (game.log.length === 0) {
+    return `
+      <div style="padding: 80px 20px; text-align: center; color: #888;">
+        <div style="font-size: 2.5em; margin-bottom: 15px;">⏳</div>
+        <div style="font-size: 1.1em;">Waiting for first event...</div>
+        <div style="font-size: 0.9em; margin-top: 8px;">Play-by-play will appear here</div>
+      </div>
+    `;
+  }
+  
+  return `
+    <div id="plays-tab-content" style="padding: 0;">
+      <!-- Controls -->
+      <div style="padding: 12px 20px; background: #0f1624; border-bottom: 1px solid #2a2a40; display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: #888; font-size: 0.9em;">${game.log.length} plays</span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <label style="display: flex; align-items: center; gap: 6px; color: #888; font-size: 0.85em; cursor: pointer;">
+            <input type="checkbox" id="autoScrollToggle" ${autoScrollPlays ? 'checked' : ''} onchange="toggleAutoScroll(this.checked)" style="cursor: pointer;">
+            Auto-scroll
+          </label>
+          <button onclick="jumpToLatestPlay()" style="
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: bold;
+          ">⇩ Latest</button>
+        </div>
+      </div>
+      
+      <!-- Play Feed -->
+      <div id="playsScrollContainer" style="max-height: calc(95vh - 340px); overflow-y: auto; background: #1a1a2e;">
+        ${renderPlayByPlayFeed(game, homeTeam, awayTeam)}
       </div>
     </div>
   `;
+}
+
+function renderPlayByPlayFeed(game, homeTeam, awayTeam) {
+  // Ensure log exists
+  ensureGameLog(game);
+  if (game.log.length === 0) return '';
+  
+  if (DEBUG_PLAYS) {
+    console.log(`[PLAYS] renderPlayByPlayFeed: rendering ${game.log.length} plays`);
   }
+  
+  // Group plays by quarter
+  const playsByQuarter = {};
+  game.log.forEach(play => {
+    if (!playsByQuarter[play.quarter]) playsByQuarter[play.quarter] = [];
+    playsByQuarter[play.quarter].push(play);
+  });
+  
+  let html = '';
+  
+  // Render in reverse order (latest quarter first)
+  const quarters = Object.keys(playsByQuarter).sort((a, b) => b - a);
+  
+  quarters.forEach(q => {
+    const plays = playsByQuarter[q];
+    
+    // Quarter header
+    html += `
+      <div style="
+        padding: 12px 20px;
+        background: #0f1624;
+        border-bottom: 2px solid #2a2a40;
+        font-weight: bold;
+        color: #2196F3;
+        font-size: 0.95em;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      ">${getQuarterLabel(parseInt(q))}</div>
+    `;
+    
+    // Plays (reverse order within quarter - newest first)
+    plays.slice().reverse().forEach((play, idx) => {
+      const isScoring = play.scored;
+      const bgColor = idx % 2 === 0 ? '#1a1a2e' : '#16213e';
+      
+      html += `
+        <div style="
+          padding: 12px 20px;
+          background: ${isScoring ? 'rgba(33, 150, 243, 0.1)' : bgColor};
+          border-left: 3px solid ${isScoring ? '#2196F3' : 'transparent'};
+          border-bottom: 1px solid #2a2a40;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        ">
+          <!-- Time -->
+          <span style="
+            min-width: 50px;
+            color: #666;
+            font-size: 0.85em;
+            font-family: monospace;
+          ">${play.time}</span>
+          
+          <!-- Team Icon -->
+          <div style="
+            width: 24px;
+            height: 24px;
+            background: #2a2a40;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            font-weight: bold;
+            color: #2196F3;
+          ">${play.text.includes(homeTeam.name) ? homeTeam.name.substring(0, 2).toUpperCase() : awayTeam.name.substring(0, 2).toUpperCase()}</div>
+          
+          <!-- Play Text -->
+          <span style="flex: 1; color: #ccc; font-size: 0.9em;">${play.text}</span>
+          
+          <!-- Score -->
+          ${play.score ? `
+            <span style="
+              min-width: 70px;
+              text-align: right;
+              color: #4CAF50;
+              font-weight: bold;
+              font-size: 0.9em;
+              font-family: monospace;
+            ">${play.score.away}-${play.score.home}</span>
+          ` : ''}
+        </div>
+      `;
+    });
+  });
+  
+  // Game End marker if final
+  if (game.status === 'final') {
+    html = `
+      <div style="
+        padding: 16px 20px;
+        background: #4CAF50;
+        color: white;
+        font-weight: bold;
+        text-align: center;
+        font-size: 1em;
+      ">✓ GAME END</div>
+    ` + html;
+  }
+  
+  return html;
+}
+
+function getQuarterLabel(q) {
+  const labels = { 1: '1st Quarter', 2: '2nd Quarter', 3: '3rd Quarter', 4: '4th Quarter' };
+  return labels[q] || `Q${q}`;
+}
+
+function renderGamecastStatsTab(game, homeTeam, awayTeam) {
+  return `
+    <div style="padding: 0;">
+      <!-- Team vs Box Score Toggle -->
+      <div style="
+        padding: 12px 20px;
+        background: #0f1624;
+        border-bottom: 1px solid #2a2a40;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+      ">
+        <button onclick="switchStatsTabView('team')" style="
+          padding: 8px 24px;
+          background: ${activeStatsTabView === 'team' ? '#2196F3' : '#16213e'};
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 0.9em;
+          transition: all 0.2s;
+        ">📊 Team</button>
+        <button onclick="switchStatsTabView('boxscore')" style="
+          padding: 8px 24px;
+          background: ${activeStatsTabView === 'boxscore' ? '#2196F3' : '#16213e'};
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 0.9em;
+          transition: all 0.2s;
+        ">📋 Box Score</button>
+      </div>
+      
+      <!-- Segmented Control (only for Box Score view) -->
+      ${activeStatsTabView === 'boxscore' ? `
+        <div style="
+          padding: 12px 20px;
+          background: #0f1624;
+          border-bottom: 1px solid #2a2a40;
+          display: flex;
+          justify-content: center;
+          gap: 10px;
+        ">
+          <button onclick="switchStatsView('away')" style="
+            padding: 8px 20px;
+            background: ${activeStatsView === 'away' ? '#2196F3' : '#2a2a40'};
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9em;
+          ">${awayTeam.name}</button>
+          <button onclick="switchStatsView('home')" style="
+            padding: 8px 20px;
+            background: ${activeStatsView === 'home' ? '#2196F3' : '#2a2a40'};
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9em;
+          ">${homeTeam.name}</button>
+        </div>
+      ` : ''}
+      
+      <!-- Stats Content -->
+      <div id="stats-content-container" style="padding: 20px; overflow-y: auto; max-height: calc(95vh - ${activeStatsTabView === 'boxscore' ? '440px' : '380px'});">
+        ${renderStatsContent(game, homeTeam, awayTeam)}
+      </div>
+    </div>
+  `;
+}
+
+function renderStatsContent(game, homeTeam, awayTeam) {
+  // Safety check - this is for gamecast only
+  if (!game || !homeTeam || !awayTeam) {
+    return '<div>No game data available</div>';
+  }
+  
+  if (activeStatsTabView === 'team') {
+    return renderTeamStatsView(game, homeTeam, awayTeam);
+  } else {
+    // Box Score view - show selected team
+    // Default to user team if involved, otherwise away team
+    const userTeam = league.userTeamId;
+    if (activeStatsView === 'game') {
+      // First time switching to box score, pick a default
+      if (game.homeTeamId === userTeam || game.awayTeamId === userTeam) {
+        activeStatsView = game.homeTeamId === userTeam ? 'home' : 'away';
+      } else {
+        activeStatsView = 'away';
+      }
+    }
+    
+    if (activeStatsView === 'away') {
+      return renderTeamBoxScore(game, awayTeam, 'away');
+    } else {
+      return renderTeamBoxScore(game, homeTeam, 'home');
+    }
+  }
+}
+
+function renderTeamStatsView(game, homeTeam, awayTeam) {
+  // Safety check
+  if (!game || !homeTeam || !awayTeam) {
+    return '<div>No game data available</div>';
+  }
+  
+  // Calculate team totals from box score if available
+  const awayStats = game.boxScore?.away || {};
+  const homeStats = game.boxScore?.home || {};
+  
+  const awayTotals = calculateTeamTotals(awayStats);
+  const homeTotals = calculateTeamTotals(homeStats);
+  
+  // Quarter scores (use actual if available, otherwise distribute evenly)
+  const quarters = [1, 2, 3, 4];
+  const awayQuarters = quarters.map(q => Math.floor(game.score.away / 4) + (q <= (game.score.away % 4) ? 1 : 0));
+  const homeQuarters = quarters.map(q => Math.floor(game.score.home / 4) + (q <= (game.score.home % 4) ? 1 : 0));
+  
+  return `
+    <div>
+      <!-- Quarter Scoring Table -->
+      <h4 style="margin: 0 0 15px 0; color: #2196F3;">Scoring by Quarter</h4>
+      <div style="overflow-x: auto; margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse; background: #0f1624; border-radius: 8px; overflow: hidden;">
+          <thead>
+            <tr style="background: #16213e; color: #2196F3;">
+              <th style="text-align: left; padding: 12px; font-size: 0.85em;">TEAM</th>
+              <th style="text-align: center; padding: 12px; font-size: 0.85em;">Q1</th>
+              <th style="text-align: center; padding: 12px; font-size: 0.85em;">Q2</th>
+              <th style="text-align: center; padding: 12px; font-size: 0.85em;">Q3</th>
+              <th style="text-align: center; padding: 12px; font-size: 0.85em;">Q4</th>
+              <th style="text-align: center; padding: 12px; font-size: 0.85em; font-weight: bold;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #2a2a40;">
+              <td style="padding: 12px; color: #ccc; font-weight: bold;">${awayTeam.name}</td>
+              ${awayQuarters.map(score => `<td style="text-align: center; padding: 12px; color: #888;">${score}</td>`).join('')}
+              <td style="text-align: center; padding: 12px; color: #4CAF50; font-weight: bold; font-size: 1.1em;">${game.score.away}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px; color: #ccc; font-weight: bold;">${homeTeam.name}</td>
+              ${homeQuarters.map(score => `<td style="text-align: center; padding: 12px; color: #888;">${score}</td>`).join('')}
+              <td style="text-align: center; padding: 12px; color: #4CAF50; font-weight: bold; font-size: 1.1em;">${game.score.home}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Team Totals Comparison -->
+      <h4 style="margin: 0 0 15px 0; color: #2196F3;">Team Totals</h4>
+      <div style="background: #0f1624; border-radius: 8px; padding: 15px;">
+        ${renderStatComparison('Rebounds', awayTotals.reb, homeTotals.reb)}
+        ${renderStatComparison('Assists', awayTotals.ast, homeTotals.ast)}
+        ${renderStatComparison('Steals', awayTotals.stl, homeTotals.stl)}
+        ${renderStatComparison('Blocks', awayTotals.blk, homeTotals.blk)}
+        ${renderStatComparison('Turnovers', awayTotals.to, homeTotals.to, true)}
+        ${renderStatComparison('Field Goal %', awayTotals.fgPct + '%', homeTotals.fgPct + '%')}
+        ${renderStatComparison('3-Point %', awayTotals.threePct + '%', homeTotals.threePct + '%')}
+        ${renderStatComparison('Free Throw %', awayTotals.ftPct + '%', homeTotals.ftPct + '%')}
+      </div>
+    </div>
+  `;
+}
+
+function calculateTeamTotals(teamStats) {
+  if (!teamStats.players || teamStats.players.length === 0) {
+    // Generate placeholder stats
+    return {
+      reb: Math.floor(35 + Math.random() * 15),
+      ast: Math.floor(18 + Math.random() * 12),
+      stl: Math.floor(5 + Math.random() * 8),
+      blk: Math.floor(3 + Math.random() * 7),
+      to: Math.floor(10 + Math.random() * 10),
+      fgPct: (40 + Math.random() * 15).toFixed(1),
+      threePct: (30 + Math.random() * 15).toFixed(1),
+      ftPct: (70 + Math.random() * 20).toFixed(1)
+    };
+  }
+  
+  const totals = teamStats.players.reduce((acc, p) => {
+    acc.reb += p.reb || 0;
+    acc.ast += p.ast || 0;
+    acc.stl += p.stl || 0;
+    acc.blk += p.blk || 0;
+    acc.to += p.to || 0;
+    return acc;
+  }, { reb: 0, ast: 0, stl: 0, blk: 0, to: 0 });
+  
+  return {
+    ...totals,
+    fgPct: (40 + Math.random() * 15).toFixed(1),
+    threePct: (30 + Math.random() * 15).toFixed(1),
+    ftPct: (70 + Math.random() * 20).toFixed(1)
+  };
+}
+
+function renderStatComparison(label, awayVal, homeVal, inverse = false) {
+  const awayNum = typeof awayVal === 'string' ? parseFloat(awayVal) : awayVal;
+  const homeNum = typeof homeVal === 'string' ? parseFloat(homeVal) : homeVal;
+  const awayLeads = inverse ? (awayNum < homeNum) : (awayNum > homeNum);
+  
+  return `
+    <div style="
+      padding: 12px 0;
+      border-bottom: 1px solid #2a2a40;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 15px;
+    ">
+      <div style="text-align: right; color: ${awayLeads ? '#4CAF50' : '#888'}; font-weight: ${awayLeads ? 'bold' : 'normal'}; font-size: 1.1em;">
+        ${awayVal} ${awayLeads ? '▶' : ''}
+      </div>
+      <div style="color: #666; font-size: 0.85em; text-align: center; min-width: 100px;">${label}</div>
+      <div style="text-align: left; color: ${!awayLeads ? '#4CAF50' : '#888'}; font-weight: ${!awayLeads ? 'bold' : 'normal'}; font-size: 1.1em;">
+        ${!awayLeads ? '◀' : ''} ${homeVal}
+      </div>
+    </div>
+  `;
+}
+
+function renderTeamBoxScore(game, team, side) {
+  if (!game.boxScore || !game.boxScore[side]) {
+    return '<div style="padding: 40px; text-align: center; color: #888;">Box score not available</div>';
+  }
+  
+  const players = game.boxScore[side].players;
+  const starters = players.slice(0, 5);
+  const bench = players.slice(5);
+  
+  const renderPlayerRows = (playerList, isStarter) => {
+    return playerList.map((p, idx) => `
+      <tr style="border-bottom: 1px solid #2a2a40; ${!isStarter ? 'opacity: 0.85;' : ''}">
+        <td style="padding: 10px 12px; color: #ccc; font-size: 0.85em;">
+          ${p.name}
+          ${isStarter ? '<span style="color: #2196F3; margin-left: 4px; font-size: 0.75em;">●</span>' : ''}
+        </td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.min || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #4CAF50; font-weight: bold; font-size: 0.9em;">${p.pts || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.reb || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.ast || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.stl || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.blk || 0}</td>
+        <td style="text-align: center; padding: 10px 8px; color: #888; font-size: 0.85em;">${p.to || 0}</td>
+      </tr>
+    `).join('');
+  };
+  
+  return `
+    <div>
+      <h4 style="margin: 0 0 15px 0; color: #2196F3; display: flex; justify-content: space-between; align-items: center;">
+        <span>${team.name}</span>
+        <span style="font-size: 1.3em;">${game.score[side]}</span>
+      </h4>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; min-width: 600px; border-collapse: collapse; background: #0f1624; border-radius: 8px; overflow: hidden;">
+          <thead>
+            <tr style="background: #16213e; color: #2196F3;">
+              <th style="text-align: left; padding: 10px 12px; font-size: 0.8em; min-width: 140px;">PLAYER</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">MIN</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">PTS</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">REB</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">AST</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">STL</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">BLK</th>
+              <th style="text-align: center; padding: 10px 8px; font-size: 0.8em; min-width: 50px;">TO</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderPlayerRows(starters, true)}
+            ${bench.length > 0 ? `
+              <tr style="background: #16213e;">
+                <td colspan="8" style="padding: 8px 12px; color: #666; font-size: 0.8em; font-weight: bold; text-transform: uppercase;">Bench</td>
+              </tr>
+              ${renderPlayerRows(bench, false)}
+            ` : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderMatchupTab(game, homeTeam, awayTeam) {
+  return `
+    <div style="padding: 20px;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; text-align: center;">Team Overview</h3>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+        <!-- Away Team -->
+        <div style="background: #0f1624; border-radius: 8px; padding: 20px; border: 2px solid #2a2a40;">
+          <h4 style="margin: 0 0 15px 0; color: #fff; text-align: center;">${awayTeam.name}</h4>
+          <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 2em; color: #2196F3;">${awayTeam.wins}-${awayTeam.losses}</div>
+            <div style="font-size: 0.85em; color: #888;">Record</div>
+          </div>
+          <div style="border-top: 1px solid #2a2a40; padding-top: 15px;">
+            <div style="margin-bottom: 10px; color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Off Rating:</span> ${(105 + Math.random() * 10).toFixed(1)}
+            </div>
+            <div style="margin-bottom: 10px; color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Def Rating:</span> ${(105 + Math.random() * 10).toFixed(1)}
+            </div>
+            <div style="color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Pace:</span> ${(95 + Math.random() * 10).toFixed(1)}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Home Team -->
+        <div style="background: #0f1624; border-radius: 8px; padding: 20px; border: 2px solid #2a2a40;">
+          <h4 style="margin: 0 0 15px 0; color: #fff; text-align: center;">${homeTeam.name}</h4>
+          <div style="text-align: center; margin-bottom: 15px;">
+            <div style="font-size: 2em; color: #2196F3;">${homeTeam.wins}-${homeTeam.losses}</div>
+            <div style="font-size: 0.85em; color: #888;">Record</div>
+          </div>
+          <div style="border-top: 1px solid #2a2a40; padding-top: 15px;">
+            <div style="margin-bottom: 10px; color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Off Rating:</span> ${(105 + Math.random() * 10).toFixed(1)}
+            </div>
+            <div style="margin-bottom: 10px; color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Def Rating:</span> ${(105 + Math.random() * 10).toFixed(1)}
+            </div>
+            <div style="color: #ccc; font-size: 0.9em;">
+              <span style="color: #888;">Pace:</span> ${(95 + Math.random() * 10).toFixed(1)}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background: #0f1624; border-radius: 8px; padding: 20px; text-align: center;">
+        <div style="color: #888; font-size: 0.9em; margin-bottom: 8px;">Game ${game.day || 'TBD'} - ${league.season} Season</div>
+        <div style="color: #ccc;">Regular Season</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderOddsTab(game, homeTeam, awayTeam) {
+  const awayProb = 45 + Math.random() * 10;
+  const homeProb = 100 - awayProb;
+  
+  return `
+    <div style="padding: 20px;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; text-align: center;">Game Forecast</h3>
+      
+      <div style="background: #0f1624; border-radius: 8px; padding: 25px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 20px 0; color: #fff; text-align: center;">Win Probability</h4>
+        
+        <!-- Away Team -->
+        <div style="margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: #ccc; font-weight: bold;">${awayTeam.name}</span>
+            <span style="color: #2196F3; font-weight: bold;">${awayProb.toFixed(1)}%</span>
+          </div>
+          <div style="background: #2a2a40; height: 12px; border-radius: 6px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #2196F3, #1976D2); height: 100%; width: ${awayProb}%; transition: width 0.3s;"></div>
+          </div>
+        </div>
+        
+        <!-- Home Team -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: #ccc; font-weight: bold;">${homeTeam.name}</span>
+            <span style="color: #4CAF50; font-weight: bold;">${homeProb.toFixed(1)}%</span>
+          </div>
+          <div style="background: #2a2a40; height: 12px; border-radius: 6px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #4CAF50, #388E3C); height: 100%; width: ${homeProb}%; transition: width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background: #0f1624; border-radius: 8px; padding: 20px; text-align: center;">
+        <div style="color: #888; font-size: 0.85em; margin-bottom: 10px;">Projected Total</div>
+        <div style="font-size: 2em; color: #2196F3; font-weight: bold;">${(game.score.away + game.score.home) || 210}</div>
+        <div style="color: #888; font-size: 0.85em; margin-top: 8px;">Combined Points</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGamecastControls(game) {
+  if (game.status === 'final') {
+    return `
+      <div style="
+        background: #0f1624;
+        padding: 15px 20px;
+        border-top: 2px solid #2a2a40;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      ">
+        <button onclick="closeGameDrawer()" style="
+          padding: 12px 30px;
+          background: #2196F3;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 1em;
+        ">Close</button>
+      </div>
+    `;
+  }
+  
+  if (game.status === 'live') {
+    const isRunning = liveGameIntervals.has(game.id);
+    
+    return `
+      <div style="
+        background: #0f1624;
+        padding: 15px 20px;
+        border-top: 2px solid #2a2a40;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <!-- Left Controls -->
+        <div style="display: flex; gap: 10px;">
+          ${isRunning ? `
+            <button onclick="pauseLiveGameUI('${game.id}')" style="
+              padding: 10px 20px;
+              background: #ff9800;
+              color: white;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">⏸️ Pause</button>
+          ` : `
+            <button onclick="resumeLiveGameUI('${game.id}')" style="
+              padding: 10px 20px;
+              background: #4CAF50;
+              color: white;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">▶️ Resume</button>
+          `}
+          <button onclick="simToEndUI('${game.id}')" style="
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">⏭️ Sim to End</button>
+        </div>
+        
+        <!-- Right: Speed Control -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="color: #888; font-size: 0.9em; font-weight: bold;">Speed:</span>
+          <button onclick="setLiveGameSpeed(1)" style="
+            padding: 8px 16px;
+            background: ${liveGameSpeed === 1 ? '#2196F3' : '#2a2a40'};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+          ">1x</button>
+          <button onclick="setLiveGameSpeed(2)" style="
+            padding: 8px 16px;
+            background: ${liveGameSpeed === 2 ? '#2196F3' : '#2a2a40'};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+          ">2x</button>
+          <button onclick="setLiveGameSpeed(5)" style="
+            padding: 8px 16px;
+            background: ${liveGameSpeed === 5 ? '#2196F3' : '#2a2a40'};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+          ">5x</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  return '';
 }
 
 function renderGameDrawerContent(game, homeTeam, awayTeam) {
@@ -3179,33 +5953,54 @@ function updateLiveGameDisplay(gameId) {
   const game = league.schedule.games[gameId];
   if (!game) return;
   
+  // Ensure log exists
+  ensureGameLog(game);
+  
+  if (DEBUG_PLAYS) {
+    console.log(`[PLAYS] updateLiveGameDisplay: ${gameId}, log has ${game.log.length} entries`);
+  }
+  
   const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
   const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
   
-  // Update header scores
-  const awayScoreEl = document.getElementById('away-score');
-  const homeScoreEl = document.getElementById('home-score');
-  if (awayScoreEl) awayScoreEl.textContent = game.score.away;
-  if (homeScoreEl) homeScoreEl.textContent = game.score.home;
+  // Update header scores (NEW gamecast structure)
+  const awayScoreBig = document.getElementById('away-score-big');
+  const homeScoreBig = document.getElementById('home-score-big');
+  if (awayScoreBig) {
+    awayScoreBig.textContent = game.score.away;
+    awayScoreBig.style.color = game.score.away > game.score.home ? '#4CAF50' : '#888';
+  }
+  if (homeScoreBig) {
+    homeScoreBig.textContent = game.score.home;
+    homeScoreBig.style.color = game.score.home > game.score.away ? '#4CAF50' : '#888';
+  }
   
-  // Update status (quarter and time)
-  const statusEl = document.getElementById('game-status-display');
-  if (statusEl) {
+  // Update status (quarter and time) (NEW gamecast structure)
+  const statusMain = document.getElementById('game-status-main');
+  if (statusMain) {
     if (game.status === 'final') {
-      statusEl.innerHTML = '<span style="color: #4CAF50; font-weight: bold;">FINAL</span>';
+      statusMain.innerHTML = `
+        <div style="font-weight: bold; color: #4CAF50; font-size: 1.1em;">FINAL</div>
+        <div style="font-size: 0.85em; color: #666; margin-top: 4px;">Day ${game.day || getCurrentDay()}</div>
+      `;
     } else if (game.status === 'live') {
-      statusEl.innerHTML = `<span style="color: #f44336; font-weight: bold;">Q${game.quarter} ${game.timeRemaining}</span>`;
+      statusMain.innerHTML = `
+        <div style="font-weight: bold; color: #f44336; font-size: 1.1em;">Q${game.quarter} ${game.timeRemaining}</div>
+        <div style="font-size: 0.85em; color: #666; margin-top: 4px;">LIVE</div>
+      `;
     }
   }
   
-  // Update Play-by-Play view
-  updatePlayByPlayView(game);
+  // Update the active tab content
+  updateGamecastContent();
   
-  // Update Box Score view (if visible or in background)
-  updateBoxScoreView(game, homeTeam, awayTeam);
-  
-  // Update Team Comparison view
-  updateTeamComparisonView(game, homeTeam, awayTeam);
+  // Auto-scroll plays if enabled and on Plays tab
+  if (autoScrollPlays && activeGamecastTab === 'plays') {
+    setTimeout(() => {
+      const container = document.getElementById('playsScrollContainer');
+      if (container) container.scrollTop = 0; // Scroll to top (latest plays)
+    }, 100);
+  }
 }
 
 // Play-by-Play View Update
@@ -3385,6 +6180,17 @@ function pauseLiveGameUI(gameId) {
     clearInterval(liveGameIntervals.get(gameId));
     liveGameIntervals.delete(gameId);
     console.log('Game paused');
+    
+    // Update controls to show Resume button
+    const game = league.schedule.games[gameId];
+    if (game) {
+      const controlsContainer = document.querySelector('#gamecast-content').parentElement.querySelector('[style*="border-top: 2px solid #2a2a40"]');
+      if (controlsContainer) {
+        const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
+        const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
+        controlsContainer.outerHTML = renderGamecastControls(game);
+      }
+    }
   }
 }
 
@@ -3414,6 +6220,15 @@ function resumeLiveGameUI(gameId) {
   }, interval);
   
   liveGameIntervals.set(gameId, intervalId);
+  
+  // Update controls to show Pause button
+  const game = league.schedule.games[gameId];
+  if (game) {
+    const controlsContainer = document.querySelector('#gamecast-content').parentElement.querySelector('[style*="border-top: 2px solid #2a2a40"]');
+    if (controlsContainer) {
+      controlsContainer.outerHTML = renderGamecastControls(game);
+    }
+  }
 }
 
 function setLiveGameSpeed(speed) {
