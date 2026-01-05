@@ -58,6 +58,10 @@
         <span class="sidebar-item-icon">👥</span>
         <span class="sidebar-item-text">Roster</span>
       </button>
+      <button class="sidebar-item" data-tab="teamManagement" onclick="switchTab('teamManagement')">
+        <span class="sidebar-item-icon">⚙️</span>
+        <span class="sidebar-item-text">Team Management</span>
+      </button>
       <button class="sidebar-item" data-tab="rotations" onclick="switchTab('rotations')">
         <span class="sidebar-item-icon">🔄</span>
         <span class="sidebar-item-text">Rotations</span>
@@ -98,6 +102,10 @@
         <span class="sidebar-item-icon">📜</span>
         <span class="sidebar-item-text">History</span>
       </button>
+      <button class="sidebar-item" data-tab="settings" onclick="switchTab('settings')">
+        <span class="sidebar-item-icon">⚙️</span>
+        <span class="sidebar-item-text">Settings</span>
+      </button>
     </nav>
   </div>
 
@@ -130,6 +138,11 @@
     <!-- Content rendered by JavaScript -->
   </div>
 
+  <!-- Team Management Tab -->
+  <div id="teamManagement-tab" style="display: none;">
+    <!-- Content rendered by JavaScript -->
+  </div>
+
   <!-- Free Agents Tab -->
   <div id="freeagents-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
@@ -152,6 +165,11 @@
 
   <!-- News Tab -->
   <div id="news-tab" style="display: none;">
+    <!-- Content rendered by JavaScript -->
+  </div>
+
+  <!-- Settings Tab -->
+  <div id="settings-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
   </div>
 

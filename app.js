@@ -1068,12 +1068,14 @@ function render() {
   if (currentTab === 'dashboard') renderDashboard();
   if (currentTab === 'standings') renderStandings();
   if (currentTab === 'team') renderTeam();
+  if (currentTab === 'teamManagement') renderTeamManagement();
   if (currentTab === 'freeagents') renderFreeAgents();
   if (currentTab === 'draft') renderDraft();
   if (currentTab === 'expansion') renderExpansion();
   if (currentTab === 'schedule') renderSchedule();
   if (currentTab === 'stats') renderStatsTab();
   if (currentTab === 'news') renderNewsTab();
+  if (currentTab === 'settings') renderSettings();
   if (currentTab === 'history') renderHistoryView();
   if (currentTab === 'rotations') renderRotations();
   if (currentTab === 'finances') renderFinances();
@@ -2624,6 +2626,1663 @@ function finalizeExpansionDraft() {
 }
 
 /* ============================
+   SETTINGS TAB
+============================ */
+
+// Settings state
+let settingsData = null;
+let settingsOriginal = null;
+let expandedSettingsSections = new Set(['gameplay']); // Default open sections
+
+// User preferences (separate from league data)
+let userPreferences = {
+  darkMode: true,
+  compactTables: false,
+  stickyHeaders: true,
+  autoScrollPlayByPlay: true,
+  confirmBeforeSimming: true,
+  confirmBeforeTrading: true
+};
+
+// Load user preferences from localStorage
+function loadUserPreferences() {
+  const stored = localStorage.getItem('hoopsDynastyUserPrefs');
+  if (stored) {
+    try {
+      userPreferences = { ...userPreferences, ...JSON.parse(stored) };
+    } catch (e) {
+      console.error('Failed to load user preferences:', e);
+    }
+  }
+}
+
+// Save user preferences to localStorage
+function saveUserPreferences() {
+  localStorage.setItem('hoopsDynastyUserPrefs', JSON.stringify(userPreferences));
+}
+
+// Initialize settings with defaults for existing leagues
+function initSettings(league) {
+  if (!league.rules) {
+    league.rules = {
+      gamesPerTeam: 82,
+      quarterLength: 12,
+      overtimeLength: 5,
+      playoffTeams: 16,
+      playoffSeriesLength: 7,
+      draftRounds: 2,
+      expansionAllowed: true,
+      enableInjuries: true,
+      injuryFrequency: 'Normal',
+      fatigueImpact: 'Normal',
+      moraleImpact: 'Normal'
+    };
+  }
+  
+  if (!league.capRules) {
+    league.capRules = {
+      salaryCap: 123500000,
+      luxuryTaxLine: 150000000,
+      hardCap: false,
+      maxContractPercent: 35,
+      rookieScaleEnabled: true,
+      allowPlayerOptions: true,
+      allowTeamOptions: true,
+      allowExtensions: true,
+      negotiationDifficulty: 'Normal'
+    };
+  }
+  
+  if (!league.aiSettings) {
+    league.aiSettings = {
+      tradeAggressiveness: 'Normal',
+      freeAgencyAggressiveness: 'Normal',
+      rosterPatience: 'Normal',
+      rebuildTolerance: 'Normal',
+      rotationStrictness: 'Normal',
+      draftingStyle: 'Balanced'
+    };
+  }
+  
+  if (!league.simSettings) {
+    league.simSettings = {
+      defaultSimSpeed: 'Fast',
+      watchLiveSpeed: '2x',
+      autoPauseCloseGames: false,
+      savePlayByPlay: true,
+      saveFullBoxScores: true
+    };
+  }
+  
+  if (!league.newsSettings) {
+    league.newsSettings = {
+      frequency: 'Normal',
+      breakingOnly: false,
+      myTeamOnly: false,
+      alertPopups: true
+    };
+  }
+  
+  if (!league.dataSettings) {
+    league.dataSettings = {
+      autoSaveFrequency: 'Every game',
+      backupSaves: true
+    };
+  }
+  
+  return league;
+}
+
+// Initialize settings editor
+function initSettingsEditor() {
+  initSettings(league);
+  settingsOriginal = JSON.parse(JSON.stringify({
+    rules: league.rules,
+    capRules: league.capRules,
+    aiSettings: league.aiSettings,
+    simSettings: league.simSettings,
+    newsSettings: league.newsSettings,
+    dataSettings: league.dataSettings
+  }));
+  settingsData = JSON.parse(JSON.stringify(settingsOriginal));
+  return settingsData;
+}
+
+// Update setting field
+function updateSetting(category, field, value) {
+  if (!settingsData || !settingsData[category]) return;
+  settingsData[category][field] = value;
+  render();
+}
+
+// Update user preference
+function updateUserPreference(field, value) {
+  userPreferences[field] = value;
+  saveUserPreferences();
+  render();
+}
+
+// Toggle settings section
+function toggleSettingsSection(section) {
+  if (expandedSettingsSections.has(section)) {
+    expandedSettingsSections.delete(section);
+  } else {
+    expandedSettingsSections.add(section);
+  }
+  render();
+}
+
+// Save settings
+function saveSettings() {
+  if (!settingsData || !settingsOriginal) {
+    alert('No changes to save');
+    return;
+  }
+  
+  // Check for major changes
+  const majorChanges = [];
+  
+  if (settingsData.rules.gamesPerTeam !== settingsOriginal.rules.gamesPerTeam) {
+    if (league.phase !== 'preseason') {
+      majorChanges.push('Games per team can only be changed in preseason');
+    }
+  }
+  
+  if (settingsData.capRules.salaryCap !== settingsOriginal.capRules.salaryCap) {
+    majorChanges.push('Salary cap change affects all teams immediately');
+  }
+  
+  if (settingsData.rules.playoffTeams !== settingsOriginal.rules.playoffTeams) {
+    majorChanges.push('Playoff format change applies next season');
+  }
+  
+  if (majorChanges.length > 0) {
+    if (!confirm(`Important changes detected:\n\n• ${majorChanges.join('\n• ')}\n\nContinue?`)) {
+      return;
+    }
+  }
+  
+  // Apply changes
+  league.rules = settingsData.rules;
+  league.capRules = settingsData.capRules;
+  league.aiSettings = settingsData.aiSettings;
+  league.simSettings = settingsData.simSettings;
+  league.newsSettings = settingsData.newsSettings;
+  league.dataSettings = settingsData.dataSettings;
+  
+  save();
+  settingsData = null;
+  settingsOriginal = null;
+  
+  alert('Settings saved successfully!');
+  render();
+}
+
+// Revert settings
+function revertSettings() {
+  if (confirm('Discard all changes?')) {
+    settingsData = null;
+    settingsOriginal = null;
+    render();
+  }
+}
+
+// Clear cached UI state
+function clearCachedState() {
+  if (confirm('Clear all cached UI state? This will reset filters, expanded sections, etc.')) {
+    localStorage.removeItem('hoopsDynastyUIState');
+    expandedSettingsSections = new Set(['gameplay']);
+    alert('Cache cleared!');
+    render();
+  }
+}
+
+// Repair league data
+function repairLeagueData() {
+  if (!confirm('Run data repair? This will fix missing fields and run migrations.')) return;
+  
+  initSettings(league);
+  initHistoryIfMissing(league);
+  initNewsFeed(league);
+  
+  // Fix any missing team data
+  league.teams.forEach(team => {
+    if (!team.primaryColor) team.primaryColor = '#2196F3';
+    if (!team.secondaryColor) team.secondaryColor = '#1976D2';
+    if (!team.arenaCapacity) team.arenaCapacity = 18000;
+    if (!team.marketSize) team.marketSize = 'Medium';
+  });
+  
+  save();
+  alert('Data repair complete!');
+  render();
+}
+
+// Export league data
+function exportLeague() {
+  const data = JSON.stringify(league, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `HOOPS_DYNASTY_${league.season}_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('League exported!');
+}
+
+// Import league data
+function importLeague() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!imported.teams || !imported.season) {
+          alert('Invalid league file');
+          return;
+        }
+        
+        if (!confirm('Import this league? Current league will be replaced.')) return;
+        
+        league = imported;
+        initSettings(league);
+        save();
+        render();
+        alert('League imported successfully!');
+      } catch (err) {
+        alert('Failed to import league: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// Main Settings Renderer
+function renderSettings() {
+  const el = document.getElementById('settings-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+  
+  // Initialize settings if not already
+  if (!settingsData) {
+    initSettingsEditor();
+  }
+  
+  const hasChanges = settingsOriginal && JSON.stringify(settingsData) !== JSON.stringify(settingsOriginal);
+  const isMidSeason = league.phase !== 'preseason';
+  
+  el.innerHTML = `
+    <div style="min-height: 100vh; background: #0f1624; padding-bottom: 100px;">
+      <!-- Header -->
+      <div style="
+        background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);
+        padding: 30px 20px;
+        border-bottom: 2px solid #2a2a40;
+      ">
+        <h1 style="margin: 0 0 8px 0; color: #fff; font-size: 2em;">⚙️ Settings</h1>
+        <div style="color: #888; font-size: 0.95em;">
+          League Settings & Preferences • Season ${league.season} • ${league.phase}
+        </div>
+      </div>
+
+      <!-- Settings Sections -->
+      <div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+        ${renderGameplayRulesSection(settingsData.rules, isMidSeason)}
+        ${renderCapRulesSection(settingsData.capRules)}
+        ${renderAIBehaviorSection(settingsData.aiSettings)}
+        ${renderSimSettingsSection(settingsData.simSettings)}
+        ${renderUIPreferencesSection()}
+        ${renderNotificationsSection(settingsData.newsSettings)}
+        ${renderDataSafetySection(settingsData.dataSettings)}
+      </div>
+
+      <!-- Save Bar -->
+      ${hasChanges ? `
+        <div style="
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #1a2332;
+          border-top: 2px solid #2196F3;
+          padding: 15px 20px;
+          display: flex;
+          justify-content: center;
+          gap: 15px;
+          z-index: 100;
+          box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+        ">
+          <button onclick="saveSettings()" style="
+            padding: 12px 32px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">💾 Save Settings</button>
+          <button onclick="revertSettings()" style="
+            padding: 12px 32px;
+            background: #f44336;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">↩️ Revert</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderGameplayRulesSection(rules, isMidSeason) {
+  const isExpanded = expandedSettingsSections.has('gameplay');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('gameplay')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: ${isExpanded ? '#1f2937' : 'transparent'};
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">🏀 Gameplay Rules</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          ${isMidSeason ? `
+            <div style="
+              padding: 12px;
+              background: #f39c12;
+              color: #000;
+              border-radius: 6px;
+              margin-bottom: 15px;
+              font-weight: bold;
+            ">⚠️ Some changes only apply in preseason or next season</div>
+          ` : ''}
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Games Per Team ${isMidSeason ? '(Next Season)' : ''}</label>
+              <input type="number" min="1" max="82" value="${rules.gamesPerTeam}"
+                     ${isMidSeason ? 'disabled' : ''}
+                     oninput="updateSetting('rules', 'gamesPerTeam', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Quarter Length (minutes)</label>
+              <input type="number" min="5" max="20" value="${rules.quarterLength}"
+                     oninput="updateSetting('rules', 'quarterLength', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Overtime Length (minutes)</label>
+              <input type="number" min="3" max="10" value="${rules.overtimeLength}"
+                     oninput="updateSetting('rules', 'overtimeLength', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Playoff Teams</label>
+              <select onchange="updateSetting('rules', 'playoffTeams', parseInt(this.value))"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="8" ${rules.playoffTeams === 8 ? 'selected' : ''}>8 teams</option>
+                <option value="16" ${rules.playoffTeams === 16 ? 'selected' : ''}>16 teams</option>
+                <option value="20" ${rules.playoffTeams === 20 ? 'selected' : ''}>20 teams</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Playoff Series Length</label>
+              <select onchange="updateSetting('rules', 'playoffSeriesLength', parseInt(this.value))"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="5" ${rules.playoffSeriesLength === 5 ? 'selected' : ''}>Best of 5</option>
+                <option value="7" ${rules.playoffSeriesLength === 7 ? 'selected' : ''}>Best of 7</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Draft Rounds</label>
+              <input type="number" min="1" max="5" value="${rules.draftRounds}"
+                     oninput="updateSetting('rules', 'draftRounds', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${rules.expansionAllowed ? 'checked' : ''}
+                       onchange="updateSetting('rules', 'expansionAllowed', this.checked)" />
+                <span style="color: #fff;">Expansion Allowed</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${rules.enableInjuries ? 'checked' : ''}
+                       onchange="updateSetting('rules', 'enableInjuries', this.checked)" />
+                <span style="color: #fff;">Enable Injuries</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Injury Frequency</label>
+              <select onchange="updateSetting('rules', 'injuryFrequency', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Low" ${rules.injuryFrequency === 'Low' ? 'selected' : ''}>Low</option>
+                <option value="Normal" ${rules.injuryFrequency === 'Normal' ? 'selected' : ''}>Normal</option>
+                <option value="High" ${rules.injuryFrequency === 'High' ? 'selected' : ''}>High</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Fatigue Impact</label>
+              <select onchange="updateSetting('rules', 'fatigueImpact', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Low" ${rules.fatigueImpact === 'Low' ? 'selected' : ''}>Low</option>
+                <option value="Normal" ${rules.fatigueImpact === 'Normal' ? 'selected' : ''}>Normal</option>
+                <option value="High" ${rules.fatigueImpact === 'High' ? 'selected' : ''}>High</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Morale Impact</label>
+              <select onchange="updateSetting('rules', 'moraleImpact', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Low" ${rules.moraleImpact === 'Low' ? 'selected' : ''}>Low</option>
+                <option value="Normal" ${rules.moraleImpact === 'Normal' ? 'selected' : ''}>Normal</option>
+                <option value="High" ${rules.moraleImpact === 'High' ? 'selected' : ''}>High</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderCapRulesSection(capRules) {
+  const isExpanded = expandedSettingsSections.has('cap');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('cap')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">💰 Salary Cap & Contract Rules</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Salary Cap ($)</label>
+              <input type="number" min="50000000" max="200000000" step="1000000" value="${capRules.salaryCap}"
+                     oninput="updateSetting('capRules', 'salaryCap', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Luxury Tax Line ($)</label>
+              <input type="number" min="50000000" max="250000000" step="1000000" value="${capRules.luxuryTaxLine}"
+                     oninput="updateSetting('capRules', 'luxuryTaxLine', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${capRules.hardCap ? 'checked' : ''}
+                       onchange="updateSetting('capRules', 'hardCap', this.checked)" />
+                <span style="color: #fff;">Hard Cap (No Luxury Tax)</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Max Contract % of Cap</label>
+              <input type="number" min="25" max="50" value="${capRules.maxContractPercent}"
+                     oninput="updateSetting('capRules', 'maxContractPercent', parseInt(this.value))"
+                     style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px;" />
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${capRules.rookieScaleEnabled ? 'checked' : ''}
+                       onchange="updateSetting('capRules', 'rookieScaleEnabled', this.checked)" />
+                <span style="color: #fff;">Rookie Scale Enabled</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${capRules.allowPlayerOptions ? 'checked' : ''}
+                       onchange="updateSetting('capRules', 'allowPlayerOptions', this.checked)" />
+                <span style="color: #fff;">Allow Player Options</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${capRules.allowTeamOptions ? 'checked' : ''}
+                       onchange="updateSetting('capRules', 'allowTeamOptions', this.checked)" />
+                <span style="color: #fff;">Allow Team Options</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${capRules.allowExtensions ? 'checked' : ''}
+                       onchange="updateSetting('capRules', 'allowExtensions', this.checked)" />
+                <span style="color: #fff;">Allow Extensions</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Negotiation Difficulty</label>
+              <select onchange="updateSetting('capRules', 'negotiationDifficulty', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Easy" ${capRules.negotiationDifficulty === 'Easy' ? 'selected' : ''}>Easy</option>
+                <option value="Normal" ${capRules.negotiationDifficulty === 'Normal' ? 'selected' : ''}>Normal</option>
+                <option value="Hard" ${capRules.negotiationDifficulty === 'Hard' ? 'selected' : ''}>Hard</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderAIBehaviorSection(aiSettings) {
+  const isExpanded = expandedSettingsSections.has('ai');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('ai')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">🤖 AI Behavior</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            ${['tradeAggressiveness', 'freeAgencyAggressiveness', 'rosterPatience', 'rebuildTolerance', 'rotationStrictness'].map(key => {
+              const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+              return `
+                <div>
+                  <label style="display: block; color: #888; margin-bottom: 6px;">${label}</label>
+                  <select onchange="updateSetting('aiSettings', '${key}', this.value)"
+                          style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                    <option value="Low" ${aiSettings[key] === 'Low' ? 'selected' : ''}>Low</option>
+                    <option value="Normal" ${aiSettings[key] === 'Normal' ? 'selected' : ''}>Normal</option>
+                    <option value="High" ${aiSettings[key] === 'High' ? 'selected' : ''}>High</option>
+                  </select>
+                </div>
+              `;
+            }).join('')}
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Drafting Style</label>
+              <select onchange="updateSetting('aiSettings', 'draftingStyle', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Best Player Available" ${aiSettings.draftingStyle === 'Best Player Available' ? 'selected' : ''}>Best Player Available</option>
+                <option value="Team Needs" ${aiSettings.draftingStyle === 'Team Needs' ? 'selected' : ''}>Team Needs</option>
+                <option value="Balanced" ${aiSettings.draftingStyle === 'Balanced' ? 'selected' : ''}>Balanced</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderSimSettingsSection(simSettings) {
+  const isExpanded = expandedSettingsSections.has('sim');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('sim')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">⚡ Simulation & Presentation</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Default Sim Speed</label>
+              <select onchange="updateSetting('simSettings', 'defaultSimSpeed', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Instant" ${simSettings.defaultSimSpeed === 'Instant' ? 'selected' : ''}>Instant</option>
+                <option value="Fast" ${simSettings.defaultSimSpeed === 'Fast' ? 'selected' : ''}>Fast</option>
+                <option value="Normal" ${simSettings.defaultSimSpeed === 'Normal' ? 'selected' : ''}>Normal</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Watch Live Speed</label>
+              <select onchange="updateSetting('simSettings', 'watchLiveSpeed', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="1x" ${simSettings.watchLiveSpeed === '1x' ? 'selected' : ''}>1x (Real-time)</option>
+                <option value="2x" ${simSettings.watchLiveSpeed === '2x' ? 'selected' : ''}>2x</option>
+                <option value="5x" ${simSettings.watchLiveSpeed === '5x' ? 'selected' : ''}>5x</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${simSettings.autoPauseCloseGames ? 'checked' : ''}
+                       onchange="updateSetting('simSettings', 'autoPauseCloseGames', this.checked)" />
+                <span style="color: #fff;">Auto-Pause Close Games</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${simSettings.savePlayByPlay ? 'checked' : ''}
+                       onchange="updateSetting('simSettings', 'savePlayByPlay', this.checked)" />
+                <span style="color: #fff;">Save Play-by-Play Logs</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${simSettings.saveFullBoxScores ? 'checked' : ''}
+                       onchange="updateSetting('simSettings', 'saveFullBoxScores', this.checked)" />
+                <span style="color: #fff;">Save Full Box Scores</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderUIPreferencesSection() {
+  const isExpanded = expandedSettingsSections.has('ui');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('ui')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">🎨 UI Preferences</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="
+            padding: 12px;
+            background: #0f1624;
+            border-left: 3px solid #2196F3;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            color: #888;
+            font-size: 0.9em;
+          ">
+            ℹ️ These preferences are stored locally and do not affect league balance
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.darkMode ? 'checked' : ''}
+                       onchange="updateUserPreference('darkMode', this.checked)" />
+                <span style="color: #fff;">Dark Mode</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.compactTables ? 'checked' : ''}
+                       onchange="updateUserPreference('compactTables', this.checked)" />
+                <span style="color: #fff;">Compact Tables</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.stickyHeaders ? 'checked' : ''}
+                       onchange="updateUserPreference('stickyHeaders', this.checked)" />
+                <span style="color: #fff;">Sticky Table Headers</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.autoScrollPlayByPlay ? 'checked' : ''}
+                       onchange="updateUserPreference('autoScrollPlayByPlay', this.checked)" />
+                <span style="color: #fff;">Auto-Scroll Play-by-Play</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.confirmBeforeSimming ? 'checked' : ''}
+                       onchange="updateUserPreference('confirmBeforeSimming', this.checked)" />
+                <span style="color: #fff;">Confirm Before Simming</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${userPreferences.confirmBeforeTrading ? 'checked' : ''}
+                       onchange="updateUserPreference('confirmBeforeTrading', this.checked)" />
+                <span style="color: #fff;">Confirm Before Trading</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderNotificationsSection(newsSettings) {
+  const isExpanded = expandedSettingsSections.has('notifications');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('notifications')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">🔔 Notifications & News</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">News Frequency</label>
+              <select onchange="updateSetting('newsSettings', 'frequency', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Low" ${newsSettings.frequency === 'Low' ? 'selected' : ''}>Low</option>
+                <option value="Normal" ${newsSettings.frequency === 'Normal' ? 'selected' : ''}>Normal</option>
+                <option value="High" ${newsSettings.frequency === 'High' ? 'selected' : ''}>High</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${newsSettings.breakingOnly ? 'checked' : ''}
+                       onchange="updateSetting('newsSettings', 'breakingOnly', this.checked)" />
+                <span style="color: #fff;">Breaking News Only</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${newsSettings.myTeamOnly ? 'checked' : ''}
+                       onchange="updateSetting('newsSettings', 'myTeamOnly', this.checked)" />
+                <span style="color: #fff;">My Team Only</span>
+              </label>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${newsSettings.alertPopups ? 'checked' : ''}
+                       onchange="updateSetting('newsSettings', 'alertPopups', this.checked)" />
+                <span style="color: #fff;">Alert Popups</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderDataSafetySection(dataSettings) {
+  const isExpanded = expandedSettingsSections.has('data');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 1px solid #2a2a40; overflow: hidden;">
+      <div onclick="toggleSettingsSection('data')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      ">
+        <h3 style="margin: 0; color: #2196F3; font-size: 1.3em;">💾 Data & Safety</h3>
+        <span style="color: #888; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div>
+              <label style="display: block; color: #888; margin-bottom: 6px;">Auto-Save Frequency</label>
+              <select onchange="updateSetting('dataSettings', 'autoSaveFrequency', this.value)"
+                      style="width: 100%; padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                <option value="Every day" ${dataSettings.autoSaveFrequency === 'Every day' ? 'selected' : ''}>Every Day</option>
+                <option value="Every game" ${dataSettings.autoSaveFrequency === 'Every game' ? 'selected' : ''}>Every Game</option>
+                <option value="Manual" ${dataSettings.autoSaveFrequency === 'Manual' ? 'selected' : ''}>Manual Only</option>
+              </select>
+            </div>
+            
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" ${dataSettings.backupSaves ? 'checked' : ''}
+                       onchange="updateSetting('dataSettings', 'backupSaves', this.checked)" />
+                <span style="color: #fff;">Backup Saves</span>
+              </label>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; display: flex; flex-wrap: gap; gap: 10px;">
+            <button onclick="clearCachedState()" style="
+              padding: 10px 20px;
+              background: #f39c12;
+              color: #000;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">🗑️ Clear Cached UI State</button>
+            
+            <button onclick="repairLeagueData()" style="
+              padding: 10px 20px;
+              background: #9b59b6;
+              color: #fff;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">🔧 Repair League Data</button>
+            
+            <button onclick="exportLeague()" style="
+              padding: 10px 20px;
+              background: #27ae60;
+              color: #fff;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">📤 Export League</button>
+            
+            <button onclick="importLeague()" style="
+              padding: 10px 20px;
+              background: #3498db;
+              color: #fff;
+              border: none;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+            ">📥 Import League</button>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Load user preferences on startup
+loadUserPreferences();
+
+/* ============================
+   TEAM MANAGEMENT TAB
+============================ */
+
+// Team editor state
+let teamEditorData = null;
+let teamEditorOriginal = null;
+let selectedTeamForManagement = null;
+
+// Initialize team editor with current team data
+function initTeamEditor(teamId) {
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team) return null;
+  
+  // Deep clone current team data
+  teamEditorOriginal = JSON.parse(JSON.stringify(team));
+  teamEditorData = JSON.parse(JSON.stringify(team));
+  
+  return teamEditorData;
+}
+
+// Validate abbreviation uniqueness
+function validateAbbreviation(abbr, currentTeamId) {
+  if (!abbr || abbr.length !== 3) return false;
+  return !league.teams.some(t => t.id !== currentTeamId && t.abbreviation === abbr.toUpperCase());
+}
+
+// Save team changes
+function saveTeamChanges() {
+  if (!teamEditorData || !teamEditorOriginal) {
+    alert('No changes to save');
+    return;
+  }
+  
+  // Validate required fields
+  if (!teamEditorData.city || !teamEditorData.name) {
+    alert('Team City and Name are required');
+    return;
+  }
+  
+  // Validate abbreviation
+  if (!validateAbbreviation(teamEditorData.abbreviation, teamEditorData.id)) {
+    alert('Abbreviation must be 3 letters and unique league-wide');
+    return;
+  }
+  
+  // Check for major changes requiring confirmation
+  const conferenceChanged = teamEditorData.conference !== teamEditorOriginal.conference;
+  const marketChanged = teamEditorData.marketSize !== teamEditorOriginal.marketSize;
+  
+  if (conferenceChanged || marketChanged) {
+    const changes = [];
+    if (conferenceChanged) changes.push('Conference change will affect standings and playoff seeding');
+    if (marketChanged) changes.push('Market size affects revenue and free agent interest');
+    
+    if (!confirm(`Major changes detected:\n\n${changes.join('\n')}\n\nProceed?`)) {
+      return;
+    }
+  }
+  
+  // Apply changes to actual team
+  const team = league.teams.find(t => t.id === teamEditorData.id);
+  if (!team) return;
+  
+  Object.assign(team, teamEditorData);
+  
+  // Generate news item
+  const changedFields = [];
+  if (teamEditorData.city !== teamEditorOriginal.city || teamEditorData.name !== teamEditorOriginal.name) {
+    changedFields.push('identity');
+  }
+  if (teamEditorData.primaryColor !== teamEditorOriginal.primaryColor || 
+      teamEditorData.secondaryColor !== teamEditorOriginal.secondaryColor) {
+    changedFields.push('branding');
+  }
+  if (teamEditorData.conference !== teamEditorOriginal.conference) {
+    changedFields.push('conference');
+  }
+  
+  if (changedFields.length > 0 && league.news) {
+    addNewsItem(league, 'teamRebrand', {
+      teamName: team.name,
+      teamId: team.id,
+      changes: changedFields.join(', ')
+    });
+  }
+  
+  save();
+  teamEditorData = null;
+  teamEditorOriginal = null;
+  
+  alert('Team changes saved successfully!');
+  render();
+}
+
+// Revert team changes
+function revertTeamChanges() {
+  if (confirm('Discard all changes?')) {
+    teamEditorData = null;
+    teamEditorOriginal = null;
+    render();
+  }
+}
+
+// Switch to different team in management
+function switchTeamManagement(teamId) {
+  if (!teamId) return;
+  
+  // Check for unsaved changes
+  if (teamEditorData && teamEditorOriginal && 
+      JSON.stringify(teamEditorData) !== JSON.stringify(teamEditorOriginal)) {
+    if (!confirm('You have unsaved changes. Switch teams anyway?')) {
+      return;
+    }
+  }
+  
+  selectedTeamForManagement = parseInt(teamId);
+  teamEditorData = null;
+  teamEditorOriginal = null;
+  render();
+}
+
+// Update team editor field
+function updateTeamField(field, value) {
+  if (!teamEditorData) return;
+  
+  // Handle nested fields
+  if (field.includes('.')) {
+    const [parent, child] = field.split('.');
+    if (!teamEditorData[parent]) teamEditorData[parent] = {};
+    teamEditorData[parent][child] = value;
+  } else {
+    teamEditorData[field] = value;
+  }
+  
+  render();
+}
+
+// Main Team Management Renderer
+function renderTeamManagement() {
+  const el = document.getElementById('teamManagement-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+  
+  // Determine which team to edit
+  if (!selectedTeamForManagement) {
+    selectedTeamForManagement = league.userTeamId || league.teams[0]?.id;
+  }
+  
+  if (!selectedTeamForManagement) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No team found</div>';
+    return;
+  }
+  
+  // Initialize editor if not already
+  if (!teamEditorData) {
+    initTeamEditor(selectedTeamForManagement);
+  }
+  
+  const team = teamEditorData;
+  const hasChanges = teamEditorOriginal && JSON.stringify(team) !== JSON.stringify(teamEditorOriginal);
+  
+  // Sort teams by conference and name
+  const sortedTeams = [...league.teams].sort((a, b) => {
+    if (a.conference !== b.conference) {
+      return a.conference.localeCompare(b.conference);
+    }
+    return a.name.localeCompare(b.name);
+  });
+  
+  el.innerHTML = `
+    <div style="min-height: 100vh; background: #0f1624; padding-bottom: 100px;">
+      <!-- Header -->
+      <div style="
+        background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);
+        padding: 30px 20px 20px 20px;
+        border-bottom: 2px solid #2a2a40;
+      ">
+        <h1 style="margin: 0 0 20px 0; color: #fff; font-size: 2em;">⚙️ Team Management</h1>
+        
+        <!-- Team Selector -->
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; color: #888; margin-bottom: 8px; font-size: 0.9em;">Select Team to Edit:</label>
+          <select 
+            onchange="switchTeamManagement(this.value)"
+            style="
+              width: 100%;
+              max-width: 400px;
+              padding: 12px 16px;
+              background: #0f1624;
+              color: #fff;
+              border: 2px solid #2a2a40;
+              border-radius: 8px;
+              font-size: 1.1em;
+              cursor: pointer;
+            "
+          >
+            ${sortedTeams.map(t => {
+              // Avoid duplication if city is in the name
+              const displayName = t.name?.startsWith(t.city) ? t.name : `${t.city} ${t.name}`;
+              return `
+              <option value="${t.id}" ${t.id === team.id ? 'selected' : ''}>
+                ${t.conference === 'East' ? '🟦' : '🟥'} ${displayName} ${t.id === league.userTeamId ? '(Your Team)' : ''}
+              </option>
+            `}).join('')}
+          </select>
+        </div>
+        
+        <div style="color: #888; font-size: 0.95em;">
+          ${team.name?.startsWith(team.city) ? team.name : `${team.city} ${team.name}`} • ${team.conference} Conference • ${team.division || 'N/A'} Division
+        </div>
+      </div>
+
+      <!-- Team Preview Card -->
+      ${renderTeamPreviewCard(team)}
+
+      <!-- Editor Sections -->
+      <div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+        ${renderTeamIdentitySection(team)}
+        ${renderBrandingSection(team)}
+        ${renderLocationSection(team)}
+        ${renderFrontOfficeSection(team)}
+        ${renderVisibilitySection(team)}
+      </div>
+
+      <!-- Save Bar (Sticky Bottom) -->
+      ${hasChanges ? `
+        <div style="
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #1a2332;
+          border-top: 2px solid #2196F3;
+          padding: 15px 20px;
+          display: flex;
+          justify-content: center;
+          gap: 15px;
+          z-index: 100;
+          box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+        ">
+          <button onclick="saveTeamChanges()" style="
+            padding: 12px 32px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">💾 Save Changes</button>
+          <button onclick="revertTeamChanges()" style="
+            padding: 12px 32px;
+            background: #f44336;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">↩️ Revert</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderTeamPreviewCard(team) {
+  return `
+    <div style="max-width: 600px; margin: 30px auto; padding: 30px; background: #1a2332; border-radius: 16px; border: 2px solid #2a2a40; text-align: center;">
+      <div style="
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 20px;
+        background: linear-gradient(135deg, ${team.primaryColor || '#2196F3'} 0%, ${team.secondaryColor || '#1976D2'} 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3em;
+        color: #fff;
+        font-weight: bold;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      ">${team.abbreviation || team.name?.substring(0, 3).toUpperCase() || '???'}</div>
+      
+      <h2 style="margin: 0 0 8px 0; color: #fff; font-size: 2em;">${team.name?.startsWith(team.city) ? team.name : `${team.city} ${team.name}`}</h2>
+      <div style="color: ${team.primaryColor || '#2196F3'}; font-size: 1.2em; margin-bottom: 15px;">
+        ${team.conference} Conference • ${team.division || 'N/A'} Division
+      </div>
+      <div style="color: #888; font-size: 0.9em;">
+        ${team.marketSize || 'Medium'} Market • ${team.arenaName || 'Home Arena'} (${team.arenaCapacity || 18000} seats)
+      </div>
+    </div>
+  `;
+}
+
+function renderTeamIdentitySection(team) {
+  return `
+    <div style="background: #1a2332; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #2a2a40;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; font-size: 1.4em;">🏀 Team Identity</h3>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Team City *</label>
+          <input 
+            type="text" 
+            value="${team.city || ''}"
+            oninput="updateTeamField('city', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              font-size: 1em;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Team Name *</label>
+          <input 
+            type="text" 
+            value="${team.name || ''}"
+            oninput="updateTeamField('name', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              font-size: 1em;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Abbreviation (3 letters) *</label>
+          <input 
+            type="text" 
+            value="${team.abbreviation || ''}"
+            maxlength="3"
+            oninput="updateTeamField('abbreviation', this.value.toUpperCase())"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid ${validateAbbreviation(team.abbreviation, team.id) ? '#2a2a40' : '#f44336'};
+              border-radius: 6px;
+              font-size: 1em;
+              text-transform: uppercase;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Market Size</label>
+          <select 
+            onchange="updateTeamField('marketSize', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              cursor: pointer;
+            "
+          >
+            <option value="Small" ${team.marketSize === 'Small' ? 'selected' : ''}>Small</option>
+            <option value="Medium" ${team.marketSize === 'Medium' ? 'selected' : ''}>Medium</option>
+            <option value="Large" ${team.marketSize === 'Large' ? 'selected' : ''}>Large</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Conference</label>
+          <select 
+            onchange="updateTeamField('conference', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              cursor: pointer;
+            "
+          >
+            <option value="East" ${team.conference === 'East' ? 'selected' : ''}>Eastern</option>
+            <option value="West" ${team.conference === 'West' ? 'selected' : ''}>Western</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Division</label>
+          <input 
+            type="text" 
+            value="${team.division || ''}"
+            oninput="updateTeamField('division', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderBrandingSection(team) {
+  return `
+    <div style="background: #1a2332; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #2a2a40;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; font-size: 1.4em;">🎨 Branding</h3>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Primary Color</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input 
+              type="color" 
+              value="${team.primaryColor || '#2196F3'}"
+              oninput="updateTeamField('primaryColor', this.value)"
+              style="
+                width: 60px;
+                height: 45px;
+                border: 1px solid #2a2a40;
+                border-radius: 6px;
+                cursor: pointer;
+              "
+            />
+            <input 
+              type="text" 
+              value="${team.primaryColor || '#2196F3'}"
+              oninput="updateTeamField('primaryColor', this.value)"
+              style="
+                flex: 1;
+                padding: 12px;
+                background: #0f1624;
+                color: #fff;
+                border: 1px solid #2a2a40;
+                border-radius: 6px;
+              "
+            />
+          </div>
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Secondary Color</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input 
+              type="color" 
+              value="${team.secondaryColor || '#1976D2'}"
+              oninput="updateTeamField('secondaryColor', this.value)"
+              style="
+                width: 60px;
+                height: 45px;
+                border: 1px solid #2a2a40;
+                border-radius: 6px;
+                cursor: pointer;
+              "
+            />
+            <input 
+              type="text" 
+              value="${team.secondaryColor || '#1976D2'}"
+              oninput="updateTeamField('secondaryColor', this.value)"
+              style="
+                flex: 1;
+                padding: 12px;
+                background: #0f1624;
+                color: #fff;
+                border: 1px solid #2a2a40;
+                border-radius: 6px;
+              "
+            />
+          </div>
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Logo URL (optional)</label>
+          <input 
+            type="text" 
+            value="${team.logoUrl || ''}"
+            placeholder="https://..."
+            oninput="updateTeamField('logoUrl', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLocationSection(team) {
+  return `
+    <div style="background: #1a2332; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #2a2a40;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; font-size: 1.4em;">📍 Home & Location</h3>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Arena Name</label>
+          <input 
+            type="text" 
+            value="${team.arenaName || ''}"
+            placeholder="Home Arena"
+            oninput="updateTeamField('arenaName', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Arena Capacity</label>
+          <input 
+            type="number" 
+            value="${team.arenaCapacity || 18000}"
+            min="5000"
+            max="30000"
+            oninput="updateTeamField('arenaCapacity', parseInt(this.value))"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Home Court Advantage</label>
+          <select 
+            onchange="updateTeamField('homeCourtAdvantage', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              cursor: pointer;
+            "
+          >
+            <option value="Low" ${team.homeCourtAdvantage === 'Low' ? 'selected' : ''}>Low</option>
+            <option value="Normal" ${(!team.homeCourtAdvantage || team.homeCourtAdvantage === 'Normal') ? 'selected' : ''}>Normal</option>
+            <option value="High" ${team.homeCourtAdvantage === 'High' ? 'selected' : ''}>High</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Country</label>
+          <select 
+            onchange="updateTeamField('country', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              cursor: pointer;
+            "
+          >
+            <option value="USA" ${(!team.country || team.country === 'USA') ? 'selected' : ''}>United States</option>
+            <option value="Canada" ${team.country === 'Canada' ? 'selected' : ''}>Canada</option>
+            <option value="Mexico" ${team.country === 'Mexico' ? 'selected' : ''}>Mexico</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFrontOfficeSection(team) {
+  return `
+    <div style="background: #1a2332; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #2a2a40;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; font-size: 1.4em;">👔 Front Office</h3>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Owner Name</label>
+          <input 
+            type="text" 
+            value="${team.ownerName || ''}"
+            placeholder="Team Owner"
+            oninput="updateTeamField('ownerName', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">GM Name</label>
+          <input 
+            type="text" 
+            value="${team.gmName || ''}"
+            placeholder="General Manager"
+            oninput="updateTeamField('gmName', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Coach Name</label>
+          <input 
+            type="text" 
+            value="${team.coachName || ''}"
+            placeholder="Head Coach"
+            oninput="updateTeamField('coachName', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+            "
+          />
+        </div>
+
+        <div>
+          <label style="display: block; color: #888; margin-bottom: 6px; font-size: 0.9em;">Team Philosophy</label>
+          <select 
+            onchange="updateTeamField('philosophy', this.value)"
+            style="
+              width: 100%;
+              padding: 12px;
+              background: #0f1624;
+              color: #fff;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              cursor: pointer;
+            "
+          >
+            <option value="Win Now" ${team.philosophy === 'Win Now' ? 'selected' : ''}>Win Now</option>
+            <option value="Balanced" ${(!team.philosophy || team.philosophy === 'Balanced') ? 'selected' : ''}>Balanced</option>
+            <option value="Rebuild" ${team.philosophy === 'Rebuild' ? 'selected' : ''}>Rebuild</option>
+            <option value="Player Development" ${team.philosophy === 'Player Development' ? 'selected' : ''}>Player Development</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderVisibilitySection(team) {
+  const isUserTeam = league.userTeamId === team.id;
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #2a2a40;">
+      <h3 style="margin: 0 0 20px 0; color: #2196F3; font-size: 1.4em;">⚙️ Settings</h3>
+      
+      <div style="display: flex; flex-direction: column; gap: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #0f1624; border-radius: 6px;">
+          <div>
+            <div style="color: #fff; font-weight: bold;">User-Controlled Team</div>
+            <div style="color: #888; font-size: 0.85em;">This is your team</div>
+          </div>
+          <div style="
+            padding: 6px 16px;
+            background: ${isUserTeam ? '#4CAF50' : '#888'};
+            color: #fff;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+          ">${isUserTeam ? 'Yes' : 'No'}</div>
+        </div>
+
+        <div style="padding: 15px; background: #0f1624; border-radius: 6px; border-left: 3px solid #2196F3;">
+          <div style="color: #888; font-size: 0.9em; line-height: 1.6;">
+            <strong style="color: #fff;">Note:</strong> Roster, contracts, and salary information are managed in other tabs. 
+            This page only edits team identity, branding, and organizational settings.
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================
    NEWS TAB (News Feed)
 ============================ */
 
@@ -2734,6 +4393,15 @@ const NEWS_TEMPLATES = {
     headline: `${data.teamName} ${data.status} salary cap`,
     summary: `Currently ${data.overUnder} by $${data.amount}M. ${data.consequence}`,
     body: `The ${data.teamName} are projected to ${data.status} the salary cap threshold, sitting ${data.overUnder} by approximately $${data.amount}M. ${data.details}`,
+    entities: { teams: [data.teamId] }
+  }),
+  
+  teamRebrand: (data) => ({
+    category: 'league',
+    importance: 3,
+    headline: `${data.teamName} announce ${data.changes.includes('identity') ? 'rebrand' : 'organizational changes'}`,
+    summary: `The ${data.teamName} have made ${data.changes} updates to their team identity and presentation.`,
+    body: `In a move that has fans talking, the ${data.teamName} have officially announced changes to their ${data.changes}. The organization hopes these updates will usher in a new era of success for the franchise.`,
     entities: { teams: [data.teamId] }
   })
 };
