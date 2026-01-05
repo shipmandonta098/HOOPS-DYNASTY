@@ -58,25 +58,9 @@
         <span class="sidebar-item-icon">👥</span>
         <span class="sidebar-item-text">Roster</span>
       </button>
-      <button class="sidebar-item" data-tab="teamManagement" onclick="switchTab('teamManagement')">
-        <span class="sidebar-item-icon">⚙️</span>
-        <span class="sidebar-item-text">Team Management</span>
-      </button>
       <button class="sidebar-item" data-tab="rotations" onclick="switchTab('rotations')">
         <span class="sidebar-item-icon">🔄</span>
         <span class="sidebar-item-text">Rotations</span>
-      </button>
-      <button class="sidebar-item" data-tab="schedule" onclick="switchTab('schedule')">
-        <span class="sidebar-item-icon">📅</span>
-        <span class="sidebar-item-text">Schedule</span>
-      </button>
-      <button class="sidebar-item" data-tab="stats" onclick="switchTab('stats')">
-        <span class="sidebar-item-icon">📊</span>
-        <span class="sidebar-item-text">Stats</span>
-      </button>
-      <button class="sidebar-item" data-tab="news" onclick="switchTab('news')">
-        <span class="sidebar-item-icon">📰</span>
-        <span class="sidebar-item-text">News</span>
       </button>
       <button class="sidebar-item" data-tab="finances" onclick="switchTab('finances')">
         <span class="sidebar-item-icon">💰</span>
@@ -94,17 +78,9 @@
         <span class="sidebar-item-icon">🎯</span>
         <span class="sidebar-item-text">Draft</span>
       </button>
-      <button class="sidebar-item" data-tab="expansion" onclick="switchTab('expansion')">
-        <span class="sidebar-item-icon">🌟</span>
-        <span class="sidebar-item-text">Expansion</span>
-      </button>
       <button class="sidebar-item" data-tab="history" onclick="switchTab('history')">
         <span class="sidebar-item-icon">📜</span>
         <span class="sidebar-item-text">History</span>
-      </button>
-      <button class="sidebar-item" data-tab="settings" onclick="switchTab('settings')">
-        <span class="sidebar-item-icon">⚙️</span>
-        <span class="sidebar-item-text">Settings</span>
       </button>
     </nav>
   </div>
@@ -116,100 +92,11 @@
       <div class="league-info-compact" id="leagueInfo">Loading...</div>
     </div>
     <div class="league-top-actions">
-      <div id="commissionerBadge" 
-           style="display: none; 
-                  margin-right: 15px; 
-                  padding: 6px 12px; 
-                  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); 
-                  color: #fff; 
-                  border-radius: 6px; 
-                  font-size: 0.85em; 
-                  cursor: pointer;
-                  transition: all 0.2s;
-                  border: 1px solid rgba(255,255,255,0.2);"
-           onclick="toggleCommissionerPanel()"
-           title="Commissioner Mode Active - Click for options">
-        <span style="margin-right: 6px;">⚖️</span>
-        <span style="font-weight: 500;">Commissioner Mode</span>
-      </div>
       <button onclick="simRegularSeason()" id="simSeasonBtn">Sim Season</button>
       <button onclick="runOffseason()" id="offseasonBtn">Offseason</button>
       <button onclick="runDraft()" id="draftBtn">Draft</button>
       <button onclick="goToHome()">Home</button>
     </div>
-  </div>
-
-  <!-- Commissioner Panel Modal -->
-  <div id="commissionerPanel" style="
-    display: none;
-    position: fixed;
-    top: 60px;
-    right: 20px;
-    width: 350px;
-    background: #1a2332;
-    border: 2px solid #3498db;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    z-index: 1000;
-  ">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <h3 style="margin: 0; color: #3498db; font-size: 1.2em;">
-        <span style="margin-right: 8px;">⚖️</span>Commissioner Mode
-      </h3>
-      <button onclick="toggleCommissionerPanel()" style="
-        background: transparent;
-        border: none;
-        color: #888;
-        font-size: 1.5em;
-        cursor: pointer;
-        padding: 0;
-        line-height: 1;
-      ">×</button>
-    </div>
-    
-    <div style="
-      padding: 12px;
-      background: #27ae60;
-      color: #fff;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-size: 0.9em;
-      font-weight: bold;
-    ">
-      ✅ Status: Active
-    </div>
-    
-    <div style="
-      padding: 12px;
-      background: #f39c12;
-      color: #000;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-size: 0.85em;
-      line-height: 1.5;
-    ">
-      ⚠️ <strong>Warning:</strong>
-      <br>• All actions are logged
-      <br>• League flagged as "Modified"
-      <br>• Achievements disabled
-    </div>
-    
-    <div style="margin-bottom: 15px; color: #888; font-size: 0.85em; line-height: 1.6;">
-      Commissioner Mode grants full administrative control. Use responsibly.
-    </div>
-    
-    <button onclick="promptDisableCommissioner()" style="
-      width: 100%;
-      padding: 12px;
-      background: #95a5a6;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 1em;
-    ">🔒 Disable Commissioner Mode</button>
   </div>
 
   <!-- Dashboard Tab -->
@@ -227,11 +114,6 @@
     <!-- Content rendered by JavaScript -->
   </div>
 
-  <!-- Team Management Tab -->
-  <div id="teamManagement-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
   <!-- Free Agents Tab -->
   <div id="freeagents-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
@@ -239,26 +121,6 @@
 
   <!-- Rotations Tab -->
   <div id="rotations-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
-  <!-- Schedule Tab -->
-  <div id="schedule-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
-  <!-- Stats Tab -->
-  <div id="stats-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
-  <!-- News Tab -->
-  <div id="news-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
-  <!-- Settings Tab -->
-  <div id="settings-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
   </div>
 
@@ -274,11 +136,6 @@
 
   <!-- Draft Tab -->
   <div id="draft-tab" style="display: none;">
-    <!-- Content rendered by JavaScript -->
-  </div>
-
-  <!-- Expansion Tab -->
-  <div id="expansion-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
   </div>
 

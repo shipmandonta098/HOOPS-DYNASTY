@@ -364,7 +364,66 @@ let newLeagueState = {
   teamCount: 30,
   userTeamId: null,
   currentTab: 'teams', // 'teams' or 'settings'
-  teams: [] // Will hold customized team metadata during setup
+  teams: [], // Will hold customized team metadata during setup
+  
+  // League Settings
+  settings: {
+    // League Structure
+    conferencesEnabled: true,
+    divisionsEnabled: true,
+    playoffTeams: 16,
+    playInTournament: false,
+    
+    // Season Format
+    gamesPerTeam: 82,
+    backToBackFrequency: 'Normal',
+    allStarBreak: true,
+    
+    // Salary Cap & Economy
+    capSystem: 'soft', // 'hard' or 'soft'
+    salaryCap: 123500000,
+    capGrowthRate: 3,
+    luxuryTax: true,
+    luxuryTaxLine: 150000000,
+    apronEnabled: false,
+    minRosterSize: 13,
+    maxRosterSize: 15,
+    
+    // Contracts & Free Agency
+    maxContractYears: 5,
+    playerOptions: true,
+    teamOptions: true,
+    restrictedFA: true,
+    noTradeClauses: true,
+    signAndTrade: true,
+    
+    // Draft Settings
+    draftRounds: 2,
+    lotterySystem: 'NBA',
+    prospectClassSize: 60,
+    autoDraftClasses: true,
+    
+    // Gameplay & Simulation
+    injuryFrequency: 'Normal',
+    injurySeverity: 'Normal',
+    fatigueImpact: 'Normal',
+    statEnvironment: 'Modern',
+    playerDevelopment: 'Normal',
+    playerAging: 'Normal',
+    
+    // AI & Difficulty
+    aiTradeLogic: 'Normal',
+    aiContractIntelligence: 'Normal',
+    aiTankingBehavior: 'Realistic',
+    fogOfWar: false,
+    
+    // Immersion
+    newsFrequency: 'Normal',
+    moraleSystem: true,
+    rivalries: true,
+    commissionerMode: false
+  },
+  expandedSections: new Set(['structure']) // Track which settings sections are expanded
 };
 
 /* ============================
@@ -461,7 +520,64 @@ function showNewLeagueModal() {
     teamCount: 30,
     userTeamId: null,
     currentTab: 'teams',
-    teams: []
+    teams: [],
+    settings: {
+      // League Structure
+      conferencesEnabled: true,
+      divisionsEnabled: true,
+      playoffTeams: 16,
+      playInTournament: false,
+      
+      // Season Format
+      gamesPerTeam: 82,
+      backToBackFrequency: 'Normal',
+      allStarBreak: true,
+      
+      // Salary Cap & Economy
+      capSystem: 'soft',
+      salaryCap: 123500000,
+      capGrowthRate: 3,
+      luxuryTax: true,
+      luxuryTaxLine: 150000000,
+      apronEnabled: false,
+      minRosterSize: 13,
+      maxRosterSize: 15,
+      
+      // Contracts & Free Agency
+      maxContractYears: 5,
+      playerOptions: true,
+      teamOptions: true,
+      restrictedFA: true,
+      noTradeClauses: true,
+      signAndTrade: true,
+      
+      // Draft Settings
+      draftRounds: 2,
+      lotterySystem: 'NBA',
+      prospectClassSize: 60,
+      autoDraftClasses: true,
+      
+      // Gameplay & Simulation
+      injuryFrequency: 'Normal',
+      injurySeverity: 'Normal',
+      fatigueImpact: 'Normal',
+      statEnvironment: 'Modern',
+      playerDevelopment: 'Normal',
+      playerAging: 'Normal',
+      
+      // AI & Difficulty
+      aiTradeLogic: 'Normal',
+      aiContractIntelligence: 'Normal',
+      aiTankingBehavior: 'Realistic',
+      fogOfWar: false,
+      
+      // Immersion
+      newsFrequency: 'Normal',
+      moraleSystem: true,
+      rivalries: true,
+      commissionerMode: false
+    },
+    expandedSections: new Set(['structure'])
   };
   
   appView = 'newLeague';
@@ -620,11 +736,7 @@ function renderNewLeague() {
       </div>
     `;
   } else {
-    tabContent = `
-      <div class="setup-section">
-        <p style="color: #64748b; text-align: center; padding: 40px 20px;">Additional settings coming soon...</p>
-      </div>
-    `;
+    tabContent = renderNewLeagueSettings();
   }
   
   el.innerHTML = `
@@ -689,7 +801,6 @@ function renderNewLeague() {
         <button 
           class="setup-tab ${newLeagueState.currentTab === 'settings' ? 'active' : ''}"
           onclick="switchSetupTab('settings')"
-          disabled
         >
           Settings
         </button>
@@ -790,8 +901,404 @@ function cancelEditTeam() {
 }
 
 function switchSetupTab(tab) {
+  console.log('=== switchSetupTab CALLED with:', tab);
   newLeagueState.currentTab = tab;
   renderNewLeague();
+}
+
+// Toggle settings section in new league setup
+function toggleNewLeagueSection(section) {
+  if (newLeagueState.expandedSections.has(section)) {
+    newLeagueState.expandedSections.delete(section);
+  } else {
+    newLeagueState.expandedSections.add(section);
+  }
+  renderNewLeague();
+}
+
+// Update new league setting
+function updateNewLeagueSetting(category, field, value) {
+  if (newLeagueState.settings[field] === undefined) {
+    console.warn(`Unknown setting: ${field}`);
+    return;
+  }
+  
+  // Parse value based on type
+  const currentValue = newLeagueState.settings[field];
+  if (typeof currentValue === 'number') {
+    newLeagueState.settings[field] = parseFloat(value) || 0;
+  } else if (typeof currentValue === 'boolean') {
+    newLeagueState.settings[field] = value === true || value === 'true';
+  } else {
+    newLeagueState.settings[field] = value;
+  }
+  
+  renderNewLeague();
+}
+
+// Apply preset
+function applyLeaguePreset(presetName) {
+  const presets = {
+    'nba': {
+      conferencesEnabled: true,
+      divisionsEnabled: true,
+      playoffTeams: 16,
+      playInTournament: true,
+      gamesPerTeam: 82,
+      backToBackFrequency: 'Normal',
+      allStarBreak: true,
+      capSystem: 'soft',
+      salaryCap: 136000000,
+      capGrowthRate: 7,
+      luxuryTax: true,
+      luxuryTaxLine: 165000000,
+      apronEnabled: true,
+      minRosterSize: 13,
+      maxRosterSize: 15,
+      maxContractYears: 5,
+      playerOptions: true,
+      teamOptions: true,
+      restrictedFA: true,
+      noTradeClauses: true,
+      signAndTrade: true,
+      draftRounds: 2,
+      lotterySystem: 'NBA',
+      prospectClassSize: 60,
+      autoDraftClasses: true,
+      injuryFrequency: 'Normal',
+      injurySeverity: 'Normal',
+      fatigueImpact: 'Normal',
+      statEnvironment: 'Modern',
+      playerDevelopment: 'Normal',
+      playerAging: 'Normal',
+      aiTradeLogic: 'Normal',
+      aiContractIntelligence: 'Normal',
+      aiTankingBehavior: 'Realistic',
+      fogOfWar: false,
+      newsFrequency: 'Normal',
+      moraleSystem: true,
+      rivalries: true,
+      commissionerMode: false
+    },
+    'casual': {
+      conferencesEnabled: true,
+      divisionsEnabled: false,
+      playoffTeams: 16,
+      playInTournament: false,
+      gamesPerTeam: 58,
+      backToBackFrequency: 'Low',
+      allStarBreak: false,
+      capSystem: 'soft',
+      salaryCap: 120000000,
+      capGrowthRate: 5,
+      luxuryTax: false,
+      luxuryTaxLine: 150000000,
+      apronEnabled: false,
+      minRosterSize: 12,
+      maxRosterSize: 15,
+      maxContractYears: 6,
+      playerOptions: true,
+      teamOptions: true,
+      restrictedFA: false,
+      noTradeClauses: true,
+      signAndTrade: true,
+      draftRounds: 2,
+      lotterySystem: 'Simple',
+      prospectClassSize: 50,
+      autoDraftClasses: true,
+      injuryFrequency: 'Low',
+      injurySeverity: 'Low',
+      fatigueImpact: 'Low',
+      statEnvironment: 'High Scoring',
+      playerDevelopment: 'Fast',
+      playerAging: 'Slow',
+      aiTradeLogic: 'High',
+      aiContractIntelligence: 'Low',
+      aiTankingBehavior: 'Minimal',
+      fogOfWar: false,
+      newsFrequency: 'Low',
+      moraleSystem: false,
+      rivalries: false,
+      commissionerMode: false
+    },
+    'hardcore': {
+      conferencesEnabled: true,
+      divisionsEnabled: true,
+      playoffTeams: 8,
+      playInTournament: false,
+      gamesPerTeam: 82,
+      backToBackFrequency: 'High',
+      allStarBreak: true,
+      capSystem: 'hard',
+      salaryCap: 123500000,
+      capGrowthRate: 3,
+      luxuryTax: false,
+      luxuryTaxLine: 150000000,
+      apronEnabled: false,
+      minRosterSize: 13,
+      maxRosterSize: 15,
+      maxContractYears: 4,
+      playerOptions: false,
+      teamOptions: false,
+      restrictedFA: true,
+      noTradeClauses: false,
+      signAndTrade: false,
+      draftRounds: 3,
+      lotterySystem: 'Flat',
+      prospectClassSize: 80,
+      autoDraftClasses: true,
+      injuryFrequency: 'High',
+      injurySeverity: 'High',
+      fatigueImpact: 'High',
+      statEnvironment: 'Realistic',
+      playerDevelopment: 'Realistic',
+      playerAging: 'Fast',
+      aiTradeLogic: 'Low',
+      aiContractIntelligence: 'High',
+      aiTankingBehavior: 'Aggressive',
+      fogOfWar: true,
+      newsFrequency: 'High',
+      moraleSystem: true,
+      rivalries: true,
+      commissionerMode: false
+    }
+  };
+  
+  if (!presets[presetName]) {
+    console.error('Unknown preset:', presetName);
+    return;
+  }
+  
+  if (!confirm(`Apply ${presetName.toUpperCase()} preset? This will overwrite your current settings.`)) {
+    return;
+  }
+  
+  newLeagueState.settings = { ...presets[presetName] };
+  renderNewLeague();
+  alert(`${presetName.toUpperCase()} preset applied!`);
+}
+
+// Render new league settings tab
+function renderNewLeagueSettings() {
+  console.log('=== renderNewLeagueSettings CALLED ===');
+  const s = newLeagueState.settings;
+  
+  return `
+    <div class="setup-section">
+      <div style="margin-bottom: 20px;">
+        <h3>League Settings</h3>
+        <p style="color: #64748b; font-size: 14px; margin: 10px 0;">
+          Configure your league before creation. Settings marked with 🔒 cannot be changed later.
+        </p>
+        
+        <!-- Presets -->
+        <div style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;">
+          <button onclick="applyLeaguePreset('nba')" style="
+            padding: 10px 20px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">📊 NBA-Style</button>
+          
+          <button onclick="applyLeaguePreset('casual')" style="
+            padding: 10px 20px;
+            background: #10b981;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">🎮 Casual</button>
+          
+          <button onclick="applyLeaguePreset('hardcore')" style="
+            padding: 10px 20px;
+            background: #dc2626;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+          ">⚔️ Hardcore</button>
+        </div>
+      </div>
+      
+      ${renderSettingSection('structure', 'League Structure 🔒', [
+        { label: 'Conferences Enabled', field: 'conferencesEnabled', type: 'boolean' },
+        { label: 'Divisions Enabled', field: 'divisionsEnabled', type: 'boolean' },
+        { label: 'Playoff Teams', field: 'playoffTeams', type: 'select', options: [8, 16, 20] },
+        { label: 'Play-In Tournament', field: 'playInTournament', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('season', 'Season Format 🔒', [
+        { label: 'Games Per Team', field: 'gamesPerTeam', type: 'number', min: 40, max: 82 },
+        { label: 'Back-to-Back Frequency', field: 'backToBackFrequency', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'All-Star Break', field: 'allStarBreak', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('economy', 'Salary Cap & Economy', [
+        { label: 'Cap System', field: 'capSystem', type: 'select', options: [{ value: 'hard', label: 'Hard Cap' }, { value: 'soft', label: 'Soft Cap' }] },
+        { label: 'Salary Cap ($)', field: 'salaryCap', type: 'number', min: 50000000, max: 200000000, step: 1000000 },
+        { label: 'Cap Growth Rate (%)', field: 'capGrowthRate', type: 'number', min: 0, max: 10 },
+        { label: 'Luxury Tax', field: 'luxuryTax', type: 'boolean' },
+        { label: 'Luxury Tax Line ($)', field: 'luxuryTaxLine', type: 'number', min: 50000000, max: 250000000, step: 1000000 },
+        { label: 'Apron Rules', field: 'apronEnabled', type: 'boolean' },
+        { label: 'Min Roster Size', field: 'minRosterSize', type: 'number', min: 10, max: 15 },
+        { label: 'Max Roster Size', field: 'maxRosterSize', type: 'number', min: 12, max: 20 }
+      ])}
+      
+      ${renderSettingSection('contracts', 'Contracts & Free Agency', [
+        { label: 'Max Contract Years', field: 'maxContractYears', type: 'number', min: 3, max: 7 },
+        { label: 'Player Options', field: 'playerOptions', type: 'boolean' },
+        { label: 'Team Options', field: 'teamOptions', type: 'boolean' },
+        { label: 'Restricted Free Agency', field: 'restrictedFA', type: 'boolean' },
+        { label: 'No-Trade Clauses', field: 'noTradeClauses', type: 'boolean' },
+        { label: 'Sign-and-Trade', field: 'signAndTrade', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('draft', 'Draft Settings', [
+        { label: 'Draft Rounds', field: 'draftRounds', type: 'number', min: 1, max: 5 },
+        { label: 'Lottery System', field: 'lotterySystem', type: 'select', options: ['NBA', 'Simple', 'Flat'] },
+        { label: 'Prospect Class Size', field: 'prospectClassSize', type: 'number', min: 30, max: 100 },
+        { label: 'Auto-Generate Draft Classes', field: 'autoDraftClasses', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('gameplay', 'Gameplay & Simulation', [
+        { label: 'Injury Frequency', field: 'injuryFrequency', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'Injury Severity', field: 'injurySeverity', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'Fatigue Impact', field: 'fatigueImpact', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'Stat Environment', field: 'statEnvironment', type: 'select', options: ['Modern', 'Realistic', 'High Scoring', 'Low Scoring'] },
+        { label: 'Player Development Speed', field: 'playerDevelopment', type: 'select', options: ['Slow', 'Normal', 'Fast', 'Realistic'] },
+        { label: 'Player Aging Speed', field: 'playerAging', type: 'select', options: ['Slow', 'Normal', 'Fast'] }
+      ])}
+      
+      ${renderSettingSection('ai', 'AI & Difficulty', [
+        { label: 'AI Trade Logic', field: 'aiTradeLogic', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'AI Contract Intelligence', field: 'aiContractIntelligence', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'AI Tanking Behavior', field: 'aiTankingBehavior', type: 'select', options: ['Minimal', 'Realistic', 'Aggressive'] },
+        { label: 'Fog of War (Hide other teams info)', field: 'fogOfWar', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('immersion', 'Immersion', [
+        { label: 'News Frequency', field: 'newsFrequency', type: 'select', options: ['Low', 'Normal', 'High'] },
+        { label: 'Morale System', field: 'moraleSystem', type: 'boolean' },
+        { label: 'Team Rivalries', field: 'rivalries', type: 'boolean' },
+        { label: 'Enable Commissioner Mode', field: 'commissionerMode', type: 'boolean' }
+      ])}
+    </div>
+  `;
+}
+
+// Render a collapsible settings section
+function renderSettingSection(sectionId, title, fields) {
+  const isExpanded = newLeagueState.expandedSections.has(sectionId);
+  const s = newLeagueState.settings;
+  
+  return `
+    <div style="
+      background: #1a2332;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+      overflow: hidden;
+    ">
+      <div onclick="toggleNewLeagueSection('${sectionId}')" style="
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: ${isExpanded ? '#0f172a' : 'transparent'};
+        transition: background 0.2s;
+      ">
+        <h4 style="margin: 0; color: #3b82f6; font-size: 1.1em;">${title}</h4>
+        <span style="color: #64748b; font-size: 1.3em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 0 20px 20px 20px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+            ${fields.map(field => renderSettingField(field)).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Render individual setting field
+function renderSettingField(field) {
+  const s = newLeagueState.settings;
+  const value = s[field.field];
+  
+  if (field.type === 'boolean') {
+    return `
+      <div>
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; color: #e5e7eb;">
+          <input 
+            type="checkbox" 
+            ${value ? 'checked' : ''}
+            onchange="updateNewLeagueSetting('', '${field.field}', this.checked)"
+            style="width: 18px; height: 18px; cursor: pointer;"
+          />
+          <span>${field.label}</span>
+        </label>
+      </div>
+    `;
+  } else if (field.type === 'number') {
+    return `
+      <div>
+        <label style="display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9em;">${field.label}</label>
+        <input 
+          type="number" 
+          value="${value}"
+          min="${field.min || 0}"
+          max="${field.max || 1000}"
+          step="${field.step || 1}"
+          oninput="updateNewLeagueSetting('', '${field.field}', this.value)"
+          style="
+            width: 100%;
+            padding: 10px;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            font-size: 1em;
+          "
+        />
+      </div>
+    `;
+  } else if (field.type === 'select') {
+    const options = Array.isArray(field.options) ? field.options : [];
+    return `
+      <div>
+        <label style="display: block; color: #94a3b8; margin-bottom: 6px; font-size: 0.9em;">${field.label}</label>
+        <select 
+          onchange="updateNewLeagueSetting('', '${field.field}', this.value)"
+          style="
+            width: 100%;
+            padding: 10px;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+          "
+        >
+          ${options.map(opt => {
+            const optValue = typeof opt === 'object' ? opt.value : opt;
+            const optLabel = typeof opt === 'object' ? opt.label : opt;
+            return `<option value="${optValue}" ${value == optValue ? 'selected' : ''}>${optLabel}</option>`;
+          }).join('')}
+        </select>
+      </div>
+    `;
+  }
+  
+  return '';
 }
 
 /* ============================
@@ -1091,6 +1598,12 @@ function updateLeagueInfo() {
   document.getElementById('simSeasonBtn').disabled = league.phase !== 'preseason';
   document.getElementById('offseasonBtn').disabled = league.phase !== 'offseason';
   document.getElementById('draftBtn').disabled = league.phase !== 'draft';
+  
+  // Update Commissioner Badge
+  const commissionerBadge = document.getElementById('commissionerBadge');
+  if (commissionerBadge) {
+    commissionerBadge.style.display = isCommissionerMode() ? 'block' : 'none';
+  }
 }
 
 function switchTab(tab) {
@@ -2663,6 +3176,19 @@ function saveUserPreferences() {
 
 // Initialize settings with defaults for existing leagues
 function initSettings(league) {
+  // Initialize meta if missing
+  if (!league.meta) {
+    league.meta = {
+      commissionerEnabled: false,
+      modified: false
+    };
+  }
+  
+  // Initialize commissioner log
+  if (!league.commissionerLog) {
+    league.commissionerLog = [];
+  }
+  
   if (!league.rules) {
     league.rules = {
       gamesPerTeam: 82,
@@ -2905,6 +3431,309 @@ function importLeague() {
   input.click();
 }
 
+/* ============================
+   COMMISSIONER MODE
+============================ */
+
+// Commissioner log entry
+function logCommissionerAction(actionType, description, entitiesAffected = {}) {
+  if (!league.commissionerLog) league.commissionerLog = [];
+  
+  league.commissionerLog.push({
+    id: league.commissionerLog.length + 1,
+    day: league.currentDay || 0,
+    season: league.season || 1,
+    actionType,
+    description,
+    entitiesAffected,
+    timestamp: Date.now()
+  });
+  
+  save();
+}
+
+// Enable Commissioner Mode
+function enableCommissionerMode() {
+  const warning = `
+⚠️ COMMISSIONER MODE WARNING ⚠️
+
+Enabling Commissioner Mode gives you full administrative control over:
+• League phase advancement
+• Team management (all teams)
+• Player attributes & contracts
+• Draft & transaction overrides
+• Financial adjustments
+
+CONSEQUENCES:
+• League will be flagged as "Modified"
+• All actions will be logged
+• Cannot be undone
+
+Do you understand and wish to continue?
+  `.trim();
+  
+  if (!confirm(warning)) return;
+  
+  if (!league.meta) league.meta = {};
+  league.meta.commissionerEnabled = true;
+  league.meta.modified = true;
+  
+  logCommissionerAction('ENABLED', 'Commissioner Mode enabled');
+  
+  save();
+  render();
+  alert('Commissioner Mode ENABLED');
+}
+
+// Disable Commissioner Mode
+function disableCommissionerMode() {
+  if (!confirm('Disable Commissioner Mode? You can re-enable it anytime.')) return;
+  
+  if (!league.meta) league.meta = {};
+  league.meta.commissionerEnabled = false;
+  
+  logCommissionerAction('DISABLED', 'Commissioner Mode disabled');
+  
+  save();
+  render();
+  alert('Commissioner Mode DISABLED');
+}
+
+// Check if Commissioner Mode is active
+function isCommissionerMode() {
+  return league?.meta?.commissionerEnabled === true;
+}
+
+// Toggle Commissioner Panel
+function toggleCommissionerPanel() {
+  const panel = document.getElementById('commissionerPanel');
+  if (!panel) return;
+  
+  if (panel.style.display === 'none' || !panel.style.display) {
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+// Prompt to disable Commissioner Mode from panel
+function promptDisableCommissioner() {
+  toggleCommissionerPanel();
+  disableCommissionerMode();
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', function(e) {
+  const panel = document.getElementById('commissionerPanel');
+  const badge = document.getElementById('commissionerBadge');
+  
+  if (!panel || !badge) return;
+  
+  // If panel is open and click is outside panel and badge
+  if (panel.style.display === 'block' && 
+      !panel.contains(e.target) && 
+      !badge.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// Commissioner: Advance Phase
+function commissionerAdvancePhase() {
+  if (!isCommissionerMode()) return;
+  
+  const phases = ['preseason', 'regular', 'playoffs', 'draft'];
+  const currentIndex = phases.indexOf(league.phase);
+  const nextPhase = phases[(currentIndex + 1) % phases.length];
+  
+  if (!confirm(`Advance from ${league.phase} to ${nextPhase}?`)) return;
+  
+  league.phase = nextPhase;
+  logCommissionerAction('PHASE_ADVANCE', `Advanced phase: ${league.phase} → ${nextPhase}`);
+  
+  save();
+  render();
+}
+
+// Commissioner: Force Schedule Regeneration
+function commissionerForceSchedule() {
+  if (!isCommissionerMode()) return;
+  if (!confirm('Force schedule regeneration? This will overwrite the current schedule.')) return;
+  
+  // Call existing schedule generation (if available)
+  generateSchedule();
+  
+  logCommissionerAction('SCHEDULE_REGEN', 'Forced schedule regeneration');
+  save();
+  render();
+}
+
+// Commissioner: Toggle Injuries
+function commissionerToggleInjuries() {
+  if (!isCommissionerMode()) return;
+  
+  league.rules.enableInjuries = !league.rules.enableInjuries;
+  const status = league.rules.enableInjuries ? 'enabled' : 'disabled';
+  
+  logCommissionerAction('TOGGLE_INJURIES', `Injuries ${status}`);
+  save();
+  render();
+  alert(`Injuries ${status}`);
+}
+
+// Commissioner: Override Salary Cap
+function commissionerOverrideCap() {
+  if (!isCommissionerMode()) return;
+  
+  const newCap = prompt('Enter new salary cap:', league.capRules.salaryCap);
+  if (!newCap) return;
+  
+  const oldCap = league.capRules.salaryCap;
+  league.capRules.salaryCap = parseInt(newCap);
+  
+  logCommissionerAction('CAP_OVERRIDE', `Salary cap changed: $${oldCap} → $${newCap}`);
+  save();
+  render();
+}
+
+// Commissioner: Take Control of Team
+function commissionerTakeControl(teamId) {
+  if (!isCommissionerMode()) return;
+  
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team) return;
+  
+  if (!confirm(`Take control of ${team.city} ${team.name}?`)) return;
+  
+  const oldTeam = league.teams.find(t => t.id === league.userTeamId);
+  league.userTeamId = teamId;
+  
+  logCommissionerAction('TAKE_CONTROL', `Switched from ${oldTeam?.name || 'N/A'} to ${team.name}`, { teamId });
+  save();
+  render();
+}
+
+// Commissioner: Edit Player Attribute
+function commissionerEditPlayer(playerId) {
+  if (!isCommissionerMode()) return;
+  
+  const player = findPlayerById(playerId);
+  if (!player) return;
+  
+  const field = prompt('Edit field (ovr/pot/age/salary):', 'ovr');
+  if (!field) return;
+  
+  let newValue;
+  if (field === 'ovr' || field === 'pot' || field === 'age') {
+    newValue = parseInt(prompt(`New ${field.toUpperCase()} for ${player.name}:`, player.ratings[field] || player[field]));
+    if (isNaN(newValue)) return;
+    
+    if (field === 'age') {
+      player.age = newValue;
+    } else {
+      player.ratings[field] = newValue;
+    }
+  } else if (field === 'salary') {
+    newValue = parseFloat(prompt(`New salary for ${player.name} (millions):`, player.contract?.amount || 0));
+    if (isNaN(newValue)) return;
+    
+    if (!player.contract) player.contract = {};
+    player.contract.amount = newValue * 1000000;
+  }
+  
+  logCommissionerAction('EDIT_PLAYER', `${player.name}: ${field} = ${newValue}`, { playerId });
+  save();
+  render();
+}
+
+// Commissioner: Move Player
+function commissionerMovePlayer(playerId, toTeamId) {
+  if (!isCommissionerMode()) return;
+  
+  const player = findPlayerById(playerId);
+  if (!player) return;
+  
+  const fromTeam = league.teams.find(t => t.id === player.teamId);
+  const toTeam = league.teams.find(t => t.id === toTeamId);
+  
+  if (!toTeam) return;
+  if (!confirm(`Move ${player.name} from ${fromTeam?.name || 'FA'} to ${toTeam.name}?`)) return;
+  
+  player.teamId = toTeamId;
+  
+  logCommissionerAction('MOVE_PLAYER', `${player.name}: ${fromTeam?.name || 'FA'} → ${toTeam.name}`, { 
+    playerId, 
+    fromTeamId: fromTeam?.id, 
+    toTeamId 
+  });
+  
+  save();
+  render();
+}
+
+// Commissioner: Force Injury
+function commissionerForceInjury(playerId) {
+  if (!isCommissionerMode()) return;
+  
+  const player = findPlayerById(playerId);
+  if (!player) return;
+  
+  const days = parseInt(prompt(`Injury duration for ${player.name} (days):`, 14));
+  if (isNaN(days) || days <= 0) return;
+  
+  player.injury = {
+    type: 'Commissioner Override',
+    gamesRemaining: Math.ceil(days / 3),
+    severity: days > 30 ? 'major' : 'minor'
+  };
+  
+  logCommissionerAction('FORCE_INJURY', `${player.name} injured for ${days} days`, { playerId });
+  save();
+  render();
+}
+
+// Commissioner: Heal Injury
+function commissionerHealInjury(playerId) {
+  if (!isCommissionerMode()) return;
+  
+  const player = findPlayerById(playerId);
+  if (!player) return;
+  
+  if (!confirm(`Heal ${player.name}'s injury?`)) return;
+  
+  player.injury = null;
+  
+  logCommissionerAction('HEAL_INJURY', `${player.name} healed`, { playerId });
+  save();
+  render();
+}
+
+// Commissioner: Force Trade
+function commissionerForceTrade() {
+  if (!isCommissionerMode()) return;
+  alert('Force trade feature - integrate with existing trade logic');
+  // This would integrate with existing trade system
+}
+
+// Commissioner: Force Signing
+function commissionerForceSigning(playerId, teamId) {
+  if (!isCommissionerMode()) return;
+  
+  const player = findPlayerById(playerId);
+  const team = league.teams.find(t => t.id === teamId);
+  
+  if (!player || !team) return;
+  if (!confirm(`Force ${player.name} to sign with ${team.name}?`)) return;
+  
+  player.teamId = teamId;
+  if (!player.contract) player.contract = {};
+  player.contract.amount = 5000000;
+  player.contract.exp = league.season + 2;
+  
+  logCommissionerAction('FORCE_SIGNING', `${player.name} signed with ${team.name}`, { playerId, teamId });
+  save();
+  render();
+}
+
 // Main Settings Renderer
 function renderSettings() {
   const el = document.getElementById('settings-tab');
@@ -2944,6 +3773,7 @@ function renderSettings() {
         ${renderUIPreferencesSection()}
         ${renderNotificationsSection(settingsData.newsSettings)}
         ${renderDataSafetySection(settingsData.dataSettings)}
+        ${renderCommissionerModeSection()}
       </div>
 
       <!-- Save Bar -->
@@ -3563,8 +4393,242 @@ function renderDataSafetySection(dataSettings) {
   `;
 }
 
+function renderCommissionerModeSection() {
+  const isExpanded = expandedSettingsSections.has('commissioner');
+  const isEnabled = isCommissionerMode();
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 2px solid ${isEnabled ? '#e74c3c' : '#2a2a40'}; overflow: hidden;">
+      <div onclick="toggleSettingsSection('commissioner')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: ${isEnabled ? 'linear-gradient(135deg, #c0392b 0%, #e74c3c 100%)' : 'transparent'};
+      ">
+        <h3 style="margin: 0; color: ${isEnabled ? '#fff' : '#e74c3c'}; font-size: 1.3em;">
+          👑 Commissioner Mode ${isEnabled ? '(ACTIVE)' : '(Advanced)'}
+        </h3>
+        <span style="color: ${isEnabled ? '#fff' : '#888'}; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 20px;">
+          ${!isEnabled ? `
+            <div style="
+              padding: 15px;
+              background: #f39c12;
+              color: #000;
+              border-radius: 8px;
+              margin-bottom: 15px;
+              font-weight: bold;
+              line-height: 1.6;
+            ">
+              ⚠️ WARNING: Commissioner Mode provides full administrative control over your league.
+              <br>• Override game rules
+              <br>• Edit players & teams
+              <br>• Force transactions
+              <br>• All actions are logged
+              <br><br>
+              <strong>Enabling will flag your league as "Modified"</strong>
+            </div>
+            
+            <button onclick="enableCommissionerMode()" style="
+              width: 100%;
+              padding: 15px;
+              background: #e74c3c;
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 1.1em;
+            ">🔓 Enable Commissioner Mode</button>
+          ` : `
+            <div style="
+              padding: 15px;
+              background: #27ae60;
+              color: #fff;
+              border-radius: 8px;
+              margin-bottom: 20px;
+              font-weight: bold;
+            ">
+              ✅ Commissioner Mode is ACTIVE
+              <br>All administrative features are unlocked.
+            </div>
+            
+            <h4 style="color: #2196F3; margin: 20px 0 15px 0;">Global Actions</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+              <button onclick="commissionerAdvancePhase()" style="
+                padding: 12px;
+                background: #3498db;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">⏩ Advance Phase</button>
+              
+              <button onclick="commissionerForceSchedule()" style="
+                padding: 12px;
+                background: #9b59b6;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">📅 Force Schedule Regen</button>
+              
+              <button onclick="commissionerToggleInjuries()" style="
+                padding: 12px;
+                background: #e67e22;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">🏥 Toggle Injuries</button>
+              
+              <button onclick="commissionerOverrideCap()" style="
+                padding: 12px;
+                background: #16a085;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">💰 Override Salary Cap</button>
+            </div>
+            
+            <div style="
+              margin-top: 20px;
+              padding: 12px;
+              background: #0f1624;
+              border-left: 3px solid #2196F3;
+              border-radius: 6px;
+              color: #888;
+              font-size: 0.9em;
+            ">
+              ℹ️ Additional commissioner actions available in Team, Player, Draft, and Trade tabs.
+              <br>View all actions in History → Commissioner Log.
+            </div>
+            
+            <button onclick="disableCommissionerMode()" style="
+              width: 100%;
+              margin-top: 20px;
+              padding: 12px;
+              background: #95a5a6;
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+            ">🔒 Disable Commissioner Mode</button>
+          `}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 // Load user preferences on startup
 loadUserPreferences();
+
+// 7) COMMISSIONER LOG for History Tab
+function renderCommissionerLogHistory() {
+  const log = league.commissionerLog || [];
+  
+  if (log.length === 0) {
+    return `
+      <div style="text-align: center; padding: 80px 20px; color: #888;">
+        <div style="font-size: 3em; margin-bottom: 20px;">👑</div>
+        <div style="font-size: 1.2em; margin-bottom: 10px;">No Commissioner Actions</div>
+        <div style="font-size: 0.9em;">
+          ${isCommissionerMode() 
+            ? 'Commissioner actions will be logged here' 
+            : 'Enable Commissioner Mode in Settings to use admin features'}
+        </div>
+      </div>
+    `;
+  }
+  
+  // Sort by most recent first
+  const sortedLog = [...log].sort((a, b) => b.id - a.id);
+  
+  return `
+    <div style="margin-bottom: 20px;">
+      <div style="
+        padding: 15px;
+        background: #e74c3c;
+        color: #fff;
+        border-radius: 8px;
+        font-weight: bold;
+      ">
+        👑 Commissioner Activity Log
+        <br><span style="font-weight: normal; font-size: 0.9em; opacity: 0.9;">
+          ${log.length} action${log.length !== 1 ? 's' : ''} recorded • League flagged as Modified
+        </span>
+      </div>
+    </div>
+    
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${sortedLog.map(entry => {
+        const actionColors = {
+          'ENABLED': '#27ae60',
+          'DISABLED': '#95a5a6',
+          'PHASE_ADVANCE': '#3498db',
+          'SCHEDULE_REGEN': '#9b59b6',
+          'TOGGLE_INJURIES': '#e67e22',
+          'CAP_OVERRIDE': '#16a085',
+          'TAKE_CONTROL': '#f39c12',
+          'EDIT_PLAYER': '#e74c3c',
+          'MOVE_PLAYER': '#d35400',
+          'FORCE_INJURY': '#c0392b',
+          'HEAL_INJURY': '#2ecc71',
+          'FORCE_SIGNING': '#8e44ad',
+          'FORCE_TRADE': '#34495e'
+        };
+        
+        const bgColor = actionColors[entry.actionType] || '#7f8c8d';
+        
+        return `
+          <div style="
+            background: #1a2332;
+            border-radius: 10px;
+            padding: 16px;
+            border-left: 4px solid ${bgColor};
+          ">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+              <span style="
+                background: ${bgColor};
+                color: #fff;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 0.75em;
+                font-weight: bold;
+              ">${entry.actionType.replace(/_/g, ' ')}</span>
+              <div style="color: #888; font-size: 0.85em; text-align: right;">
+                <div>Season ${entry.season} • Day ${entry.day}</div>
+                <div style="font-size: 0.85em; opacity: 0.7;">
+                  ${new Date(entry.timestamp).toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <div style="color: #fff; font-size: 1.05em; line-height: 1.5;">
+              ${entry.description}
+            </div>
+            ${entry.entitiesAffected && Object.keys(entry.entitiesAffected).length > 0 ? `
+              <div style="margin-top: 8px; padding: 8px; background: #0f1624; border-radius: 4px; font-size: 0.85em; color: #888;">
+                <strong>Affected:</strong> ${JSON.stringify(entry.entitiesAffected)}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
 
 /* ============================
    TEAM MANAGEMENT TAB
@@ -5637,18 +6701,18 @@ function renderHistoryView() {
         top: 0;
         z-index: 10;
       ">
-        ${['seasons', 'champions', 'awards', 'drafts', 'records', 'transactions'].map(tab => `
+        ${['seasons', 'champions', 'awards', 'drafts', 'records', 'transactions', 'commissioner'].map(tab => `
           <button onclick="switchHistoryTab('${tab}')" style="
             padding: 14px 20px;
             background: ${historyTab === tab ? '#2196F3' : 'transparent'};
-            color: ${historyTab === tab ? '#fff' : '#888'};
+            color: ${historyTab === tab ? '#fff' : (tab === 'commissioner' ? '#e74c3c' : '#888')};
             border: none;
             border-bottom: 3px solid ${historyTab === tab ? '#2196F3' : 'transparent'};
             cursor: pointer;
             font-weight: ${historyTab === tab ? 'bold' : 'normal'};
             white-space: nowrap;
             transition: all 0.2s;
-          ">${tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+          ">${tab === 'commissioner' ? '👑 Commissioner' : tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
         `).join('')}
       </div>
       
@@ -5770,6 +6834,8 @@ function renderHistoryContent(history, selectedSeason) {
       return renderRecordsHistory(history);
     case 'transactions':
       return renderTransactionsHistory(history);
+    case 'commissioner':
+      return renderCommissionerLogHistory();
     default:
       return '<div style="padding: 20px; color: #888;">Select a category</div>';
   }
