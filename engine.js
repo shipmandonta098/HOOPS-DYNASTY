@@ -2917,9 +2917,12 @@ function getTeamEfficiencyStats(team) {
 }
 
 function updateTeamPayrolls() {
-  league.teams.forEach(team => {
-    team.payroll = team.players.reduce((sum, p) => sum + p.contract.amount, 0);
-  });
+  const teams = leagueState?.teams || league?.teams;
+  if (teams) {
+    teams.forEach(team => {
+      team.payroll = team.players.reduce((sum, p) => sum + p.contract.amount, 0);
+    });
+  }
 }
 
 // Coach impact on game simulation
