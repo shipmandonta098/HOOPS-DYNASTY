@@ -429,54 +429,64 @@ const BODY_PROFILES = {
     PG: {
       height: { mean: 74.5, sd: 2, min: 70, max: 79 },
       ape: { mean: 2.0, sd: 1.5, min: -1, max: 6 },
-      weight: { base: 185, heightMean: 74.5, slope: 6, sd: 10, min: 160, max: 215 }
+      weight: { base: 185, heightMean: 74.5, slope: 6, sd: 10, min: 160, max: 215 },
+      bulk: { mean: 0.0333, sd: 0.0020 } // weight / (height^2)
     },
     SG: {
       height: { mean: 76.5, sd: 2, min: 72, max: 81 },
       ape: { mean: 2.5, sd: 1.7, min: 0, max: 7 },
-      weight: { base: 200, heightMean: 76.5, slope: 6, sd: 12, min: 170, max: 235 }
+      weight: { base: 200, heightMean: 76.5, slope: 6, sd: 12, min: 170, max: 235 },
+      bulk: { mean: 0.0342, sd: 0.0022 }
     },
     SF: {
       height: { mean: 79, sd: 2.2, min: 75, max: 84 },
       ape: { mean: 3.0, sd: 2, min: 0, max: 8 },
-      weight: { base: 220, heightMean: 79, slope: 7, sd: 14, min: 190, max: 260 }
+      weight: { base: 220, heightMean: 79, slope: 7, sd: 14, min: 190, max: 260 },
+      bulk: { mean: 0.0353, sd: 0.0024 }
     },
     PF: {
       height: { mean: 81.5, sd: 2.2, min: 78, max: 86 },
       ape: { mean: 3.5, sd: 2, min: 1, max: 9 },
-      weight: { base: 240, heightMean: 81.5, slope: 7.5, sd: 15, min: 210, max: 280 }
+      weight: { base: 240, heightMean: 81.5, slope: 7.5, sd: 15, min: 210, max: 280 },
+      bulk: { mean: 0.0361, sd: 0.0025 }
     },
     C: {
       height: { mean: 83.5, sd: 2.3, min: 80, max: 89 },
       ape: { mean: 4.0, sd: 2.2, min: 1, max: 10 },
-      weight: { base: 255, heightMean: 83.5, slope: 8, sd: 18, min: 225, max: 305 }
+      weight: { base: 255, heightMean: 83.5, slope: 8, sd: 18, min: 225, max: 305 },
+      bulk: { mean: 0.0366, sd: 0.0027 }
     }
   },
   F: {
     PG: {
       height: { mean: 69.5, sd: 1.8, min: 65, max: 74 },
       ape: { mean: 1.5, sd: 1.3, min: -1, max: 5 },
-      weight: { base: 145, heightMean: 69.5, slope: 5, sd: 9, min: 120, max: 175 }
+      weight: { base: 145, heightMean: 69.5, slope: 5, sd: 9, min: 120, max: 175 },
+      bulk: { mean: 0.0300, sd: 0.0018 }
     },
     SG: {
       height: { mean: 71, sd: 1.8, min: 67, max: 76 },
       ape: { mean: 2.0, sd: 1.4, min: 0, max: 6 },
-      weight: { base: 155, heightMean: 71, slope: 5.5, sd: 10, min: 130, max: 190 }
+      weight: { base: 155, heightMean: 71, slope: 5.5, sd: 10, min: 130, max: 190 },
+      bulk: { mean: 0.0308, sd: 0.0020 }
     },
     SF: {
       height: { mean: 72.5, sd: 2, min: 68, max: 78 },
       ape: { mean: 2.5, sd: 1.6, min: 0, max: 7 },
-      weight: { base: 170, heightMean: 72.5, slope: 6, sd: 12, min: 145, max: 215 }
+      weight: { base: 170, heightMean: 72.5, slope: 6, sd: 12, min: 145, max: 215 },
+      bulk: { mean: 0.0323, sd: 0.0022 }
     },
     PF: {
       height: { mean: 74.5, sd: 2, min: 70, max: 80 },
       ape: { mean: 3.0, sd: 1.8, min: 1, max: 8 },
-      weight: { base: 185, heightMean: 74.5, slope: 6.5, sd: 13, min: 160, max: 235 }
+      weight: { base: 185, heightMean: 74.5, slope: 6.5, sd: 13, min: 160, max: 235 },
+      bulk: { mean: 0.0333, sd: 0.0024 }
     },
     C: {
       height: { mean: 76.5, sd: 2.1, min: 72, max: 82 },
       ape: { mean: 3.5, sd: 2.0, min: 1, max: 9 },
-      weight: { base: 200, heightMean: 76.5, slope: 7, sd: 14, min: 175, max: 255 }
+      weight: { base: 200, heightMean: 76.5, slope: 7, sd: 14, min: 175, max: 255 },
+      bulk: { mean: 0.0341, sd: 0.0025 }
     }
   }
 };
@@ -536,6 +546,26 @@ function generatePlayerBody(position, gender) {
     weightLbs,
     weight: `${weightLbs} lbs`
   };
+}
+
+// Calculate body z-scores for attribute adjustments
+function calculateBodyZScores(heightInches, wingspanInches, weightLbs, position, gender) {
+  const g = (gender === 'F') ? 'F' : 'M';
+  const pos = ['PG', 'SG', 'SF', 'PF', 'C'].includes(position) ? position : 'PG';
+  const profile = BODY_PROFILES[g][pos];
+  
+  // Z-score for height
+  const zH = (heightInches - profile.height.mean) / profile.height.sd;
+  
+  // Z-score for wingspan length (ape index)
+  const apeIndex = wingspanInches - heightInches;
+  const zL = (apeIndex - profile.ape.mean) / profile.ape.sd;
+  
+  // Z-score for bulk (weight / height^2)
+  const bulk = weightLbs / (heightInches * heightInches);
+  const zB = (bulk - profile.bulk.mean) / profile.bulk.sd;
+  
+  return { zH, zL, zB };
 }
 
 // Coach Generation
@@ -642,7 +672,7 @@ function makePlayer(age, isRookie = false) {
   }
   
   const ovr = Math.round((shoot + defense + rebound + passing) / 4);
-  const pot = isRookie ? clamp(ovr + rand(0, 25), ovr, 95) : clamp(ovr + rand(-5, 10), ovr - 5, 95);
+  let pot = isRookie ? clamp(ovr + rand(0, 25), ovr, 95) : clamp(ovr + rand(-5, 10), ovr - 5, 95);
   
   // Contract based on OVR
   const salary = calculateSalary(ovr);
@@ -650,7 +680,7 @@ function makePlayer(age, isRookie = false) {
   
   // Generate detailed attributes
   const athleticBase = rand(50, 95);
-  const detailedAttributes = {
+  let detailedAttributes = {
     athletic: {
       speed: clamp(athleticBase + rand(-10, 10), 40, 99),
       acceleration: clamp(athleticBase + rand(-10, 10), 40, 99),
@@ -698,6 +728,73 @@ function makePlayer(age, isRookie = false) {
   
   // Generate realistic body measurements based on position and gender
   const body = generatePlayerBody(pos, gender);
+  
+  // Calculate body z-scores for attribute adjustments
+  const { zH, zL, zB } = calculateBodyZScores(
+    body.heightInches, 
+    body.wingspanInches, 
+    body.weightLbs, 
+    pos, 
+    gender
+  );
+  
+  // Apply body-based attribute biases (scale = 2.5 for typical ±0-8 point effects)
+  const scale = 2.5;
+  
+  // Athletic attributes
+  detailedAttributes.athletic.speed += (-0.35 * zH - 0.30 * zB) * scale;
+  detailedAttributes.athletic.acceleration += (-0.25 * zH - 0.40 * zB) * scale;
+  detailedAttributes.athletic.lateralQuickness += (-0.20 * zH - 0.25 * zB + 0.20 * zL) * scale;
+  detailedAttributes.athletic.strength += (0.55 * zB + 0.15 * zH) * scale;
+  detailedAttributes.athletic.vertical += (0.35 * zH + 0.15 * zB) * scale; // Dunk proxy
+  
+  // Offensive attributes
+  detailedAttributes.offensive.scoringSkills.finishing += (0.25 * zH + 0.25 * zB) * scale;
+  detailedAttributes.offensive.scoringSkills.postScoring += (0.25 * zH + 0.25 * zB) * scale;
+  detailedAttributes.offensive.scoringSkills.threePointShooting += (-0.10 * zB) * scale;
+  detailedAttributes.offensive.playmakingSkills.ballHandling += (-0.30 * zH - 0.15 * zB) * scale;
+  
+  // Defensive attributes
+  detailedAttributes.defensive.interiorDefense += (0.35 * zH + 0.45 * zL + 0.15 * zB) * scale;
+  detailedAttributes.defensive.blockRating += (0.25 * zH + 0.60 * zL) * scale;
+  detailedAttributes.defensive.stealRating += (0.40 * zL - 0.10 * zH) * scale;
+  detailedAttributes.defensive.defensiveRebounding += (0.25 * zH + 0.25 * zB + 0.20 * zL) * scale;
+  detailedAttributes.defensive.offensiveRebounding += (0.25 * zH + 0.25 * zB + 0.20 * zL) * scale;
+  
+  // Calculate body-based caps
+  const maxBlock = clamp(50 + 4 * zH + 6 * zL, 40, 99);
+  const maxIntD = clamp(55 + 5 * zH + 5 * zL + 2 * zB, 45, 99);
+  const maxReb = clamp(55 + 4 * zH + 3 * zB + 3 * zL, 45, 99);
+  const maxHandle = clamp(85 - 4 * zH - 2 * zB, 55, 99);
+  const maxSpeed = clamp(90 - 5 * zH - 4 * zB, 55, 99);
+  const maxLat = clamp(90 - 4 * zH - 4 * zB + 2 * zL, 55, 99);
+  const maxDunk = clamp(50 + 6 * zH + 2 * zB, 35, 99);
+  
+  // Apply caps to attributes
+  detailedAttributes.defensive.blockRating = clamp(detailedAttributes.defensive.blockRating, 1, maxBlock);
+  detailedAttributes.defensive.interiorDefense = clamp(detailedAttributes.defensive.interiorDefense, 1, maxIntD);
+  detailedAttributes.defensive.defensiveRebounding = clamp(detailedAttributes.defensive.defensiveRebounding, 1, maxReb);
+  detailedAttributes.defensive.offensiveRebounding = clamp(detailedAttributes.defensive.offensiveRebounding, 1, maxReb);
+  detailedAttributes.offensive.playmakingSkills.ballHandling = clamp(detailedAttributes.offensive.playmakingSkills.ballHandling, 1, maxHandle);
+  detailedAttributes.athletic.speed = clamp(detailedAttributes.athletic.speed, 1, maxSpeed);
+  detailedAttributes.athletic.lateralQuickness = clamp(detailedAttributes.athletic.lateralQuickness, 1, maxLat);
+  detailedAttributes.athletic.vertical = clamp(detailedAttributes.athletic.vertical, 1, maxDunk);
+  
+  // Adjust potential ceiling based on physical tools
+  let potBonus = 0;
+  
+  // Long wingspan → higher defensive potential ceiling
+  if (zL > 1.5) {
+    potBonus += Math.min(4, Math.floor(zL * 2));
+  }
+  
+  // Big and strong → higher inside potential ceiling
+  if (zH + zB > 2.0) {
+    potBonus += Math.min(4, Math.floor((zH + zB) * 1.5));
+  }
+  
+  // Apply potential bonus (doesn't raise OVR, just max growth)
+  pot = clamp(pot + potBonus, pot, 99);
   
   // Generate bio data
   const cities = ['Los Angeles, CA', 'New York, NY', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ', 'Philadelphia, PA', 'San Antonio, TX', 'Dallas, TX', 'Atlanta, GA', 'Miami, FL'];
