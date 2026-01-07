@@ -2403,6 +2403,31 @@ function createScheduleDay(dayNumber, phase = 'Regular Season') {
   };
 }
 
+// Automatically ensure schedule exists when needed
+function ensureSchedule() {
+  if (!league || !league.season) return;
+  
+  const phase = league.phase?.toLowerCase() || '';
+  const needsSchedule = 
+    (!league.schedule || !league.schedule.days || !league.schedule.days[league.season] || league.schedule.days[league.season].length === 0) &&
+    (phase === 'preseason' || phase === 'season' || phase === 'regular_season' || phase === 'regular season');
+  
+  if (needsSchedule) {
+    console.log(`[SCHEDULE] Auto-generating schedule for season ${league.season} (phase: ${league.phase})`);
+    generateSeasonSchedule(league.season);
+    save();
+  }
+}
+
+// Convenience function for commissioner mode / UI calls
+function generateSchedule() {
+  if (!league || !league.season) {
+    console.error('Cannot generate schedule: league or season not defined');
+    return;
+  }
+  generateSeasonSchedule(league.season);
+}
+
 function generateSeasonSchedule(season) {
   if (!league || !league.teams || league.teams.length < 2) return;
   
@@ -2535,6 +2560,11 @@ function generateSeasonSchedule(season) {
   }
   
   league.schedule.currentDay = 1;
+  
+  // Sync schedule changes to leagueState if it exists
+  if (leagueState) {
+    leagueState.schedule = league.schedule;
+  }
   
   console.log(`Generated ${Object.keys(league.schedule.games).length} games across ${league.schedule.days[season].length} days`);
 }
@@ -4000,11 +4030,11 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   selectedTeamId = userTeamId || teams[0].id;
   console.log('[LEAGUE STATE] League created with userTeamId:', userTeamId, 'selectedTeamId:', selectedTeamId);
   
-  // Generate schedule for the season (AFTER leagueState is set up)
-  generateSeasonSchedule(seasonYear);
-  
-  // Convert to legacy format and save
+  // Convert to legacy format FIRST (so generateSeasonSchedule can access it)
   league = convertLeagueStateToLegacy(leagueState);
+  
+  // Automatically ensure schedule exists for the new league
+  ensureSchedule();
   
   appView = 'league';
   save();

@@ -4007,9 +4007,22 @@ function commissionerAdvancePhase() {
 // Commissioner: Force Schedule Regeneration
 function commissionerForceSchedule() {
   if (!isCommissionerMode()) return;
-  if (!confirm('Force schedule regeneration? This will overwrite the current schedule.')) return;
+  if (!confirm('Force schedule regeneration? ⚠️ WARNING: This will reset all remaining games and may affect simulation results.')) return;
   
-  // Call existing schedule generation (if available)
+  // Clear existing schedule
+  if (league.schedule && league.schedule.days) {
+    league.schedule.days[league.season] = [];
+  }
+  if (league.schedule && league.schedule.games) {
+    // Remove games for current season
+    Object.keys(league.schedule.games).forEach(gameId => {
+      if (league.schedule.games[gameId].season === league.season) {
+        delete league.schedule.games[gameId];
+      }
+    });
+  }
+  
+  // Regenerate schedule
   generateSchedule();
   
   logCommissionerAction('SCHEDULE_REGEN', 'Forced schedule regeneration');
@@ -7660,11 +7673,14 @@ let autoScrollPlays = true; // Auto-scroll play-by-play to latest
 function renderSchedule() {
   const el = document.getElementById('schedule-tab');
   
+  // Automatically ensure schedule exists before rendering
+  ensureSchedule();
+  
   if (!league?.schedule || !league?.schedule.days[league.season]) {
     el.innerHTML = `
       <div style="padding: 20px;">
         <h2>📅 Schedule</h2>
-        <p>No schedule available. Advance to next season to generate schedule.</p>
+        <p style="color: #ff6b6b;">Unable to generate schedule. Please check your league setup.</p>
       </div>
     `;
     return;
