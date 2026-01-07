@@ -652,7 +652,12 @@ function renderPlayers() {
     el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
     return;
   }
-   padding-bottom: ${playersState.compareList.length > 0 ? '120px' : '20px'};">
+  
+  el.innerHTML = `
+    <div style="
+      background: #0f1624;
+      min-height: 100vh;
+      padding-bottom: ${playersState.compareList.length > 0 ? '120px' : '20px'};">
       <!-- Header -->
       <div style="
         background: linear-gradient(135deg, #1a2332 0%, #0f1624 100%);

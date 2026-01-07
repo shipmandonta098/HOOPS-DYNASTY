@@ -12248,20 +12248,7 @@ function createPersonalityBar(label, value) {
    INITIALIZATION
 ============================ */
 
-(async function boot() {
-  const saved = await loadMostRecentLeague();
-  if (saved) {
-    league = saved;
-    nextPlayerId = Math.max(...league.teams.flatMap(t => t.players.map(p => p.id)), 
-                            ...league.freeAgents.map(p => p.id)) + 1;
-    selectedTeamId = league.teams[0].id;
-    ensureCoachesExist(); // Add coaches to existing saves
-    appView = 'league';
-  } else {
-    appView = 'home';
-  }
-  render();
-})();
+// Removed: initializeApp() is now called from index.html DOMContentLoaded
 
 // Add escape key handler for sidebar
 document.addEventListener('keydown', (e) => {

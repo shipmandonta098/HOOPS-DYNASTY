@@ -272,7 +272,3 @@ function importLeague() {
   };
   input.click();
 }
-
-function save() {
-  saveLeague();
-}
