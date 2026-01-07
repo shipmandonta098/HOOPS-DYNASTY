@@ -23,8 +23,16 @@ function openDB() {
 }
 
 async function saveLeague() {
-  // If we have leagueState, save it (preferred)
-  // Otherwise fall back to legacy league object
+  // DEPRECATED: Use saveLeagueState() from state-manager.js instead
+  // This is kept for backward compatibility
+  console.warn('[DB] saveLeague() is deprecated, use saveLeagueState() instead');
+  
+  // Redirect to new state manager if available
+  if (typeof saveLeagueState === 'function') {
+    return await saveLeagueState();
+  }
+  
+  // Fallback to old behavior
   const stateToSave = leagueState ? leagueState : (league ? convertLegacyToLeagueState(league) : null);
   
   if (!stateToSave) return;
@@ -63,6 +71,9 @@ async function saveLeague() {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+// Backward compatibility alias
+const save = saveLeague;
 
 async function listLeagues() {
   const db = await openDB();
@@ -133,6 +144,8 @@ async function loadLeague(id) {
       // 1. Use saved userTeamId from database
       // 2. Fall back to leagueState.meta.userTeamId
       // 3. Last resort: first team in league
+      console.log('[DB DEPRECATED] This loadLeague function is deprecated, use loadLeagueState() instead');
+      
       const restoredTeamId = savedData.userTeamId || leagueState.meta.userTeamId || (league.teams && league.teams.length > 0 ? league.teams[0].id : null);
       
       // Verify the team still exists in the league
@@ -141,21 +154,16 @@ async function loadLeague(id) {
       if (teamExists) {
         selectedTeamId = restoredTeamId;
       } else {
-        console.warn('[LEAGUE STATE] Saved team ID not found, defaulting to first team');
+        console.warn('[DB] Saved team ID not found, defaulting to first team');
         selectedTeamId = league.teams && league.teams.length > 0 ? league.teams[0].id : null;
       }
       
       // Sync back to leagueState
       leagueState.meta.userTeamId = selectedTeamId;
       
-      console.log('[LEAGUE STATE] Loaded league with userTeamId:', leagueState.meta.userTeamId, 'selectedTeamId:', selectedTeamId);
+      console.log('[DB] Loaded league, userTeamId:', leagueState.meta.userTeamId, 'team:', league.teams.find(t => t.id === selectedTeamId)?.name);
       
-      appView = 'league';
-      render();
-      
-      // Auto-save to persist any migrations or conversions
-      console.log('[LEAGUE STATE] Auto-saving after load...');
-      await save();
+      // DO NOT auto-navigate or auto-save here - let the caller handle that
       
       resolve(league);
     };

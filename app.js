@@ -790,7 +790,7 @@ async function renderMyLeagues() {
       const userTeamName = userTeam ? userTeam.name : 'Unknown';
       
       return `
-        <div class="league-card" onclick="loadLeague('${save.id}')">
+        <div class="league-card" onclick="loadAndSwitchToLeague('${save.id}')">
           <div class="league-card-header">
             <h3 class="league-card-title">${save.name}</h3>
             <div class="league-card-season">Season ${save.season}</div>
@@ -829,14 +829,43 @@ async function renderMyLeagues() {
   `;
 }
 
+/**
+ * Load league and switch to league view
+ */
+async function loadAndSwitchToLeague(leagueId) {
+  console.log('[APP] Loading league:', leagueId);
+  
+  // Use new state manager if available
+  if (typeof loadLeagueState === 'function') {
+    const loaded = await loadLeagueState(leagueId);
+    if (loaded) {
+      appView = 'league';
+      currentTab = 'dashboard';
+      render();
+    } else {
+      alert('Failed to load league');
+    }
+  } else {
+    // Fallback to old method
+    await loadLeague(leagueId);
+  }
+}
+
 async function deleteLeagueConfirm(id) {
   if (!confirm('Are you sure you want to delete this league?')) return;
   
-  await deleteLeague(id);
+  // Use new state manager if available
+  if (typeof deleteLeagueState === 'function') {
+    await deleteLeagueState(id);
+  } else {
+    await deleteLeague(id);
+  }
   
   // If we deleted the current league, clear it
   if (league && league.id === id) {
     league = null;
+    leagueState = null;
+    appView = 'home';
   }
   
   render();
@@ -1809,7 +1838,7 @@ function cancelNewLeague() {
   render();
 }
 
-function confirmCreateLeague() {
+async function confirmCreateLeague() {
   if (newLeagueState.name.trim().length === 0 || newLeagueState.userTeamId === null) {
     return;
   }
@@ -1819,9 +1848,26 @@ function confirmCreateLeague() {
   const seasonYear = newLeagueState.seasonYear;
   const userTeamId = newLeagueState.userTeamId;
   
-  console.log('Creating league with selected team ID:', userTeamId);
+  console.log('[APP] Creating new league with team ID:', userTeamId);
   
-  createLeague(name, seasonYear, teamCount, newLeagueState, userTeamId);
+  // Use new state manager if available
+  if (typeof createNewLeague === 'function') {
+    await createNewLeague({
+      name,
+      season: seasonYear,
+      teamCount,
+      userTeamId,
+      ...newLeagueState
+    });
+  } else {
+    // Fallback to old method
+    createLeague(name, seasonYear, teamCount, newLeagueState, userTeamId);
+  }
+  
+  // Navigate to league view
+  appView = 'league';
+  currentTab = 'dashboard';
+  render();
 }
 
 /* ============================
@@ -2687,7 +2733,15 @@ function getLast10Record(last10) {
 function renderTeam() {
   const el = document.getElementById('team-tab');
   
-  if (!selectedTeamId) selectedTeamId = league.teams[0].id;
+  if (!selectedTeamId) {
+    console.warn('[RENDER TEAM] No team selected, defaulting to first team');
+    selectedTeamId = league.teams[0].id;
+    // Persist the fallback selection
+    if (typeof switchUserTeam === 'function') {
+      switchUserTeam(selectedTeamId);
+    }
+  }
+  
   const team = league.teams.find(t => t.id === selectedTeamId);
   
   if (!team) {
@@ -2794,7 +2848,7 @@ function renderRosterMobileCards(team) {
       <div class="roster-header-mobile">
         <h2 class="roster-title">YOUR ROSTER</h2>
         <div class="team-selector-mobile">
-          <select class="team-dropdown" onchange="selectedTeamId = parseInt(this.value); render();">
+          <select class="team-dropdown" onchange="if(typeof switchUserTeam === 'function') { switchUserTeam(parseInt(this.value)); } else { selectedTeamId = parseInt(this.value); } render();">
             ${teamOptions}
           </select>
           <span class="dropdown-icon">▾</span>
@@ -11369,7 +11423,7 @@ function renderRotations() {
       <div class="rotations-header">
         <h1 class="rotations-title">Rotations</h1>
         <div class="rotations-meta">
-          <select class="rotations-team-select" onchange="selectedTeamId = parseInt(this.value); render();">
+          <select class="rotations-team-select" onchange="if(typeof switchUserTeam === 'function') { switchUserTeam(parseInt(this.value)); } else { selectedTeamId = parseInt(this.value); } render();">
             ${league.teams.map(t => `
               <option value="${t.id}" ${t.id === selectedTeamId ? 'selected' : ''}>${t.name}</option>
             `).join('')}

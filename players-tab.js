@@ -271,7 +271,7 @@ function formatContract(player) {
     ? `$${amount.toFixed(1)}M` 
     : `$${(amount * 1000).toFixed(0)}K`;
   
-  const color = yearsLeft === 0 ? '#e74c3c' : yearsLeft === 1 ? '#f39c12' : '#fff';
+  const color = yearsLeft === 0 ? '#e74c3c' : (yearsLeft === 1 ? '#f39c12' : '#fff');
   
   return `<span style="color: ${color};">${amountStr} / ${yearsLeft}yr</span>`;
 }

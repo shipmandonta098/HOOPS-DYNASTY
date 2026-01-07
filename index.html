@@ -326,11 +326,20 @@
   </div>
 </div>
 
-<script src="db.js?v=2026-01-06" defer></script>
-<script src="engine.js?v=2026-01-06" defer></script>
-<script src="app.js?v=2026-01-06" defer></script>
+<script src="db.js?v=2026-01-07" defer></script>
+<script src="engine.js?v=2026-01-07" defer></script>
+<script src="state-manager.js?v=2026-01-07" defer></script>
+<script src="app.js?v=2026-01-07" defer></script>
 <script src="players-tab.js?v=2026-01-07" defer></script>
-<script src="history-tab.js?v=2026-01-06" defer></script>
+<script src="history-tab.js?v=2026-01-07" defer></script>
+
+<script>
+// Initialize app when all scripts are loaded
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('[APP] DOM loaded, initializing...');
+  initializeApp();
+});
+</script>
 
 </body>
 </html>

@@ -175,7 +175,7 @@ function advanceDay() {
   if (!leagueState) return;
   leagueState.meta.day++;
   leagueState.meta.lastSaved = Date.now();
-  persistLeagueState();
+  saveLeagueState();
   return leagueState.meta.day;
 }
 
@@ -189,7 +189,7 @@ function setUserTeam(teamId) {
   }
   leagueState.meta.userTeamId = teamId;
   leagueState.meta.lastSaved = Date.now();
-  persistLeagueState();
+  saveLeagueState();
 }
 
 // Toggle commissioner mode
@@ -3214,7 +3214,7 @@ function simRegularSeason() {
   
   render();
   alert('Regular season complete! Proceed to Offseason.');
-  save();
+  saveLeagueState();
 }
 
 function saveSeasonToHistory() {
@@ -3475,7 +3475,7 @@ function signFreeAgent(playerId, teamId) {
   
   updateTeamPayrolls();
   render();
-  save();
+  saveLeagueState();
 }
 
 /* ============================
