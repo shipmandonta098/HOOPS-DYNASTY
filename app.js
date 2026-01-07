@@ -1902,6 +1902,7 @@ function render() {
   if (currentTab === 'expansion') renderExpansion();
   if (currentTab === 'schedule') renderSchedule();
   if (currentTab === 'stats') renderStatsTab();
+  if (currentTab === 'players') renderPlayers();
   if (currentTab === 'news') renderNewsTab();
   if (currentTab === 'settings') renderSettings();
   if (currentTab === 'history') renderHistoryView();

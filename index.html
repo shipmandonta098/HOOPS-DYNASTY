@@ -74,6 +74,10 @@
         <span class="sidebar-item-icon">📊</span>
         <span class="sidebar-item-text">Stats</span>
       </button>
+      <button class="sidebar-item" data-tab="players" onclick="switchTab('players')">
+        <span class="sidebar-item-icon">👤</span>
+        <span class="sidebar-item-text">Players</span>
+      </button>
       <button class="sidebar-item" data-tab="news" onclick="switchTab('news')">
         <span class="sidebar-item-icon">📰</span>
         <span class="sidebar-item-text">News</span>
@@ -264,6 +268,11 @@
     <!-- Content rendered by JavaScript -->
   </div>
 
+  <!-- Players Tab -->
+  <div id="players-tab" style="display: none;">
+    <!-- Content rendered by JavaScript -->
+  </div>
+
   <!-- News Tab -->
   <div id="news-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
@@ -320,6 +329,8 @@
 <script src="db.js?v=2026-01-06" defer></script>
 <script src="engine.js?v=2026-01-06" defer></script>
 <script src="app.js?v=2026-01-06" defer></script>
+<script src="players-tab.js?v=2026-01-07" defer></script>
+<script src="history-tab.js?v=2026-01-06" defer></script>
 
 </body>
 </html>
