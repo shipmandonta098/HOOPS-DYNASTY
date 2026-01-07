@@ -52,8 +52,14 @@ function getAllPlayers() {
   league.teams.forEach(team => {
     if (team.players) {
       team.players.forEach(player => {
+        // Ensure OVR and POT are accessible at root level for easier access
+        const ovr = player.ratings?.ovr ?? player.ovr ?? -1;
+        const pot = player.ratings?.pot ?? player.pot ?? -1;
+        
         allPlayers.push({
           ...player,
+          ovr: ovr,
+          pot: pot,
           teamId: team.id,
           teamName: team.name,
           teamAbbr: getTeamAbbr(team.name)
@@ -65,8 +71,14 @@ function getAllPlayers() {
   // Add free agents
   if (league.freeAgents) {
     league.freeAgents.forEach(player => {
+      // Ensure OVR and POT are accessible at root level
+      const ovr = player.ratings?.ovr ?? player.ovr ?? -1;
+      const pot = player.ratings?.pot ?? player.pot ?? -1;
+      
       allPlayers.push({
         ...player,
+        ovr: ovr,
+        pot: pot,
         teamId: null,
         teamName: 'Free Agent',
         teamAbbr: 'FA'
@@ -89,13 +101,16 @@ function filterPlayers(players) {
     if (f.position !== 'all' && p.pos !== f.position) return false;
     
     // Age filter
-    if (p.age < f.ageMin || p.age > f.ageMax) return false;
+    const age = p.age ?? 0;
+    if (age < f.ageMin || age > f.ageMax) return false;
     
-    // OVR filter
-    if (p.ovr < f.ovrMin || p.ovr > f.ovrMax) return false;
+    // OVR filter (treat -1 as invalid, exclude from results)
+    const ovr = p.ovr ?? -1;
+    if (ovr === -1 || ovr < f.ovrMin || ovr > f.ovrMax) return false;
     
-    // POT filter
-    if (p.pot < f.potMin || p.pot > f.potMax) return false;
+    // POT filter (treat -1 as invalid, exclude from results)
+    const pot = p.pot ?? -1;
+    if (pot === -1 || pot < f.potMin || pot > f.potMax) return false;
     
     // Salary filter
     const salary = p.contract?.amount || 0;
@@ -157,13 +172,17 @@ function sortPlayers(players) {
         return mult * aVal.localeCompare(bVal);
       
       case 'age':
-        return mult * ((a.age || 0) - (b.age || 0));
+        return mult * ((a.age ?? 0) - (b.age ?? 0));
       
       case 'ovr':
-        return mult * ((a.ovr || 0) - (b.ovr || 0));
+        aVal = a.ovr ?? -1;
+        bVal = b.ovr ?? -1;
+        return mult * (aVal - bVal);
       
       case 'pot':
-        return mult * ((a.pot || 0) - (b.pot || 0));
+        aVal = a.pot ?? -1;
+        bVal = b.pot ?? -1;
+        return mult * (aVal - bVal);
       
       case 'salary':
         aVal = a.contract?.amount || 0;
@@ -246,9 +265,11 @@ function formatContract(player) {
   
   const amount = player.contract.amount;
   const yearsLeft = player.contract.exp - league.season;
-  const amountStr = amount >= 1000000 
-    ? `$${(amount / 1000000).toFixed(1)}M` 
-    : `$${(amount / 1000).toFixed(0)}K`;
+  
+  // Contract amounts are already in millions from calculateSalary
+  const amountStr = amount >= 1 
+    ? `$${amount.toFixed(1)}M` 
+    : `$${(amount * 1000).toFixed(0)}K`;
   
   const color = yearsLeft === 0 ? '#e74c3c' : yearsLeft === 1 ? '#f39c12' : '#fff';
   
@@ -386,17 +407,21 @@ function renderPlayerRow(player) {
       ${cols.has('age') ? `<td style="${cellStyle}">${player.age}</td>` : ''}
       ${cols.has('ovr') ? `
         <td style="${cellStyle}">
-          <span style="
-            padding: 3px 8px;
-            background: ${getOVRColor(player.ovr)};
-            border-radius: 4px;
-            font-weight: 600;
-          ">${player.ovr}</span>
+          ${player.ovr >= 0 ? `
+            <span style="
+              padding: 3px 8px;
+              background: ${getOVRColor(player.ovr)};
+              border-radius: 4px;
+              font-weight: 600;
+            ">${player.ovr}</span>
+          ` : '<span style="color: #666;">—</span>'}
         </td>
       ` : ''}
       ${cols.has('pot') ? `
         <td style="${cellStyle}">
-          <span style="color: ${player.pot > player.ovr ? '#27ae60' : '#666'};">${player.pot}</span>
+          ${player.pot >= 0 ? `
+            <span style="color: ${player.pot > player.ovr ? '#27ae60' : '#666'};">${player.pot}</span>
+          ` : '<span style="color: #666;">—</span>'}
         </td>
       ` : ''}
       ${cols.has('contract') ? `<td style="${cellStyle}">${formatContract(player)}</td>` : ''}
@@ -889,7 +914,7 @@ function renderComparisonTray() {
           ">
             <div style="display: flex; flex-direction: column;">
               <span style="font-weight: 600; color: #fff; font-size: 0.9em;">${p.name}</span>
-              <span style="color: #888; font-size: 0.75em;">${p.teamAbbr} • ${p.pos} • OVR ${p.ovr}</span>
+              <span style="color: #888; font-size: 0.75em;">${p.teamAbbr} • ${p.pos} • OVR ${p.ovr >= 0 ? p.ovr : '—'}</span>
             </div>
             <button onclick="removeFromCompare(${p.pid})" style="
               background: transparent;
@@ -1085,18 +1110,22 @@ function renderCompareOverview(players) {
             </div>
             <div style="text-align: center;">
               <div style="color: #888; font-size: 0.75em; margin-bottom: 4px;">OVR</div>
-              <div style="
-                display: inline-block;
-                padding: 4px 10px;
-                background: ${getOVRColor(p.ovr)};
-                border-radius: 4px;
-                font-weight: 600;
-                color: #fff;
-              ">${p.ovr}</div>
+              ${p.ovr >= 0 ? `
+                <div style="
+                  display: inline-block;
+                  padding: 4px 10px;
+                  background: ${getOVRColor(p.ovr)};
+                  border-radius: 4px;
+                  font-weight: 600;
+                  color: #fff;
+                ">${p.ovr}</div>
+              ` : '<div style="color: #666;">—</div>'}
             </div>
             <div style="text-align: center;">
               <div style="color: #888; font-size: 0.75em; margin-bottom: 4px;">POT</div>
-              <div style="color: ${p.pot > p.ovr ? '#27ae60' : '#888'}; font-weight: 600;">${p.pot}</div>
+              ${p.pot >= 0 ? `
+                <div style="color: ${p.pot > p.ovr ? '#27ae60' : '#888'}; font-weight: 600;">${p.pot}</div>
+              ` : '<div style="color: #666;">—</div>'}
             </div>
           </div>
           
@@ -1380,7 +1409,7 @@ function renderCompareContract(players) {
                 font-size: 1.5em;
                 font-weight: 600;
               ">
-                ${amount >= 1000000 ? `$${(amount / 1000000).toFixed(2)}M` : `$${(amount / 1000).toFixed(0)}K`}
+                ${amount >= 1 ? `$${amount.toFixed(2)}M` : `$${(amount * 1000).toFixed(0)}K`}
               </div>
             </div>
             
@@ -1410,7 +1439,7 @@ function renderCompareContract(players) {
             ">
               <div style="color: #888; font-size: 0.75em; margin-bottom: 4px;">VALUE RATING</div>
               <div style="color: #fff;">
-                ${amount > 0 ? `$${(amount / Math.max(p.ovr, 1) / 1000000).toFixed(2)}M per OVR point` : 'N/A'}
+                ${amount > 0 && p.ovr > 0 ? `$${(amount / Math.max(p.ovr, 1)).toFixed(3)}M per OVR point` : 'N/A'}
               </div>
             </div>
             
