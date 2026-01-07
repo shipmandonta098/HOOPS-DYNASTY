@@ -653,6 +653,11 @@ function renderPlayers() {
     return;
   }
   
+  // Get and process players
+  const allPlayers = getAllPlayers();
+  const filteredPlayers = filterPlayers(allPlayers);
+  const sortedPlayers = sortPlayers(filteredPlayers);
+  
   el.innerHTML = `
     <div style="
       background: #0f1624;
@@ -698,13 +703,7 @@ function renderPlayers() {
       ${renderComparisonTray()}
       
       <!-- Comparison Modal -->
-      ${playersState.showCompareModal ? renderCompareModal() : ''
-      
-      <!-- Filters -->
-      ${renderFilters()}
-      
-      <!-- Players Table -->
-      ${renderPlayersTable(sortedPlayers)}
+      ${playersState.showCompareModal ? renderCompareModal() : ''}
     </div>
   `;
 }
