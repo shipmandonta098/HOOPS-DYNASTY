@@ -4028,6 +4028,10 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   
   // Set selected team to user's choice
   selectedTeamId = userTeamId || teams[0].id;
+  
+  // CRITICAL: Ensure leagueState.meta.userTeamId is set to match selectedTeamId
+  leagueState.meta.userTeamId = selectedTeamId;
+  
   console.log('[LEAGUE STATE] League created with userTeamId:', userTeamId, 'selectedTeamId:', selectedTeamId);
   
   // Convert to legacy format FIRST (so generateSeasonSchedule can access it)

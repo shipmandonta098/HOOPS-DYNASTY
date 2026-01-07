@@ -29,6 +29,11 @@ async function saveLeague() {
   
   if (!stateToSave) return;
   
+  // Ensure selectedTeamId is synced to leagueState before saving
+  if (selectedTeamId) {
+    stateToSave.meta.userTeamId = selectedTeamId;
+  }
+  
   // Update lastSaved timestamp
   stateToSave.meta.lastSaved = Date.now();
   
@@ -48,7 +53,7 @@ async function saveLeague() {
       id: legacyFormat.id,
       name: legacyFormat.name || 'My League',
       season: legacyFormat.season,
-      userTeamId: selectedTeamId || stateToSave.meta.userTeamId,
+      userTeamId: stateToSave.meta.userTeamId,
       updatedAt: Date.now(),
       league: legacyFormat,
       // Store new leagueState format (for future use)
@@ -124,8 +129,25 @@ async function loadLeague(id) {
                                 ...league.freeAgents.map(p => p.id || 0)) + 1;
       }
       
-      // Set selected team
-      selectedTeamId = savedData.userTeamId || leagueState.meta.userTeamId || league.teams[0].id;
+      // Set selected team with proper priority
+      // 1. Use saved userTeamId from database
+      // 2. Fall back to leagueState.meta.userTeamId
+      // 3. Last resort: first team in league
+      const restoredTeamId = savedData.userTeamId || leagueState.meta.userTeamId || (league.teams && league.teams.length > 0 ? league.teams[0].id : null);
+      
+      // Verify the team still exists in the league
+      const teamExists = league.teams && league.teams.some(t => t.id === restoredTeamId);
+      
+      if (teamExists) {
+        selectedTeamId = restoredTeamId;
+      } else {
+        console.warn('[LEAGUE STATE] Saved team ID not found, defaulting to first team');
+        selectedTeamId = league.teams && league.teams.length > 0 ? league.teams[0].id : null;
+      }
+      
+      // Sync back to leagueState
+      leagueState.meta.userTeamId = selectedTeamId;
+      
       console.log('[LEAGUE STATE] Loaded league with userTeamId:', leagueState.meta.userTeamId, 'selectedTeamId:', selectedTeamId);
       
       appView = 'league';
