@@ -55,30 +55,37 @@ const RATING_CONSTANTS = {
  * Uses exponential scaling to create separation at the top
  */
 function calculatePlayerOVR(player) {
-  if (!player || !player.detailedAttributes) {
-    return 50; // Fallback
+  if (!player) {
+    console.warn('[RATINGS] calculatePlayerOVR called with null player');
+    return 50;
+  }
+  
+  if (!player.detailedAttributes) {
+    console.warn('[RATINGS] Player missing detailedAttributes:', player.name);
+    return player.ratings?.ovr || 50;
   }
   
   const attrs = player.detailedAttributes;
   const W = RATING_CONSTANTS.WEIGHTS;
   
-  // Aggregate skill ratings
-  const shooting = calculateShootingRating(attrs.offensive.scoringSkills);
+  // Aggregate skill ratings (with safety checks)
+  const shooting = calculateShootingRating(attrs.offensive?.scoringSkills);
   const defense = calculateDefenseRating(attrs.defensive);
-  const playmaking = calculatePlaymakingRating(attrs.offensive.playmakingSkills);
-  const rebounding = (attrs.defensive.defensiveRebounding + attrs.defensive.offensiveRebounding) / 2;
+  const playmaking = calculatePlaymakingRating(attrs.offensive?.playmakingSkills);
+  const rebounding = attrs.defensive ? 
+    ((attrs.defensive.defensiveRebounding || 70) + (attrs.defensive.offensiveRebounding || 70)) / 2 : 70;
   
-  // Mental attributes
-  const basketballIQ = attrs.mental.basketballIQ || 70;
-  const consistency = attrs.mental.consistency || 70;
-  const composure = attrs.mental.composure || 70;
+  // Mental attributes (with safety checks)
+  const basketballIQ = attrs.mental?.basketballIQ || 70;
+  const consistency = attrs.mental?.consistency || 70;
+  const composure = attrs.mental?.composure || 70;
   
-  // Athletic attributes
-  const speed = attrs.athletic.speed || 70;
-  const strength = attrs.athletic.strength || 70;
-  const vertical = attrs.athletic.vertical || 70;
+  // Athletic attributes (with safety checks)
+  const speed = attrs.athletic?.speed || 70;
+  const strength = attrs.athletic?.strength || 70;
+  const vertical = attrs.athletic?.vertical || 70;
   
-  // Physical measurements (normalized to 0-100 scale)
+  // Physical measurements (normalized to 0-100 scale with safety checks)
   const height = normalizeHeight(player.bio?.heightInches || 78);
   const wingspan = normalizeWingspan(player.bio?.wingspanInches || 80);
   
@@ -209,7 +216,12 @@ function getAgeFactor(age) {
  * Calculate potential (POT) based on OVR, age, and work ethic
  */
 function calculatePlayerPOT(player, currentOVR) {
-  const age = player.age;
+  if (!player) {
+    console.warn('[RATINGS] calculatePlayerPOT called with null player');
+    return 50;
+  }
+  
+  const age = player.age || 25;
   const workEthic = player.detailedAttributes?.mental?.workEthic || 70;
   
   // Base potential from current OVR
