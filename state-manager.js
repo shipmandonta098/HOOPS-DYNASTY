@@ -143,6 +143,56 @@ async function saveLeagueState() {
 }
 
 /**
+ * Clamp player ratings to maximum values
+ * Only applies to stored data, preserves relative rankings
+ */
+function clampPlayerRatings(leagueData) {
+  const MAX_OVR = 99;
+  const MAX_POT = 99;
+  
+  let clampedCount = 0;
+  
+  // Clamp ratings for all players across teams and free agents
+  if (leagueData.teams) {
+    leagueData.teams.forEach(team => {
+      if (team.players) {
+        team.players.forEach(player => {
+          if (player.ratings) {
+            if (player.ratings.ovr > MAX_OVR) {
+              player.ratings.ovr = MAX_OVR;
+              clampedCount++;
+            }
+            if (player.ratings.pot > MAX_POT) {
+              player.ratings.pot = MAX_POT;
+              clampedCount++;
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  if (leagueData.freeAgents) {
+    leagueData.freeAgents.forEach(player => {
+      if (player.ratings) {
+        if (player.ratings.ovr > MAX_OVR) {
+          player.ratings.ovr = MAX_OVR;
+          clampedCount++;
+        }
+        if (player.ratings.pot > MAX_POT) {
+          player.ratings.pot = MAX_POT;
+          clampedCount++;
+        }
+      }
+    });
+  }
+  
+  if (clampedCount > 0) {
+    console.log('[STATE] Clamped', clampedCount, 'player ratings to max values');
+  }
+}
+
+/**
  * Load league state from IndexedDB
  */
 async function loadLeagueState(leagueId) {
@@ -182,6 +232,9 @@ async function loadLeagueState(leagueId) {
     
     // Convert to legacy format for backward compatibility
     league = convertLeagueStateToLegacy(leagueState);
+    
+    // Clamp player ratings to maximum values (backward compatibility)
+    clampPlayerRatings(league);
     
     // Restore user team selection
     const restoredTeamId = savedData.userTeamId || leagueState.meta.userTeamId || getUserTeamId();
