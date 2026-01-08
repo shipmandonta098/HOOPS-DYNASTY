@@ -193,6 +193,113 @@ function clampPlayerRatings(leagueData) {
 }
 
 /**
+ * One-time migration to upgrade leagues with low talent ceiling
+ * Identifies leagues where max OVR < 85 and applies talent boost
+ */
+function upgradeLowTalentLeague(leagueData, state) {
+  // Collect all players
+  const allPlayers = [];
+  if (leagueData.teams) {
+    leagueData.teams.forEach(team => {
+      if (team.players) {
+        team.players.forEach(p => allPlayers.push(p));
+      }
+    });
+  }
+  if (leagueData.freeAgents) {
+    leagueData.freeAgents.forEach(p => allPlayers.push(p));
+  }
+  
+  if (allPlayers.length === 0) {
+    console.log('[MIGRATION] No players found, skipping');
+    return;
+  }
+  
+  // Check if migration is needed
+  const ovrValues = allPlayers.map(p => p.ratings?.ovr ?? p.ovr ?? 0).filter(v => v > 0);
+  if (ovrValues.length === 0) {
+    console.log('[MIGRATION] No valid OVR values, skipping');
+    return;
+  }
+  
+  const maxOvr = Math.max(...ovrValues);
+  
+  // Only upgrade if max talent is suspiciously low
+  if (maxOvr >= 85) {
+    console.log('[MIGRATION] Talent level acceptable (max OVR:', maxOvr + '), skipping');
+    return;
+  }
+  
+  console.log('[MIGRATION] Low talent detected (max OVR:', maxOvr + '), upgrading...');
+  
+  // Sort by current OVR to preserve rankings
+  const sorted = [...allPlayers].sort((a, b) => {
+    const ovrA = a.ratings?.ovr ?? a.ovr ?? 50;
+    const ovrB = b.ratings?.ovr ?? b.ovr ?? 50;
+    return ovrA - ovrB;
+  });
+  
+  // Apply tiered boost based on percentile
+  let upgradedCount = 0;
+  sorted.forEach((player, index) => {
+    const percentile = index / (sorted.length - 1);
+    const currentOvr = player.ratings?.ovr ?? player.ovr ?? 50;
+    const currentPot = player.ratings?.pot ?? player.pot ?? currentOvr;
+    const age = player.age || 25;
+    
+    let newOvr;
+    // Apply scaling curve - elite players get bigger boost
+    if (percentile >= 0.98) {
+      // Top 2% → 90-98
+      newOvr = 90 + (percentile - 0.98) / 0.02 * 8;
+    } else if (percentile >= 0.92) {
+      // 92-98% → 82-90
+      newOvr = 82 + (percentile - 0.92) / 0.06 * 8;
+    } else if (percentile >= 0.75) {
+      // 75-92% → 70-82
+      newOvr = 70 + (percentile - 0.75) / 0.17 * 12;
+    } else if (percentile >= 0.40) {
+      // 40-75% → 60-70
+      newOvr = 60 + (percentile - 0.40) / 0.35 * 10;
+    } else {
+      // Bottom 40% → 45-60
+      newOvr = 45 + percentile / 0.40 * 15;
+    }
+    
+    // Add some jitter to avoid exact duplicates
+    newOvr = Math.round(newOvr + (Math.random() - 0.5) * 2);
+    newOvr = Math.max(40, Math.min(99, newOvr));
+    
+    // Calculate new POT
+    let newPot;
+    if (age <= 23) {
+      newPot = Math.min(99, newOvr + Math.floor(Math.random() * 12) + 3);
+    } else if (age <= 26) {
+      newPot = Math.min(99, newOvr + Math.floor(Math.random() * 8) + 1);
+    } else if (age <= 30) {
+      newPot = Math.min(99, newOvr + Math.floor(Math.random() * 5) - 2);
+    } else {
+      newPot = Math.min(99, Math.max(40, newOvr - Math.floor(Math.random() * 5)));
+    }
+    
+    // Apply new ratings
+    if (player.ratings) {
+      player.ratings.ovr = newOvr;
+      player.ratings.pot = newPot;
+    } else {
+      player.ovr = newOvr;
+      player.pot = newPot;
+    }
+    
+    upgradedCount++;
+  });
+  
+  const newMax = Math.max(...allPlayers.map(p => p.ratings?.ovr ?? p.ovr ?? 0));
+  console.log('[MIGRATION] ✓ Upgraded', upgradedCount, 'players');
+  console.log('[MIGRATION] New max OVR:', newMax);
+}
+
+/**
  * Load league state from IndexedDB
  */
 async function loadLeagueState(leagueId) {
@@ -235,6 +342,23 @@ async function loadLeagueState(leagueId) {
     
     // Clamp player ratings to maximum values (backward compatibility)
     clampPlayerRatings(league);
+    
+    // Run one-time talent upgrade migration if needed
+    if (!leagueState.migrations) {
+      leagueState.migrations = {};
+    }
+    
+    if (!leagueState.migrations.talentUpgradeApplied) {
+      console.log('[STATE] Running one-time talent upgrade migration...');
+      upgradeLowTalentLeague(league, leagueState);
+      leagueState.migrations.talentUpgradeApplied = true;
+      // Save after migration
+      setTimeout(() => {
+        if (typeof saveLeagueState === 'function') {
+          saveLeagueState();
+        }
+      }, 100);
+    }
     
     // Restore user team selection
     const restoredTeamId = savedData.userTeamId || leagueState.meta.userTeamId || getUserTeamId();

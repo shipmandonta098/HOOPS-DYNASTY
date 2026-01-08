@@ -666,22 +666,51 @@ function makePlayer(age, isRookie = false) {
     }
   }
   
-  // Base ratings
-  let shoot = rand(30, 85);
-  let defense = rand(30, 85);
-  let rebound = rand(30, 85);
-  let passing = rand(30, 85);
+  // Determine player tier (creates elite tail in distribution)
+  const tierRoll = Math.random();
+  let tier, targetOvr;
   
-  if (isRookie) {
-    // Rookies have more variance and generally lower ratings
-    shoot = clamp(rand(40, 75) + rand(-15, 15), 35, 90);
-    defense = clamp(rand(40, 75) + rand(-15, 15), 35, 90);
-    rebound = clamp(rand(40, 75) + rand(-15, 15), 35, 90);
-    passing = clamp(rand(40, 75) + rand(-15, 15), 35, 90);
+  if (tierRoll < 0.02) { // 2% - Elite/Superstar
+    tier = 'elite';
+    targetOvr = rand(88, 98);
+  } else if (tierRoll < 0.08) { // 6% - Star
+    tier = 'star';
+    targetOvr = rand(80, 90);
+  } else if (tierRoll < 0.25) { // 17% - Starter
+    tier = 'starter';
+    targetOvr = rand(72, 82);
+  } else if (tierRoll < 0.60) { // 35% - Role Player
+    tier = 'role';
+    targetOvr = rand(62, 75);
+  } else { // 40% - Bench/Deep Bench
+    tier = 'bench';
+    targetOvr = rand(45, 65);
   }
   
+  // Adjust for rookies (more variance, slightly lower)
+  if (isRookie) {
+    targetOvr = Math.max(40, targetOvr - rand(3, 10));
+  }
+  
+  // Generate base ratings that achieve target OVR
+  const variance = rand(-5, 5);
+  const shoot = clamp(targetOvr + variance + rand(-8, 8), 30, 99);
+  const defense = clamp(targetOvr + variance + rand(-8, 8), 30, 99);
+  const rebound = clamp(targetOvr + variance + rand(-8, 8), 30, 99);
+  const passing = clamp(targetOvr + variance + rand(-8, 8), 30, 99);
+  
   const ovr = Math.round((shoot + defense + rebound + passing) / 4);
-  let pot = isRookie ? clamp(ovr + rand(0, 25), ovr, 95) : clamp(ovr + rand(-5, 10), ovr - 5, 95);
+  
+  // Calculate potential - elite players have higher upside
+  let pot;
+  if (isRookie) {
+    const upsideBonus = tier === 'elite' ? rand(5, 15) : tier === 'star' ? rand(3, 12) : rand(0, 20);
+    pot = clamp(ovr + upsideBonus, ovr, 99);
+  } else {
+    // Veterans have less upside
+    const ageFactor = age <= 25 ? rand(0, 10) : age <= 28 ? rand(-3, 5) : rand(-8, 2);
+    pot = clamp(ovr + ageFactor, Math.max(40, ovr - 5), 99);
+  }
   
   // Contract based on OVR
   const salary = calculateSalary(ovr);
@@ -3954,6 +3983,125 @@ function migrateLeague(league) {
   league.schemaVersion = currentVersion;
   
   return currentVersion !== startVersion; // Return true if migrations were run
+}
+
+/* ============================
+   DEBUG TOOLS
+============================ */
+
+/**
+ * Debug function to analyze league talent distribution
+ * Usage: window.debugRatings() in browser console
+ */
+function debugRatings() {
+  if (!league) {
+    console.error('No league loaded');
+    return;
+  }
+  
+  const allPlayers = [];
+  league.teams.forEach(team => {
+    team.players.forEach(p => allPlayers.push({ ...p, teamName: team.name }));
+  });
+  league.freeAgents.forEach(p => allPlayers.push({ ...p, teamName: 'Free Agent' }));
+  
+  console.log('='.repeat(60));
+  console.log('LEAGUE TALENT DISTRIBUTION REPORT');
+  console.log('='.repeat(60));
+  console.log(`Total Players: ${allPlayers.length}`);
+  console.log(`Teams: ${league.teams.length}`);
+  console.log(`Free Agents: ${league.freeAgents.length}`);
+  console.log('');
+  
+  // Get OVR/POT values
+  const ovrValues = allPlayers.map(p => p.ratings?.ovr ?? p.ovr ?? 0).filter(v => v > 0);
+  const potValues = allPlayers.map(p => p.ratings?.pot ?? p.pot ?? 0).filter(v => v > 0);
+  
+  if (ovrValues.length === 0) {
+    console.error('❌ NO VALID OVR VALUES FOUND!');
+    console.log('Sample players:', allPlayers.slice(0, 3));
+    return;
+  }
+  
+  const maxOvr = Math.max(...ovrValues);
+  const maxPot = Math.max(...potValues);
+  const avgOvr = (ovrValues.reduce((a, b) => a + b, 0) / ovrValues.length).toFixed(1);
+  const avgPot = (potValues.reduce((a, b) => a + b, 0) / potValues.length).toFixed(1);
+  
+  console.log(`Max OVR: ${maxOvr}`);
+  console.log(`Max POT: ${maxPot}`);
+  console.log(`Avg OVR: ${avgOvr}`);
+  console.log(`Avg POT: ${avgPot}`);
+  console.log('');
+  
+  // Top 10 players
+  const sorted = allPlayers
+    .map(p => ({
+      name: p.name,
+      age: p.age,
+      pos: p.position,
+      team: p.teamName,
+      ovr: p.ratings?.ovr ?? p.ovr ?? 0,
+      pot: p.ratings?.pot ?? p.pot ?? 0
+    }))
+    .sort((a, b) => b.ovr - a.ovr);
+  
+  console.log('TOP 10 PLAYERS BY OVR:');
+  console.table(sorted.slice(0, 10));
+  console.log('');
+  
+  // Distribution histogram
+  const buckets = {
+    '90-99': 0, '80-89': 0, '70-79': 0, '60-69': 0, 
+    '50-59': 0, '40-49': 0, '30-39': 0, '< 30': 0
+  };
+  
+  ovrValues.forEach(ovr => {
+    if (ovr >= 90) buckets['90-99']++;
+    else if (ovr >= 80) buckets['80-89']++;
+    else if (ovr >= 70) buckets['70-79']++;
+    else if (ovr >= 60) buckets['60-69']++;
+    else if (ovr >= 50) buckets['50-59']++;
+    else if (ovr >= 40) buckets['40-49']++;
+    else if (ovr >= 30) buckets['30-39']++;
+    else buckets['< 30']++;
+  });
+  
+  console.log('OVR DISTRIBUTION:');
+  Object.entries(buckets).forEach(([range, count]) => {
+    const pct = ((count / ovrValues.length) * 100).toFixed(1);
+    const bar = '█'.repeat(Math.round(count / ovrValues.length * 50));
+    console.log(`${range.padEnd(8)} ${count.toString().padStart(4)} (${pct.padStart(5)}%) ${bar}`);
+  });
+  console.log('');
+  
+  // Check for issues
+  const undefinedOvr = allPlayers.filter(p => !(p.ratings?.ovr || p.ovr)).length;
+  const undefinedPot = allPlayers.filter(p => !(p.ratings?.pot || p.pot)).length;
+  
+  if (undefinedOvr > 0 || undefinedPot > 0) {
+    console.warn(`⚠️ ISSUES FOUND:`);
+    console.warn(`  - ${undefinedOvr} players with undefined OVR`);
+    console.warn(`  - ${undefinedPot} players with undefined POT`);
+  }
+  
+  console.log('='.repeat(60));
+  
+  return {
+    totalPlayers: allPlayers.length,
+    maxOvr,
+    maxPot,
+    avgOvr: parseFloat(avgOvr),
+    avgPot: parseFloat(avgPot),
+    distribution: buckets,
+    top10: sorted.slice(0, 10),
+    issues: { undefinedOvr, undefinedPot }
+  };
+}
+
+// Expose to window for console access
+if (typeof window !== 'undefined') {
+  window.debugRatings = debugRatings;
 }
 
 /* ============================
