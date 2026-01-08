@@ -1408,7 +1408,107 @@ function renderNewLeagueSettings() {
         { label: 'Enable Commissioner Mode', field: 'commissionerMode', type: 'boolean' }
       ])}
       
+      ${renderRatingProfileSection()}
+      
       ${renderPlayerGenderSection()}
+    </div>
+  `;
+}
+
+// Render rating profile selection
+function renderRatingProfileSection() {
+  const selectedProfile = newLeagueState.settings.ratingProfile || 'balanced';
+  
+  return `
+    <div style="
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      border: 2px solid #334155;
+    ">
+      <h4 style="margin: 0 0 12px 0; color: #f1f5f9; font-size: 16px;">
+        ⭐ Rating Distribution Profile
+      </h4>
+      <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
+        Choose how player ratings are distributed. This affects league competitiveness and star power.
+      </p>
+      
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Balanced Profile -->
+        <label style="
+          display: flex;
+          align-items: start;
+          gap: 12px;
+          padding: 12px;
+          background: ${selectedProfile === 'balanced' ? '#2563eb20' : '#0f172a'};
+          border: 2px solid ${selectedProfile === 'balanced' ? '#2563eb' : '#334155'};
+          border-radius: 6px;
+          cursor: pointer;
+        ">
+          <input 
+            type="radio" 
+            name="ratingProfile" 
+            value="balanced"
+            ${selectedProfile === 'balanced' ? 'checked' : ''}
+            onchange="newLeagueState.settings.ratingProfile = 'balanced'; render();"
+            style="margin-top: 2px;"
+          />
+          <div style="flex: 1;">
+            <div style="color: #f1f5f9; font-weight: bold; margin-bottom: 4px;">
+              Balanced (Default)
+            </div>
+            <div style="color: #94a3b8; font-size: 13px;">
+              Standard distribution with 70-85 OVR range for most players.
+              Few elite stars (85+). Realistic competitive balance.
+            </div>
+          </div>
+        </label>
+        
+        <!-- Star League Profile -->
+        <label style="
+          display: flex;
+          align-items: start;
+          gap: 12px;
+          padding: 12px;
+          background: ${selectedProfile === 'star_league' ? '#2563eb20' : '#0f172a'};
+          border: 2px solid ${selectedProfile === 'star_league' ? '#2563eb' : '#334155'};
+          border-radius: 6px;
+          cursor: pointer;
+        ">
+          <input 
+            type="radio" 
+            name="ratingProfile" 
+            value="star_league"
+            ${selectedProfile === 'star_league' ? 'checked' : ''}
+            onchange="newLeagueState.settings.ratingProfile = 'star_league'; render();"
+            style="margin-top: 2px;"
+          />
+          <div style="flex: 1;">
+            <div style="color: #f1f5f9; font-weight: bold; margin-bottom: 4px;">
+              ⭐ Star League
+            </div>
+            <div style="color: #94a3b8; font-size: 13px;">
+              Creates realistic 90+ OVR superstars while preserving player rankings.
+              Top 1% players: 95-99 OVR | Top 5%: 90-95 | Creates clear star tiers.
+            </div>
+          </div>
+        </label>
+      </div>
+      
+      ${selectedProfile === 'star_league' ? `
+        <div style="
+          background: #fef3c7;
+          color: #78350f;
+          padding: 12px;
+          border-radius: 6px;
+          margin-top: 12px;
+          font-size: 13px;
+        ">
+          ⚠️ <strong>Star League</strong> will be applied when the league is created.
+          You can also apply it later via Commissioner Settings.
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1847,8 +1947,9 @@ async function confirmCreateLeague() {
   const teamCount = newLeagueState.teamCount;
   const seasonYear = newLeagueState.seasonYear;
   const userTeamId = newLeagueState.userTeamId;
+  const ratingProfile = newLeagueState.settings.ratingProfile || 'balanced';
   
-  console.log('[APP] Creating new league with team ID:', userTeamId);
+  console.log('[APP] Creating new league with team ID:', userTeamId, 'rating profile:', ratingProfile);
   
   // Use new state manager if available
   if (typeof createNewLeague === 'function') {
@@ -1862,6 +1963,16 @@ async function confirmCreateLeague() {
   } else {
     // Fallback to old method
     createLeague(name, seasonYear, teamCount, newLeagueState, userTeamId);
+  }
+  
+  // Apply star league profile if selected
+  if (ratingProfile === 'star_league' && typeof applyStarLeagueProfile === 'function') {
+    console.log('[APP] Applying star league rating profile...');
+    applyStarLeagueProfile();
+    // Save after applying profile
+    if (typeof saveLeagueState === 'function') {
+      await saveLeagueState();
+    }
   }
   
   // Navigate to league view
@@ -5008,6 +5119,33 @@ function renderCommissionerModeSection() {
                 font-weight: bold;
               ">🏥 Toggle Injuries</button>
               
+              <button onclick="confirmApplyRatingProfile()" style="
+                padding: 12px;
+                background: #f39c12;
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">⭐ Apply Star Ratings</button>
+            </div>
+            
+            <div style="
+              margin-top: 15px;
+              padding: 12px;
+              background: #2c3e50;
+              border-left: 4px solid #f39c12;
+              border-radius: 4px;
+              color: #ecf0f1;
+              font-size: 0.9em;
+            ">
+              <strong>⭐ Apply Star Ratings:</strong> One-time migration that creates realistic 90+ OVR superstars.
+              Preserves player rankings. Creates automatic backup before applying.
+              ${leagueState?.migrations?.ratingProfileApplied ? 
+                '<div style="color: #2ecc71; margin-top: 8px;">✓ Already applied (cannot reapply)</div>' : 
+                '<div style="color: #e74c3c; margin-top: 8px;">⚠️ Not yet applied</div>'}
+            </div>
+              
               <button onclick="commissionerOverrideCap()" style="
                 padding: 12px;
                 background: #16a085;
@@ -5048,6 +5186,67 @@ function renderCommissionerModeSection() {
       ` : ''}
     </div>
   `;
+}
+
+/**
+ * Confirm and apply star league rating profile
+ */
+async function confirmApplyRatingProfile() {
+  // Check if already applied
+  if (leagueState?.migrations?.ratingProfileApplied) {
+    alert('Star League ratings have already been applied to this league.');
+    return;
+  }
+  
+  const confirmed = confirm(
+    '⭐ APPLY STAR LEAGUE RATINGS\n\n' +
+    'This will transform your league ratings to create realistic 90+ OVR superstars.\n\n' +
+    '✓ Preserves player rankings\n' +
+    '✓ Creates clear star tiers\n' +
+    '✓ Top 1%: 95-99 OVR\n' +
+    '✓ Top 5%: 90-95 OVR\n\n' +
+    '⚠️ This is a ONE-TIME migration that cannot be undone.\n' +
+    'An automatic backup will be created before applying.\n\n' +
+    'Continue?'
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    // Create backup
+    console.log('[APP] Creating backup before rating profile...');
+    if (typeof createRatingProfileBackup === 'function') {
+      const backup = createRatingProfileBackup();
+      if (backup) {
+        console.log('[APP] ✓ Backup created');
+      } else {
+        throw new Error('Failed to create backup');
+      }
+    }
+    
+    // Apply the profile
+    console.log('[APP] Applying star league profile...');
+    if (typeof applyStarLeagueProfile === 'function') {
+      const success = applyStarLeagueProfile();
+      
+      if (success) {
+        // Save the league
+        if (typeof saveLeagueState === 'function') {
+          await saveLeagueState();
+        }
+        
+        alert('✓ Star League ratings applied successfully!\n\nYour league now has realistic 90+ OVR superstars.');
+        render();
+      } else {
+        throw new Error('Rating profile application failed');
+      }
+    } else {
+      throw new Error('applyStarLeagueProfile function not available');
+    }
+  } catch (error) {
+    console.error('[APP] Error applying rating profile:', error);
+    alert('❌ Error applying rating profile: ' + error.message + '\n\nYour league has not been modified.');
+  }
 }
 
 // Load user preferences on startup

@@ -129,7 +129,16 @@ function createEmptyLeagueState() {
       // Player gender
       playerGenderMode: 'men', // 'men', 'women', 'mixed'
       mixedGenderRatio: 0.5, // 0.0 = all men, 1.0 = all women (only used when mixed)
-      lockGenderEditing: true // Prevent gender editing unless commissioner mode
+      lockGenderEditing: true, // Prevent gender editing unless commissioner mode
+      
+      // Rating distribution
+      ratingProfile: 'balanced' // 'balanced', 'star_league'
+    },
+    
+    // Migration tracking - prevents re-running one-time migrations
+    migrations: {
+      ratingProfileApplied: false,
+      ratingProfileVersion: null
     },
     
     // History & records
@@ -3945,6 +3954,182 @@ function migrateLeague(league) {
   league.schemaVersion = currentVersion;
   
   return currentVersion !== startVersion; // Return true if migrations were run
+}
+
+/* ============================
+   RATING PROFILE MIGRATION
+   One-time transformation of OVR/POT distributions
+============================ */
+
+/**
+ * Apply star league rating profile
+ * Uses percentile-based scaling to create realistic 90+ stars
+ * Preserves player ordering and relative strength
+ */
+function applyStarLeagueProfile() {
+  if (!league || !leagueState) {
+    console.error('[RATING PROFILE] No league loaded');
+    return false;
+  }
+  
+  // Check if already applied
+  if (leagueState.migrations && leagueState.migrations.ratingProfileApplied) {
+    console.warn('[RATING PROFILE] Already applied, skipping');
+    return false;
+  }
+  
+  console.log('[RATING PROFILE] Applying star_league profile...');
+  
+  // Collect all players
+  const allPlayers = [];
+  league.teams.forEach(team => {
+    team.players.forEach(player => {
+      allPlayers.push(player);
+    });
+  });
+  league.freeAgents.forEach(player => {
+    allPlayers.push(player);
+  });
+  
+  console.log('[RATING PROFILE] Processing', allPlayers.length, 'players');
+  
+  // Sort by current OVR to establish percentiles
+  const sortedByOvr = [...allPlayers].sort((a, b) => {
+    const ovrA = a.ratings?.ovr ?? a.ovr ?? 50;
+    const ovrB = b.ratings?.ovr ?? b.ovr ?? 50;
+    return ovrA - ovrB;
+  });
+  
+  // Calculate percentile for each player
+  const playerPercentiles = new Map();
+  sortedByOvr.forEach((player, index) => {
+    const percentile = index / (sortedByOvr.length - 1);
+    playerPercentiles.set(player.id, percentile);
+  });
+  
+  // Apply new ratings based on percentile
+  let transformedCount = 0;
+  allPlayers.forEach(player => {
+    const percentile = playerPercentiles.get(player.id) || 0.5;
+    const age = player.age || 25;
+    
+    // Map OVR using piecewise curve
+    let newOvr;
+    if (percentile >= 0.99) {
+      // Top 1% → 95-99
+      const localP = (percentile - 0.99) / 0.01;
+      newOvr = 95 + localP * 4;
+    } else if (percentile >= 0.95) {
+      // 95-99% → 90-95
+      const localP = (percentile - 0.95) / 0.04;
+      newOvr = 90 + localP * 5;
+    } else if (percentile >= 0.80) {
+      // 80-95% → 80-90
+      const localP = (percentile - 0.80) / 0.15;
+      newOvr = 80 + localP * 10;
+    } else if (percentile >= 0.50) {
+      // 50-80% → 70-80
+      const localP = (percentile - 0.50) / 0.30;
+      newOvr = 70 + localP * 10;
+    } else {
+      // Bottom 50% → 55-70
+      const localP = percentile / 0.50;
+      newOvr = 55 + localP * 15;
+    }
+    
+    // Clamp OVR
+    newOvr = Math.max(40, Math.min(99, Math.round(newOvr)));
+    
+    // Calculate POT based on age and current potential percentile
+    const sortedByPot = [...allPlayers].sort((a, b) => {
+      const potA = a.ratings?.pot ?? a.pot ?? 50;
+      const potB = b.ratings?.pot ?? b.pot ?? 50;
+      return potA - potB;
+    });
+    const potPercentile = sortedByPot.findIndex(p => p.id === player.id) / (sortedByPot.length - 1);
+    
+    // Age-based upside bonus
+    let upsideBonus;
+    if (age <= 22) {
+      upsideBonus = 3 + Math.random() * 7; // +3 to +10
+    } else if (age <= 26) {
+      upsideBonus = 1 + Math.random() * 5; // +1 to +6
+    } else if (age <= 30) {
+      upsideBonus = -2 + Math.random() * 5; // -2 to +3
+    } else {
+      upsideBonus = -8 + Math.random() * 9; // -8 to +1
+    }
+    
+    // POT = scaled based on POT percentile + age bonus
+    let basePot;
+    if (potPercentile >= 0.95) {
+      basePot = 92 + potPercentile * 7;
+    } else if (potPercentile >= 0.80) {
+      basePot = 82 + (potPercentile - 0.80) * 10;
+    } else if (potPercentile >= 0.50) {
+      basePot = 70 + (potPercentile - 0.50) * 12;
+    } else {
+      basePot = 55 + potPercentile * 15;
+    }
+    
+    let newPot = Math.round(basePot + upsideBonus);
+    
+    // POT should usually be >= OVR for young players
+    if (age <= 25 && newPot < newOvr) {
+      newPot = newOvr + Math.floor(Math.random() * 5);
+    }
+    
+    // Clamp POT
+    newPot = Math.max(40, Math.min(99, newPot));
+    
+    // Apply new ratings
+    if (player.ratings) {
+      player.ratings.ovr = newOvr;
+      player.ratings.pot = newPot;
+    } else {
+      player.ovr = newOvr;
+      player.pot = newPot;
+    }
+    
+    transformedCount++;
+  });
+  
+  // Mark migration as complete
+  if (!leagueState.migrations) {
+    leagueState.migrations = {};
+  }
+  leagueState.migrations.ratingProfileApplied = true;
+  leagueState.migrations.ratingProfileVersion = 'star_league_v1';
+  leagueState.settings.ratingProfile = 'star_league';
+  
+  console.log('[RATING PROFILE] ✓ Transformed', transformedCount, 'players');
+  console.log('[RATING PROFILE] Migration complete');
+  
+  return true;
+}
+
+/**
+ * Create backup before applying rating profile
+ */
+function createRatingProfileBackup() {
+  if (!league || !leagueState) return null;
+  
+  const backup = {
+    timestamp: Date.now(),
+    leagueName: leagueState.meta.name,
+    season: leagueState.meta.season,
+    leagueState: JSON.parse(JSON.stringify(leagueState)),
+    league: JSON.parse(JSON.stringify(league))
+  };
+  
+  try {
+    localStorage.setItem('league_backup_before_rating_profile', JSON.stringify(backup));
+    console.log('[BACKUP] Created rating profile backup');
+    return backup;
+  } catch (error) {
+    console.error('[BACKUP] Failed to create backup:', error);
+    return null;
+  }
 }
 
 /* ============================
