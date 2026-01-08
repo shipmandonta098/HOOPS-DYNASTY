@@ -674,8 +674,13 @@ function makePlayer(age, isRookie = false) {
   const ovr = Math.round((shoot + defense + rebound + passing) / 4);
   let pot = isRookie ? clamp(ovr + rand(0, 25), ovr, 95) : clamp(ovr + rand(-5, 10), ovr - 5, 95);
   
+  // TEMPORARY: Store basic ratings for initial generation
+  // These will be recalculated by rating-system.js after detailedAttributes are set
+  const tempOVR = ovr;
+  const tempPOT = pot;
+  
   // Contract based on OVR
-  const salary = calculateSalary(ovr);
+  const salary = calculateSalary(tempOVR);
   const yearsRemaining = rand(1, 4);
   
   // Generate detailed attributes
@@ -871,18 +876,18 @@ function makePlayer(age, isRookie = false) {
   };
   
   // Calculate market value based on OVR and personality
-  const baseValue = calculateSalary(ovr);
-  const marketStatus = ovr >= 80 ? 'Hot' : ovr >= 65 ? 'Normal' : 'Cold';
+  const baseValue = calculateSalary(tempOVR);
+  const marketStatus = tempOVR >= 80 ? 'Hot' : tempOVR >= 65 ? 'Normal' : 'Cold';
   
-  return {
+  const player = {
     id,
     name: randName(gender), // Pass gender to name generator
     age,
     pos,
     gender, // Store gender in player object
     ratings: {
-      ovr,
-      pot,
+      ovr: tempOVR,
+      pot: tempPOT,
       shoot,
       defense,
       rebound,
@@ -921,6 +926,14 @@ function makePlayer(age, isRookie = false) {
       status: marketStatus
     }
   };
+  
+  // Calculate proper OVR/POT using new rating system if available
+  if (typeof calculatePlayerOVR === 'function') {
+    player.ratings.ovr = calculatePlayerOVR(player);
+    player.ratings.pot = calculatePlayerPOT(player, player.ratings.ovr);
+  }
+  
+  return player;
 }
 
 function calculateSalary(ovr) {
@@ -3208,6 +3221,11 @@ function simRegularSeason() {
   }
   
   league.phase = 'offseason';
+  
+  // Recalculate all player ratings (season transition)
+  if (typeof recalculateAllRatings === 'function') {
+    recalculateAllRatings();
+  }
   
   // Save season to history
   saveSeasonToHistory();

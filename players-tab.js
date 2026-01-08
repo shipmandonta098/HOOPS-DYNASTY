@@ -408,12 +408,19 @@ function renderPlayerRow(player) {
       ${cols.has('ovr') ? `
         <td style="${cellStyle}">
           ${player.ovr >= 0 ? `
-            <span style="
-              padding: 3px 8px;
-              background: ${getOVRColor(player.ovr)};
-              border-radius: 4px;
-              font-weight: 600;
-            ">${player.ovr}</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="
+                padding: 3px 8px;
+                background: ${getOVRColor(player.ovr)};
+                border-radius: 4px;
+                font-weight: 600;
+              ">${player.ovr}</span>
+              ${typeof getOVRTier === 'function' ? `
+                <span style="font-size: 0.9em;" title="${getOVRTier(player.ovr).name}">
+                  ${getOVRTier(player.ovr).emoji}
+                </span>
+              ` : ''}
+            </div>
           ` : '<span style="color: #666;">—</span>'}
         </td>
       ` : ''}
@@ -459,6 +466,13 @@ function renderPlayerRow(player) {
 
 // Get OVR color
 function getOVRColor(ovr) {
+  // Use tier system from rating-system.js if available
+  if (typeof getOVRTier === 'function') {
+    const tier = getOVRTier(ovr);
+    return tier.color;
+  }
+  
+  // Fallback to original colors
   if (ovr >= 90) return '#9b59b6';
   if (ovr >= 85) return '#e74c3c';
   if (ovr >= 80) return '#f39c12';
