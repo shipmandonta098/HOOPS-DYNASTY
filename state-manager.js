@@ -310,8 +310,14 @@ async function createNewLeague(config) {
   // Generate new RNG seed for this league
   const rngSeed = generateNewRngSeed();
   
-  // Create league using engine.js
-  const newLeague = createLeague(config);
+  // Create league using engine.js - pass parameters correctly
+  createLeague(
+    config.name || 'My League',
+    config.season || new Date().getFullYear(),
+    config.teamCount || 30,
+    config,
+    config.userTeamId
+  );
   
   // Ensure leagueState was created
   if (!leagueState || !leagueState.meta) {

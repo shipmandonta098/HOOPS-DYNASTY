@@ -674,13 +674,8 @@ function makePlayer(age, isRookie = false) {
   const ovr = Math.round((shoot + defense + rebound + passing) / 4);
   let pot = isRookie ? clamp(ovr + rand(0, 25), ovr, 95) : clamp(ovr + rand(-5, 10), ovr - 5, 95);
   
-  // TEMPORARY: Store basic ratings for initial generation
-  // These will be recalculated by rating-system.js after detailedAttributes are set
-  const tempOVR = ovr;
-  const tempPOT = pot;
-  
   // Contract based on OVR
-  const salary = calculateSalary(tempOVR);
+  const salary = calculateSalary(ovr);
   const yearsRemaining = rand(1, 4);
   
   // Generate detailed attributes
@@ -876,18 +871,18 @@ function makePlayer(age, isRookie = false) {
   };
   
   // Calculate market value based on OVR and personality
-  const baseValue = calculateSalary(tempOVR);
-  const marketStatus = tempOVR >= 80 ? 'Hot' : tempOVR >= 65 ? 'Normal' : 'Cold';
+  const baseValue = calculateSalary(ovr);
+  const marketStatus = ovr >= 80 ? 'Hot' : ovr >= 65 ? 'Normal' : 'Cold';
   
-  const player = {
+  return {
     id,
     name: randName(gender), // Pass gender to name generator
     age,
     pos,
     gender, // Store gender in player object
     ratings: {
-      ovr: tempOVR,
-      pot: tempPOT,
+      ovr,
+      pot,
       shoot,
       defense,
       rebound,
@@ -926,12 +921,6 @@ function makePlayer(age, isRookie = false) {
       status: marketStatus
     }
   };
-  
-  // SKIP automatic rating calculation during player creation
-  // Ratings will be recalculated after league is fully created
-  // This prevents errors from incomplete player objects
-  
-  return player;
 }
 
 function calculateSalary(ovr) {
@@ -3220,11 +3209,6 @@ function simRegularSeason() {
   
   league.phase = 'offseason';
   
-  // Recalculate all player ratings (season transition)
-  if (typeof recalculateAllRatings === 'function') {
-    recalculateAllRatings();
-  }
-  
   // Save season to history
   saveSeasonToHistory();
   
@@ -3989,15 +3973,8 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   // Create teams
   const teams = [];
   for (let i = 0; i < Math.min(teamCount, 30); i++) {
-    // Use customized team from newLeagueSetup if available
-    let teamMeta = null;
-    
-    if (newLeagueSetup && newLeagueSetup.teams && newLeagueSetup.teams.length > i) {
-      teamMeta = newLeagueSetup.teams[i];
-    } else if (typeof TEAM_META !== 'undefined' && TEAM_META && TEAM_META[i]) {
-      teamMeta = TEAM_META[i];
-    }
-    
+    // Use customized team from newLeagueSetup if available, otherwise use TEAM_META
+    const teamMeta = (newLeagueSetup && newLeagueSetup.teams && newLeagueSetup.teams.length > i) ? newLeagueSetup.teams[i] : TEAM_META[i];
     if (teamMeta) {
       const fullName = `${teamMeta.city} ${teamMeta.name}`;
       teams.push(makeTeam(i + 1, fullName, {
@@ -4011,12 +3988,9 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
         logoSecondaryUrl: teamMeta.logoSecondaryUrl
       }));
     } else {
-      // Fallback to generic team
       teams.push(makeTeam(i + 1, `Team ${i + 1}`, {}));
     }
   }
-  
-  console.log('[LEAGUE] Created', teams.length, 'teams');
   
   // Assign teams to leagueState
   leagueState.teams = teams;
@@ -4066,31 +4040,10 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   // Automatically ensure schedule exists for the new league
   ensureSchedule();
   
-  // Calculate proper ratings for all players after league is fully created
-  if (typeof recalculateAllRatings === 'function') {
-    try {
-      console.log('[RATINGS] Calculating initial ratings for new league...');
-      recalculateAllRatings();
-    } catch (error) {
-      console.warn('[RATINGS] Error during initial rating calculation:', error);
-    }
-  }
-  
   appView = 'league';
-  
-  // Save league state before showing welcome
-  if (typeof saveLeagueState === 'function') {
-    saveLeagueState();
-  } else {
-    save();
-  }
+  save();
   
   // Show welcome overlay for new leagues
-  if (typeof openWelcomeOverlay === 'function') {
-    openWelcomeOverlay();
-  }
-  
-  // Render the league view
-  render();
+  openWelcomeOverlay();
 }
 

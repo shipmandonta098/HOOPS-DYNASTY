@@ -1,376 +1,449 @@
 /* ============================
-   PLAYER RATING SYSTEM
-   Non-linear, scarcity-based rating calculation
+   ADVANCED PLAYER RATING SYSTEM
+   Non-linear, scarcity-enforced rating calculations
 ============================ */
 
 /**
- * Rating System Constants
+ * Rating tier definitions
  */
-const RATING_CONSTANTS = {
-  // Overall range: 40-99 (absolute maximum)
-  OVR_MIN: 40,
-  OVR_MAX: 99,
-  
-  // Potential range: 45-99
-  POT_MIN: 45,
-  POT_MAX: 99,
-  
-  // Scarcity constraints (league-wide)
-  MAX_PLAYERS_ABOVE_97: 1,    // Only 1 generational player
-  MAX_PLAYERS_ABOVE_94: 3,    // Elite tier
-  TARGET_PLAYERS_ABOVE_90: 10, // All-NBA level
-  
-  // Development age ranges
-  DEVELOPMENT_PEAK_START: 24,
-  DEVELOPMENT_PEAK_END: 27,
-  DECLINE_START_MIN: 29,
-  DECLINE_START_MAX: 32,
-  
-  // Attribute weights for OVR calculation
-  WEIGHTS: {
-    // Core skills (70% of rating)
-    shooting: 0.20,
-    defense: 0.18,
-    playmaking: 0.16,
-    rebounding: 0.16,
-    
-    // Mental/IQ (15% of rating)
-    basketballIQ: 0.08,
-    consistency: 0.04,
-    composure: 0.03,
-    
-    // Athletic (10% of rating)
-    speed: 0.03,
-    strength: 0.02,
-    vertical: 0.02,
-    
-    // Physical modifiers (5% of rating)
-    height: 0.025,
-    wingspan: 0.025
-  }
+const RATING_TIERS = {
+  GENERATIONAL: { min: 95, max: 99, label: 'Generational', color: '#FFD700' },      // Gold
+  ALL_NBA: { min: 90, max: 94, label: 'All-NBA', color: '#9370DB' },                 // Purple
+  ALL_STAR: { min: 85, max: 89, label: 'All-Star', color: '#4169E1' },               // Royal Blue
+  HIGH_STARTER: { min: 75, max: 84, label: 'High Starter', color: '#32CD32' },       // Lime Green
+  STARTER: { min: 65, max: 74, label: 'Starter', color: '#FFD700' },                 // Light Gold
+  ROTATION: { min: 55, max: 64, label: 'Rotation', color: '#FFA500' },               // Orange
+  BENCH: { min: 45, max: 54, label: 'Bench', color: '#CD853F' },                     // Peru
+  FRINGE: { min: 40, max: 44, label: 'Fringe', color: '#808080' }                    // Gray
 };
 
 /**
- * Calculate non-linear OVR from weighted attributes
- * Uses exponential scaling to create separation at the top
+ * League-wide scarcity constraints
  */
-function calculatePlayerOVR(player) {
-  if (!player) {
-    console.warn('[RATINGS] calculatePlayerOVR called with null player');
-    return 50;
-  }
-  
-  if (!player.detailedAttributes) {
-    console.warn('[RATINGS] Player missing detailedAttributes:', player.name);
-    return player.ratings?.ovr || 50;
-  }
-  
-  const attrs = player.detailedAttributes;
-  const W = RATING_CONSTANTS.WEIGHTS;
-  
-  // Aggregate skill ratings (with safety checks)
-  const shooting = calculateShootingRating(attrs.offensive?.scoringSkills);
-  const defense = calculateDefenseRating(attrs.defensive);
-  const playmaking = calculatePlaymakingRating(attrs.offensive?.playmakingSkills);
-  const rebounding = attrs.defensive ? 
-    ((attrs.defensive.defensiveRebounding || 70) + (attrs.defensive.offensiveRebounding || 70)) / 2 : 70;
-  
-  // Mental attributes (with safety checks)
-  const basketballIQ = attrs.mental?.basketballIQ || 70;
-  const consistency = attrs.mental?.consistency || 70;
-  const composure = attrs.mental?.composure || 70;
-  
-  // Athletic attributes (with safety checks)
-  const speed = attrs.athletic?.speed || 70;
-  const strength = attrs.athletic?.strength || 70;
-  const vertical = attrs.athletic?.vertical || 70;
-  
-  // Physical measurements (normalized to 0-100 scale with safety checks)
-  const height = normalizeHeight(player.bio?.heightInches || 78);
-  const wingspan = normalizeWingspan(player.bio?.wingspanInches || 80);
-  
-  // Weighted sum (base rating)
-  const baseRating = 
-    shooting * W.shooting +
-    defense * W.defense +
-    playmaking * W.playmaking +
-    rebounding * W.rebounding +
-    basketballIQ * W.basketballIQ +
-    consistency * W.consistency +
-    composure * W.composure +
-    speed * W.speed +
-    strength * W.strength +
-    vertical * W.vertical +
-    height * W.height +
-    wingspan * W.wingspan;
-  
-  // Apply non-linear transformation
-  // This creates exponential separation at the top
-  const curved = applyOVRCurve(baseRating);
-  
-  // Apply age-based modifiers
-  const ageFactor = getAgeFactor(player.age);
-  const adjusted = curved * ageFactor;
-  
-  // Clamp to valid range
-  return Math.round(clamp(adjusted, RATING_CONSTANTS.OVR_MIN, RATING_CONSTANTS.OVR_MAX));
-}
+const SCARCITY_RULES = {
+  MAX_99: 0,           // No one should be 99 (reserved for all-time greats)
+  MAX_98: 1,           // Only 1 player can be 98
+  MAX_97_PLUS: 1,      // Only 1 player ≥97
+  MAX_94_PLUS: 3,      // Max 3 players ≥94
+  TARGET_90_PLUS: 10   // ~10 players ≥90
+};
 
 /**
- * Calculate shooting rating from all shooting skills
+ * Attribute weights for OVR calculation
+ * Skills matter more than physicals
  */
-function calculateShootingRating(scoringSkills) {
-  if (!scoringSkills) return 70;
+const ATTRIBUTE_WEIGHTS = {
+  // Core skills (70% of rating)
+  scoring: 0.25,
+  playmaking: 0.15,
+  defense: 0.20,
+  rebounding: 0.10,
   
-  return (
-    (scoringSkills.finishing || 70) * 0.25 +
-    (scoringSkills.midRangeShooting || 70) * 0.20 +
-    (scoringSkills.threePointShooting || 70) * 0.25 +
-    (scoringSkills.freeThrowShooting || 70) * 0.15 +
-    (scoringSkills.postScoring || 70) * 0.10 +
-    (scoringSkills.shotCreation || 70) * 0.05
+  // Mental/IQ (20% of rating)
+  basketballIQ: 0.12,
+  composure: 0.04,
+  consistency: 0.04,
+  
+  // Physical modifiers (10% of rating, capped influence)
+  athleticism: 0.06,
+  physical: 0.04
+};
+
+/**
+ * Calculate weighted skill composite from detailed attributes
+ */
+function calculateSkillComposites(attrs) {
+  // Scoring composite (weighted average of shooting skills)
+  const scoring = (
+    attrs.offensive.scoringSkills.finishing * 0.25 +
+    attrs.offensive.scoringSkills.midRangeShooting * 0.20 +
+    attrs.offensive.scoringSkills.threePointShooting * 0.20 +
+    attrs.offensive.scoringSkills.freeThrowShooting * 0.10 +
+    attrs.offensive.scoringSkills.postScoring * 0.15 +
+    attrs.offensive.scoringSkills.shotCreation * 0.10
   );
-}
-
-/**
- * Calculate defense rating from defensive skills
- */
-function calculateDefenseRating(defensiveSkills) {
-  if (!defensiveSkills) return 70;
   
-  return (
-    (defensiveSkills.perimeterDefense || 70) * 0.30 +
-    (defensiveSkills.interiorDefense || 70) * 0.25 +
-    (defensiveSkills.defensiveAwareness || 70) * 0.20 +
-    (defensiveSkills.stealRating || 70) * 0.15 +
-    (defensiveSkills.blockRating || 70) * 0.10
+  // Playmaking composite
+  const playmaking = (
+    attrs.offensive.playmakingSkills.passingVision * 0.35 +
+    attrs.offensive.playmakingSkills.passingAccuracy * 0.25 +
+    attrs.offensive.playmakingSkills.ballHandling * 0.30 +
+    attrs.offensive.playmakingSkills.offBallMovement * 0.10
   );
-}
-
-/**
- * Calculate playmaking rating
- */
-function calculatePlaymakingRating(playmakingSkills) {
-  if (!playmakingSkills) return 70;
   
-  return (
-    (playmakingSkills.passingVision || 70) * 0.35 +
-    (playmakingSkills.passingAccuracy || 70) * 0.30 +
-    (playmakingSkills.ballHandling || 70) * 0.25 +
-    (playmakingSkills.offBallMovement || 70) * 0.10
+  // Defense composite
+  const defense = (
+    attrs.defensive.perimeterDefense * 0.25 +
+    attrs.defensive.interiorDefense * 0.25 +
+    attrs.defensive.defensiveAwareness * 0.20 +
+    attrs.defensive.stealRating * 0.15 +
+    attrs.defensive.blockRating * 0.15
   );
-}
-
-/**
- * Normalize height to 0-100 scale (position-adjusted)
- * 5'10" (70") = 50, 6'6" (78") = 75, 7'2" (86") = 95
- */
-function normalizeHeight(heightInches) {
-  return clamp((heightInches - 60) * 3.5, 0, 100);
-}
-
-/**
- * Normalize wingspan to 0-100 scale
- */
-function normalizeWingspan(wingspanInches) {
-  return clamp((wingspanInches - 68) * 2.5, 0, 100);
-}
-
-/**
- * Apply non-linear curve to create separation at the top
- * Low ratings (40-70) compress, high ratings (85+) expand
- */
-function applyOVRCurve(baseRating) {
-  // Normalize to 0-1
-  const normalized = (baseRating - 40) / 60;
   
-  // Apply exponential curve: y = x^1.8
-  // This creates steeper gains at high end
-  const curved = Math.pow(normalized, 1.8);
+  // Rebounding composite
+  const rebounding = (
+    attrs.defensive.defensiveRebounding * 0.60 +
+    attrs.defensive.offensiveRebounding * 0.40
+  );
   
-  // Scale back to 40-99 range
-  return 40 + (curved * 59);
+  // Basketball IQ
+  const basketballIQ = attrs.mental.basketballIQ;
+  
+  // Composure
+  const composure = (
+    attrs.mental.composure * 0.50 +
+    attrs.mental.clutch * 0.50
+  );
+  
+  // Consistency
+  const consistency = (
+    attrs.mental.consistency * 0.60 +
+    attrs.mental.discipline * 0.40
+  );
+  
+  // Athleticism composite
+  const athleticism = (
+    attrs.athletic.speed * 0.25 +
+    attrs.athletic.acceleration * 0.20 +
+    attrs.athletic.vertical * 0.20 +
+    attrs.athletic.lateralQuickness * 0.20 +
+    attrs.athletic.stamina * 0.15
+  );
+  
+  // Physical composite (size/strength as modifier)
+  const physical = (
+    attrs.athletic.strength * 0.60 +
+    attrs.athletic.hustle * 0.40
+  );
+  
+  return {
+    scoring,
+    playmaking,
+    defense,
+    rebounding,
+    basketballIQ,
+    composure,
+    consistency,
+    athleticism,
+    physical
+  };
 }
 
 /**
- * Get age-based multiplier for OVR
- * Peak: 24-27, Decline: 29-32
+ * Non-linear rating curve
+ * Maps weighted sum (0-100) to OVR (40-99)
+ * Elite players get more separation at the top
  */
-function getAgeFactor(age) {
-  if (age <= 23) {
-    // Young players still developing
-    return 0.92 + (age - 19) * 0.02; // 0.92 at 19 → 1.0 at 23
-  } else if (age <= 27) {
-    // Peak years
-    return 1.0;
-  } else if (age <= 32) {
-    // Gradual decline
-    return 1.0 - (age - 27) * 0.015; // 1.0 at 27 → 0.925 at 32
+function applyNonLinearCurve(weightedSum) {
+  // weightedSum is 0-100 scale
+  // We want to map this to 40-99 with non-linear progression
+  
+  if (weightedSum < 50) {
+    // Low tier: compressed, linear growth (40-65)
+    return 40 + (weightedSum / 50) * 25;
+  } else if (weightedSum < 75) {
+    // Mid tier: moderate growth (65-80)
+    const normalized = (weightedSum - 50) / 25;
+    return 65 + normalized * 15;
+  } else if (weightedSum < 90) {
+    // High tier: accelerated growth (80-90)
+    const normalized = (weightedSum - 75) / 15;
+    return 80 + Math.pow(normalized, 1.3) * 10;
   } else {
-    // Steep decline after 32
-    return 0.925 - (age - 32) * 0.03;
+    // Elite tier: exponential growth (90-99)
+    const normalized = (weightedSum - 90) / 10;
+    return 90 + Math.pow(normalized, 1.5) * 9;
   }
 }
 
 /**
- * Calculate potential (POT) based on OVR, age, and work ethic
+ * Calculate raw OVR from attributes (before scarcity adjustment)
  */
-function calculatePlayerPOT(player, currentOVR) {
-  if (!player) {
-    console.warn('[RATINGS] calculatePlayerPOT called with null player');
-    return 50;
-  }
+function calculateRawOVR(detailedAttributes) {
+  const composites = calculateSkillComposites(detailedAttributes);
   
-  const age = player.age || 25;
-  const workEthic = player.detailedAttributes?.mental?.workEthic || 70;
+  // Calculate weighted sum
+  let weightedSum = 0;
+  weightedSum += composites.scoring * ATTRIBUTE_WEIGHTS.scoring;
+  weightedSum += composites.playmaking * ATTRIBUTE_WEIGHTS.playmaking;
+  weightedSum += composites.defense * ATTRIBUTE_WEIGHTS.defense;
+  weightedSum += composites.rebounding * ATTRIBUTE_WEIGHTS.rebounding;
+  weightedSum += composites.basketballIQ * ATTRIBUTE_WEIGHTS.basketballIQ;
+  weightedSum += composites.composure * ATTRIBUTE_WEIGHTS.composure;
+  weightedSum += composites.consistency * ATTRIBUTE_WEIGHTS.consistency;
+  weightedSum += composites.athleticism * ATTRIBUTE_WEIGHTS.athleticism;
+  weightedSum += composites.physical * ATTRIBUTE_WEIGHTS.physical;
   
-  // Base potential from current OVR
-  let pot = currentOVR;
+  // Apply non-linear curve
+  const rawOVR = applyNonLinearCurve(weightedSum);
   
-  if (age < RATING_CONSTANTS.DEVELOPMENT_PEAK_START) {
-    // Young players: POT > OVR
-    const yearsToPeak = RATING_CONSTANTS.DEVELOPMENT_PEAK_START - age;
-    const growthPotential = (workEthic / 100) * yearsToPeak * 2.5;
-    pot = currentOVR + growthPotential;
-  } else if (age <= RATING_CONSTANTS.DEVELOPMENT_PEAK_END) {
-    // Peak years: POT ≈ OVR with slight upside
-    pot = currentOVR + (workEthic - 70) / 20;
+  return Math.round(clamp(rawOVR, 40, 99));
+}
+
+/**
+ * Calculate potential based on age, attributes, and physical tools
+ */
+function calculatePotential(age, rawOVR, detailedAttributes, bodyZScores) {
+  let basePotential = rawOVR;
+  
+  // Age-based potential ceiling
+  if (age <= 22) {
+    // Young players: high ceiling
+    basePotential += rand(10, 20);
+  } else if (age <= 24) {
+    // Developing: moderate ceiling
+    basePotential += rand(5, 15);
+  } else if (age <= 26) {
+    // Peak approach: small ceiling
+    basePotential += rand(0, 8);
+  } else if (age <= 29) {
+    // Peak/decline: POT ≈ OVR
+    basePotential += rand(-5, 5);
   } else {
-    // Decline years: POT < OVR (shows future decline)
-    const yearsAfterPeak = age - RATING_CONSTANTS.DEVELOPMENT_PEAK_END;
-    const declineRate = 1.5;
-    pot = currentOVR - (yearsAfterPeak * declineRate);
+    // Decline: POT < OVR
+    basePotential += rand(-10, 0);
   }
   
-  // Clamp to valid range
-  return Math.round(clamp(pot, RATING_CONSTANTS.POT_MIN, RATING_CONSTANTS.POT_MAX));
+  // Physical tools bonus (elite physicals = higher ceiling)
+  if (bodyZScores) {
+    const { zH, zL, zB } = bodyZScores;
+    
+    // Exceptional wingspan
+    if (zL > 1.5) {
+      basePotential += Math.min(3, Math.floor(zL));
+    }
+    
+    // Ideal size/strength combo
+    if (zH + zB > 2.0) {
+      basePotential += Math.min(3, Math.floor((zH + zB) * 0.8));
+    }
+    
+    // Elite athleticism
+    const athleticScore = detailedAttributes.athletic.speed + detailedAttributes.athletic.vertical;
+    if (athleticScore > 180) {
+      basePotential += 2;
+    }
+  }
+  
+  // Work ethic multiplier
+  const workEthic = detailedAttributes.mental.workEthic;
+  if (workEthic > 85) {
+    basePotential += 2;
+  } else if (workEthic < 60) {
+    basePotential -= 2;
+  }
+  
+  // POT must be >= OVR for young players
+  if (age < 27) {
+    basePotential = Math.max(basePotential, rawOVR);
+  }
+  
+  return Math.round(clamp(basePotential, 45, 99));
 }
 
 /**
  * Enforce league-wide scarcity constraints
- * Ensures only 1 player >97, max 3 ≥94, ~10 ≥90
+ * Adjusts OVRs to maintain hierarchy and rarity
  */
-function enforceLeagueScarcity(allPlayers) {
+function enforceScarcityConstraints(allPlayers) {
   if (!allPlayers || allPlayers.length === 0) return;
   
-  // Sort by OVR descending
-  const sorted = [...allPlayers].sort((a, b) => (b.ratings?.ovr || 0) - (a.ratings?.ovr || 0));
+  // Sort by raw OVR descending
+  const sorted = [...allPlayers].sort((a, b) => {
+    const ovrA = a.ratings?.ovr || calculateRawOVR(a.attributes || a);
+    const ovrB = b.ratings?.ovr || calculateRawOVR(b.attributes || b);
+    return ovrB - ovrA;
+  });
   
-  // Count players in elite tiers
-  const above97 = sorted.filter(p => p.ratings.ovr > 97);
-  const above94 = sorted.filter(p => p.ratings.ovr >= 94);
-  const above90 = sorted.filter(p => p.ratings.ovr >= 90);
+  let count98Plus = 0;
+  let count97Plus = 0;
+  let count94Plus = 0;
+  let count90Plus = 0;
   
-  // Enforce 97+ cap (only 1 allowed)
-  if (above97.length > RATING_CONSTANTS.MAX_PLAYERS_ABOVE_97) {
-    for (let i = RATING_CONSTANTS.MAX_PLAYERS_ABOVE_97; i < above97.length; i++) {
-      above97[i].ratings.ovr = 97;
-      console.log(`[SCARCITY] Capped ${above97[i].name} from ${above97[i].ratings.ovr} to 97`);
+  sorted.forEach((player, index) => {
+    let ovr = player.ratings?.ovr || calculateRawOVR(player.attributes || player);
+    
+    // No one gets 99 (reserved for legends)
+    if (ovr >= 99) {
+      ovr = 98;
     }
+    
+    // Only 1 player can be 98
+    if (ovr >= 98) {
+      if (count98Plus >= SCARCITY_RULES.MAX_98) {
+        ovr = 97;
+      } else {
+        count98Plus++;
+      }
+    }
+    
+    // Only 1 player ≥97
+    if (ovr >= 97) {
+      if (count97Plus >= SCARCITY_RULES.MAX_97_PLUS) {
+        ovr = 96;
+      } else {
+        count97Plus++;
+      }
+    }
+    
+    // Max 3 players ≥94
+    if (ovr >= 94) {
+      if (count94Plus >= SCARCITY_RULES.MAX_94_PLUS) {
+        ovr = 93;
+      } else {
+        count94Plus++;
+      }
+    }
+    
+    // Track 90+ for target
+    if (ovr >= 90) {
+      count90Plus++;
+    }
+    
+    // Compress if too many 90+ players
+    if (count90Plus > SCARCITY_RULES.TARGET_90_PLUS + 3 && ovr >= 90 && ovr < 94) {
+      ovr = Math.min(ovr, 89);
+    }
+    
+    // Update player OVR
+    if (player.ratings) {
+      player.ratings.ovr = Math.round(ovr);
+    }
+  });
+  
+  console.log('[RATINGS] Scarcity enforcement:', {
+    total: sorted.length,
+    '98+': count98Plus,
+    '97+': count97Plus,
+    '94+': count94Plus,
+    '90+': count90Plus
+  });
+}
+
+/**
+ * Apply age-based development/decline
+ * Called during season transitions
+ */
+function applyAgingCurve(player) {
+  if (!player || !player.ratings) return;
+  
+  const age = player.age;
+  const ovr = player.ratings.ovr;
+  const pot = player.ratings.pot;
+  
+  // Development phase (improving toward POT)
+  if (age < 24) {
+    // Young players develop quickly
+    const growth = Math.min(pot - ovr, rand(2, 5));
+    player.ratings.ovr = Math.min(player.ratings.ovr + growth, pot);
+  } else if (age >= 24 && age <= 27) {
+    // Peak development years
+    const growth = Math.min(pot - ovr, rand(1, 3));
+    player.ratings.ovr = Math.min(player.ratings.ovr + growth, pot);
+  } else if (age >= 28 && age <= 30) {
+    // Maintenance phase (slight chance of improvement or decline)
+    const change = rand(-1, 1);
+    player.ratings.ovr = clamp(player.ratings.ovr + change, 40, 99);
+  } else if (age >= 31 && age <= 33) {
+    // Early decline
+    const decline = rand(1, 3);
+    player.ratings.ovr = Math.max(player.ratings.ovr - decline, 40);
+    player.ratings.pot = Math.max(player.ratings.pot - 2, player.ratings.ovr);
+  } else {
+    // Steep decline
+    const decline = rand(2, 4);
+    player.ratings.ovr = Math.max(player.ratings.ovr - decline, 40);
+    player.ratings.pot = Math.max(player.ratings.pot - 3, player.ratings.ovr);
   }
   
-  // Enforce 94+ cap (max 3 allowed)
-  if (above94.length > RATING_CONSTANTS.MAX_PLAYERS_ABOVE_94) {
-    for (let i = RATING_CONSTANTS.MAX_PLAYERS_ABOVE_94; i < above94.length; i++) {
-      above94[i].ratings.ovr = 93;
-      console.log(`[SCARCITY] Capped ${above94[i].name} from ${above94[i].ratings.ovr} to 93`);
-    }
-  }
-  
-  // Soft cap for 90+ (compress if too many)
-  if (above90.length > RATING_CONSTANTS.TARGET_PLAYERS_ABOVE_90 + 5) {
-    const excess = above90.length - RATING_CONSTANTS.TARGET_PLAYERS_ABOVE_90;
-    for (let i = RATING_CONSTANTS.TARGET_PLAYERS_ABOVE_90; i < above90.length && i < RATING_CONSTANTS.TARGET_PLAYERS_ABOVE_90 + excess; i++) {
-      above90[i].ratings.ovr -= 2;
-      console.log(`[SCARCITY] Reduced ${above90[i].name} to ${above90[i].ratings.ovr}`);
-    }
+  // POT decay over time
+  if (age >= 26) {
+    player.ratings.pot = Math.max(player.ratings.pot - 1, player.ratings.ovr);
   }
 }
 
 /**
- * Recalculate all player ratings (call only on season transitions)
+ * Get tier info for an OVR
+ */
+function getRatingTier(ovr) {
+  for (const tier of Object.values(RATING_TIERS)) {
+    if (ovr >= tier.min && ovr <= tier.max) {
+      return tier;
+    }
+  }
+  return RATING_TIERS.FRINGE;
+}
+
+/**
+ * Get league rank for a player
+ */
+function getLeagueRank(player, allPlayers) {
+  if (!player || !allPlayers) return null;
+  
+  const sorted = [...allPlayers].sort((a, b) => {
+    const ovrA = a.ratings?.ovr || 0;
+    const ovrB = b.ratings?.ovr || 0;
+    return ovrB - ovrA;
+  });
+  
+  const rank = sorted.findIndex(p => p.id === player.id) + 1;
+  return rank > 0 ? rank : null;
+}
+
+/**
+ * Recalculate all player ratings (called on season transition only)
  */
 function recalculateAllRatings() {
-  if (!league || !league.teams) return;
+  if (!league) return;
   
   console.log('[RATINGS] Recalculating all player ratings...');
   
+  // Get all players
   const allPlayers = [];
-  
-  // Collect all players
   league.teams.forEach(team => {
-    team.players.forEach(player => {
-      allPlayers.push(player);
+    team.players.forEach(p => {
+      p.teamName = team.name;
+      allPlayers.push(p);
     });
   });
+  league.freeAgents.forEach(p => {
+    p.teamName = 'Free Agent';
+    allPlayers.push(p);
+  });
   
-  if (league.freeAgents) {
-    league.freeAgents.forEach(player => {
-      allPlayers.push(player);
-    });
-  }
-  
-  // Recalculate OVR and POT for each player
+  // Calculate raw OVRs
   allPlayers.forEach(player => {
-    const ovr = calculatePlayerOVR(player);
-    const pot = calculatePlayerPOT(player, ovr);
-    
-    if (!player.ratings) {
-      player.ratings = {};
+    if (player.attributes) {
+      const rawOVR = calculateRawOVR(player.attributes);
+      
+      if (!player.ratings) {
+        player.ratings = {};
+      }
+      
+      player.ratings.ovr = rawOVR;
+      
+      // Calculate POT if not set
+      if (!player.ratings.pot) {
+        const bodyZScores = player.bio ? {
+          zH: (player.bio.heightInches - 78) / 3,
+          zL: (player.bio.wingspanInches - 81) / 4,
+          zB: (player.bio.weightLbs - 215) / 25
+        } : null;
+        
+        player.ratings.pot = calculatePotential(
+          player.age,
+          rawOVR,
+          player.attributes,
+          bodyZScores
+        );
+      }
     }
-    
-    player.ratings.ovr = ovr;
-    player.ratings.pot = pot;
   });
   
-  // Enforce scarcity constraints
-  enforceLeagueScarcity(allPlayers);
+  // Enforce scarcity
+  enforceScarcityConstraints(allPlayers);
   
   console.log('[RATINGS] ✓ Ratings recalculated');
-  
-  // Display elite players
-  const elitePlayers = allPlayers
-    .filter(p => p.ratings.ovr >= 90)
-    .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
-    .slice(0, 15);
-  
-  console.log('[RATINGS] Elite Players (90+):');
-  elitePlayers.forEach((p, i) => {
-    console.log(`  ${i + 1}. ${p.name} - ${p.ratings.ovr} OVR (${p.age} years old)`);
-  });
-}
-
-/**
- * Get OVR tier information for UI display
- */
-function getOVRTier(ovr) {
-  if (ovr >= 95) return { name: 'Generational', color: '#FFD700', emoji: '👑' };
-  if (ovr >= 90) return { name: 'All-NBA', color: '#FF6B6B', emoji: '⭐' };
-  if (ovr >= 85) return { name: 'All-Star', color: '#4ECDC4', emoji: '🌟' };
-  if (ovr >= 75) return { name: 'Starter', color: '#95E1D3', emoji: '✓' };
-  if (ovr >= 65) return { name: 'Rotation', color: '#999', emoji: '○' };
-  return { name: 'Bench', color: '#666', emoji: '·' };
-}
-
-/**
- * Get player's league rank by OVR
- */
-function getPlayerLeagueRank(player) {
-  if (!league || !league.teams) return null;
-  
-  const allPlayers = [];
-  league.teams.forEach(team => {
-    team.players.forEach(p => allPlayers.push(p));
-  });
-  
-  if (league.freeAgents) {
-    league.freeAgents.forEach(p => allPlayers.push(p));
-  }
-  
-  allPlayers.sort((a, b) => (b.ratings?.ovr || 0) - (a.ratings?.ovr || 0));
-  
-  const rank = allPlayers.findIndex(p => p.id === player.id) + 1;
-  return rank > 0 ? rank : null;
 }
 
 console.log('[RATINGS] Rating system loaded');
