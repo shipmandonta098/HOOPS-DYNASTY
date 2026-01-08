@@ -5285,6 +5285,125 @@ body.sidebar-open {
   .welcome-footer {
     padding: 20px 24px;
   }
-}/* DRAFT TAB CSS */
-.draft-container { padding: 20px; }
+}
 
+/* ============================
+   FAN HYPE SYSTEM STYLES
+============================ */
+
+/* Hype Meter Container */
+.hype-meter-container {
+  padding: 16px 0;
+}
+
+.hype-meter-value {
+  font-size: 48px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.hype-trend {
+  font-size: 24px;
+  margin-left: 8px;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.hype-meter-bar {
+  width: 100%;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.hype-meter-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Pulse effect for extreme hype */
+.hype-meter-fill[style*="width: 100%"],
+.hype-meter-fill[style*="width: 9"],
+.hype-meter-fill[style*="width: 8"] {
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 2px 8px rgba(34, 197, 94, 0.5); }
+  50% { box-shadow: 0 2px 16px rgba(34, 197, 94, 0.8), 0 0 24px rgba(34, 197, 94, 0.4); }
+}
+
+/* Hype Effects Grid */
+.hype-effects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.hype-effect-item {
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hype-effect-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.hype-effect-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e5e7eb;
+}
+
+/* Media Tone */
+.hype-media-tone {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Attendance Info */
+.hype-attendance-info {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  font-size: 12px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+/* Hype Indicator in Standings (compact) */
+.standings-detail-row span[title="Fan Hype"] {
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* DRAFT TAB CSS */

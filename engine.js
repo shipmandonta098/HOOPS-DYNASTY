@@ -1173,6 +1173,17 @@ function makeTeam(id, name, metadata = {}) {
     morale: 75, // Team morale (0-100)
     payroll: 0,
     draftWatchlist: [], // For draft prospects watchlist
+    // Fan Hype system (0-100)
+    hype: 50, // Public excitement and expectations
+    hypeHistory: [], // Track hype changes over time
+    // Financial tracking
+    finances: {
+      seasonRevenue: 0, // Total revenue this season
+      seasonAttendance: 0, // Total attendance this season
+      gamesPlayed: 0, // Home games played
+      avgAttendance: 0, // Average attendance per game
+      revenuePerGame: 0 // Average revenue per game
+    },
     // Advanced standings stats
     stats: {
       confWins: 0,
@@ -2993,6 +3004,185 @@ function updateTeamPayrolls() {
   }
 }
 
+/* ============================
+   FAN HYPE SYSTEM
+============================ */
+
+/**
+ * Calculate Fan Hype for a team based on multiple factors
+ * @param {Object} team - Team object
+ * @returns {number} Hype value (0-100)
+ */
+function calculateTeamHype(team) {
+  if (!team) return 50;
+  
+  let hype = 50; // Base neutral hype
+  
+  // 1) WIN PERCENTAGE (±25 points)
+  const totalGames = team.wins + team.losses;
+  if (totalGames > 0) {
+    const winPct = team.wins / totalGames;
+    const winBonus = (winPct - 0.5) * 50; // -25 to +25
+    hype += winBonus;
+  }
+  
+  // 2) RECENT STREAK (±15 points)
+  if (team.stats && team.stats.streak) {
+    const streakBonus = clamp(team.stats.streak * 1.5, -15, 15);
+    hype += streakBonus;
+  }
+  
+  // 3) STAR POWER (±10 points)
+  if (team.players && team.players.length > 0) {
+    const topPlayer = team.players.reduce((best, p) => 
+      (p.ratings.ovr > best.ratings.ovr) ? p : best
+    , team.players[0]);
+    const starBonus = (topPlayer.ratings.ovr - 70) * 0.5; // -10 to +15
+    hype += clamp(starBonus, -10, 10);
+  }
+  
+  // 4) PLAYOFF PERFORMANCE (bonus from history)
+  if (team.championships && team.championships > 0) {
+    hype += team.championships * 5; // +5 per championship (max +25)
+  }
+  
+  // 5) EXPECTATION vs REALITY
+  if (totalGames > 10) {
+    const expectedWins = totalGames * 0.5; // Baseline expectation
+    const overperformance = (team.wins - expectedWins) / totalGames;
+    hype += overperformance * 10; // ±10 points
+  }
+  
+  return clamp(hype, 0, 100);
+}
+
+/**
+ * Update team hype after a game result
+ * @param {Object} team - Team object
+ * @param {boolean} won - Whether team won
+ * @param {number} scoreDiff - Point differential (positive = team won by X)
+ */
+function updateTeamHype(team, won, scoreDiff = 0) {
+  if (!team) return;
+  
+  // Initialize hype if missing (for old saves)
+  if (team.hype === undefined) team.hype = 50;
+  if (!team.hypeHistory) team.hypeHistory = [];
+  
+  // Calculate new hype based on all factors
+  const newHype = calculateTeamHype(team);
+  
+  // Apply immediate reaction to game result
+  let hypeChange = 0;
+  if (won) {
+    hypeChange = 1 + (scoreDiff / 20); // Blowout wins boost hype more
+    if (team.stats && team.stats.streak > 5) {
+      hypeChange += 1; // Hot streak bonus
+    }
+  } else {
+    hypeChange = -1 - (Math.abs(scoreDiff) / 20); // Blowout losses hurt more
+    if (team.stats && team.stats.streak < -5) {
+      hypeChange -= 1; // Cold streak penalty
+    }
+  }
+  
+  // Apply change
+  team.hype = clamp(newHype + hypeChange, 0, 100);
+  
+  // Record history (keep last 30 data points)
+  team.hypeHistory.push({
+    day: leagueState ? leagueState.meta.day : 0,
+    hype: team.hype,
+    result: won ? 'W' : 'L',
+    scoreDiff: scoreDiff
+  });
+  
+  if (team.hypeHistory.length > 30) {
+    team.hypeHistory.shift();
+  }
+}
+
+/**
+ * Get effects of hype on team operations
+ * @param {number} hype - Team hype value (0-100)
+ * @returns {Object} Effects object with multipliers
+ */
+function getHypeEffects(hype) {
+  if (hype === undefined) hype = 50;
+  
+  // Normalize hype to -1 to +1 scale (50 = neutral)
+  const hypeNorm = (hype - 50) / 50;
+  
+  return {
+    // Attendance: Low hype = empty seats, high hype = sellouts
+    // Range: 0.6x to 1.4x
+    attendance: clamp(1.0 + (hypeNorm * 0.4), 0.6, 1.4),
+    
+    // Revenue: Tied to attendance + merchandise sales
+    // Range: 0.5x to 1.5x
+    revenue: clamp(1.0 + (hypeNorm * 0.5), 0.5, 1.5),
+    
+    // Morale: High hype can pressure team, very low hype damages morale
+    // Range: -10 to +5 morale points
+    moraleChange: hype < 20 ? -10 : (hype > 80 ? -3 : (hypeNorm * 5)),
+    
+    // Front Office Pressure: Expectations create pressure
+    // 0 = no pressure, 100 = extreme pressure
+    pressure: hype > 70 ? (hype - 70) * 2 : 0,
+    
+    // Media Tone: Affects narrative generation
+    mediaTone: hype < 30 ? 'critical' : 
+               hype < 50 ? 'skeptical' :
+               hype < 70 ? 'optimistic' : 'euphoric'
+  };
+}
+
+/**
+ * Apply hype effects to team morale
+ * Should be called weekly or after key events
+ * @param {Object} team - Team object
+ */
+function applyHypeMoraleEffects(team) {
+  if (!team) return;
+  
+  // Initialize morale if missing
+  if (team.morale === undefined) team.morale = 75;
+  if (team.hype === undefined) team.hype = 50;
+  
+  const hypeEffects = getHypeEffects(team.hype);
+  
+  // Apply morale change from hype
+  const moraleChange = hypeEffects.moraleChange;
+  
+  // Apply change gradually (max ±2 per update to prevent wild swings)
+  const gradualChange = clamp(moraleChange * 0.2, -2, 2);
+  team.morale = clamp(team.morale + gradualChange, 0, 100);
+}
+
+/**
+ * Get pressure level description based on hype
+ * @param {Object} team - Team object
+ * @returns {Object} Pressure info
+ */
+function getHypePressureInfo(team) {
+  if (!team) return { level: 0, description: 'None', color: '#4ade80' };
+  
+  const hypeEffects = getHypeEffects(team.hype || 50);
+  const pressure = hypeEffects.pressure;
+  
+  if (pressure === 0) {
+    return { level: 0, description: 'None', color: '#4ade80' };
+  } else if (pressure < 20) {
+    return { level: pressure, description: 'Mild Expectations', color: '#fbbf24' };
+  } else if (pressure < 40) {
+    return { level: pressure, description: 'Moderate Pressure', color: '#fb923c' };
+  } else if (pressure < 60) {
+    return { level: pressure, description: 'High Pressure', color: '#ef4444' };
+  } else {
+    return { level: pressure, description: 'Championship or Bust', color: '#dc2626' };
+  }
+}
+
 // Coach impact on game simulation
 function getCoachGameModifier(coach, morale) {
   if (!coach) return { offense: 1.0, defense: 1.0, morale: 1.0 };
@@ -3077,6 +3267,17 @@ function simGame(teamA, teamB) {
     // Track advanced stats for team A (winner)
     updateTeamStats(teamA, true, isHomeGame, sameConference);
     updateTeamStats(teamB, false, !isHomeGame, sameConference);
+    
+    // Update Fan Hype based on game result
+    updateTeamHype(teamA, true, scoreA - scoreB);
+    updateTeamHype(teamB, false, scoreB - scoreA);
+    
+    // Process game financials for home team
+    if (isHomeGame) {
+      processGameFinancials(teamA, true);
+    } else {
+      processGameFinancials(teamB, false);
+    }
   } else {
     teamB.wins++;
     teamA.losses++;
@@ -3086,6 +3287,17 @@ function simGame(teamA, teamB) {
     // Track advanced stats for team B (winner)
     updateTeamStats(teamA, false, isHomeGame, sameConference);
     updateTeamStats(teamB, true, !isHomeGame, sameConference);
+    
+    // Update Fan Hype based on game result
+    updateTeamHype(teamA, false, scoreA - scoreB);
+    updateTeamHype(teamB, true, scoreB - scoreA);
+    
+    // Process game financials for home team
+    if (isHomeGame) {
+      processGameFinancials(teamA, false);
+    } else {
+      processGameFinancials(teamB, true);
+    }
   }
   
   // Mark game played
@@ -3143,6 +3355,53 @@ function updateTeamStats(team, won, isHome, sameConference) {
       team.stats.streak = -1;
     }
   }
+}
+
+/**
+ * Process game attendance and revenue for home team
+ * @param {Object} homeTeam - Home team object
+ * @param {boolean} wonGame - Whether home team won
+ */
+function processGameFinancials(homeTeam, wonGame) {
+  if (!homeTeam || !homeTeam.finances) {
+    // Initialize finances if missing (for old saves)
+    if (homeTeam && !homeTeam.finances) {
+      homeTeam.finances = {
+        seasonRevenue: 0,
+        seasonAttendance: 0,
+        gamesPlayed: 0,
+        avgAttendance: 0,
+        revenuePerGame: 0
+      };
+    }
+    if (!homeTeam) return;
+  }
+  
+  // Base attendance (capacity: 18,000 for standard arena)
+  const arenaCapacity = 18000;
+  
+  // Market size affects base attendance
+  const marketMultiplier = homeTeam.market === 'Large' ? 1.2 :
+                          homeTeam.market === 'Medium' ? 1.0 :
+                          homeTeam.market === 'Small' ? 0.8 : 1.0;
+  
+  // Get hype effects
+  const hypeEffects = getHypeEffects(homeTeam.hype || 50);
+  
+  // Calculate attendance with hype multiplier
+  const baseAttendance = arenaCapacity * marketMultiplier;
+  const attendance = Math.round(baseAttendance * hypeEffects.attendance);
+  
+  // Revenue per fan (tickets, concessions, merchandise)
+  const revenuePerFan = 85; // $85 average per attendee
+  const gameRevenue = attendance * revenuePerFan * hypeEffects.revenue / 1000000; // Convert to millions
+  
+  // Update team finances
+  homeTeam.finances.gamesPlayed++;
+  homeTeam.finances.seasonAttendance += attendance;
+  homeTeam.finances.seasonRevenue += gameRevenue;
+  homeTeam.finances.avgAttendance = Math.round(homeTeam.finances.seasonAttendance / homeTeam.finances.gamesPlayed);
+  homeTeam.finances.revenuePerGame = homeTeam.finances.seasonRevenue / homeTeam.finances.gamesPlayed;
 }
 
 function pickShooter(rotation, currentPoss, totalPoss) {

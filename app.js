@@ -2201,6 +2201,95 @@ function computeFinalsOdds(league, teamId) {
   };
 }
 
+/**
+ * Render Fan Hype card for dashboard
+ */
+function renderHypeCard(team) {
+  if (!team) return '';
+  
+  const hype = team.hype !== undefined ? team.hype : 50;
+  const hypeEffects = getHypeEffects(hype);
+  const pressureInfo = getHypePressureInfo(team);
+  
+  // Determine hype color and trend
+  const hypeColor = hype < 30 ? '#ef4444' :
+                    hype < 50 ? '#fb923c' :
+                    hype < 70 ? '#fbbf24' :
+                    hype < 85 ? '#4ade80' : '#22c55e';
+  
+  // Calculate trend (last 5 games)
+  let trendIcon = '—';
+  let trendColor = '#94a3b8';
+  if (team.hypeHistory && team.hypeHistory.length >= 2) {
+    const recent = team.hypeHistory.slice(-5);
+    const avgRecent = recent.reduce((sum, h) => sum + h.hype, 0) / recent.length;
+    const older = team.hypeHistory.slice(-10, -5);
+    if (older.length > 0) {
+      const avgOlder = older.reduce((sum, h) => sum + h.hype, 0) / older.length;
+      const diff = avgRecent - avgOlder;
+      if (diff > 5) {
+        trendIcon = '📈';
+        trendColor = '#22c55e';
+      } else if (diff < -5) {
+        trendIcon = '📉';
+        trendColor = '#ef4444';
+      }
+    }
+  }
+  
+  // Media tone message
+  const mediaToneMessages = {
+    'critical': '🔴 Media is highly critical of the team',
+    'skeptical': '🟡 Media coverage is skeptical',
+    'optimistic': '🟢 Media coverage is optimistic',
+    'euphoric': '🌟 Fans are in a frenzy!'
+  };
+  
+  return `
+    <div class="dashboard-card">
+      <div class="dashboard-card-title">🔥 Fan Hype</div>
+      
+      <!-- Hype Meter -->
+      <div class="hype-meter-container">
+        <div class="hype-meter-value" style="color: ${hypeColor};">
+          ${Math.round(hype)}
+          <span class="hype-trend" style="color: ${trendColor};">${trendIcon}</span>
+        </div>
+        <div class="hype-meter-bar">
+          <div class="hype-meter-fill" style="width: ${hype}%; background: linear-gradient(to right, #ef4444, #fbbf24, #4ade80);"></div>
+        </div>
+      </div>
+      
+      <!-- Hype Effects -->
+      <div class="hype-effects-grid">
+        <div class="hype-effect-item">
+          <div class="hype-effect-label">Attendance</div>
+          <div class="hype-effect-value">${(hypeEffects.attendance * 100).toFixed(0)}%</div>
+        </div>
+        <div class="hype-effect-item">
+          <div class="hype-effect-label">Revenue</div>
+          <div class="hype-effect-value">${(hypeEffects.revenue * 100).toFixed(0)}%</div>
+        </div>
+        <div class="hype-effect-item">
+          <div class="hype-effect-label">Pressure</div>
+          <div class="hype-effect-value" style="color: ${pressureInfo.color};">${pressureInfo.description}</div>
+        </div>
+      </div>
+      
+      <!-- Media Tone -->
+      <div class="hype-media-tone">
+        ${mediaToneMessages[hypeEffects.mediaTone]}
+      </div>
+      
+      ${team.finances && team.finances.gamesPlayed > 0 ? `
+        <div class="hype-attendance-info">
+          📊 Avg Attendance: ${team.finances.avgAttendance.toLocaleString()} / game
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function renderDashboard() {
   const el = document.getElementById('dashboard-tab');
   const team = league.teams.find(t => t.id === selectedTeamId);
@@ -2276,6 +2365,9 @@ function renderDashboard() {
           </div>
         </div>
       </div>
+      
+      <!-- Fan Hype Card -->
+      ${renderHypeCard(team)}
       
       <!-- Efficiency Card -->
       <div class="dashboard-card">
@@ -2691,6 +2783,15 @@ function renderRecordStandings() {
       const streakStr = getStreakString(t.stats?.streak || 0);
       const teamLogo = `<div class="team-logo-small">${t.city.substring(0, 2).toUpperCase()}</div>`;
       
+      // Hype indicator
+      const hype = t.hype !== undefined ? t.hype : 50;
+      const hypeColor = hype < 30 ? '#ef4444' :
+                        hype < 50 ? '#fb923c' :
+                        hype < 70 ? '#fbbf24' : '#4ade80';
+      const hypeIcon = hype < 30 ? '🔴' :
+                       hype < 50 ? '🟡' :
+                       hype < 70 ? '🟢' : '🔥';
+      
       return `
         <tr class="standings-row">
           <td class="standings-rank">${idx + 1}</td>
@@ -2711,7 +2812,7 @@ function renderRecordStandings() {
               <span>AWAY: ${awayRecord}</span>
               <span>L10: ${last10Record}</span>
               <span>STRK: ${streakStr}</span>
-              <span>SOS: —</span>
+              <span title="Fan Hype" style="color: ${hypeColor};">${hypeIcon} ${Math.round(hype)}</span>
             </div>
           </td>
         </tr>
