@@ -4018,12 +4018,6 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   
   console.log('[LEAGUE] Created', teams.length, 'teams');
   
-  if (teams.length === 0) {
-    console.error('[LEAGUE] No teams created - this should not happen!');
-    alert('Error creating league: No teams were generated. Please refresh and try again.');
-    return;
-  }
-  
   // Assign teams to leagueState
   leagueState.teams = teams;
   
