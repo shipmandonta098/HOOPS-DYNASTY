@@ -11029,9 +11029,9 @@ function renderDraftRoom() {
                 <div class="draft-rating-badge pot">${p.ratings.pot} POT</div>
               </div>
               <div class="draft-prospect-attrs">
-                <span class="draft-attr-badge">3PT: ${p.attributes.offensive.threePoint}</span>
-                <span class="draft-attr-badge">DEF: ${p.attributes.defensive.perimeterDefense}</span>
-                <span class="draft-attr-badge">ATH: ${p.attributes.athletic.speed}</span>
+                <span class="draft-attr-badge">3PT: ${Math.round(p.attributes.offensive.threePoint)}</span>
+                <span class="draft-attr-badge">DEF: ${Math.round(p.attributes.defensive.perimeterDefense)}</span>
+                <span class="draft-attr-badge">ATH: ${Math.round(p.attributes.athletic.speed)}</span>
               </div>
               <button class="draft-view-btn" onclick="event.stopPropagation(); viewProspectProfile('${p.id}')">View</button>
             </div>
@@ -11336,15 +11336,15 @@ function openProspectModal(prospectId) {
               <h4>Athletic</h4>
               <div class="prospect-attr-item">
                 <span>Speed</span>
-                <span class="prospect-attr-value">${prospect.attributes.athletic.speed}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.athletic.speed)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Vertical</span>
-                <span class="prospect-attr-value">${prospect.attributes.athletic.vertical}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.athletic.vertical)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Strength</span>
-                <span class="prospect-attr-value">${prospect.attributes.athletic.strength}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.athletic.strength)}</span>
               </div>
             </div>
             
@@ -11352,15 +11352,15 @@ function openProspectModal(prospectId) {
               <h4>Offense</h4>
               <div class="prospect-attr-item">
                 <span>3PT Shooting</span>
-                <span class="prospect-attr-value">${prospect.attributes.offensive.threePoint}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.offensive.threePoint)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Finishing</span>
-                <span class="prospect-attr-value">${prospect.attributes.offensive.finishing}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.offensive.finishing)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Ball Handling</span>
-                <span class="prospect-attr-value">${prospect.attributes.offensive.ballHandling}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.offensive.ballHandling)}</span>
               </div>
             </div>
             
@@ -11368,15 +11368,15 @@ function openProspectModal(prospectId) {
               <h4>Defense</h4>
               <div class="prospect-attr-item">
                 <span>Perimeter D</span>
-                <span class="prospect-attr-value">${prospect.attributes.defensive.perimeterDefense}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.defensive.perimeterDefense)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Interior D</span>
-                <span class="prospect-attr-value">${prospect.attributes.defensive.interiorDefense}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.defensive.interiorDefense)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Rebounding</span>
-                <span class="prospect-attr-value">${prospect.attributes.defensive.defensiveRebounding}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.defensive.defensiveRebounding)}</span>
               </div>
             </div>
             
@@ -11384,15 +11384,15 @@ function openProspectModal(prospectId) {
               <h4>Mental</h4>
               <div class="prospect-attr-item">
                 <span>Basketball IQ</span>
-                <span class="prospect-attr-value">${prospect.attributes.mental.basketballIQ}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.mental.basketballIQ)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Work Ethic</span>
-                <span class="prospect-attr-value">${prospect.attributes.mental.workEthic}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.mental.workEthic)}</span>
               </div>
               <div class="prospect-attr-item">
                 <span>Leadership</span>
-                <span class="prospect-attr-value">${prospect.attributes.mental.leadership}</span>
+                <span class="prospect-attr-value">${Math.round(prospect.attributes.mental.leadership)}</span>
               </div>
             </div>
           </div>
@@ -11509,15 +11509,15 @@ function viewProspectProfile(prospectId) {
             <h4>Athletic</h4>
             <div class="prospect-attr-bar">
               <span>Speed</span>
-              <span>${prospect.attributes.athletic.speed}</span>
+              <span>${Math.round(prospect.attributes.athletic.speed)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Vertical</span>
-              <span>${prospect.attributes.athletic.vertical}</span>
+              <span>${Math.round(prospect.attributes.athletic.vertical)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Strength</span>
-              <span>${prospect.attributes.athletic.strength}</span>
+              <span>${Math.round(prospect.attributes.athletic.strength)}</span>
             </div>
           </div>
           
@@ -11525,15 +11525,15 @@ function viewProspectProfile(prospectId) {
             <h4>Offense</h4>
             <div class="prospect-attr-bar">
               <span>3PT Shooting</span>
-              <span>${prospect.attributes.offensive.threePoint}</span>
+              <span>${Math.round(prospect.attributes.offensive.threePoint)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Finishing</span>
-              <span>${prospect.attributes.offensive.finishing}</span>
+              <span>${Math.round(prospect.attributes.offensive.finishing)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Ball Handling</span>
-              <span>${prospect.attributes.offensive.ballHandling}</span>
+              <span>${Math.round(prospect.attributes.offensive.ballHandling)}</span>
             </div>
           </div>
           
@@ -11541,15 +11541,15 @@ function viewProspectProfile(prospectId) {
             <h4>Defense</h4>
             <div class="prospect-attr-bar">
               <span>Perimeter D</span>
-              <span>${prospect.attributes.defensive.perimeterDefense}</span>
+              <span>${Math.round(prospect.attributes.defensive.perimeterDefense)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Interior D</span>
-              <span>${prospect.attributes.defensive.interiorDefense}</span>
+              <span>${Math.round(prospect.attributes.defensive.interiorDefense)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Rebounding</span>
-              <span>${prospect.attributes.defensive.defensiveRebounding}</span>
+              <span>${Math.round(prospect.attributes.defensive.defensiveRebounding)}</span>
             </div>
           </div>
           
@@ -11557,15 +11557,15 @@ function viewProspectProfile(prospectId) {
             <h4>Mental</h4>
             <div class="prospect-attr-bar">
               <span>Basketball IQ</span>
-              <span>${prospect.attributes.mental.basketballIQ}</span>
+              <span>${Math.round(prospect.attributes.mental.basketballIQ)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Work Ethic</span>
-              <span>${prospect.attributes.mental.workEthic}</span>
+              <span>${Math.round(prospect.attributes.mental.workEthic)}</span>
             </div>
             <div class="prospect-attr-bar">
               <span>Leadership</span>
-              <span>${prospect.attributes.mental.leadership}</span>
+              <span>${Math.round(prospect.attributes.mental.leadership)}</span>
             </div>
           </div>
         </div>
@@ -12066,12 +12066,55 @@ function showPlayerModal(playerId) {
   if (isDrafted) {
     draftLine = `${player.draft.year} • Round ${player.draft.round} • Pick ${player.draft.pick}`;
     
-    // Resolve drafted by team
-    if (player.draft.draftedByTid !== null && player.draft.draftedByTid !== undefined) {
-      const draftTeam = league.teams.find(t => t.id === player.draft.draftedByTid);
-      draftedByTeamName = draftTeam ? draftTeam.name : 'Unknown Team';
+    // Resolve drafted by team - NEVER show "Unknown Team"
+    const teamId = player.draft.draftedByTid ?? player.draft.tid;
+    
+    if (teamId !== null && teamId !== undefined) {
+      // Try to find team by ID in current league
+      const draftTeam = league.teams.find(t => t.id === teamId);
+      
+      if (draftTeam) {
+        // Team still exists - show current name
+        draftedByTeamName = draftTeam.name;
+      } else {
+        // Team no longer exists - check draft history for original name
+        const draftRecord = league.history?.draftsByYear?.[player.draft.year]?.find(
+          pick => pick.playerId === player.id || 
+                  pick.playerName === player.name ||
+                  (pick.teamId === teamId && pick.round === player.draft.round && pick.pickNumber === player.draft.pick)
+        );
+        
+        if (draftRecord && draftRecord.teamName) {
+          // Found in history - show historical team name
+          draftedByTeamName = `${draftRecord.teamName} (Former)`;
+        } else {
+          // No history found - show generic former team
+          draftedByTeamName = `Former Team (ID: ${teamId})`;
+        }
+      }
     } else {
-      draftedByTeamName = 'Unknown Team';
+      // No team ID persisted - try multiple fallbacks
+      const draftRecord = league.history?.draftsByYear?.[player.draft.year]?.find(
+        pick => pick.playerId === player.id || 
+                pick.playerName === player.name ||
+                (pick.round === player.draft.round && pick.pickNumber === player.draft.pick)
+      );
+      
+      if (draftRecord && draftRecord.teamName) {
+        draftedByTeamName = draftRecord.teamName;
+      } else {
+        // Last resort: find player's current team
+        const currentTeam = league.teams.find(t => 
+          t.players.some(p => p.id === player.id)
+        );
+        
+        if (currentTeam) {
+          draftedByTeamName = `${currentTeam.name}`;
+        } else {
+          // Player not on any team and no history
+          draftedByTeamName = '—';
+        }
+      }
     }
   } else {
     draftLine = 'Undrafted';
@@ -12081,6 +12124,7 @@ function showPlayerModal(playerId) {
   // Helper function to render attribute bars
   const renderAttributeBar = (label, value, description = '') => {
     const barClass = value >= 80 ? 'bar-green' : value >= 60 ? 'bar-blue' : value >= 40 ? 'bar-yellow' : 'bar-red';
+    const displayValue = Math.round(value);
     return `
       <div class="attribute-row">
         <div class="attribute-left">
@@ -12088,7 +12132,7 @@ function showPlayerModal(playerId) {
           ${description ? `<div class="attribute-description">${description}</div>` : ''}
         </div>
         <div class="attribute-right">
-          <div class="attribute-value">${value}</div>
+          <div class="attribute-value">${displayValue}</div>
         </div>
         <div class="attribute-bar-container">
           <div class="attribute-bar ${barClass}" style="width: ${value}%"></div>

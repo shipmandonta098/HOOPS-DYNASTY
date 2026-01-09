@@ -1243,7 +1243,7 @@ function renderCompareAttributes(players) {
                       background: ${isBest ? 'rgba(39, 174, 96, 0.2)' : ''};
                       color: ${isBest ? '#27ae60' : '#fff'};
                       font-weight: ${isBest ? '600' : '400'};
-                    ">${value}</td>
+                    ">${Math.round(value)}</td>
                   `;
                 }).join('')}
               </tr>
@@ -1371,7 +1371,7 @@ function renderComparePhysical(players) {
                       background: ${isBest ? 'rgba(39, 174, 96, 0.2)' : ''};
                       color: ${isBest ? '#27ae60' : '#fff'};
                       font-weight: ${isBest ? '600' : '400'};
-                    ">${value}</td>
+                    ">${Math.round(value)}</td>
                   `;
                 }).join('')}
               </tr>

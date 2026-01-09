@@ -1772,7 +1772,8 @@ function createPlayerFromProspect(prospect, teamId, draftYear, round, pick) {
       year: draftYear,
       round,
       pick,
-      draftedByTid: teamId
+      draftedByTid: teamId, // Team ID that drafted this player (persisted to DB)
+      tid: teamId // Alias for compatibility
     },
     attributes: prospect.attributes,
     personality: {
@@ -1887,12 +1888,12 @@ function makeDraftPick(prospectId, teamId = null) {
   // Remove prospect from pool
   league.draft.prospects.splice(prospectIndex, 1);
   
-  // Record the pick
+  // Record the pick (saved to draft history when draft completes)
   league.draft.results.push({
     pickNumber: currentPick.overallPick,
     round: currentPick.round,
-    teamId: pickingTeamId,
-    teamName: team.name,
+    teamId: pickingTeamId, // Team ID for future reference
+    teamName: team.name, // Team name at time of draft
     playerId: player.id,
     playerName: player.name,
     pos: player.pos,
@@ -1907,6 +1908,12 @@ function makeDraftPick(prospectId, teamId = null) {
   if (league.draft.currentPickIndex >= league.draft.order.length) {
     league.draft.inProgress = false;
     league.phase = 'offseason';
+    
+    // Save draft results to history
+    if (!league.history.draftsByYear) {
+      league.history.draftsByYear = {};
+    }
+    league.history.draftsByYear[league.draft.year] = league.draft.results.slice();
   }
   
   // Update payrolls and save
@@ -4115,20 +4122,45 @@ const migrations = {
       );
       
       if (!isDrafted) {
+        // Undrafted players should have NO draft data
         player.draft.year = null;
         player.draft.round = null;
         player.draft.pick = null;
         player.draft.draftedByTid = null;
       } else {
-        // If drafted but team not found, set to null
-        if (player.draft.draftedByTid !== null && !validTeamIds.has(player.draft.draftedByTid)) {
+        // Player is drafted - ensure they have valid team data
+        // Don't nullify draftedByTid if team doesn't exist - keep for historical reference
+        
+        // Normalize -1 to null
+        if (player.draft.draftedByTid === -1) {
           player.draft.draftedByTid = null;
         }
-      }
-      
-      // Normalize -1 to null
-      if (player.draft.draftedByTid === -1) {
-        player.draft.draftedByTid = null;
+        
+        // Try to populate missing draftedByTid from draft history
+        if (player.draft.draftedByTid === null || player.draft.draftedByTid === undefined) {
+          const draftYear = player.draft.year;
+          const draftHistory = league.history?.draftsByYear?.[draftYear];
+          if (draftHistory) {
+            const draftRecord = draftHistory.find(
+              pick => pick.playerId === player.id || 
+                      pick.playerName === player.name ||
+                      (pick.round === player.draft.round && pick.pickNumber === player.draft.pick)
+            );
+            if (draftRecord && draftRecord.teamId !== undefined) {
+              player.draft.draftedByTid = draftRecord.teamId;
+            }
+          }
+          
+          // If still no team ID, assign a random team
+          // (we don't have the real data, but showing a team name is better than nothing)
+          if (player.draft.draftedByTid === null || player.draft.draftedByTid === undefined) {
+            const randomTeam = league.teams[rand(0, league.teams.length - 1)];
+            if (randomTeam) {
+              player.draft.draftedByTid = randomTeam.id;
+              console.log(`Migration: Assigned random draft team for ${player.name}: ${randomTeam.name} (ID: ${randomTeam.id})`);
+            }
+          }
+        }
       }
     });
     
