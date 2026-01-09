@@ -138,7 +138,9 @@ function createEmptyLeagueState() {
     // Migration tracking - prevents re-running one-time migrations
     migrations: {
       ratingProfileApplied: false,
-      ratingProfileVersion: null
+      ratingProfileVersion: null,
+      talentUpgradeApplied: false,
+      coachOvrAdded: false
     },
     
     // History & records

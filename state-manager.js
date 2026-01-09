@@ -300,6 +300,41 @@ function upgradeLowTalentLeague(leagueData, state) {
 }
 
 /**
+ * Add overall ratings to coaches for older saves
+ * @param {Object} league - League object
+ * @param {Object} leagueState - LeagueState object
+ */
+function addCoachOverallRatings(league, leagueState) {
+  if (!league || !league.teams) {
+    console.log('[MIGRATION] No teams found, skipping coach migration');
+    return;
+  }
+  
+  let coachesUpdated = 0;
+  
+  league.teams.forEach(team => {
+    if (team.coach && team.coach.overall === undefined) {
+      // Calculate overall from existing ratings
+      if (team.coach.ratings) {
+        const r = team.coach.ratings;
+        team.coach.overall = Math.round(
+          (r.offense * 1.2 + r.defense * 1.2 + r.playerDevelopment * 1.1 + 
+           r.management * 0.9 + r.motivation * 1.0 + r.clutch * 0.8 + r.adaptability * 0.9) / 7.1
+        );
+      } else {
+        // No ratings exist, assign a random overall (55-75 range, weighted toward 60-70)
+        const baseOvr = 60 + Math.floor(Math.random() * 11); // 60-70
+        const variance = Math.floor(Math.random() * 11) - 5; // -5 to +5
+        team.coach.overall = Math.max(50, Math.min(85, baseOvr + variance));
+      }
+      coachesUpdated++;
+    }
+  });
+  
+  console.log('[MIGRATION] Coach OVR added for', coachesUpdated, 'coaches');
+}
+
+/**
  * Load league state from IndexedDB
  */
 async function loadLeagueState(leagueId) {
@@ -352,6 +387,19 @@ async function loadLeagueState(leagueId) {
       console.log('[STATE] Running one-time talent upgrade migration...');
       upgradeLowTalentLeague(league, leagueState);
       leagueState.migrations.talentUpgradeApplied = true;
+      // Save after migration
+      setTimeout(() => {
+        if (typeof saveLeagueState === 'function') {
+          saveLeagueState();
+        }
+      }, 100);
+    }
+    
+    // Run one-time coach OVR migration if needed
+    if (!leagueState.migrations.coachOvrAdded) {
+      console.log('[STATE] Running one-time coach OVR migration...');
+      addCoachOverallRatings(league, leagueState);
+      leagueState.migrations.coachOvrAdded = true;
       // Save after migration
       setTimeout(() => {
         if (typeof saveLeagueState === 'function') {

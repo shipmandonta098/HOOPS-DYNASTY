@@ -110,6 +110,21 @@
         <span class="sidebar-item-icon">⚙️</span>
         <span class="sidebar-item-text">Settings</span>
       </button>
+      
+      <!-- League Actions Section -->
+      <div style="margin: 20px 0 10px 0; padding: 0 16px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; font-weight: 600;">League Actions</div>
+      <button class="sidebar-item" onclick="simRegularSeason()" id="simSeasonBtnSidebar">
+        <span class="sidebar-item-icon">⏩</span>
+        <span class="sidebar-item-text">Sim Season</span>
+      </button>
+      <button class="sidebar-item" onclick="runOffseason()" id="offseasonBtnSidebar">
+        <span class="sidebar-item-icon">🏖️</span>
+        <span class="sidebar-item-text">Offseason</span>
+      </button>
+      <button class="sidebar-item" onclick="runDraft()" id="draftBtnSidebar">
+        <span class="sidebar-item-icon">🎯</span>
+        <span class="sidebar-item-text">Draft</span>
+      </button>
     </nav>
   </div>
 
@@ -136,9 +151,6 @@
         <span style="margin-right: 6px;">⚖️</span>
         <span style="font-weight: 500;">Commissioner Mode</span>
       </div>
-      <button onclick="simRegularSeason()" id="simSeasonBtn">Sim Season</button>
-      <button onclick="runOffseason()" id="offseasonBtn">Offseason</button>
-      <button onclick="runDraft()" id="draftBtn">Draft</button>
       <button onclick="goToHome()">Home</button>
     </div>
   </div>

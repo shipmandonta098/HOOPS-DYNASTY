@@ -2073,10 +2073,14 @@ function updateLeagueInfo() {
   const leagueName = league.name || 'League';
   el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${league.phase.toUpperCase()}`;
   
-  // Update button states
-  document.getElementById('simSeasonBtn').disabled = league.phase !== 'preseason';
-  document.getElementById('offseasonBtn').disabled = league.phase !== 'offseason';
-  document.getElementById('draftBtn').disabled = league.phase !== 'draft';
+  // Update button states (sidebar buttons)
+  const simSeasonBtn = document.getElementById('simSeasonBtnSidebar');
+  const offseasonBtn = document.getElementById('offseasonBtnSidebar');
+  const draftBtn = document.getElementById('draftBtnSidebar');
+  
+  if (simSeasonBtn) simSeasonBtn.disabled = league.phase !== 'preseason';
+  if (offseasonBtn) offseasonBtn.disabled = league.phase !== 'offseason';
+  if (draftBtn) draftBtn.disabled = league.phase !== 'draft';
   
   // Update Commissioner Badge
   const commissionerBadge = document.getElementById('commissionerBadge');
@@ -2337,7 +2341,7 @@ function renderDashboard() {
           <div class="dashboard-team-name">${teamFullName}</div>
           <div class="dashboard-team-meta">${team.conference} • ${team.division}</div>
           <div class="dashboard-team-meta" style="font-size: 13px; color: #94a3b8; cursor: pointer;" onclick="showCoachModal(${team.id})">
-            👔 Coach: ${team.coach ? team.coach.name : 'None'} (${team.coach ? team.coach.ratings.overall : 0} OVR)
+            👔 Coach: ${team.coach ? team.coach.name : 'None'}${team.coach && team.coach.overall ? ` (${team.coach.overall} OVR)` : ''}
           </div>
           <div class="dashboard-record-row">
             <div class="dashboard-stat-pill">Record: ${team.wins}-${team.losses}</div>
