@@ -2436,7 +2436,7 @@ function renderDashboard() {
             <div class="dashboard-player-item">
               <div class="dashboard-player-rank">${idx + 1}</div>
               <div class="dashboard-player-info">
-                <div class="dashboard-player-name">${p.name}</div>
+                <div class="dashboard-player-name clickable-player" onclick="showPlayerModal(${p.id})">${p.name}</div>
                 <div class="dashboard-player-pos">${p.pos}</div>
               </div>
               <div class="dashboard-player-stat">${ppg} PPG</div>
@@ -3571,7 +3571,7 @@ function renderExpansionDraft() {
           ${playerPool.slice(0, 50).map(p => `
             <div class="pool-player-item" data-player-name="${p.name}">
               <div class="pool-player-info">
-                <div>${p.name} | ${p.pos} | ${p.age}y</div>
+                <div class="clickable-player" onclick="showPlayerModal(${p.id})">${p.name} | ${p.pos} | ${p.age}y</div>
                 <div class="pool-player-ratings">${p.ratings.ovr} OVR | ${p.ratings.pot} POT</div>
                 <div class="pool-player-from">From: ${p.fromTeamName}</div>
               </div>
@@ -9897,6 +9897,7 @@ function getTeamFinances(team) {
   // Player salaries sorted by amount
   const playerSalaries = team.players
     .map(p => ({
+      id: p.id,
       name: p.name,
       pos: p.pos,
       salary: p.contract?.amount || 0,
@@ -10043,7 +10044,7 @@ function renderFinances() {
           </div>
           ${finances.playerSalaries.map(p => `
             <div class="finances-table-row">
-              <div class="finances-table-cell name">${p.name}</div>
+              <div class="finances-table-cell name clickable-player" onclick="showPlayerModal(${p.id})">${p.name}</div>
               <div class="finances-table-cell pos">${p.pos}</div>
               <div class="finances-table-cell salary">${formatMoneyM(p.salary)}</div>
               <div class="finances-table-cell years">${p.yearsRemaining}</div>
@@ -10150,7 +10151,7 @@ function openNegotiationModal(playerId) {
         <!-- Player Info -->
         <div class="negotiation-section">
           <div class="negotiation-player-card">
-            <div class="negotiation-player-name">${player.name}</div>
+            <div class="negotiation-player-name clickable-player" onclick="showPlayerModal(${player.id})">${player.name}</div>
             <div class="negotiation-player-meta">${player.pos} • ${player.age} years old • ${player.ratings.ovr} OVR</div>
           </div>
           
@@ -10562,7 +10563,7 @@ function renderTradeAssets(team, teamObj, assets) {
       html += `
         <div class="trades-asset-card">
           <div class="trades-asset-info">
-            <div class="trades-asset-name">${player.name}</div>
+            <div class="trades-asset-name clickable-player" onclick="showPlayerModal(${player.id})">${player.name}</div>
             <div class="trades-asset-meta">${player.pos} • ${player.ratings.ovr} OVR • $${player.contract.amount.toFixed(1)}M</div>
           </div>
           <button class="trades-asset-remove" onclick="removeFromTrade('${team}', 'player', ${pId})">×</button>
@@ -10604,7 +10605,7 @@ function renderTradeRoster(team, excludedPlayers, search) {
   return players.sort((a, b) => b.ratings.ovr - a.ratings.ovr).map(p => `
     <div class="trades-roster-row">
       <div class="trades-player-info">
-        <div class="trades-player-name">${p.name}</div>
+        <div class="trades-player-name clickable-player" onclick="showPlayerModal(${p.id})">${p.name}</div>
         <div class="trades-player-meta">${p.pos} • Age ${p.age} • ${p.ratings.ovr} OVR</div>
       </div>
       <div class="trades-player-salary">$${p.contract.amount.toFixed(1)}M</div>
@@ -10946,7 +10947,7 @@ function renderProspectBoard() {
             return `
               <div class="prospect-list-row" onclick="openProspectModal('${p.id}')">
                 <div class="prospect-col-rank">#${p.rank}</div>
-                <div class="prospect-col-name">${p.name}</div>
+                <div class="prospect-col-name clickable-player" onclick="event.stopPropagation(); showPlayerModal('${p.id}');">${p.name}</div>
                 <div class="prospect-col-pos">${p.pos}</div>
                 <div class="prospect-col-age">${p.age}</div>
                 <div class="prospect-col-ovr">
@@ -11016,7 +11017,7 @@ function renderDraftRoom() {
                  onclick="selectProspect('${p.id}')">
               <div class="draft-prospect-rank">${idx + 1}</div>
               <div class="draft-prospect-info">
-                <div class="draft-prospect-name">${p.name}</div>
+                <div class="draft-prospect-name clickable-player" onclick="event.stopPropagation(); showPlayerModal('${p.id}');">${p.name}</div>
                 <div class="draft-prospect-meta">${p.pos} • Age ${p.age} • ${p.bio.college}</div>
               </div>
               <div class="draft-prospect-ratings">
@@ -11109,7 +11110,7 @@ function renderProspectsTab() {
           return `
             <div class="draft-prospect-row">
               <div class="draft-prospect-info">
-                <div class="draft-prospect-name">${p.name}</div>
+                <div class="draft-prospect-name clickable-player" onclick="showPlayerModal('${p.id}')">${p.name}</div>
                 <div class="draft-prospect-meta">${p.pos} • Age ${p.age} • ${p.archetype}</div>
               </div>
               <div class="draft-prospect-ratings">
@@ -11768,7 +11769,7 @@ function renderRotations() {
           ${starters.map(p => `
             <div class="lineup-slot">
               <div class="lineup-slot-position">${p.pos}</div>
-              <div class="lineup-slot-player">${p.name}</div>
+              <div class="lineup-slot-player clickable-player" onclick="showPlayerModal(${p.id})">${p.name}</div>
               <div class="lineup-slot-minutes">${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min</div>
             </div>
           `).join('')}
@@ -11778,7 +11779,7 @@ function renderRotations() {
           <div class="lineup-bench-title">Top Bench</div>
           <div class="lineup-bench-players">
             ${benchPlayers.map(p => `
-              <div class="bench-player-chip">${p.name} (${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min)</div>
+              <div class="bench-player-chip clickable-player" onclick="showPlayerModal(${p.id})">${p.name} (${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min)</div>
             `).join('')}
           </div>
         </div>
@@ -11888,7 +11889,7 @@ function renderRotationPlayerCard(player, team) {
     <div class="rotation-player-card">
       <div class="rotation-player-left">
         <div class="rotation-player-info">
-          <div class="rotation-player-name">${player.name}</div>
+          <div class="rotation-player-name clickable-player" onclick="showPlayerModal(${player.id})">${player.name}</div>
           <div class="rotation-player-meta">
             <span class="rotation-ovr ${ovrClass}">${player.ratings.ovr}</span>
             <span>${player.pos}</span>

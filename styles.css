@@ -5406,4 +5406,24 @@ body.sidebar-open {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* ============================
+   CLICKABLE PLAYER NAMES
+============================ */
+
+.clickable-player {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.clickable-player:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+  transform: translateX(2px);
+}
+
+.clickable-player:active {
+  color: #3b82f6;
+}
+
 /* DRAFT TAB CSS */
