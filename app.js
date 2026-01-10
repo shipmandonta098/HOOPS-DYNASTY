@@ -2059,10 +2059,12 @@ function render() {
   if (currentTab === 'expansion') renderExpansion();
   if (currentTab === 'schedule') renderSchedule();
   if (currentTab === 'stats') renderStatsTab();
+  if (currentTab === 'awards') renderAwardsTab();
   if (currentTab === 'players') renderPlayers();
   if (currentTab === 'news') renderNewsTab();
   if (currentTab === 'settings') renderSettings();
   if (currentTab === 'history') renderHistoryView();
+  if (currentTab === 'career') renderCareerTab();
   if (currentTab === 'rotations') renderRotations();
   if (currentTab === 'finances') renderFinances();
   if (currentTab === 'trades') renderTrades();
@@ -2071,7 +2073,25 @@ function render() {
 function updateLeagueInfo() {
   const el = document.getElementById('leagueInfo');
   const leagueName = league.name || 'League';
-  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${league.phase.toUpperCase()}`;
+  
+  // Build job security indicator if enabled
+  let jobSecurityHTML = '';
+  if (league.settings && league.settings.enableJobSecurity) {
+    const jobSecurity = league.jobSecurity || 75;
+    const status = jobSecurity >= 70 ? 
+      { text: 'Safe', color: '#4ade80', class: 'safe' } :
+      jobSecurity >= 40 ? 
+      { text: 'Warm Seat', color: '#fbbf24', class: 'warm' } :
+      { text: 'Hot Seat', color: '#ef4444', class: 'hot' };
+    
+    jobSecurityHTML = `
+      <span style="margin-left: 15px; padding: 4px 12px; background: ${status.color}22; border: 1px solid ${status.color}; border-radius: 4px; color: ${status.color}; font-size: 0.9em;">
+        🔥 Job Security: ${jobSecurity}/100 (${status.text})
+      </span>
+    `;
+  }
+  
+  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${league.phase.toUpperCase()}${jobSecurityHTML}`;
   
   // Update button states (sidebar buttons)
   const simSeasonBtn = document.getElementById('simSeasonBtnSidebar');
@@ -2086,6 +2106,11 @@ function updateLeagueInfo() {
   const commissionerBadge = document.getElementById('commissionerBadge');
   if (commissionerBadge) {
     commissionerBadge.style.display = isCommissionerMode() ? 'block' : 'none';
+  }
+  
+  // Initialize sim mode UI
+  if (typeof initializeSimMode === 'function') {
+    initializeSimMode();
   }
 }
 
@@ -4507,6 +4532,7 @@ function renderSettings() {
         ${renderUIPreferencesSection()}
         ${renderNotificationsSection(settingsData.newsSettings)}
         ${renderDataSafetySection(settingsData.dataSettings)}
+        ${renderJobSecuritySection(league.settings)}
         ${renderCommissionerModeSection()}
       </div>
 
@@ -5287,6 +5313,135 @@ function renderCommissionerModeSection() {
               font-weight: bold;
             ">🔒 Disable Commissioner Mode</button>
           `}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Render Job Security & Firing Section
+ */
+function renderJobSecuritySection(settings) {
+  const isExpanded = expandedSettingsSections.has('jobsecurity');
+  const isEnabled = settings.enableJobSecurity || false;
+  
+  return `
+    <div style="background: #1a2332; border-radius: 12px; margin-bottom: 15px; border: 2px solid ${isEnabled ? '#f39c12' : '#2a2a40'}; overflow: hidden;">
+      <div onclick="toggleSettingsSection('jobsecurity')" style="
+        padding: 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: ${isEnabled ? 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)' : 'transparent'};
+      ">
+        <h3 style="margin: 0; color: ${isEnabled ? '#fff' : '#f39c12'}; font-size: 1.3em;">
+          🔥 Job Security & Firing ${isEnabled ? '(ACTIVE)' : '(Optional)'}
+        </h3>
+        <span style="color: ${isEnabled ? '#fff' : '#888'}; font-size: 1.5em;">${isExpanded ? '▼' : '▶'}</span>
+      </div>
+      
+      ${isExpanded ? `
+        <div style="padding: 20px;">
+          <div style="
+            padding: 15px;
+            background: ${isEnabled ? '#27ae60' : '#34495e'};
+            color: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+          ">
+            ${isEnabled ? `
+              ✅ <strong>Job Security is ENABLED</strong>
+              <br>Your performance is being evaluated. Keep your job security above the threshold or face termination.
+            ` : `
+              ℹ️ <strong>Job Security System (OFF by default)</strong>
+              <br>• Owner evaluates your performance each season
+              <br>• Meet expectations to keep your job (job security: 0-100)
+              <br>• Get fired if job security drops too low
+              <br>• Appeal dismissals or take jobs with other teams
+              <br>• Track career history across multiple teams
+            `}
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+            <div>
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0f1624; border-radius: 6px;">
+                <input type="checkbox" ${isEnabled ? 'checked' : ''}
+                       onchange="updateSetting('settings', 'enableJobSecurity', this.checked); renderSettings();" />
+                <div>
+                  <div style="color: #fff; font-weight: bold;">Enable Job Security System</div>
+                  <div style="color: #888; font-size: 0.85em; margin-top: 4px;">
+                    Activates owner expectations and firing mechanics
+                  </div>
+                </div>
+              </label>
+            </div>
+            
+            ${isEnabled ? `
+              <div>
+                <label style="display: block; color: #888; margin-bottom: 8px; font-weight: bold;">
+                  Difficulty Level
+                </label>
+                <select onchange="updateSetting('settings', 'jobSecurityDifficulty', this.value)"
+                        style="width: 100%; padding: 12px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer;">
+                  <option value="forgiving" ${settings.jobSecurityDifficulty === 'forgiving' ? 'selected' : ''}>
+                    Forgiving (Fire at &lt;25 job security)
+                  </option>
+                  <option value="realistic" ${(settings.jobSecurityDifficulty === 'realistic' || !settings.jobSecurityDifficulty) ? 'selected' : ''}>
+                    Realistic (Fire at &lt;35 job security)
+                  </option>
+                  <option value="ruthless" ${settings.jobSecurityDifficulty === 'ruthless' ? 'selected' : ''}>
+                    Ruthless (Fire at &lt;45 job security)
+                  </option>
+                </select>
+                <div style="color: #888; font-size: 0.85em; margin-top: 6px;">
+                  Controls how quickly you can be fired
+                </div>
+              </div>
+              
+              <div>
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 12px; background: #0f1624; border-radius: 6px;">
+                  <input type="checkbox" ${settings.allowMidseasonFiring ? 'checked' : ''}
+                         onchange="updateSetting('settings', 'allowMidseasonFiring', this.checked)" />
+                  <div>
+                    <div style="color: #fff; font-weight: bold;">Allow Midseason Firing</div>
+                    <div style="color: #888; font-size: 0.85em; margin-top: 4px;">
+                      Enable firing during the season (not just at season end)
+                    </div>
+                  </div>
+                </label>
+              </div>
+              
+              <div style="
+                padding: 12px;
+                background: #0f1624;
+                border-left: 3px solid #3498db;
+                border-radius: 6px;
+                color: #888;
+                font-size: 0.9em;
+                margin-top: 10px;
+              ">
+                <strong style="color: #3498db;">How It Works:</strong>
+                <br>• Each team has an owner profile (patience, market pressure, budget tolerance)
+                <br>• Owners set season expectations (wins, playoffs, development, etc.)
+                <br>• Your job security (0-100) adjusts based on performance
+                <br>• If job security drops below threshold, you can be fired
+                <br>• You can appeal dismissals, take jobs elsewhere, or switch to commissioner mode
+              </div>
+            ` : `
+              <div style="
+                padding: 15px;
+                background: #2c3e50;
+                border-radius: 8px;
+                color: #ecf0f1;
+                text-align: center;
+              ">
+                Enable the system above to access difficulty settings
+              </div>
+            `}
+          </div>
         </div>
       ` : ''}
     </div>
@@ -6746,6 +6901,40 @@ function findPlayerById(playerId) {
     if (player) return player;
   }
   return null;
+}
+
+/* ============================
+   STATS TAB
+============================ */
+
+function renderAwardsTab() {
+  const el = document.getElementById('awards-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+  
+  // Awards tab is rendered by awards-tab.js
+  if (typeof renderAwardRaces === 'function') {
+    el.innerHTML = renderAwardRaces();
+  } else {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">Awards system loading...</div>';
+  }
+}
+
+function renderCareerTab() {
+  const el = document.getElementById('career-tab');
+  if (!league) {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">No league loaded</div>';
+    return;
+  }
+  
+  // Career tab is rendered by job-security.js
+  if (typeof renderCareerHistoryTab === 'function') {
+    el.innerHTML = renderCareerHistoryTab();
+  } else {
+    el.innerHTML = '<div style="padding: 20px; color: #fff;">Career tracking system loading...</div>';
+  }
 }
 
 /* ============================
@@ -8782,16 +8971,19 @@ function renderGamecastStatsTab(game, homeTeam, awayTeam) {
           font-size: 0.9em;
           transition: all 0.2s;
         ">📊 Team</button>
-        <button onclick="switchStatsTabView('boxscore')" style="
+        <button onclick="switchStatsTabView('boxscore')" 
+                ${(!game.log || game.log.length === 0) && !game.boxScore ? 'disabled' : ''}
+                style="
           padding: 8px 24px;
           background: ${activeStatsTabView === 'boxscore' ? '#2196F3' : '#16213e'};
-          color: white;
+          color: ${(!game.log || game.log.length === 0) && !game.boxScore ? '#666' : 'white'};
           border: none;
           border-radius: 6px;
-          cursor: pointer;
+          cursor: ${(!game.log || game.log.length === 0) && !game.boxScore ? 'not-allowed' : 'pointer'};
           font-weight: bold;
           font-size: 0.9em;
           transition: all 0.2s;
+          opacity: ${(!game.log || game.log.length === 0) && !game.boxScore ? '0.5' : '1'};
         ">📋 Box Score</button>
       </div>
       
@@ -8845,6 +9037,22 @@ function renderStatsContent(game, homeTeam, awayTeam) {
   if (activeStatsTabView === 'team') {
     return renderTeamStatsView(game, homeTeam, awayTeam);
   } else {
+    // Check if game has started before showing box score
+    const gameHasStarted = (game.log && game.log.length > 0) || game.boxScore;
+    if (!gameHasStarted) {
+      return `
+        <div style="
+          padding: 60px 20px;
+          text-align: center;
+          color: #888;
+        ">
+          <div style="font-size: 3em; margin-bottom: 20px; opacity: 0.3;">📊</div>
+          <div style="font-size: 1.1em; color: #aaa; margin-bottom: 10px;">Box score not available yet</div>
+          <div style="font-size: 0.9em; color: #666;">Box score will be available once the game is underway.</div>
+        </div>
+      `;
+    }
+    
     // Box Score view - show selected team
     // Default to user team if involved, otherwise away team
     const userTeam = league.userTeamId;
@@ -9608,12 +9816,31 @@ function updateBoxScoreView(game, homeTeam, awayTeam) {
   const container = document.getElementById('boxScoreContent');
   if (!container) return;
   
-  // Generate box score if not exists
+  // DO NOT auto-generate box score on render - only show if game has started
+  const gameHasStarted = (game.log && game.log.length > 0) || game.boxScore;
+  if (!gameHasStarted) {
+    container.innerHTML = `
+      <div style="
+        padding: 60px 20px;
+        text-align: center;
+        color: #888;
+      ">
+        <div style="font-size: 3em; margin-bottom: 20px; opacity: 0.3;">📊</div>
+        <div style="font-size: 1.1em; color: #aaa; margin-bottom: 10px;">Box score not available yet</div>
+        <div style="font-size: 0.9em; color: #666;">Box score will be available once the game is underway.</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Only show box score if it exists (created by simulation)
   if (!game.boxScore) {
-    game.boxScore = generateBasicBoxScore(homeTeam, awayTeam, {
-      homeScore: game.score.home,
-      awayScore: game.score.away
-    });
+    container.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: #888;">
+        Box score data not available
+      </div>
+    `;
+    return;
   }
   
   container.innerHTML = `
@@ -12622,4 +12849,195 @@ function ensureCoachesExist() {
       team.morale = 75;
     }
   });
+}
+
+/* ============================
+   SIM CONTROL FUNCTIONALITY
+============================ */
+
+// Initialize sim mode on league load
+function initializeSimMode() {
+  if (!league) return;
+  
+  // Set default sim mode if not present
+  if (!league.simMode) {
+    league.simMode = 'oneDay';
+  }
+  
+  // Update UI to reflect stored mode
+  updateSimModeUI(league.simMode);
+  updateSimStatusLabel();
+}
+
+// Toggle sim dropdown menu
+function toggleSimDropdown() {
+  const menu = document.getElementById('simDropdownMenu');
+  if (!menu) return;
+  
+  menu.classList.toggle('show');
+  
+  // Close on outside click
+  if (menu.classList.contains('show')) {
+    setTimeout(() => {
+      document.addEventListener('click', closeSimDropdownOnOutsideClick);
+      document.addEventListener('keydown', closeSimDropdownOnEsc);
+    }, 0);
+  } else {
+    document.removeEventListener('click', closeSimDropdownOnOutsideClick);
+    document.removeEventListener('keydown', closeSimDropdownOnEsc);
+  }
+}
+
+function closeSimDropdownOnOutsideClick(e) {
+  const menu = document.getElementById('simDropdownMenu');
+  const toggle = document.getElementById('simDropdownToggle');
+  
+  if (menu && !menu.contains(e.target) && !toggle.contains(e.target)) {
+    menu.classList.remove('show');
+    document.removeEventListener('click', closeSimDropdownOnOutsideClick);
+    document.removeEventListener('keydown', closeSimDropdownOnEsc);
+  }
+}
+
+function closeSimDropdownOnEsc(e) {
+  if (e.key === 'Escape') {
+    const menu = document.getElementById('simDropdownMenu');
+    if (menu) {
+      menu.classList.remove('show');
+      document.removeEventListener('click', closeSimDropdownOnOutsideClick);
+      document.removeEventListener('keydown', closeSimDropdownOnEsc);
+    }
+  }
+}
+
+// Select a sim mode
+function selectSimMode(mode) {
+  if (!league) return;
+  
+  league.simMode = mode;
+  updateSimModeUI(mode);
+  
+  // Close dropdown
+  const menu = document.getElementById('simDropdownMenu');
+  if (menu) {
+    menu.classList.remove('show');
+  }
+  
+  document.removeEventListener('click', closeSimDropdownOnOutsideClick);
+  document.removeEventListener('keydown', closeSimDropdownOnEsc);
+  
+  // Save league state
+  saveLeague();
+}
+
+// Update UI to show selected mode
+function updateSimModeUI(mode) {
+  const modes = ['oneDay', 'oneWeek', 'oneMonth', 'tradeDeadline', 'allStar', 'playoffs'];
+  
+  modes.forEach(m => {
+    const checkmark = document.getElementById('check-' + m);
+    if (checkmark) {
+      checkmark.textContent = m === mode ? '' : '';
+    }
+  });
+}
+
+// Update status label
+function updateSimStatusLabel() {
+  const label = document.getElementById('simStatusLabel');
+  if (!label || !league) return;
+  
+  const season = league.season || new Date().getFullYear();
+  const phase = league.phase || 'preseason';
+  
+  let phaseText = phase.charAt(0).toUpperCase() + phase.slice(1);
+  if (phaseText === 'Preseason') phaseText = 'Regular Season';
+  
+  label.textContent = season + ' ' + phaseText + '  Idle';
+}
+
+// Execute simulation based on selected mode
+async function executeSimulation() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  const mode = league.simMode || 'oneDay';
+  const button = document.getElementById('simButton');
+  const label = document.getElementById('simStatusLabel');
+  
+  // Disable button and update status
+  if (button) button.disabled = true;
+  if (label) label.textContent = label.textContent.replace('Idle', 'Simulating...');
+  
+  try {
+    switch (mode) {
+      case 'oneDay':
+        await simOneDay();
+        break;
+      case 'oneWeek':
+        await simOneWeek();
+        break;
+      case 'oneMonth':
+        await simOneMonth();
+        break;
+      case 'tradeDeadline':
+        await simUntilTradeDeadline();
+        break;
+      case 'allStar':
+        await simUntilAllStar();
+        break;
+      case 'playoffs':
+        await simUntilPlayoffs();
+        break;
+      default:
+        await simOneDay();
+    }
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    // Re-enable button and update status
+    if (button) button.disabled = false;
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+// Sim functions (UI control only - no data modification)
+async function simOneDay() {
+  // Placeholder: This would advance one day in the schedule
+  await new Promise(resolve => setTimeout(resolve, 500));
+  console.log('Simulated one day');
+}
+
+async function simOneWeek() {
+  // Placeholder: This would advance one week
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  console.log('Simulated one week');
+}
+
+async function simOneMonth() {
+  // Placeholder: This would advance one month
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  console.log('Simulated one month');
+}
+
+async function simUntilTradeDeadline() {
+  // Placeholder: This would sim until trade deadline
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  console.log('Simulated until trade deadline');
+}
+
+async function simUntilAllStar() {
+  // Placeholder: This would sim until All-Star events
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  console.log('Simulated until All-Star events');
+}
+
+async function simUntilPlayoffs() {
+  // Placeholder: This would sim until playoffs
+  await new Promise(resolve => setTimeout(resolve, 2500));
+  console.log('Simulated until playoffs');
 }

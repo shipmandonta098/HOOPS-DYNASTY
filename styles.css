@@ -5427,3 +5427,758 @@ body.sidebar-open {
 }
 
 /* DRAFT TAB CSS */
+
+/* ============================
+   AWARD RACES TAB
+============================ */
+
+.award-selector {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  background: #0f1624;
+  border-bottom: 2px solid #2a2a40;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.award-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #1a2332;
+  border: 2px solid #2a2a40;
+  border-radius: 8px;
+  color: #888;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.award-btn:hover {
+  background: #212d3f;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.award-btn.active {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #fff;
+}
+
+.award-icon {
+  font-size: 1.3em;
+}
+
+.award-name {
+  font-size: 0.9em;
+}
+
+.award-filters {
+  display: flex;
+  gap: 15px;
+  padding: 15px 20px;
+  background: #0f1624;
+  border-bottom: 1px solid #2a2a40;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-select {
+  padding: 8px 12px;
+  background: #1a2332;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.filter-select:hover {
+  border-color: #3b82f6;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #888;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.filter-checkbox input {
+  cursor: pointer;
+}
+
+.award-leaderboard {
+  padding: 20px;
+  overflow-x: auto;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #1a2332;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.leaderboard-table thead {
+  background: #212d3f;
+}
+
+.leaderboard-table th {
+  padding: 12px;
+  text-align: left;
+  color: #888;
+  font-size: 0.85em;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 2px solid #2a2a40;
+}
+
+.leaderboard-table td {
+  padding: 12px;
+  border-bottom: 1px solid #1a2332;
+  color: #fff;
+  font-size: 0.9em;
+}
+
+.leaderboard-table tr:hover {
+  background: #212d3f;
+}
+
+.leaderboard-table tr.top-three {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.leaderboard-table tr.top-three:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.rank-cell {
+  font-weight: 700;
+  font-size: 1.1em;
+  color: #60a5fa;
+  text-align: center;
+  width: 50px;
+}
+
+.delta-cell {
+  text-align: center;
+  width: 50px;
+}
+
+.rank-up {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.rank-down {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.rank-new {
+  color: #fbbf24;
+  font-weight: 600;
+  font-size: 0.75em;
+}
+
+.no-change {
+  color: #64748b;
+}
+
+.name-cell {
+  font-weight: 600;
+  color: #fff;
+}
+
+.score-cell {
+  font-weight: 700;
+  color: #60a5fa;
+  text-align: center;
+}
+
+.no-data {
+  padding: 60px 20px;
+  text-align: center;
+  color: #888;
+  font-size: 1.1em;
+}
+
+@media (max-width: 768px) {
+  .award-selector {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .award-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
+  
+  .leaderboard-table {
+    font-size: 0.85em;
+  }
+  
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 8px 6px;
+  }
+}
+
+/* ============================
+   JOB SECURITY & CAREER
+============================ */
+
+/* Job Security Meter (in header) */
+.job-security-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1a2332;
+  border-radius: 6px;
+  margin-left: 15px;
+}
+
+.job-security-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  color: #888;
+}
+
+.job-security-status {
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+.job-security-status.safe {
+  color: #4ade80;
+}
+
+.job-security-status.warm {
+  color: #fbbf24;
+}
+
+.job-security-status.hot {
+  color: #ef4444;
+}
+
+.job-security-bar {
+  width: 120px;
+  height: 8px;
+  background: #0f1624;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #2a2a40;
+}
+
+.job-security-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.job-security-fill.safe {
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.job-security-fill.warm {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.job-security-fill.hot {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.job-security-value {
+  font-size: 0.85em;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* Firing Modal */
+.job-security-modal {
+  max-width: 600px;
+  background: #1a2332;
+  border: 2px solid #ef4444;
+}
+
+.job-security-modal h2 {
+  color: #ef4444;
+  margin-bottom: 20px;
+}
+
+.owner-message {
+  padding: 20px;
+  background: #0f1624;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.owner-message p {
+  margin: 10px 0;
+  color: #ddd;
+}
+
+.firing-details {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #2a2a40;
+}
+
+.firing-details p {
+  margin: 8px 0;
+  color: #888;
+}
+
+.firing-details strong {
+  color: #fff;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.modal-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1em;
+  transition: all 0.2s;
+}
+
+.modal-btn.danger {
+  background: #ef4444;
+  color: #fff;
+}
+
+.modal-btn.danger:hover {
+  background: #dc2626;
+}
+
+.modal-btn.warning {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.modal-btn.warning:hover {
+  background: #d97706;
+}
+
+.modal-btn.secondary {
+  background: #6b7280;
+  color: #fff;
+}
+
+.modal-btn.secondary:hover {
+  background: #4b5563;
+}
+
+.modal-btn.primary {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.modal-btn.primary:hover {
+  background: #2563eb;
+}
+
+/* Post-Firing Flow */
+.job-search-modal {
+  max-width: 700px;
+  background: #1a2332;
+}
+
+.modal-section {
+  margin-bottom: 25px;
+}
+
+.modal-section h3 {
+  color: #3b82f6;
+  margin-bottom: 12px;
+}
+
+.available-jobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.job-option {
+  padding: 15px;
+  background: #0f1624;
+  border: 2px solid #2a2a40;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.job-option:hover {
+  border-color: #3b82f6;
+  background: #1a2840;
+}
+
+.no-jobs {
+  padding: 20px;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+}
+
+/* Season Review Modal */
+.season-review-modal {
+  max-width: 650px;
+  background: #1a2332;
+}
+
+.expectations-review {
+  margin-bottom: 25px;
+}
+
+.expectations-review h3 {
+  color: #3b82f6;
+  margin-bottom: 15px;
+}
+
+.expectation-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: #0f1624;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border-left: 3px solid transparent;
+}
+
+.expectation-result.met {
+  border-left-color: #4ade80;
+  color: #fff;
+}
+
+.expectation-result.missed {
+  border-left-color: #ef4444;
+  color: #aaa;
+}
+
+.expectation-result span:first-child {
+  font-size: 1.3em;
+}
+
+.job-security-change {
+  padding: 15px;
+  background: #0f1624;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.job-security-change p {
+  margin: 8px 0;
+  color: #fff;
+  font-size: 1.1em;
+}
+
+/* Career History Tab */
+.career-history-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.career-history-container h2 {
+  color: #3b82f6;
+  margin-bottom: 25px;
+  font-size: 2em;
+}
+
+.career-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.career-stat {
+  padding: 20px;
+  background: #1a2332;
+  border-radius: 8px;
+  border: 1px solid #2a2a40;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  color: #888;
+  font-size: 0.85em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  display: block;
+  color: #fff;
+  font-size: 2em;
+  font-weight: bold;
+}
+
+.career-history-table {
+  background: #1a2332;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2a2a40;
+}
+
+.career-history-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.career-history-table thead {
+  background: #0f1624;
+}
+
+.career-history-table th {
+  padding: 15px;
+  text-align: left;
+  color: #888;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  border-bottom: 2px solid #2a2a40;
+}
+
+.career-history-table td {
+  padding: 15px;
+  border-bottom: 1px solid #0f1624;
+  color: #fff;
+}
+
+.career-history-table tr:hover {
+  background: #212d3f;
+}
+
+.exit-fired {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.exit-resigned {
+  color: #9ca3af;
+  font-weight: bold;
+}
+
+.exit-champion {
+  color: #fbbf24;
+  font-weight: bold;
+}
+
+.exit-active {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .job-security-meter {
+    flex-wrap: wrap;
+    margin-left: 0;
+    margin-top: 10px;
+  }
+  
+  .job-security-bar {
+    width: 100%;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+  }
+  
+  .modal-btn {
+    width: 100%;
+  }
+  
+  .career-stats-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .career-history-table {
+    overflow-x: auto;
+  }
+}
+
+/* ============================
+   SIM CONTROL SPLIT BUTTON
+============================ */
+
+.sim-control-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 15px;
+}
+
+.sim-status-label {
+  font-size: 0.85em;
+  color: #888;
+  white-space: nowrap;
+}
+
+.split-button-container {
+  position: relative;
+  display: flex;
+}
+
+.sim-button {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  border: 1px solid #60a5fa;
+  border-right: 1px solid #2563eb;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95em;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-button:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.sim-button:active {
+  transform: translateY(1px);
+}
+
+.sim-button:disabled {
+  background: #4b5563;
+  border-color: #374151;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sim-dropdown-toggle {
+  padding: 8px 10px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  border: 1px solid #60a5fa;
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  font-size: 0.75em;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.sim-dropdown-toggle:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.sim-dropdown-toggle:active {
+  transform: translateY(1px);
+}
+
+.sim-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #1a2332;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.sim-dropdown-menu.show {
+  display: block;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sim-dropdown-item {
+  padding: 10px 16px;
+  color: #ddd;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+  border-bottom: 1px solid #0f1624;
+}
+
+.sim-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.sim-dropdown-item:hover {
+  background: #212d3f;
+  color: #fff;
+}
+
+.sim-mode-check {
+  width: 16px;
+  color: #3b82f6;
+  font-weight: bold;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .sim-control-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .sim-status-label {
+    font-size: 0.75em;
+  }
+  
+  .sim-button {
+    padding: 6px 12px;
+    font-size: 0.85em;
+  }
+  
+  .sim-dropdown-toggle {
+    padding: 6px 8px;
+  }
+}

@@ -132,7 +132,12 @@ function createEmptyLeagueState() {
       lockGenderEditing: true, // Prevent gender editing unless commissioner mode
       
       // Rating distribution
-      ratingProfile: 'balanced' // 'balanced', 'star_league'
+      ratingProfile: 'balanced', // 'balanced', 'star_league'
+      
+      // Job Security & Firing (OFF by default)
+      enableJobSecurity: false,
+      jobSecurityDifficulty: 'realistic', // 'forgiving', 'realistic', 'ruthless'
+      allowMidseasonFiring: false
     },
     
     // Migration tracking - prevents re-running one-time migrations
@@ -165,7 +170,13 @@ function createEmptyLeagueState() {
       teams: [],
       draftPool: [],
       protectionRules: {}
-    }
+    },
+    
+    // Job Security & Career (only active when enableJobSecurity === true)
+    jobSecurity: 75, // 0-100 scale
+    careerHistory: [], // Array of career entries { teamId, years, record, exitType }
+    ownerProfiles: {}, // { [teamId]: ownerProfile }
+    seasonExpectations: [] // Current season expectations for user team
   };
 }
 
@@ -2752,6 +2763,46 @@ function startLiveGame(gameId) {
     game.log.push({ quarter: 1, time: '12:00', text: 'Tip-off!', scored: false, score: null });
   }
   
+  // Initialize box score for live games
+  const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
+  const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
+  if (!game.boxScore && homeTeam && awayTeam) {
+    game.boxScore = {
+      home: {
+        teamId: homeTeam.id,
+        teamName: homeTeam.name,
+        score: 0,
+        players: homeTeam.players.slice(0, 10).map(p => ({
+          playerId: p.id,
+          name: p.name,
+          pts: 0,
+          reb: 0,
+          ast: 0,
+          stl: 0,
+          blk: 0,
+          to: 0,
+          min: 0
+        }))
+      },
+      away: {
+        teamId: awayTeam.id,
+        teamName: awayTeam.name,
+        score: 0,
+        players: awayTeam.players.slice(0, 10).map(p => ({
+          playerId: p.id,
+          name: p.name,
+          pts: 0,
+          reb: 0,
+          ast: 0,
+          stl: 0,
+          blk: 0,
+          to: 0,
+          min: 0
+        }))
+      }
+    };
+  }
+  
   game.possession = Math.random() < 0.5 ? 'home' : 'away';
   game.gameTime = 720; // 12 minutes in seconds
   
@@ -2784,6 +2835,18 @@ function stepLiveGame(gameId) {
   const minutes = Math.floor(game.gameTime / 60);
   const seconds = game.gameTime % 60;
   game.timeRemaining = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  
+  // Update player minutes in box score (distribute minutes to active players)
+  if (game.boxScore) {
+    const minutesPlayed = Math.round(timeStep / 60 * 10) / 10; // Convert to minutes
+    ['home', 'away'].forEach(side => {
+      // Add minutes to first 5-8 players (starters + some bench)
+      const activePlayers = game.boxScore[side].players.slice(0, Math.min(8, game.boxScore[side].players.length));
+      activePlayers.forEach(p => {
+        p.min = Math.round((p.min + minutesPlayed / activePlayers.length) * 10) / 10;
+      });
+    });
+  }
   
   // Generate play-by-play event
   const possessionTeam = game.possession === 'home' ? homeTeam : awayTeam;
@@ -2827,6 +2890,15 @@ function stepLiveGame(gameId) {
         }
         logText = `${player.name} ${isThree ? 'hits a three-pointer' : 'makes the layup'}! ${points} points.`;
         scored = true;
+        
+        // Update box score
+        if (game.boxScore) {
+          const side = game.possession === 'home' ? 'home' : 'away';
+          const boxPlayer = game.boxScore[side].players.find(p => p.playerId === player.id);
+          if (boxPlayer) {
+            boxPlayer.pts += points;
+          }
+        }
       } else {
         logText = `${player.name} misses the ${isThree ? 'three' : 'shot'}.`;
       }
@@ -2835,6 +2907,16 @@ function stepLiveGame(gameId) {
       
     case 'turnover':
       logText = `Turnover by ${player.name}!`;
+      
+      // Update box score
+      if (game.boxScore) {
+        const side = game.possession === 'home' ? 'home' : 'away';
+        const boxPlayer = game.boxScore[side].players.find(p => p.playerId === player.id);
+        if (boxPlayer) {
+          boxPlayer.to += 1;
+        }
+      }
+      
       game.possession = game.possession === 'home' ? 'away' : 'home';
       break;
       
@@ -2845,6 +2927,16 @@ function stepLiveGame(gameId) {
       
     case 'rebound':
       logText = `${player.name} grabs the rebound.`;
+      
+      // Update box score
+      if (game.boxScore) {
+        const side = game.possession === 'home' ? 'home' : 'away';
+        const boxPlayer = game.boxScore[side].players.find(p => p.playerId === player.id);
+        if (boxPlayer) {
+          boxPlayer.reb += 1;
+        }
+      }
+      
       break;
       
     default:
@@ -3505,18 +3597,37 @@ function simRegularSeason() {
   
   // Each team plays each other 4 times (home/away)
   const teams = league.teams;
+  let gamesSimmed = 0;
+  const totalGames = (teams.length * (teams.length - 1) * 4) / 2;
+  
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
       for (let k = 0; k < 4; k++) {
         simGame(teams[i], teams[j]);
+        gamesSimmed++;
+        
+        // Save award snapshot every 10 games
+        if (gamesSimmed % 10 === 0 && typeof saveAwardSnapshot === 'function') {
+          saveAwardSnapshot();
+        }
       }
     }
+  }
+  
+  // Final snapshot at end of season
+  if (typeof saveAwardSnapshot === 'function') {
+    saveAwardSnapshot();
   }
   
   league.phase = 'offseason';
   
   // Save season to history
   saveSeasonToHistory();
+  
+  // Process job security if enabled
+  if (typeof processSeasonEndJobSecurity === 'function') {
+    processSeasonEndJobSecurity(league);
+  }
   
   render();
   alert('Regular season complete! Proceed to Offseason.');

@@ -161,6 +161,11 @@ async function loadLeague(id) {
       // Sync back to leagueState
       leagueState.meta.userTeamId = selectedTeamId;
       
+      // Initialize job security system if enabled
+      if (typeof initializeJobSecurity === 'function') {
+        initializeJobSecurity(league);
+      }
+      
       console.log('[DB] Loaded league, userTeamId:', leagueState.meta.userTeamId, 'team:', league.teams.find(t => t.id === selectedTeamId)?.name);
       
       // DO NOT auto-navigate or auto-save here - let the caller handle that

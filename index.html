@@ -74,6 +74,10 @@
         <span class="sidebar-item-icon">📊</span>
         <span class="sidebar-item-text">Stats</span>
       </button>
+      <button class="sidebar-item" data-tab="awards" onclick="switchTab('awards')">
+        <span class="sidebar-item-icon">🏆</span>
+        <span class="sidebar-item-text">Award Races</span>
+      </button>
       <button class="sidebar-item" data-tab="players" onclick="switchTab('players')">
         <span class="sidebar-item-icon">👤</span>
         <span class="sidebar-item-text">Players</span>
@@ -106,24 +110,13 @@
         <span class="sidebar-item-icon">📜</span>
         <span class="sidebar-item-text">History</span>
       </button>
+      <button class="sidebar-item" data-tab="career" onclick="switchTab('career')">
+        <span class="sidebar-item-icon">💼</span>
+        <span class="sidebar-item-text">Career</span>
+      </button>
       <button class="sidebar-item" data-tab="settings" onclick="switchTab('settings')">
         <span class="sidebar-item-icon">⚙️</span>
         <span class="sidebar-item-text">Settings</span>
-      </button>
-      
-      <!-- League Actions Section -->
-      <div style="margin: 20px 0 10px 0; padding: 0 16px; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; font-weight: 600;">League Actions</div>
-      <button class="sidebar-item" onclick="simRegularSeason()" id="simSeasonBtnSidebar">
-        <span class="sidebar-item-icon">⏩</span>
-        <span class="sidebar-item-text">Sim Season</span>
-      </button>
-      <button class="sidebar-item" onclick="runOffseason()" id="offseasonBtnSidebar">
-        <span class="sidebar-item-icon">🏖️</span>
-        <span class="sidebar-item-text">Offseason</span>
-      </button>
-      <button class="sidebar-item" onclick="runDraft()" id="draftBtnSidebar">
-        <span class="sidebar-item-icon">🎯</span>
-        <span class="sidebar-item-text">Draft</span>
       </button>
     </nav>
   </div>
@@ -151,6 +144,40 @@
         <span style="margin-right: 6px;">⚖️</span>
         <span style="font-weight: 500;">Commissioner Mode</span>
       </div>
+      
+      <!-- Sim Control Split Button -->
+      <div class="sim-control-wrapper">
+        <div class="sim-status-label" id="simStatusLabel">2026 Regular Season · Idle</div>
+        <div class="split-button-container">
+          <button class="sim-button" onclick="executeSimulation()" id="simButton">
+            <span>⏩</span> Sim
+          </button>
+          <button class="sim-dropdown-toggle" onclick="toggleSimDropdown()" id="simDropdownToggle">
+            <span>▼</span>
+          </button>
+          <div class="sim-dropdown-menu" id="simDropdownMenu">
+            <div class="sim-dropdown-item" data-mode="oneDay" onclick="selectSimMode('oneDay')">
+              <span class="sim-mode-check" id="check-oneDay">✓</span> One day
+            </div>
+            <div class="sim-dropdown-item" data-mode="oneWeek" onclick="selectSimMode('oneWeek')">
+              <span class="sim-mode-check" id="check-oneWeek"></span> One week
+            </div>
+            <div class="sim-dropdown-item" data-mode="oneMonth" onclick="selectSimMode('oneMonth')">
+              <span class="sim-mode-check" id="check-oneMonth"></span> One month
+            </div>
+            <div class="sim-dropdown-item" data-mode="tradeDeadline" onclick="selectSimMode('tradeDeadline')">
+              <span class="sim-mode-check" id="check-tradeDeadline"></span> Until trade deadline
+            </div>
+            <div class="sim-dropdown-item" data-mode="allStar" onclick="selectSimMode('allStar')">
+              <span class="sim-mode-check" id="check-allStar"></span> Until All-Star events
+            </div>
+            <div class="sim-dropdown-item" data-mode="playoffs" onclick="selectSimMode('playoffs')">
+              <span class="sim-mode-check" id="check-playoffs"></span> Until playoffs
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <button onclick="goToHome()">Home</button>
     </div>
   </div>
@@ -280,6 +307,11 @@
     <!-- Content rendered by JavaScript -->
   </div>
 
+  <!-- Award Races Tab -->
+  <div id="awards-tab" style="display: none;">
+    <!-- Content rendered by JavaScript -->
+  </div>
+
   <!-- Players Tab -->
   <div id="players-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
@@ -319,6 +351,11 @@
   <div id="history-tab" style="display: none;">
     <!-- Content rendered by JavaScript -->
   </div>
+
+  <!-- Career Tab -->
+  <div id="career-tab" style="display: none;">
+    <!-- Content rendered by JavaScript -->
+  </div>
 </div>
 
 <!-- Player Modal -->
@@ -343,6 +380,8 @@
 <script src="state-manager.js?v=2026-01-07" defer></script>
 <script src="app.js?v=2026-01-07" defer></script>
 <script src="players-tab.js?v=2026-01-07" defer></script>
+<script src="awards-tab.js?v=2026-01-09" defer></script>
+<script src="job-security.js?v=2026-01-09" defer></script>
 <script src="history-tab.js?v=2026-01-07" defer></script>
 
 <script>
