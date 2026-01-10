@@ -283,16 +283,15 @@ async function getLeaderboardStats() {
 
 async function getSeasonStats(season, phase) {
   // Check if we have playerSeasonStats in IndexedDB
-  if (!db) return [];
-  
   try {
+    const db = await openDB();
     const tx = db.transaction('playerSeasonStats', 'readonly');
     const store = tx.objectStore('playerSeasonStats');
     const allStats = await store.getAll();
     
     return allStats.filter(s => s.season === season && s.phase === phase);
   } catch (error) {
-    console.error('[Leaders] Error loading season stats:', error);
+    console.log('[Leaders] PlayerSeasonStats not available, calculating from games:', error.message);
     // Fallback: calculate from games
     return calculateSeasonStatsFromGames(season, phase);
   }
@@ -302,7 +301,10 @@ function calculateSeasonStatsFromGames(season, phase) {
   // Aggregate from game data
   const playerStats = {};
   
-  if (!league.schedule || !league.schedule.games) return [];
+  if (!league || !league.schedule || !league.schedule.games) {
+    console.log('[Leaders] No league or schedule data available');
+    return [];
+  }
   
   Object.values(league.schedule.games).forEach(game => {
     if (game.season !== season || game.status !== 'final') return;
@@ -347,14 +349,14 @@ function calculateSeasonStatsFromGames(season, phase) {
         stat.pts += pStat.pts || 0;
         stat.reb += pStat.reb || 0;
         stat.ast += pStat.ast || 0;
-        stat.stl += pStat.stl || 0;
+        stat.stl += pStat.stl || pStat.st || 0;
         stat.blk += pStat.blk || 0;
-        stat.tov += pStat.tov || 0;
+        stat.tov += pStat.tov || pStat.to || 0;
         stat.pf += pStat.pf || 0;
         stat.fg += pStat.fg || 0;
         stat.fga += pStat.fga || 0;
-        stat.tp += pStat.tp || 0;
-        stat.tpa += pStat.tpa || 0;
+        stat.tp += pStat.tp || pStat['3p'] || 0;
+        stat.tpa += pStat.tpa || pStat['3pa'] || 0;
         stat.ft += pStat.ft || 0;
         stat.fta += pStat.fta || 0;
       });
@@ -366,9 +368,8 @@ function calculateSeasonStatsFromGames(season, phase) {
 
 async function getCareerStats() {
   // Aggregate all season stats
-  if (!db) return calculateCareerStatsFromGames();
-  
   try {
+    const db = await openDB();
     const tx = db.transaction('playerSeasonStats', 'readonly');
     const store = tx.objectStore('playerSeasonStats');
     const allStats = await store.getAll();
@@ -403,6 +404,7 @@ async function getCareerStats() {
     
     return Object.values(careerStats);
   } catch (error) {
+    console.log('[Leaders] PlayerSeasonStats not available, calculating from games');
     return calculateCareerStatsFromGames();
   }
 }
@@ -410,7 +412,10 @@ async function getCareerStats() {
 function calculateCareerStatsFromGames() {
   const playerStats = {};
   
-  if (!league.schedule || !league.schedule.games) return [];
+  if (!league || !league.schedule || !league.schedule.games) {
+    console.log('[Leaders] No league or schedule data available');
+    return [];
+  }
   
   Object.values(league.schedule.games).forEach(game => {
     if (game.status !== 'final') return;
@@ -454,14 +459,14 @@ function calculateCareerStatsFromGames() {
         stat.pts += pStat.pts || 0;
         stat.reb += pStat.reb || 0;
         stat.ast += pStat.ast || 0;
-        stat.stl += pStat.stl || 0;
+        stat.stl += pStat.stl || pStat.st || 0;
         stat.blk += pStat.blk || 0;
-        stat.tov += pStat.tov || 0;
+        stat.tov += pStat.tov || pStat.to || 0;
         stat.pf += pStat.pf || 0;
         stat.fg += pStat.fg || 0;
         stat.fga += pStat.fga || 0;
-        stat.tp += pStat.tp || 0;
-        stat.tpa += pStat.tpa || 0;
+        stat.tp += pStat.tp || pStat['3p'] || 0;
+        stat.tpa += pStat.tpa || pStat['3pa'] || 0;
         stat.ft += pStat.ft || 0;
         stat.fta += pStat.fta || 0;
       });
@@ -474,7 +479,10 @@ function calculateCareerStatsFromGames() {
 async function getSingleGameStats() {
   const gameStats = [];
   
-  if (!league.schedule || !league.schedule.games) return [];
+  if (!league || !league.schedule || !league.schedule.games) {
+    console.log('[Leaders] No league or schedule data available');
+    return [];
+  }
   
   Object.values(league.schedule.games).forEach(game => {
     if (game.status !== 'final') return;
@@ -500,14 +508,14 @@ async function getSingleGameStats() {
           pts: pStat.pts || 0,
           reb: pStat.reb || 0,
           ast: pStat.ast || 0,
-          stl: pStat.stl || 0,
+          stl: pStat.stl || pStat.st || 0,
           blk: pStat.blk || 0,
-          tov: pStat.tov || 0,
+          tov: pStat.tov || pStat.to || 0,
           pf: pStat.pf || 0,
           fg: pStat.fg || 0,
           fga: pStat.fga || 0,
-          tp: pStat.tp || 0,
-          tpa: pStat.tpa || 0,
+          tp: pStat.tp || pStat['3p'] || 0,
+          tpa: pStat.tpa || pStat['3pa'] || 0,
           ft: pStat.ft || 0,
           fta: pStat.fta || 0
         });
