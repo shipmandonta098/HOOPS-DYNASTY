@@ -134,46 +134,46 @@ function normalizePlayer(player) {
 
 const TEAM_META = [
   // Eastern Conference - Atlantic Division
-  { city: "New York", name: "Comets", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#FF6B35", secondaryColor: "#004E89", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Boston", name: "Titans", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#00843D", secondaryColor: "#FFFFFF", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Brooklyn", name: "Empire", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#000000", secondaryColor: "#FFFFFF", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Philadelphia", name: "Founders", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#0077C8", secondaryColor: "#ED174C", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Toronto", name: "Voyagers", conference: "East", division: "Atlantic", market: "Medium", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "" },
+  { city: "New York", name: "Comets", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#FF6B35", secondaryColor: "#004E89", logoPrimaryUrl: "", logoSecondaryUrl: "☄️" },
+  { city: "Boston", name: "Titans", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#00843D", secondaryColor: "#FFFFFF", logoPrimaryUrl: "", logoSecondaryUrl: "⚡" },
+  { city: "Brooklyn", name: "Empire", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#000000", secondaryColor: "#FFFFFF", logoPrimaryUrl: "", logoSecondaryUrl: "🏛️" },
+  { city: "Philadelphia", name: "Founders", conference: "East", division: "Atlantic", market: "Large", primaryColor: "#0077C8", secondaryColor: "#ED174C", logoPrimaryUrl: "", logoSecondaryUrl: "🔔" },
+  { city: "Toronto", name: "Voyagers", conference: "East", division: "Atlantic", market: "Medium", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "🚀" },
   
   // Eastern Conference - Central Division
-  { city: "Chicago", name: "Queens", conference: "East", division: "Central", market: "Large", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Milwaukee", name: "Thunder", conference: "East", division: "Central", market: "Medium", primaryColor: "#00471B", secondaryColor: "#EEE1C6", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Indiana", name: "Fury", conference: "East", division: "Central", market: "Medium", primaryColor: "#002D62", secondaryColor: "#FDBB30", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Detroit", name: "Engines", conference: "East", division: "Central", market: "Medium", primaryColor: "#C8102E", secondaryColor: "#1D42BA", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Cleveland", name: "Steam", conference: "East", division: "Central", market: "Medium", primaryColor: "#860038", secondaryColor: "#FDBB30", logoPrimaryUrl: "", logoSecondaryUrl: "" },
+  { city: "Chicago", name: "Queens", conference: "East", division: "Central", market: "Large", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "👑" },
+  { city: "Milwaukee", name: "Thunder", conference: "East", division: "Central", market: "Medium", primaryColor: "#00471B", secondaryColor: "#EEE1C6", logoPrimaryUrl: "", logoSecondaryUrl: "⚡" },
+  { city: "Indiana", name: "Fury", conference: "East", division: "Central", market: "Medium", primaryColor: "#002D62", secondaryColor: "#FDBB30", logoPrimaryUrl: "", logoSecondaryUrl: "🔥" },
+  { city: "Detroit", name: "Engines", conference: "East", division: "Central", market: "Medium", primaryColor: "#C8102E", secondaryColor: "#1D42BA", logoPrimaryUrl: "", logoSecondaryUrl: "⚙️" },
+  { city: "Cleveland", name: "Steam", conference: "East", division: "Central", market: "Medium", primaryColor: "#860038", secondaryColor: "#FDBB30", logoPrimaryUrl: "", logoSecondaryUrl: "💨" },
   
   // Eastern Conference - Southeast Division
-  { city: "Miami", name: "Heatwave", conference: "East", division: "Southeast", market: "Large", primaryColor: "#98002E", secondaryColor: "#F9A01B", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Atlanta", name: "Skyforce", conference: "East", division: "Southeast", market: "Large", primaryColor: "#E03A3E", secondaryColor: "#C1D32F", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Washington", name: "Monuments", conference: "East", division: "Southeast", market: "Large", primaryColor: "#002B5C", secondaryColor: "#E31837", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Charlotte", name: "Lynx", conference: "East", division: "Southeast", market: "Medium", primaryColor: "#1D1160", secondaryColor: "#00788C", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Orlando", name: "Knights", conference: "East", division: "Southeast", market: "Medium", primaryColor: "#0077C0", secondaryColor: "#C4CED4", logoPrimaryUrl: "", logoSecondaryUrl: "" },
+  { city: "Miami", name: "Heatwave", conference: "East", division: "Southeast", market: "Large", primaryColor: "#98002E", secondaryColor: "#F9A01B", logoPrimaryUrl: "", logoSecondaryUrl: "🌊" },
+  { city: "Atlanta", name: "Skyforce", conference: "East", division: "Southeast", market: "Large", primaryColor: "#E03A3E", secondaryColor: "#C1D32F", logoPrimaryUrl: "", logoSecondaryUrl: "🦅" },
+  { city: "Washington", name: "Monuments", conference: "East", division: "Southeast", market: "Large", primaryColor: "#002B5C", secondaryColor: "#E31837", logoPrimaryUrl: "", logoSecondaryUrl: "🗽" },
+  { city: "Charlotte", name: "Lynx", conference: "East", division: "Southeast", market: "Medium", primaryColor: "#1D1160", secondaryColor: "#00788C", logoPrimaryUrl: "", logoSecondaryUrl: "🐆" },
+  { city: "Orlando", name: "Knights", conference: "East", division: "Southeast", market: "Medium", primaryColor: "#0077C0", secondaryColor: "#C4CED4", logoPrimaryUrl: "", logoSecondaryUrl: "⚔️" },
   
   // Western Conference - Northwest Division
-  { city: "Denver", name: "Altitude", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#0E2240", secondaryColor: "#FEC524", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Portland", name: "Cascade", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#E03A3E", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Utah", name: "Avalanche", conference: "West", division: "Northwest", market: "Small", primaryColor: "#002B5C", secondaryColor: "#00471B", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Oklahoma City", name: "Stampede", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#007AC1", secondaryColor: "#EF3B24", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Minnesota", name: "Blizzard", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#0C2340", secondaryColor: "#78BE20", logoPrimaryUrl: "", logoSecondaryUrl: "" },
+  { city: "Denver", name: "Altitude", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#0E2240", secondaryColor: "#FEC524", logoPrimaryUrl: "", logoSecondaryUrl: "⛰️" },
+  { city: "Portland", name: "Cascade", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#E03A3E", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "🌲" },
+  { city: "Utah", name: "Avalanche", conference: "West", division: "Northwest", market: "Small", primaryColor: "#002B5C", secondaryColor: "#00471B", logoPrimaryUrl: "", logoSecondaryUrl: "❄️" },
+  { city: "Oklahoma City", name: "Stampede", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#007AC1", secondaryColor: "#EF3B24", logoPrimaryUrl: "", logoSecondaryUrl: "🐃" },
+  { city: "Minnesota", name: "Blizzard", conference: "West", division: "Northwest", market: "Medium", primaryColor: "#0C2340", secondaryColor: "#78BE20", logoPrimaryUrl: "", logoSecondaryUrl: "🌨️" },
   
   // Western Conference - Pacific Division
-  { city: "Los Angeles", name: "Waves", conference: "West", division: "Pacific", market: "Large", primaryColor: "#552583", secondaryColor: "#FDB927", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Los Angeles", name: "Eclipse", conference: "West", division: "Pacific", market: "Large", primaryColor: "#C8102E", secondaryColor: "#1D428A", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Golden State", name: "Pioneers", conference: "West", division: "Pacific", market: "Large", primaryColor: "#1D428A", secondaryColor: "#FFC72C", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Phoenix", name: "Inferno", conference: "West", division: "Pacific", market: "Large", primaryColor: "#E56020", secondaryColor: "#1D1160", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Sacramento", name: "Dragons", conference: "West", division: "Pacific", market: "Medium", primaryColor: "#5A2D81", secondaryColor: "#63727A", logoPrimaryUrl: "", logoSecondaryUrl: "" },
+  { city: "Los Angeles", name: "Waves", conference: "West", division: "Pacific", market: "Large", primaryColor: "#552583", secondaryColor: "#FDB927", logoPrimaryUrl: "", logoSecondaryUrl: "🌊" },
+  { city: "Los Angeles", name: "Eclipse", conference: "West", division: "Pacific", market: "Large", primaryColor: "#C8102E", secondaryColor: "#1D428A", logoPrimaryUrl: "", logoSecondaryUrl: "🌑" },
+  { city: "Golden State", name: "Pioneers", conference: "West", division: "Pacific", market: "Large", primaryColor: "#1D428A", secondaryColor: "#FFC72C", logoPrimaryUrl: "", logoSecondaryUrl: "⚓" },
+  { city: "Phoenix", name: "Inferno", conference: "West", division: "Pacific", market: "Large", primaryColor: "#E56020", secondaryColor: "#1D1160", logoPrimaryUrl: "", logoSecondaryUrl: "🔥" },
+  { city: "Sacramento", name: "Dragons", conference: "West", division: "Pacific", market: "Medium", primaryColor: "#5A2D81", secondaryColor: "#63727A", logoPrimaryUrl: "", logoSecondaryUrl: "🐉" },
   
   // Western Conference - Southwest Division
-  { city: "Dallas", name: "Strikers", conference: "West", division: "Southwest", market: "Large", primaryColor: "#00538C", secondaryColor: "#002F87", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Houston", name: "Astros", conference: "West", division: "Southwest", market: "Large", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "San Antonio", name: "Generals", conference: "West", division: "Southwest", market: "Large", primaryColor: "#C4CED4", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "Memphis", name: "Blues", conference: "West", division: "Southwest", market: "Medium", primaryColor: "#5D76A9", secondaryColor: "#12173F", logoPrimaryUrl: "", logoSecondaryUrl: "" },
-  { city: "New Orleans", name: "Voodoo", conference: "West", division: "Southwest", market: "Medium", primaryColor: "#0C2340", secondaryColor: "#C8102E", logoPrimaryUrl: "", logoSecondaryUrl: "" }
+  { city: "Dallas", name: "Strikers", conference: "West", division: "Southwest", market: "Large", primaryColor: "#00538C", secondaryColor: "#002F87", logoPrimaryUrl: "", logoSecondaryUrl: "⭐" },
+  { city: "Houston", name: "Astros", conference: "West", division: "Southwest", market: "Large", primaryColor: "#CE1141", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "🚀" },
+  { city: "San Antonio", name: "Generals", conference: "West", division: "Southwest", market: "Large", primaryColor: "#C4CED4", secondaryColor: "#000000", logoPrimaryUrl: "", logoSecondaryUrl: "🎖️" },
+  { city: "Memphis", name: "Blues", conference: "West", division: "Southwest", market: "Medium", primaryColor: "#5D76A9", secondaryColor: "#12173F", logoPrimaryUrl: "", logoSecondaryUrl: "🎵" },
+  { city: "New Orleans", name: "Voodoo", conference: "West", division: "Southwest", market: "Medium", primaryColor: "#0C2340", secondaryColor: "#C8102E", logoPrimaryUrl: "", logoSecondaryUrl: "🎭" }
 ];
 
 // Generate SVG logo for a team
@@ -468,6 +468,10 @@ let newsFilters = {
 let expandedNewsItems = new Set(); // Track which news items are expanded
 
 let selectedTeamId = null;
+
+// Schedule tab state
+let scheduleView = 'myteam'; // 'myteam' | 'otherteams' | 'league'
+let scheduleSelectedTeamId = null; // For 'otherteams' view
 let selectedPlayerId = null;
 let nextPlayerId = 1;
 let sidebarOpen = false; // For sidebar drawer state
@@ -2810,7 +2814,7 @@ function renderRecordStandings() {
       const awayRecord = `${t.stats?.awayWins || 0}-${t.stats?.awayLosses || 0}`;
       const last10Record = getLast10Record(t.stats?.last10 || []);
       const streakStr = getStreakString(t.stats?.streak || 0);
-      const teamLogo = `<div class="team-logo-small">${t.city.substring(0, 2).toUpperCase()}</div>`;
+      const teamLogo = t.logoSecondaryUrl ? `<div class="team-logo-emoji" style="font-size: 2em;">${t.logoSecondaryUrl}</div>` : `<div class="team-logo-small">${t.city.substring(0, 2).toUpperCase()}</div>`;
       
       // Hype indicator
       const hype = t.hype !== undefined ? t.hype : 50;
@@ -2892,7 +2896,7 @@ function renderPowerRankings() {
   
   const rows = teamsWithPower.map((item, idx) => {
     const { team, powerScore, statusTag } = item;
-    const teamLogo = `<div class="team-logo-small">${team.city.substring(0, 2).toUpperCase()}</div>`;
+    const teamLogo = team.logoSecondaryUrl ? `<div class="team-logo-emoji" style="font-size: 2em;">${team.logoSecondaryUrl}</div>` : `<div class="team-logo-small">${team.city.substring(0, 2).toUpperCase()}</div>`;
     const record = `${team.wins}-${team.losses}`;
     
     return `
@@ -3891,7 +3895,7 @@ function finalizeExpansionDraft() {
 // Settings state
 let settingsData = null;
 let settingsOriginal = null;
-let expandedSettingsSections = new Set(['gameplay']); // Default open sections
+let expandedSettingsSections = new Set(['gameplay', 'cap', 'ai', 'sim', 'ui', 'notifications', 'data', 'commissioner', 'jobsecurity']); // Default open sections
 
 // User preferences (separate from league data)
 let userPreferences = {
@@ -4002,6 +4006,14 @@ function initSettings(league) {
     };
   }
   
+  if (!league.settings) {
+    league.settings = {
+      enableJobSecurity: false,
+      jobSecurityDifficulty: 'realistic',
+      allowMidseasonFiring: false
+    };
+  }
+  
   return league;
 }
 
@@ -4014,7 +4026,8 @@ function initSettingsEditor() {
     aiSettings: league.aiSettings,
     simSettings: league.simSettings,
     newsSettings: league.newsSettings,
-    dataSettings: league.dataSettings
+    dataSettings: league.dataSettings,
+    settings: league.settings
   }));
   settingsData = JSON.parse(JSON.stringify(settingsOriginal));
   return settingsData;
@@ -4081,6 +4094,7 @@ function saveSettings() {
   league.simSettings = settingsData.simSettings;
   league.newsSettings = settingsData.newsSettings;
   league.dataSettings = settingsData.dataSettings;
+  league.settings = settingsData.settings;
   
   save();
   settingsData = null;
@@ -4532,7 +4546,7 @@ function renderSettings() {
         ${renderUIPreferencesSection()}
         ${renderNotificationsSection(settingsData.newsSettings)}
         ${renderDataSafetySection(settingsData.dataSettings)}
-        ${renderJobSecuritySection(league.settings)}
+        ${renderJobSecuritySection(settingsData.settings || league.settings)}
         ${renderCommissionerModeSection()}
       </div>
 
@@ -8234,71 +8248,197 @@ function renderSchedule() {
     return;
   }
   
-  const currentDay = getCurrentDay();
-  const totalDays = getTotalScheduleDays(league.season);
-  const day = getScheduleDay(league.season, currentDay);
-  const games = getGamesForDay(league.season, currentDay);
-  
-  if (!day) {
-    el.innerHTML = `
-      <div style="padding: 20px;">
-        <h2>📅 Schedule</h2>
-        <p>Invalid day. Please check your schedule data.</p>
-      </div>
-    `;
-    return;
+  // Set default selected team for Other Teams view
+  if (!scheduleSelectedTeamId) {
+    scheduleSelectedTeamId = league.teams[0]?.id || null;
   }
   
   el.innerHTML = `
     <div style="padding: 20px;">
-      <!-- Header -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #2a2a40;">
-        <div>
-          <h2 style="margin: 0 0 8px 0;">📅 Schedule - ${league.season} Season</h2>
-          <div style="display: flex; gap: 20px; align-items: center;">
-            <span style="font-size: 1.3em; font-weight: bold; color: #4CAF50;">Day ${currentDay} of ${totalDays}</span>
-            <span style="padding: 6px 12px; background: #2196F3; border-radius: 6px; font-weight: bold; font-size: 0.9em;">${day.phase}</span>
-          </div>
+      <!-- Header with Tabs -->
+      <div style="margin-bottom: 25px;">
+        <h2 style="margin: 0 0 15px 0;">📅 Schedule - ${league.season} Season</h2>
+        
+        <!-- Tab Navigation -->
+        <div style="display: flex; gap: 5px; border-bottom: 2px solid #2a2a40; margin-bottom: 20px;">
+          <button 
+            onclick="switchScheduleView('myteam')"
+            style="padding: 12px 24px; background: ${scheduleView === 'myteam' ? '#2196F3' : 'transparent'}; color: ${scheduleView === 'myteam' ? '#fff' : '#888'}; border: none; border-bottom: 3px solid ${scheduleView === 'myteam' ? '#2196F3' : 'transparent'}; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+            My Team
+          </button>
+          <button 
+            onclick="switchScheduleView('otherteams')"
+            style="padding: 12px 24px; background: ${scheduleView === 'otherteams' ? '#2196F3' : 'transparent'}; color: ${scheduleView === 'otherteams' ? '#fff' : '#888'}; border: none; border-bottom: 3px solid ${scheduleView === 'otherteams' ? '#2196F3' : 'transparent'}; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+            Other Teams
+          </button>
+          <button 
+            onclick="switchScheduleView('league')"
+            style="padding: 12px 24px; background: ${scheduleView === 'league' ? '#2196F3' : 'transparent'}; color: ${scheduleView === 'league' ? '#fff' : '#888'}; border: none; border-bottom: 3px solid ${scheduleView === 'league' ? '#2196F3' : 'transparent'}; cursor: pointer; font-weight: bold; transition: all 0.2s;">
+            League
+          </button>
         </div>
         
-        <!-- Navigation Controls -->
-        <div style="display: flex; gap: 10px;">
-          <button 
-            onclick="navigateScheduleDay(-1)" 
-            ${currentDay <= 1 ? 'disabled' : ''}
-            style="padding: 10px 20px; background: ${currentDay <= 1 ? '#333' : '#2a2a40'}; color: ${currentDay <= 1 ? '#666' : 'white'}; border: none; border-radius: 6px; cursor: ${currentDay <= 1 ? 'not-allowed' : 'pointer'}; font-weight: bold;">
-            ← Previous Day
-          </button>
-          <button 
-            onclick="navigateScheduleDay(1)" 
-            ${currentDay >= totalDays ? 'disabled' : ''}
-            style="padding: 10px 20px; background: ${currentDay >= totalDays ? '#333' : '#2a2a40'}; color: ${currentDay >= totalDays ? '#666' : 'white'}; border: none; border-radius: 6px; cursor: ${currentDay >= totalDays ? 'not-allowed' : 'pointer'}; font-weight: bold;">
-            Next Day →
-          </button>
-        </div>
-      </div>
-      
-      <!-- Action Buttons -->
-      <div style="display: flex; gap: 10px; margin-bottom: 25px;">
-        <button 
-          onclick="simEntireDayUI()"
-          ${games.length === 0 || games.every(g => g.status === 'final') ? 'disabled' : ''}
-          style="flex: 1; padding: 14px; background: ${games.length === 0 || games.every(g => g.status === 'final') ? '#333' : '#4CAF50'}; color: ${games.length === 0 || games.every(g => g.status === 'final') ? '#666' : 'white'}; border: none; border-radius: 8px; cursor: ${games.length === 0 || games.every(g => g.status === 'final') ? 'not-allowed' : 'pointer'}; font-weight: bold; font-size: 1em;">
-          ⚡ Sim Entire Day
-        </button>
-        <button 
-          onclick="simToNextUserGameUI()"
-          style="flex: 1; padding: 14px; background: #2196F3; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1em;">
-          ⏭️ Sim to Next User Game
-        </button>
-      </div>
-      
-      <!-- Games Container -->
-      <div style="background: #1a1a2e; border-radius: 10px; padding: 20px; min-height: 400px;">
-        ${renderScheduleDayGames(games, day)}
+        ${renderScheduleContent()}
       </div>
       
       <div id="game-drawer-container"></div>
+    </div>
+  `;
+}
+
+function switchScheduleView(view) {
+  scheduleView = view;
+  renderSchedule();
+}
+
+function switchScheduleTeam(teamId) {
+  scheduleSelectedTeamId = parseInt(teamId);
+  renderSchedule();
+}
+
+function renderScheduleContent() {
+  if (scheduleView === 'myteam') {
+    return renderMyTeamSchedule();
+  } else if (scheduleView === 'otherteams') {
+    return renderOtherTeamsSchedule();
+  } else {
+    return renderLeagueSchedule();
+  }
+}
+
+function renderMyTeamSchedule() {
+  const userTeam = league.teams.find(t => t.id === league.userTid);
+  if (!userTeam) {
+    return '<div style="padding: 20px; color: #ff6b6b;">User team not found.</div>';
+  }
+  
+  // Filter games for user's team from all schedule games
+  const allGames = league.schedule.games || {};
+  const userGames = Object.values(allGames).filter(game => 
+    game.homeTeamId === league.userTid || game.awayTeamId === league.userTid
+  ).sort((a, b) => a.day - b.day);
+  
+  const completedGames = userGames.filter(g => g.status === 'final');
+  const upcomingGames = userGames.filter(g => g.status === 'scheduled');
+  const liveGames = userGames.filter(g => g.status === 'live');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+      <h3 style="margin: 0 0 15px 0; color: #4CAF50;">${userTeam.name} Schedule</h3>
+      <div style="display: flex; gap: 20px; margin-bottom: 15px; color: #888;">
+        <span>Completed: ${completedGames.length}</span>
+        <span>Upcoming: ${upcomingGames.length}</span>
+        ${liveGames.length > 0 ? `<span style="color: #f44336;">Live: ${liveGames.length}</span>` : ''}
+      </div>
+    </div>
+    
+    ${renderTeamScheduleGames(userGames, league.userTid)}
+  `;
+}
+
+function renderOtherTeamsSchedule() {
+  const selectedTeam = league.teams.find(t => t.id === scheduleSelectedTeamId);
+  if (!selectedTeam) {
+    return '<div style="padding: 20px; color: #ff6b6b;">Team not found.</div>';
+  }
+  
+  // Filter games for selected team from all schedule games
+  const allGames = league.schedule.games || {};
+  const teamGames = Object.values(allGames).filter(game => 
+    game.homeTeamId === scheduleSelectedTeamId || game.awayTeamId === scheduleSelectedTeamId
+  ).sort((a, b) => a.day - b.day);
+  
+  const completedGames = teamGames.filter(g => g.status === 'final');
+  const upcomingGames = teamGames.filter(g => g.status === 'scheduled');
+  
+  // Team selector dropdown
+  const teamOptions = league.teams.map(t => 
+    `<option value="${t.id}" ${t.id === scheduleSelectedTeamId ? 'selected' : ''}>${t.name} (${t.wins}-${t.losses})</option>`
+  ).join('');
+  
+  return `
+    <div style="background: #1a2332; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #2196F3;">Team Schedule</h3>
+        <select onchange="switchScheduleTeam(this.value)" style="padding: 10px; background: #0f1624; color: #fff; border: 1px solid #2a2a40; border-radius: 6px; cursor: pointer; min-width: 250px;">
+          ${teamOptions}
+        </select>
+      </div>
+      <div style="display: flex; gap: 20px; color: #888;">
+        <span>Completed: ${completedGames.length}</span>
+        <span>Upcoming: ${upcomingGames.length}</span>
+      </div>
+    </div>
+    
+    ${renderTeamScheduleGames(teamGames, scheduleSelectedTeamId)}
+  `;
+}
+
+function renderLeagueSchedule() {
+  // Get all games and group by day
+  const allGames = league.schedule.games || {};
+  const gamesByDay = {};
+  
+  Object.values(allGames).forEach(game => {
+    if (!gamesByDay[game.day]) {
+      gamesByDay[game.day] = [];
+    }
+    gamesByDay[game.day].push(game);
+  });
+  
+  // Sort days numerically
+  const days = Object.keys(gamesByDay).map(d => parseInt(d)).sort((a, b) => a - b);
+  
+  if (days.length === 0) {
+    return `
+      <div style="background: #1a1a2e; border-radius: 10px; padding: 40px; text-align: center; color: #888;">
+        <div style="font-size: 2em; margin-bottom: 10px;">📅</div>
+        <p>No games scheduled</p>
+      </div>
+    `;
+  }
+  
+  return `
+    <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
+      ${days.map(day => {
+        const games = gamesByDay[day];
+        const dayInfo = getScheduleDay(league.season, day);
+        const allFinal = games.every(g => g.status === 'final');
+        
+        return `
+          <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h3 style="margin: 0; color: #2196F3;">Day ${day}</h3>
+              <div style="display: flex; gap: 15px; align-items: center;">
+                <span style="color: #888;">${games.length} game${games.length !== 1 ? 's' : ''} ${allFinal ? '(Completed)' : ''}</span>
+                ${dayInfo ? `<span style="padding: 4px 10px; background: #2196F3; border-radius: 4px; font-size: 0.85em;">${dayInfo.phase}</span>` : ''}
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              ${games.map(game => renderScheduleGameRow(game)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderTeamScheduleGames(games, teamId) {
+  if (games.length === 0) {
+    return `
+      <div style="background: #1a1a2e; border-radius: 10px; padding: 40px; text-align: center; color: #888;">
+        <div style="font-size: 2em; margin-bottom: 10px;">📅</div>
+        <p>No games found for this team</p>
+      </div>
+    `;
+  }
+  
+  return `
+    <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        ${games.map(game => renderScheduleGameRow(game)).join('')}
+      </div>
     </div>
   `;
 }
@@ -8335,9 +8475,15 @@ function renderScheduleGameRow(game) {
   
   const isUserGame = game.homeTeamId === league.userTid || game.awayTeamId === league.userTid;
   
+  // Get team abbreviations and logos
+  const awayAbbr = awayTeam.abbreviation || awayTeam.city.substring(0, 3).toUpperCase();
+  const homeAbbr = homeTeam.abbreviation || homeTeam.city.substring(0, 3).toUpperCase();
+  const awayLogo = awayTeam.logoSecondaryUrl || awayAbbr;
+  const homeLogo = homeTeam.logoSecondaryUrl || homeAbbr;
+  
   const statusDisplay = game.status === 'final' ? 'FINAL' : 
                        game.status === 'live' ? `LIVE - Q${game.quarter} ${game.timeRemaining}` :
-                       'Scheduled';
+                       `Day ${game.day}`;
   
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
@@ -8355,16 +8501,27 @@ function renderScheduleGameRow(game) {
         <div style="flex: 1;">
           ${isUserGame ? '<div style="color: #4CAF50; font-weight: bold; font-size: 0.85em; margin-bottom: 8px;">★ YOUR TEAM</div>' : ''}
           
+          <!-- Away Team -->
           <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            <span style="font-weight: bold; font-size: 1.1em; width: 220px;">${awayTeam.name}</span>
+            <div style="display: flex; align-items: center; width: 250px;">
+              <span style="font-size: ${awayTeam.logoSecondaryUrl ? '1.5em' : '1em'}; margin-right: 10px; min-width: 35px; text-align: center; background: ${awayTeam.logoSecondaryUrl ? 'transparent' : '#2a2a40'}; padding: ${awayTeam.logoSecondaryUrl ? '0' : '4px 8px'}; border-radius: 4px;">${awayLogo}</span>
+              <span style="font-weight: bold; font-size: 1.1em;">${awayTeam.name}</span>
+            </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${awayTeam.wins}-${awayTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'};">${game.score.away}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : ''}
           </div>
           
+          <!-- vs/@ indicator -->
+          <div style="color: #666; font-size: 0.85em; margin-left: 45px; margin-bottom: 5px;">@</div>
+          
+          <!-- Home Team -->
           <div style="display: flex; align-items: center;">
-            <span style="font-weight: bold; font-size: 1.1em; width: 220px;">${homeTeam.name}</span>
+            <div style="display: flex; align-items: center; width: 250px;">
+              <span style="font-size: ${homeTeam.logoSecondaryUrl ? '1.5em' : '1em'}; margin-right: 10px; min-width: 35px; text-align: center; background: ${homeTeam.logoSecondaryUrl ? 'transparent' : '#2a2a40'}; padding: ${homeTeam.logoSecondaryUrl ? '0' : '4px 8px'}; border-radius: 4px;">${homeLogo}</span>
+              <span style="font-weight: bold; font-size: 1.1em;">${homeTeam.name}</span>
+            </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${homeTeam.wins}-${homeTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'};">${game.score.home}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : ''}
           </div>
         </div>
         

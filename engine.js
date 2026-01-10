@@ -2476,9 +2476,19 @@ function createScheduleDay(dayNumber, phase = 'Regular Season') {
 function ensureSchedule() {
   if (!league || !league.season) return;
   
+  // GUARD: Only generate if schedule is truly missing
+  const hasSchedule = league.schedule 
+    && league.schedule.days 
+    && league.schedule.days[league.season] 
+    && league.schedule.days[league.season].length > 0;
+  
+  if (hasSchedule) {
+    console.log(`[SCHEDULE] Schedule already exists for season ${league.season}, skipping generation`);
+    return;
+  }
+  
   const phase = league.phase?.toLowerCase() || '';
   const needsSchedule = 
-    (!league.schedule || !league.schedule.days || !league.schedule.days[league.season] || league.schedule.days[league.season].length === 0) &&
     (phase === 'preseason' || phase === 'season' || phase === 'regular_season' || phase === 'regular season');
   
   if (needsSchedule) {
@@ -2498,144 +2508,45 @@ function generateSchedule() {
 }
 
 function generateSeasonSchedule(season) {
-  if (!league || !league.teams || league.teams.length < 2) return;
-  
-  if (!league.schedule) league.schedule = initScheduleState();
-  if (!league.schedule.days[season]) {
-    league.schedule.days[season] = [];
+  if (!league || !league.teams || league.teams.length < 2) {
+    console.error('Cannot generate schedule: insufficient teams');
+    return;
   }
   
-  const teams = league.teams;
-  const numTeams = teams.length;
-  const gamesPerTeam = GAMES_PER_SEASON;
-  const seasonDays = calculateSeasonDays(gamesPerTeam);
+  const gamesPerTeam = league.settings?.gamesPerTeam || 82;
   
-  console.log(`Generating ${seasonDays}-day schedule for ${numTeams} teams (${gamesPerTeam} games each)`);
+  console.log(`[Engine] Generating schedule for season ${season}`);
   
-  // Generate all matchups
-  const allMatchups = [];
-  const matchupsPerPair = Math.ceil(gamesPerTeam / (numTeams - 1));
-  
-  for (let i = 0; i < numTeams; i++) {
-    for (let j = i + 1; j < numTeams; j++) {
-      for (let k = 0; k < matchupsPerPair; k++) {
-        const homeTeam = k % 2 === 0 ? teams[i] : teams[j];
-        const awayTeam = k % 2 === 0 ? teams[j] : teams[i];
-        
-        allMatchups.push({
-          homeTeamId: homeTeam.id,
-          awayTeamId: awayTeam.id
-        });
-      }
-    }
-  }
-  
-  // Shuffle matchups for variety
-  for (let i = allMatchups.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [allMatchups[i], allMatchups[j]] = [allMatchups[j], allMatchups[i]];
-  }
-  
-  // Track games played by each team to avoid fatigue issues
-  const teamGameDays = {};
-  teams.forEach(t => teamGameDays[t.id] = []);
-  
-  let matchupIndex = 0;
-  const maxGamesPerDay = Math.floor(numTeams / 2);
-  
-  // Distribute games across days
-  for (let dayNum = 1; dayNum <= seasonDays; dayNum++) {
-    const day = createScheduleDay(dayNum, 'Regular Season');
-    
-    // Decide how many games to schedule this day (allow rest days)
-    const shouldRest = Math.random() < 0.15; // 15% chance of rest day
-    const numGamesToday = shouldRest ? 0 : Math.floor(Math.random() * maxGamesPerDay) + Math.max(1, Math.floor(maxGamesPerDay * 0.6));
-    
-    if (!shouldRest && matchupIndex < allMatchups.length) {
-      let gamesScheduled = 0;
-      
-      while (gamesScheduled < numGamesToday && matchupIndex < allMatchups.length) {
-        const matchup = allMatchups[matchupIndex];
-        
-        // Check if both teams can play (avoid too many back-to-backs)
-        const homeLastGame = teamGameDays[matchup.homeTeamId].slice(-1)[0] || 0;
-        const awayLastGame = teamGameDays[matchup.awayTeamId].slice(-1)[0] || 0;
-        
-        // Allow back-to-backs but not excessive streaks
-        const homeStreak = homeLastGame === dayNum - 1 && (teamGameDays[matchup.homeTeamId].slice(-2)[0] || 0) === dayNum - 2;
-        const awayStreak = awayLastGame === dayNum - 1 && (teamGameDays[matchup.awayTeamId].slice(-2)[0] || 0) === dayNum - 2;
-        
-        if (!homeStreak && !awayStreak) {
-          const gameId = `game_${season}_${nextGameId++}`;
-          league.schedule.games[gameId] = {
-            id: gameId,
-            season,
-            day: dayNum,
-            homeTeamId: matchup.homeTeamId,
-            awayTeamId: matchup.awayTeamId,
-            status: 'scheduled',
-            score: { home: 0, away: 0 },
-            quarter: 0,
-            timeRemaining: '12:00',
-            log: [],
-            boxScore: null
-          };
-          
-          day.games.push(gameId);
-          teamGameDays[matchup.homeTeamId].push(dayNum);
-          teamGameDays[matchup.awayTeamId].push(dayNum);
-          
-          gamesScheduled++;
-          matchupIndex++;
-        } else {
-          matchupIndex++;
-        }
-      }
-    }
-    
-    league.schedule.days[season].push(day);
-  }
-  
-  // If we have leftover games, append more days
-  while (matchupIndex < allMatchups.length) {
-    const dayNum = league.schedule.days[season].length + 1;
-    const day = createScheduleDay(dayNum, 'Regular Season');
-    
-    let gamesScheduled = 0;
-    while (gamesScheduled < maxGamesPerDay && matchupIndex < allMatchups.length) {
-      const matchup = allMatchups[matchupIndex];
-      const gameId = `game_${season}_${nextGameId++}`;
-      
-      league.schedule.games[gameId] = {
-        id: gameId,
-        season,
-        day: dayNum,
-        homeTeamId: matchup.homeTeamId,
-        awayTeamId: matchup.awayTeamId,
-        status: 'scheduled',
-        score: { home: 0, away: 0 },
-        quarter: 0,
-        timeRemaining: '12:00',
-        log: [],
-        boxScore: null
+  try {
+    // CLEAR existing schedule data before generating
+    if (!league.schedule) {
+      league.schedule = {
+        games: {},
+        days: {},
+        currentDay: 1
       };
-      
-      day.games.push(gameId);
-      gamesScheduled++;
-      matchupIndex++;
     }
     
-    league.schedule.days[season].push(day);
+    // Clear this season's schedule
+    league.schedule.games = {};
+    league.schedule.days[season] = [];
+    
+    // Use the new schedule generator
+    const newSchedule = generateLeagueSchedule(league.teams, season, gamesPerTeam);
+    
+    // Migrate to league format
+    league.schedule.games = newSchedule.games;
+    league.schedule.days[season] = newSchedule.days;
+    league.schedule.currentDay = 1;
+    league.schedule.totalDays = newSchedule.totalDays;
+    league.schedule.gamesPerTeam = newSchedule.gamesPerTeam;
+    
+    console.log(`[Engine] ✓ Schedule generated: days=${newSchedule.totalDays} games=${Object.keys(newSchedule.games).length}`);
+    
+  } catch (error) {
+    console.error('[Engine] Schedule generation failed:', error);
+    alert('Failed to generate schedule: ' + error.message);
   }
-  
-  league.schedule.currentDay = 1;
-  
-  // Sync schedule changes to leagueState if it exists
-  if (leagueState) {
-    leagueState.schedule = league.schedule;
-  }
-  
-  console.log(`Generated ${Object.keys(league.schedule.games).length} games across ${league.schedule.days[season].length} days`);
 }
 
 function getScheduleDay(season, dayNumber) {
