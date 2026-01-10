@@ -2621,6 +2621,9 @@ function simGameInstant(gameId) {
     { quarter: 4, time: '0:00', text: `Final Score: ${awayTeam.name} ${result.awayScore}, ${homeTeam.name} ${result.homeScore}` }
   ];
   
+  // Update player season stats
+  updatePlayerSeasonStats(game);
+  
   return game;
 }
 
@@ -2924,6 +2927,9 @@ function finishLiveGame(gameId) {
     clearInterval(activeLiveGames.get(gameId));
     activeLiveGames.delete(gameId);
   }
+  
+  // Update player season stats
+  updatePlayerSeasonStats(game);
   
   updateTeamPayrolls();
 }
@@ -4695,3 +4701,106 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   openWelcomeOverlay();
 }
 
+/* ============================
+   PLAYER SEASON STATS TRACKING
+============================ */
+
+async function updatePlayerSeasonStats(game) {
+  if (!game || game.status !== 'final' || !game.boxScore) return;
+  
+  const phase = game.phase === 'Playoffs' ? 'playoffs' : 'regular';
+  
+  try {
+    const db = await openDB();
+    
+    // Process both teams
+    for (const teamId of [game.homeTeamId, game.awayTeamId]) {
+      const teamStats = game.boxScore[teamId === game.homeTeamId ? 'home' : 'away'];
+      if (!teamStats || !teamStats.players) continue;
+      
+      for (const pStat of teamStats.players) {
+        await updatePlayerSeasonStat(db, game.season, pStat.playerId || pStat.pid, teamId, phase, pStat);
+      }
+    }
+    
+    // Also try new format
+    if (game.boxScore[game.homeTeamId]) {
+      for (const pStat of game.boxScore[game.homeTeamId]) {
+        await updatePlayerSeasonStat(db, game.season, pStat.pid, game.homeTeamId, phase, pStat);
+      }
+    }
+    if (game.boxScore[game.awayTeamId]) {
+      for (const pStat of game.boxScore[game.awayTeamId]) {
+        await updatePlayerSeasonStat(db, game.season, pStat.pid, game.awayTeamId, phase, pStat);
+      }
+    }
+  } catch (error) {
+    console.error('[Stats] Error updating player season stats:', error);
+  }
+}
+
+async function updatePlayerSeasonStat(db, season, pid, teamId, phase, gameStats) {
+  if (!pid) return;
+  
+  try {
+    const tx = db.transaction('playerSeasonStats', 'readwrite');
+    const store = tx.objectStore('playerSeasonStats');
+    const index = store.index('seasonPid');
+    const key = [season, pid, phase];
+    
+    let existing = null;
+    try {
+      existing = await index.get(key);
+    } catch (e) {
+      // Index might not exist yet
+    }
+    
+    if (existing) {
+      // Update existing stats
+      existing.gp++;
+      existing.min += gameStats.min || 0;
+      existing.pts += gameStats.pts || 0;
+      existing.reb += gameStats.reb || 0;
+      existing.ast += gameStats.ast || 0;
+      existing.stl += gameStats.stl || gameStats.st || 0;
+      existing.blk += gameStats.blk || 0;
+      existing.tov += gameStats.tov || gameStats.to || 0;
+      existing.pf += gameStats.pf || 0;
+      existing.fg += gameStats.fg || 0;
+      existing.fga += gameStats.fga || 0;
+      existing.tp += gameStats.tp || gameStats['3p'] || 0;
+      existing.tpa += gameStats.tpa || gameStats['3pa'] || 0;
+      existing.ft += gameStats.ft || 0;
+      existing.fta += gameStats.fta || 0;
+      
+      await store.put(existing);
+    } else {
+      // Create new season stat entry
+      const newStat = {
+        season: season,
+        pid: pid,
+        teamId: teamId,
+        phase: phase,
+        gp: 1,
+        min: gameStats.min || 0,
+        pts: gameStats.pts || 0,
+        reb: gameStats.reb || 0,
+        ast: gameStats.ast || 0,
+        stl: gameStats.stl || gameStats.st || 0,
+        blk: gameStats.blk || 0,
+        tov: gameStats.tov || gameStats.to || 0,
+        pf: gameStats.pf || 0,
+        fg: gameStats.fg || 0,
+        fga: gameStats.fga || 0,
+        tp: gameStats.tp || gameStats['3p'] || 0,
+        tpa: gameStats.tpa || gameStats['3pa'] || 0,
+        ft: gameStats.ft || 0,
+        fta: gameStats.fta || 0
+      };
+      
+      await store.add(newStat);
+    }
+  } catch (error) {
+    console.error('[Stats] Error updating individual player stat:', error);
+  }
+}

@@ -2063,6 +2063,7 @@ function render() {
   if (currentTab === 'expansion') renderExpansion();
   if (currentTab === 'schedule') renderSchedule();
   if (currentTab === 'stats') renderStatsTab();
+  if (currentTab === 'leaders') renderLeaders();
   if (currentTab === 'awards') renderAwardsTab();
   if (currentTab === 'players') renderPlayers();
   if (currentTab === 'news') renderNewsTab();

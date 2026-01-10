@@ -4,7 +4,7 @@
 
 const DB_NAME = "HoopsDynastyDB";
 const STORE = "leagues";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for playerSeasonStats
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -14,6 +14,13 @@ function openDB() {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: "id" });
+      }
+      // Add playerSeasonStats store
+      if (!db.objectStoreNames.contains('playerSeasonStats')) {
+        const store = db.createObjectStore('playerSeasonStats', { keyPath: 'id', autoIncrement: true });
+        store.createIndex('season', 'season', { unique: false });
+        store.createIndex('pid', 'pid', { unique: false });
+        store.createIndex('seasonPid', ['season', 'pid', 'phase'], { unique: true });
       }
     };
 
