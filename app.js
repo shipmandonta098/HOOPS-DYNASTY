@@ -2138,7 +2138,10 @@ function switchTab(tab) {
   document.querySelectorAll('[id$="-tab"]').forEach(t => t.style.display = 'none');
   
   // Show selected tab
-  document.getElementById(`${tab}-tab`).style.display = 'block';
+  const selectedTab = document.getElementById(`${tab}-tab`);
+  if (selectedTab) {
+    selectedTab.style.display = 'block';
+  }
   
   render();
 }
