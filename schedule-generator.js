@@ -1,11 +1,11 @@
 /* ============================
    LEAGUE SCHEDULE GENERATOR
    
-   Uses ROUND-ROBIN CIRCLE METHOD for perfect matchings
+   Uses ROUND-ROBIN CIRCLE METHOD + CALENDAR SPACING
    - Generates exactly 82 games per team (30-team league)
-   - Each day is a perfect matching (15 games, all 30 teams play once)
-   - Uses circle rotation algorithm to create 29 unique round pairings
-   - Cycles through rounds to reach 82 days
+   - Spreads games across realistic calendar (175 days)
+   - Teams get rest days between games
+   - Allows limited back-to-backs for realism
    - Balances home/away to ~41 each
 ============================ */
 
@@ -22,110 +22,61 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
   const numTeams = teams.length;
   const totalExpectedGames = (numTeams * gamesPerTeam) / 2;
   
-  // CLEAR schedule before generating
+  // Schedule configuration
+  const config = {
+    seasonDays: 175,
+    maxGamesPerDayLeague: 12,
+    minRestDaysPreferred: 1,
+    allowBackToBack: true,
+    backToBackTargetPerTeam: 12
+  };
+  
+  // Step 1: Generate all matchups with home/away assignments
+  const allGames = generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam);
+  
+  console.log(`[Schedule Generator] Generated ${allGames.length} total games`);
+  
+  // Step 2: Assign games to calendar days
+  const calendar = assignGamesToCalendar(allGames, numTeams, config);
+  
+  // Step 3: Build final schedule structure
   const schedule = {
     days: [],
     games: {},
-    totalDays: gamesPerTeam,
+    seasonDays: config.seasonDays,
+    totalDays: 0,
     gamesPerTeam: gamesPerTeam,
     totalGames: 0
   };
   
-  // Generate round-robin pairings using circle method
-  const roundPairings = generateRoundRobinPairings(numTeams);
-  const numRounds = roundPairings.length; // Should be numTeams - 1 for even teams
-  
-  console.log(`[Schedule Generator] Generated ${numRounds} unique round pairings`);
-  
-  let gameIdCounter = 0;
-  const homeCount = Array(numTeams).fill(0);
-  const awayCount = Array(numTeams).fill(0);
-  const gamesCount = Array(numTeams).fill(0);
-  
-  // Generate 82 days by cycling through round pairings
-  for (let day = 1; day <= gamesPerTeam; day++) {
-    const roundIndex = (day - 1) % numRounds;
-    const pairings = roundPairings[roundIndex];
-    const dayGames = [];
-    const usedTeams = new Set();
+  // Convert calendar to schedule format
+  let dayNumber = 0;
+  for (let calendarDay = 0; calendarDay < calendar.length; calendarDay++) {
+    const dayGames = calendar[calendarDay];
     
-    // Create games for this day
-    for (const [teamA, teamB] of pairings) {
-      // Determine home/away based on balance and day
-      let homeTeam, awayTeam;
+    if (dayGames.length > 0) {
+      dayNumber++;
+      const gameIds = [];
       
-      const aBalance = homeCount[teamA] - awayCount[teamA];
-      const bBalance = homeCount[teamB] - awayCount[teamB];
-      
-      // Team with fewer home games gets home court
-      if (aBalance < bBalance) {
-        homeTeam = teamA;
-        awayTeam = teamB;
-      } else if (bBalance < aBalance) {
-        homeTeam = teamB;
-        awayTeam = teamA;
-      } else {
-        // Equal balance: alternate based on day
-        if (day % 2 === 0) {
-          homeTeam = teamA;
-          awayTeam = teamB;
-        } else {
-          homeTeam = teamB;
-          awayTeam = teamA;
-        }
+      for (const game of dayGames) {
+        schedule.games[game.id] = {
+          ...game,
+          day: dayNumber,
+          calendarDay: calendarDay + 1 // 1-based for display
+        };
+        gameIds.push(game.id);
       }
       
-      // Validation: ensure no team plays twice in one day
-      if (usedTeams.has(teamA) || usedTeams.has(teamB)) {
-        throw new Error(`Day ${day}: Team ${teamA} or ${teamB} scheduled multiple times!`);
-      }
-      if (teamA === teamB) {
-        throw new Error(`Day ${day}: Team playing itself!`);
-      }
-      
-      usedTeams.add(teamA);
-      usedTeams.add(teamB);
-      
-      // Create game
-      const gameId = `game_${season}_${gameIdCounter++}`;
-      schedule.games[gameId] = {
-        id: gameId,
-        season: season,
-        day: day,
-        homeTeamId: teams[homeTeam].id,
-        awayTeamId: teams[awayTeam].id,
-        status: 'scheduled',
-        score: { home: 0, away: 0 },
-        quarter: 0,
-        timeRemaining: '12:00',
-        log: [],
-        boxScore: null
-      };
-      
-      dayGames.push(gameId);
-      
-      // Update counters
-      homeCount[homeTeam]++;
-      awayCount[awayTeam]++;
-      gamesCount[teamA]++;
-      gamesCount[teamB]++;
+      schedule.days.push({
+        day: dayNumber,
+        calendarDay: calendarDay + 1,
+        phase: 'Regular Season',
+        games: gameIds
+      });
     }
-    
-    // Per-day validation
-    if (dayGames.length !== numTeams / 2) {
-      throw new Error(`Day ${day}: Expected ${numTeams/2} games, got ${dayGames.length}`);
-    }
-    if (usedTeams.size !== numTeams) {
-      throw new Error(`Day ${day}: Expected ${numTeams} teams, only ${usedTeams.size} played`);
-    }
-    
-    schedule.days.push({
-      day: day,
-      phase: 'Regular Season',
-      games: dayGames
-    });
   }
   
+  schedule.totalDays = dayNumber;
   schedule.totalGames = Object.keys(schedule.games).length;
   
   // Global validation
@@ -135,10 +86,229 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
     throw new Error('Schedule validation failed: ' + validation.errors.join(', '));
   }
   
-  console.log(`[Schedule Generator] ✓ Schedule generated: days=${gamesPerTeam} games=${schedule.totalGames}`);
+  // Calculate stats
+  const stats = calculateScheduleStats(calendar, numTeams, config.seasonDays);
+  
+  console.log(`[Schedule Generator] ✓ Schedule generated: days=${schedule.totalDays} games=${schedule.totalGames} calendar=${config.seasonDays}`);
   console.log(`[Schedule Generator] ✓ Schedule validated: minGames=${validation.minGames} maxGames=${validation.maxGames}`);
+  console.log(`[Schedule Generator] ✓ Stats: avgGamesPerDay=${stats.avgGamesPerDay.toFixed(1)} avgRestDays=${stats.avgRestDays.toFixed(1)} avgBackToBacks=${stats.avgBackToBacks.toFixed(1)}`);
   
   return schedule;
+}
+
+/**
+ * Generate all matchups with home/away assignments
+ */
+function generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam) {
+  const numTeams = teams.length;
+  
+  // Generate round-robin pairings
+  const roundPairings = generateRoundRobinPairings(numTeams);
+  const numRounds = roundPairings.length;
+  
+  const allGames = [];
+  let gameIdCounter = 0;
+  const homeCount = Array(numTeams).fill(0);
+  const awayCount = Array(numTeams).fill(0);
+  
+  // Generate games by cycling through round pairings
+  for (let gameRound = 0; gameRound < gamesPerTeam; gameRound++) {
+    const roundIndex = gameRound % numRounds;
+    const pairings = roundPairings[roundIndex];
+    
+    for (const [teamA, teamB] of pairings) {
+      // Determine home/away based on balance
+      let homeTeam, awayTeam;
+      
+      const aBalance = homeCount[teamA] - awayCount[teamA];
+      const bBalance = homeCount[teamB] - awayCount[teamB];
+      
+      if (aBalance < bBalance) {
+        homeTeam = teamA;
+        awayTeam = teamB;
+      } else if (bBalance < aBalance) {
+        homeTeam = teamB;
+        awayTeam = teamA;
+      } else {
+        // Equal balance: alternate based on round
+        if (gameRound % 2 === 0) {
+          homeTeam = teamA;
+          awayTeam = teamB;
+        } else {
+          homeTeam = teamB;
+          awayTeam = teamA;
+        }
+      }
+      
+      const gameId = `game_${season}_${gameIdCounter++}`;
+      allGames.push({
+        id: gameId,
+        season: season,
+        homeTeamId: teams[homeTeam].id,
+        awayTeamId: teams[awayTeam].id,
+        homeTeamIndex: homeTeam,
+        awayTeamIndex: awayTeam,
+        status: 'scheduled',
+        score: { home: 0, away: 0 },
+        quarter: 0,
+        timeRemaining: '12:00',
+        log: [],
+        boxScore: null
+      });
+      
+      homeCount[homeTeam]++;
+      awayCount[awayTeam]++;
+    }
+  }
+  
+  // Shuffle for variety in calendar placement
+  for (let i = allGames.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allGames[i], allGames[j]] = [allGames[j], allGames[i]];
+  }
+  
+  return allGames;
+}
+
+/**
+ * Assign games to calendar days with rest days
+ */
+function assignGamesToCalendar(allGames, numTeams, config) {
+  const calendar = Array(config.seasonDays).fill(null).map(() => []);
+  const lastPlayedDay = Array(numTeams).fill(-999);
+  const gamesAssigned = Array(numTeams).fill(0);
+  const backToBacks = Array(numTeams).fill(0);
+  
+  let retries = 0;
+  const maxRetries = 3;
+  
+  while (retries < maxRetries) {
+    // Reset for retry
+    calendar.forEach(day => day.length = 0);
+    lastPlayedDay.fill(-999);
+    gamesAssigned.fill(0);
+    backToBacks.fill(0);
+    
+    let failedPlacements = 0;
+    
+    // Try to place each game
+    for (const game of allGames) {
+      const homeIdx = game.homeTeamIndex;
+      const awayIdx = game.awayTeamIndex;
+      let placed = false;
+      
+      // Try to find earliest suitable day
+      for (let day = 0; day < config.seasonDays; day++) {
+        // Check constraints
+        const dayGames = calendar[day];
+        
+        // a) Neither team already playing this day
+        const homeAlreadyPlaying = dayGames.some(g => g.homeTeamIndex === homeIdx || g.awayTeamIndex === homeIdx);
+        const awayAlreadyPlaying = dayGames.some(g => g.homeTeamIndex === awayIdx || g.awayTeamIndex === awayIdx);
+        if (homeAlreadyPlaying || awayAlreadyPlaying) continue;
+        
+        // b) Day not full
+        if (dayGames.length >= config.maxGamesPerDayLeague) continue;
+        
+        // c) Rest rules
+        const homeDaysSinceLastGame = day - lastPlayedDay[homeIdx];
+        const awayDaysSinceLastGame = day - lastPlayedDay[awayIdx];
+        
+        const homeNeedsRest = homeDaysSinceLastGame < config.minRestDaysPreferred + 1;
+        const awayNeedsRest = awayDaysSinceLastGame < config.minRestDaysPreferred + 1;
+        
+        if (homeNeedsRest || awayNeedsRest) {
+          // Check if it's a back-to-back
+          const homeBackToBack = homeDaysSinceLastGame === 1;
+          const awayBackToBack = awayDaysSinceLastGame === 1;
+          
+          if (homeBackToBack && backToBacks[homeIdx] >= config.backToBackTargetPerTeam + 3) continue;
+          if (awayBackToBack && backToBacks[awayIdx] >= config.backToBackTargetPerTeam + 3) continue;
+          
+          // Allow if not too many back-to-backs and past first 10 days
+          if (day < 10) continue;
+        }
+        
+        // Place the game
+        dayGames.push(game);
+        lastPlayedDay[homeIdx] = day;
+        lastPlayedDay[awayIdx] = day;
+        gamesAssigned[homeIdx]++;
+        gamesAssigned[awayIdx]++;
+        
+        // Track back-to-backs
+        if (day > 0 && day - lastPlayedDay[homeIdx] === 1) backToBacks[homeIdx]++;
+        if (day > 0 && day - lastPlayedDay[awayIdx] === 1) backToBacks[awayIdx]++;
+        
+        placed = true;
+        break;
+      }
+      
+      if (!placed) {
+        failedPlacements++;
+      }
+    }
+    
+    if (failedPlacements === 0) {
+      console.log(`[Schedule Generator] ✓ All games placed successfully`);
+      break;
+    } else {
+      console.warn(`[Schedule Generator] Failed to place ${failedPlacements} games, retry ${retries + 1}/${maxRetries}`);
+      retries++;
+      
+      // Relax constraints for next retry
+      config.minRestDaysPreferred = Math.max(0, config.minRestDaysPreferred - 1);
+      config.backToBackTargetPerTeam += 3;
+    }
+  }
+  
+  return calendar;
+}
+
+/**
+ * Calculate schedule statistics
+ */
+function calculateScheduleStats(calendar, numTeams, seasonDays) {
+  const totalGames = calendar.reduce((sum, day) => sum + day.length, 0);
+  const daysWithGames = calendar.filter(day => day.length > 0).length;
+  const avgGamesPerDay = totalGames / daysWithGames;
+  
+  const lastPlayedDay = Array(numTeams).fill(-1);
+  const restDays = Array(numTeams).fill([]).map(() => []);
+  const backToBacks = Array(numTeams).fill(0);
+  
+  for (let day = 0; day < seasonDays; day++) {
+    const dayGames = calendar[day];
+    const teamsPlayingToday = new Set();
+    
+    for (const game of dayGames) {
+      teamsPlayingToday.add(game.homeTeamIndex);
+      teamsPlayingToday.add(game.awayTeamIndex);
+    }
+    
+    for (const teamIdx of teamsPlayingToday) {
+      if (lastPlayedDay[teamIdx] >= 0) {
+        const daysSinceLastGame = day - lastPlayedDay[teamIdx];
+        restDays[teamIdx].push(daysSinceLastGame - 1);
+        
+        if (daysSinceLastGame === 1) {
+          backToBacks[teamIdx]++;
+        }
+      }
+      lastPlayedDay[teamIdx] = day;
+    }
+  }
+  
+  const totalRestDays = restDays.reduce((sum, team) => sum + team.reduce((a, b) => a + b, 0), 0);
+  const avgRestDays = totalRestDays / (totalGames / 2);
+  const avgBackToBacks = backToBacks.reduce((a, b) => a + b, 0) / numTeams;
+  
+  return {
+    avgGamesPerDay,
+    avgRestDays,
+    avgBackToBacks,
+    daysWithGames
+  };
 }
 
 /**

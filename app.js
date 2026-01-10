@@ -8380,10 +8380,11 @@ function renderLeagueSchedule() {
   const gamesByDay = {};
   
   Object.values(allGames).forEach(game => {
-    if (!gamesByDay[game.day]) {
-      gamesByDay[game.day] = [];
+    const calendarDay = game.calendarDay || game.day;
+    if (!gamesByDay[calendarDay]) {
+      gamesByDay[calendarDay] = [];
     }
-    gamesByDay[game.day].push(game);
+    gamesByDay[calendarDay].push(game);
   });
   
   // Sort days numerically
@@ -8398,20 +8399,26 @@ function renderLeagueSchedule() {
     `;
   }
   
+  const seasonDays = league.schedule.seasonDays || 82;
+  
   return `
     <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
-      ${days.map(day => {
-        const games = gamesByDay[day];
-        const dayInfo = getScheduleDay(league.season, day);
+      <div style="margin-bottom: 15px; padding: 15px; background: #0f1624; border-radius: 8px; color: #888;">
+        <strong>Season Calendar:</strong> ${seasonDays} days | ${days.length} game days | ${Object.keys(allGames).length} total games
+      </div>
+      ${days.map(calendarDay => {
+        const games = gamesByDay[calendarDay];
         const allFinal = games.every(g => g.status === 'final');
+        const anyLive = games.some(g => g.status === 'live');
         
         return `
           <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #2196F3;">Day ${day}</h3>
+              <h3 style="margin: 0; color: #2196F3;">Calendar Day ${calendarDay}</h3>
               <div style="display: flex; gap: 15px; align-items: center;">
-                <span style="color: #888;">${games.length} game${games.length !== 1 ? 's' : ''} ${allFinal ? '(Completed)' : ''}</span>
-                ${dayInfo ? `<span style="padding: 4px 10px; background: #2196F3; border-radius: 4px; font-size: 0.85em;">${dayInfo.phase}</span>` : ''}
+                <span style="color: #888;">${games.length} game${games.length !== 1 ? 's' : ''}</span>
+                ${anyLive ? '<span style="padding: 4px 10px; background: #f44336; border-radius: 4px; font-size: 0.85em;">🔴 LIVE</span>' : ''}
+                ${allFinal && !anyLive ? '<span style="padding: 4px 10px; background: #4CAF50; border-radius: 4px; font-size: 0.85em;">✓ Final</span>' : ''}
               </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -8483,7 +8490,7 @@ function renderScheduleGameRow(game) {
   
   const statusDisplay = game.status === 'final' ? 'FINAL' : 
                        game.status === 'live' ? `LIVE - Q${game.quarter} ${game.timeRemaining}` :
-                       `Day ${game.day}`;
+                       game.calendarDay ? `Calendar Day ${game.calendarDay}` : `Day ${game.day}`;
   
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
