@@ -6182,3 +6182,121 @@ body.sidebar-open {
     padding: 6px 8px;
   }
 }
+
+/* ============================
+   RIVALRY SYSTEM STYLES
+============================ */
+
+.rivals-card {
+  background: #1a2332;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #2a2a40;
+  margin-bottom: 20px;
+}
+
+.rivals-title {
+  color: #FF6B6B;
+  margin: 0 0 15px 0;
+  font-size: 1.2em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rivals-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+}
+
+.rivals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.rival-item {
+  background: #0f1624;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #2a2a40;
+  transition: all 0.2s;
+}
+
+.rival-item:hover {
+  border-color: #FF6B6B;
+  transform: translateX(4px);
+}
+
+.rival-team-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.rival-team-name {
+  font-weight: bold;
+  color: #fff;
+  font-size: 1em;
+}
+
+.rival-team-record {
+  color: #888;
+  font-size: 0.9em;
+}
+
+.rivalry-meter-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rivalry-meter-bar {
+  flex: 1;
+  height: 8px;
+  background: #0f1624;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rivalry-meter-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+.rivalry-meter-label {
+  font-weight: bold;
+  font-size: 0.85em;
+  min-width: 70px;
+  text-align: right;
+}
+
+.rivalry-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75em;
+  font-weight: bold;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rivals-card {
+    padding: 15px;
+  }
+  
+  .rival-team-name {
+    font-size: 0.9em;
+  }
+  
+  .rivalry-meter-label {
+    font-size: 0.75em;
+    min-width: 60px;
+  }
+}
+

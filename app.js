@@ -2786,12 +2786,30 @@ function renderStandings() {
     content = renderPowerRankings();
   }
   
+  // Add rivalries section if user team is selected
+  let rivalriesSection = '';
+  if (selectedTeamId) {
+    rivalriesSection = '<div id="rivalries-section-placeholder"></div>';
+  }
+  
   el.innerHTML = `
     <h2>Season ${league.season} Standings</h2>
     ${pillToggle}
+    ${rivalriesSection}
     ${content}
   `;
+  
+  // Load rivalries asynchronously
+  if (selectedTeamId) {
+    renderTopRivalsCard(selectedTeamId).then(html => {
+      const placeholder = document.getElementById('rivalries-section-placeholder');
+      if (placeholder) {
+        placeholder.innerHTML = html;
+      }
+    });
+  }
 }
+
 
 function switchStandingsView(view) {
   standingsView = view;
@@ -8320,7 +8338,16 @@ function renderMyTeamSchedule() {
   const allGames = league.schedule.games || {};
   const userGames = Object.values(allGames).filter(game => 
     game.homeTeamId === league.userTid || game.awayTeamId === league.userTid
-  ).sort((a, b) => a.day - b.day);
+  ).map(game => {
+    // Force day to be a number
+    const dayNum = Number(game.day);
+    if (isNaN(dayNum)) {
+      console.warn('[SCHEDULE] Game with invalid day:', game.id, 'day:', game.day);
+      return null;
+    }
+    return { ...game, day: dayNum };
+  }).filter(g => g !== null) // Remove invalid games
+    .sort((a, b) => Number(a.day) - Number(b.day)); // Force numeric sort
   
   const completedGames = userGames.filter(g => g.status === 'final');
   const upcomingGames = userGames.filter(g => g.status === 'scheduled');
@@ -8350,7 +8377,16 @@ function renderOtherTeamsSchedule() {
   const allGames = league.schedule.games || {};
   const teamGames = Object.values(allGames).filter(game => 
     game.homeTeamId === scheduleSelectedTeamId || game.awayTeamId === scheduleSelectedTeamId
-  ).sort((a, b) => a.day - b.day);
+  ).map(game => {
+    // Force day to be a number
+    const dayNum = Number(game.day);
+    if (isNaN(dayNum)) {
+      console.warn('[SCHEDULE] Game with invalid day:', game.id, 'day:', game.day);
+      return null;
+    }
+    return { ...game, day: dayNum };
+  }).filter(g => g !== null) // Remove invalid games
+    .sort((a, b) => Number(a.day) - Number(b.day)); // Force numeric sort
   
   const completedGames = teamGames.filter(g => g.status === 'final');
   const upcomingGames = teamGames.filter(g => g.status === 'scheduled');
@@ -8384,7 +8420,11 @@ function renderLeagueSchedule() {
   const gamesByDay = {};
   
   Object.values(allGames).forEach(game => {
-    const calendarDay = game.calendarDay || game.day;
+    const calendarDay = Number(game.calendarDay || game.day);
+    if (isNaN(calendarDay)) {
+      console.warn('[SCHEDULE] Game with invalid calendarDay:', game.id, 'calendarDay:', game.calendarDay, 'day:', game.day);
+      return;
+    }
     if (!gamesByDay[calendarDay]) {
       gamesByDay[calendarDay] = [];
     }
@@ -8393,6 +8433,9 @@ function renderLeagueSchedule() {
   
   // Sort days numerically
   const days = Object.keys(gamesByDay).map(d => parseInt(d)).sort((a, b) => a - b);
+  
+  // Debug: Log day distribution
+  console.log('[SCHEDULE] League view - Days:', days.length, 'Range:', days[0], '-', days[days.length - 1]);
   
   if (days.length === 0) {
     return `
@@ -8499,6 +8542,9 @@ function renderScheduleGameRow(game) {
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
   
+  // Add rivalry badge placeholder
+  const rivalryBadgeId = `rivalry-badge-${game.id}`;
+  
   return `
     <div style="
       background: ${isUserGame ? 'linear-gradient(135deg, #0f1624 0%, #1a2332 100%)' : '#0f1624'};
@@ -8511,6 +8557,7 @@ function renderScheduleGameRow(game) {
         <!-- Teams Info -->
         <div style="flex: 1;">
           ${isUserGame ? '<div style="color: #4CAF50; font-weight: bold; font-size: 0.85em; margin-bottom: 8px;">★ YOUR TEAM</div>' : ''}
+          <div id="${rivalryBadgeId}" style="margin-bottom: 8px;"></div>
           
           <!-- Away Team -->
           <div style="display: flex; align-items: center; margin-bottom: 10px;">
@@ -8554,6 +8601,18 @@ function renderScheduleGameRow(game) {
         </div>
       </div>
     </div>
+    <script>
+      // Load rivalry badge asynchronously
+      (async function() {
+        const score = await getRivalry(${game.homeTeamId}, ${game.awayTeamId});
+        const label = getRivalryLabel(score);
+        const badge = renderRivalryBadge(score, label);
+        const el = document.getElementById('${rivalryBadgeId}');
+        if (el && badge) {
+          el.innerHTML = badge;
+        }
+      })();
+    </script>
   `;
 }
 
@@ -8834,6 +8893,21 @@ function renderGameDrawer() {
                   ${game.status === 'scheduled' ? 'Scheduled' : ''}
                 </div>
                 ${game.day ? `<div style="font-size: 0.8em; color: #666; margin-top: 4px;">Day ${game.day}</div>` : ''}
+                <div id="rivalry-display-${game.id}" style="margin-top: 8px;"></div>
+                <script>
+                  // Load rivalry display asynchronously
+                  (async function() {
+                    const score = await getRivalry(${game.homeTeamId}, ${game.awayTeamId});
+                    if (score >= 40) {
+                      const label = getRivalryLabel(score);
+                      const html = renderRivalryMeter(score, label);
+                      const el = document.getElementById('rivalry-display-${game.id}');
+                      if (el) {
+                        el.innerHTML = html;
+                      }
+                    }
+                  })();
+                </script>
               </div>
               
               <!-- Home Team -->
@@ -13209,3 +13283,223 @@ async function simUntilPlayoffs() {
   await new Promise(resolve => setTimeout(resolve, 2500));
   console.log('Simulated until playoffs');
 }
+
+/* ============================
+   RIVALRY UI COMPONENTS
+============================ */
+
+/**
+ * Get rivalry color based on score
+ */
+function getRivalryColor(score) {
+  if (score >= 80) return '#FF4444'; // Very Hot - Red
+  if (score >= 60) return '#FF8844'; // Hot - Orange
+  if (score >= 40) return '#FFD700'; // Warm - Yellow
+  if (score >= 20) return '#88CCFF'; // Cold - Light Blue
+  return '#AAAAAA'; // Ice Cold - Gray
+}
+
+/**
+ * Render rivalry meter bar
+ */
+function renderRivalryMeter(score, label) {
+  const color = getRivalryColor(score);
+  const percentage = score;
+  
+  return `
+    <div class="rivalry-meter-container">
+      <div class="rivalry-meter-bar">
+        <div class="rivalry-meter-fill" style="width: ${percentage}%; background: ${color};"></div>
+      </div>
+      <div class="rivalry-meter-label" style="color: ${color};">${label}</div>
+    </div>
+  `;
+}
+
+/**
+ * Render rivalry badge for schedule/game displays
+ */
+function renderRivalryBadge(score, label) {
+  if (score < 40) return ''; // Only show for Warm or higher
+  
+  const color = getRivalryColor(score);
+  return `
+    <span class="rivalry-badge" style="background: ${color}20; color: ${color}; border-color: ${color};">
+      🔥 ${label}
+    </span>
+  `;
+}
+
+/**
+ * Render Top Rivals card for team page/standings
+ */
+async function renderTopRivalsCard(teamId) {
+  if (!teamId) return '';
+  
+  const rivalries = await getTeamRivalries(teamId);
+  
+  if (!rivalries || rivalries.length === 0) {
+    return `
+      <div class="rivals-card">
+        <h3 class="rivals-title">🔥 Top Rivals</h3>
+        <div class="rivals-empty">
+          <p>No rivalries yet. Play more games to develop rivalries!</p>
+        </div>
+      </div>
+    `;
+  }
+  
+  const topRivals = rivalries.slice(0, 5);
+  const team = league.teams.find(t => t.id === teamId);
+  
+  const rivalsList = topRivals.map(rivalry => {
+    const opponent = league.teams.find(t => t.id === rivalry.opponentId);
+    if (!opponent) return '';
+    
+    return `
+      <div class="rival-item">
+        <div class="rival-team-info">
+          <div class="rival-team-name">${opponent.name}</div>
+          <div class="rival-team-record">${opponent.wins}-${opponent.losses}</div>
+        </div>
+        ${renderRivalryMeter(rivalry.score, rivalry.label)}
+      </div>
+    `;
+  }).join('');
+  
+  return `
+    <div class="rivals-card">
+      <h3 class="rivals-title">🔥 Top Rivals</h3>
+      <div class="rivals-list">
+        ${rivalsList}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Add rivalry info to game display
+ */
+async function addRivalryToGameDisplay(game, containerElement) {
+  if (!game || !containerElement) return;
+  
+  const rivalryScore = await getRivalry(game.homeTeamId, game.awayTeamId);
+  if (rivalryScore >= 40) {
+    const label = getRivalryLabel(rivalryScore);
+    const badge = renderRivalryBadge(rivalryScore, label);
+    
+    // Insert badge into game display
+    const headerEl = containerElement.querySelector('.game-header, .matchup-header');
+    if (headerEl) {
+      const badgeDiv = document.createElement('div');
+      badgeDiv.innerHTML = badge;
+      badgeDiv.style.marginTop = '8px';
+      headerEl.appendChild(badgeDiv);
+    }
+  }
+}
+
+/* ============================
+   SCHEDULE DEBUG HELPERS
+============================ */
+
+/**
+ * Debug schedule distribution - shows when each team plays their first game
+ * and the overall distribution of games across calendar days
+ */
+function debugScheduleDistribution() {
+  if (!league || !league.schedule || !league.schedule.games) {
+    console.log('[SCHEDULE DEBUG] No schedule available');
+    return;
+  }
+  
+  const allGames = league.schedule.games;
+  const teams = league.teams;
+  
+  // Track each team's games
+  const teamData = {};
+  teams.forEach(t => {
+    teamData[t.id] = {
+      name: t.name,
+      games: [],
+      homeGames: 0,
+      awayGames: 0,
+      earliestDay: Infinity
+    };
+  });
+  
+  // Collect game data
+  Object.values(allGames).forEach(game => {
+    const day = Number(game.day);
+    if (isNaN(day)) return;
+    
+    const homeData = teamData[game.homeTeamId];
+    const awayData = teamData[game.awayTeamId];
+    
+    if (homeData) {
+      homeData.games.push(day);
+      homeData.homeGames++;
+      homeData.earliestDay = Math.min(homeData.earliestDay, day);
+    }
+    
+    if (awayData) {
+      awayData.games.push(day);
+      awayData.awayGames++;
+      awayData.earliestDay = Math.min(awayData.earliestDay, day);
+    }
+  });
+  
+  // Print per-team summary
+  console.log('\n=== SCHEDULE DISTRIBUTION BY TEAM ===');
+  const teamSummary = Object.values(teamData).map(t => ({
+    name: t.name,
+    totalGames: t.games.length,
+    home: t.homeGames,
+    away: t.awayGames,
+    firstGame: t.earliestDay === Infinity ? 'NONE' : t.earliestDay
+  })).sort((a, b) => {
+    const aDay = a.firstGame === 'NONE' ? Infinity : a.firstGame;
+    const bDay = b.firstGame === 'NONE' ? Infinity : b.firstGame;
+    return aDay - bDay;
+  });
+  
+  console.table(teamSummary);
+  
+  // Find teams starting late
+  const lateStarters = teamSummary.filter(t => t.firstGame !== 'NONE' && t.firstGame > 5);
+  if (lateStarters.length > 0) {
+    console.warn('[SCHEDULE DEBUG] ⚠️ Teams with first game after Day 5:');
+    console.table(lateStarters);
+  }
+  
+  // Day-by-day distribution
+  const dayDistribution = {};
+  Object.values(allGames).forEach(game => {
+    const day = Number(game.calendarDay || game.day);
+    if (isNaN(day)) return;
+    dayDistribution[day] = (dayDistribution[day] || 0) + 1;
+  });
+  
+  const days = Object.keys(dayDistribution).map(d => parseInt(d)).sort((a, b) => a - b);
+  console.log('\n=== GAMES PER CALENDAR DAY (First 10 days) ===');
+  const firstDays = days.slice(0, 10).map(day => ({
+    day: day,
+    games: dayDistribution[day]
+  }));
+  console.table(firstDays);
+  
+  // Summary stats
+  const totalGames = Object.keys(allGames).length;
+  const earliestDay = Math.min(...Object.values(teamData).map(t => t.earliestDay));
+  const latestFirstGame = Math.max(...Object.values(teamData).map(t => t.earliestDay === Infinity ? 0 : t.earliestDay));
+  
+  console.log('\n=== SUMMARY ===');
+  console.log(`Total games: ${totalGames}`);
+  console.log(`Calendar days used: ${days.length}`);
+  console.log(`Earliest game day: ${earliestDay}`);
+  console.log(`Latest team first game: Day ${latestFirstGame}`);
+  console.log(`Teams with no games: ${Object.values(teamData).filter(t => t.games.length === 0).length}`);
+  
+  return teamSummary;
+}
+

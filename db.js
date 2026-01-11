@@ -4,7 +4,7 @@
 
 const DB_NAME = "HoopsDynastyDB";
 const STORE = "leagues";
-const DB_VERSION = 2; // Incremented for playerSeasonStats
+const DB_VERSION = 3; // Incremented for teamRivalries
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -21,6 +21,13 @@ function openDB() {
         store.createIndex('season', 'season', { unique: false });
         store.createIndex('pid', 'pid', { unique: false });
         store.createIndex('seasonPid', ['season', 'pid', 'phase'], { unique: true });
+      }
+      // Add teamRivalries store
+      if (!db.objectStoreNames.contains('teamRivalries')) {
+        const rivalryStore = db.createObjectStore('teamRivalries', { keyPath: 'key' });
+        rivalryStore.createIndex('tidA', 'tidA', { unique: false });
+        rivalryStore.createIndex('tidB', 'tidB', { unique: false });
+        rivalryStore.createIndex('score', 'score', { unique: false });
       }
     };
 
@@ -284,3 +291,209 @@ function importLeague() {
   };
   input.click();
 }
+
+/* ============================
+   RIVALRY SYSTEM
+============================ */
+
+/**
+ * Get rivalry key for two teams (always sorted to avoid duplicates)
+ */
+function getRivalryKey(tid1, tid2) {
+  const minTid = Math.min(tid1, tid2);
+  const maxTid = Math.max(tid1, tid2);
+  return `${minTid}-${maxTid}`;
+}
+
+/**
+ * Get rivalry label from score
+ */
+function getRivalryLabel(score) {
+  if (score >= 80) return 'Very Hot';
+  if (score >= 60) return 'Hot';
+  if (score >= 40) return 'Warm';
+  if (score >= 20) return 'Cold';
+  return 'Ice Cold';
+}
+
+/**
+ * Get rivalry score between two teams
+ */
+async function getRivalry(tid1, tid2) {
+  try {
+    const db = await openDB();
+    const key = getRivalryKey(tid1, tid2);
+    
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('teamRivalries', 'readonly');
+      const req = tx.objectStore('teamRivalries').get(key);
+      
+      req.onsuccess = () => {
+        const rivalry = req.result;
+        resolve(rivalry ? rivalry.score : 0);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.error('getRivalry error:', err);
+    return 0;
+  }
+}
+
+/**
+ * Get all rivalries for a specific team
+ */
+async function getTeamRivalries(tid) {
+  try {
+    const db = await openDB();
+    
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('teamRivalries', 'readonly');
+      const store = tx.objectStore('teamRivalries');
+      const req = store.getAll();
+      
+      req.onsuccess = () => {
+        const allRivalries = req.result || [];
+        // Filter rivalries involving this team
+        const teamRivalries = allRivalries
+          .filter(r => r.tidA === tid || r.tidB === tid)
+          .map(r => ({
+            opponentId: r.tidA === tid ? r.tidB : r.tidA,
+            score: r.score,
+            label: getRivalryLabel(r.score),
+            lastUpdatedSeason: r.lastUpdatedSeason,
+            lastUpdatedDay: r.lastUpdatedDay
+          }))
+          .sort((a, b) => b.score - a.score);
+        
+        resolve(teamRivalries);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.error('getTeamRivalries error:', err);
+    return [];
+  }
+}
+
+/**
+ * Update rivalry score after a game
+ */
+async function updateRivalryFromGame(game) {
+  if (!game || game.status !== 'final' || !game.score) return;
+  
+  try {
+    const db = await openDB();
+    const key = getRivalryKey(game.homeTeamId, game.awayTeamId);
+    
+    // Get current rivalry
+    const tx1 = db.transaction('teamRivalries', 'readonly');
+    const currentRivalry = await new Promise((resolve) => {
+      const req = tx1.objectStore('teamRivalries').get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+    
+    // Calculate score gain
+    let gain = 3; // Base gain
+    
+    const margin = Math.abs(game.score.home - game.score.away);
+    if (margin <= 3) {
+      gain += 8; // Close game
+    } else if (margin <= 5) {
+      gain += 5;
+    } else if (margin <= 10) {
+      gain += 2;
+    }
+    
+    // Playoffs bonus
+    if (game.isPlayoffs) {
+      gain += 12;
+    }
+    
+    // Overtime bonus
+    if (game.overtime) {
+      gain += 6;
+    }
+    
+    // Upset bonus (winner was lower OVR team by >=5)
+    if (game.upset) {
+      gain += 6;
+    }
+    
+    // Division matchup bonus
+    if (game.isDivisionGame) {
+      gain += 3;
+    }
+    
+    // Recent matchup bonus (if they played within last 10 days)
+    if (currentRivalry && currentRivalry.lastUpdatedDay) {
+      const daysSince = (leagueState?.meta?.day || 0) - currentRivalry.lastUpdatedDay;
+      if (daysSince <= 10 && daysSince > 0) {
+        gain += 3;
+      }
+    }
+    
+    // Update score
+    const currentScore = currentRivalry ? currentRivalry.score : 0;
+    const newScore = Math.max(0, Math.min(100, currentScore + gain));
+    
+    // Save updated rivalry
+    const tx2 = db.transaction('teamRivalries', 'readwrite');
+    const updatedRivalry = {
+      key: key,
+      tidA: Math.min(game.homeTeamId, game.awayTeamId),
+      tidB: Math.max(game.homeTeamId, game.awayTeamId),
+      score: newScore,
+      lastUpdatedSeason: leagueState?.meta?.season || new Date().getFullYear(),
+      lastUpdatedDay: leagueState?.meta?.day || 0,
+      history: currentRivalry?.history || []
+    };
+    
+    tx2.objectStore('teamRivalries').put(updatedRivalry);
+    
+    return new Promise((resolve, reject) => {
+      tx2.oncomplete = () => resolve(updatedRivalry);
+      tx2.onerror = () => reject(tx2.error);
+    });
+  } catch (err) {
+    console.error('updateRivalryFromGame error:', err);
+  }
+}
+
+/**
+ * Decay all rivalries at the start of a new season
+ */
+async function decayRivalriesForNewSeason(season) {
+  try {
+    const db = await openDB();
+    
+    // Get all rivalries
+    const tx1 = db.transaction('teamRivalries', 'readonly');
+    const allRivalries = await new Promise((resolve, reject) => {
+      const req = tx1.objectStore('teamRivalries').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    
+    // Decay each rivalry
+    const tx2 = db.transaction('teamRivalries', 'readwrite');
+    const store = tx2.objectStore('teamRivalries');
+    
+    allRivalries.forEach(rivalry => {
+      rivalry.score = Math.max(0, rivalry.score - 15);
+      store.put(rivalry);
+    });
+    
+    return new Promise((resolve, reject) => {
+      tx2.oncomplete = () => {
+        console.log(`[RIVALRIES] Decayed ${allRivalries.length} rivalries for season ${season}`);
+        resolve(allRivalries.length);
+      };
+      tx2.onerror = () => reject(tx2.error);
+    });
+  } catch (err) {
+    console.error('decayRivalriesForNewSeason error:', err);
+  }
+}
+

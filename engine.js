@@ -2615,6 +2615,16 @@ function simGameInstant(gameId) {
   game.timeRemaining = '0:00';
   game.boxScore = result.boxScore || generateBasicBoxScore(homeTeam, awayTeam, result);
   
+  // Add rivalry metadata
+  game.isDivisionGame = homeTeam.division !== '—' && homeTeam.division === awayTeam.division;
+  game.isPlayoffs = league.phase === 'playoffs';
+  
+  // Check for upset (winner was lower OVR by >= 5)
+  const homeOvr = homeTeam.players.slice(0, 10).reduce((sum, p) => sum + p.ratings.ovr, 0) / 10;
+  const awayOvr = awayTeam.players.slice(0, 10).reduce((sum, p) => sum + p.ratings.ovr, 0) / 10;
+  const homeWon = game.score.home > game.score.away;
+  game.upset = homeWon ? (homeOvr < awayOvr - 5) : (awayOvr < homeOvr - 5);
+  
   // Add simple log entry
   game.log = [
     { quarter: 0, time: '12:00', text: 'Game Start' },
@@ -2623,6 +2633,9 @@ function simGameInstant(gameId) {
   
   // Update player season stats
   updatePlayerSeasonStats(game);
+  
+  // Update rivalry system
+  updateRivalryFromGame(game);
   
   return game;
 }
@@ -3759,6 +3772,9 @@ function runDraft() {
   league.draftClass = [];
   league.phase = 'preseason';
   league.season++;
+  
+  // Decay rivalries for the new season
+  decayRivalriesForNewSeason(league.season);
   
   updateTeamPayrolls();
   render();
