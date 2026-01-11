@@ -196,54 +196,106 @@ function buildMatchupMatrix(teams) {
   
   // Step 3: Set same-conference non-division matchups (4x and 3x pattern)
   // Each team plays 10 non-division conference opponents: 6 get 4 games, 4 get 3 games
+  // Total: 6×4 + 4×3 = 24 + 12 = 36 same-conference non-division games
   for (const conference of ['East', 'West']) {
     const confTeams = conferenceTeams[conference];
     
-    // Get division groupings
-    const confDivisions = {};
-    confTeams.forEach(idx => {
-      const divKey = teams[idx].division;
-      if (!confDivisions[divKey]) confDivisions[divKey] = [];
-      confDivisions[divKey].push(idx);
+    // For each team, we need to assign exactly 6 opponents at 4 games and 4 opponents at 3 games
+    // This must be symmetric, so we'll use a pairing approach
+    
+    // First, collect all non-division pairs
+    const nonDivPairs = [];
+    for (let i = 0; i < confTeams.length; i++) {
+      for (let j = i + 1; j < confTeams.length; j++) {
+        const teamA = confTeams[i];
+        const teamB = confTeams[j];
+        
+        // Skip if same division
+        if (teams[teamA].division === teams[teamB].division) continue;
+        
+        nonDivPairs.push({ teamA, teamB, assigned: 0 });
+      }
+    }
+    
+    // Each team in a 15-team conference has 4 division opponents and 10 non-division opponents
+    // We need to assign: 6 at 4x and 4 at 3x
+    // Total pairs per team: 10
+    // Total 4x assignments needed per team: 6
+    // Total 3x assignments needed per team: 4
+    
+    // Strategy: Use a greedy assignment that tracks each team's needs
+    const teamNeeds4x = {};
+    const teamNeeds3x = {};
+    confTeams.forEach(tid => {
+      teamNeeds4x[tid] = 6;
+      teamNeeds3x[tid] = 4;
     });
     
-    const divisions = Object.keys(confDivisions);
+    // Shuffle pairs for randomness
+    nonDivPairs.sort(() => Math.random() - 0.5);
     
-    // For each team, assign 4x and 3x opponents from other divisions in same conference
-    for (const teamIdx of confTeams) {
-      const teamDiv = teams[teamIdx].division;
+    // Assign 4x games first (higher priority)
+    for (const pair of nonDivPairs) {
+      if (teamNeeds4x[pair.teamA] > 0 && teamNeeds4x[pair.teamB] > 0) {
+        gamesVs[pair.teamA][pair.teamB] = 4;
+        gamesVs[pair.teamB][pair.teamA] = 4;
+        teamNeeds4x[pair.teamA]--;
+        teamNeeds4x[pair.teamB]--;
+        pair.assigned = 4;
+      }
+    }
+    
+    // Now assign 3x games to remaining pairs
+    for (const pair of nonDivPairs) {
+      if (pair.assigned > 0) continue; // Already assigned
       
-      // Get all non-division conference opponents
-      const nonDivOpponents = confTeams.filter(idx => {
-        return teams[idx].division !== teamDiv && gamesVs[teamIdx][idx] === 0;
-      });
+      if (teamNeeds3x[pair.teamA] > 0 && teamNeeds3x[pair.teamB] > 0) {
+        gamesVs[pair.teamA][pair.teamB] = 3;
+        gamesVs[pair.teamB][pair.teamA] = 3;
+        teamNeeds3x[pair.teamA]--;
+        teamNeeds3x[pair.teamB]--;
+        pair.assigned = 3;
+      }
+    }
+    
+    // Handle any remaining unassigned pairs (fallback - assign based on what teams need)
+    for (const pair of nonDivPairs) {
+      if (pair.assigned > 0) continue;
       
-      // Shuffle for variety
-      const shuffled = [...nonDivOpponents].sort(() => Math.random() - 0.5);
+      // Check what both teams still need
+      const aNeed4 = teamNeeds4x[pair.teamA] > 0;
+      const aNeed3 = teamNeeds3x[pair.teamA] > 0;
+      const bNeed4 = teamNeeds4x[pair.teamB] > 0;
+      const bNeed3 = teamNeeds3x[pair.teamB] > 0;
       
-      // Assign: first 6 get 4 games, next 4 get 3 games
-      // But we need to maintain symmetry, so check what opponent already has set
-      let assigned4x = 0;
-      let assigned3x = 0;
-      
-      for (const oppIdx of shuffled) {
-        if (gamesVs[teamIdx][oppIdx] > 0) continue; // Already set by opponent
-        
-        // Decide based on what we still need
-        let gamesToAssign;
-        if (assigned4x < 6) {
-          gamesToAssign = 4;
-          assigned4x++;
-        } else if (assigned3x < 4) {
-          gamesToAssign = 3;
-          assigned3x++;
-        } else {
-          break; // All assigned
-        }
-        
-        // Set symmetrically
-        gamesVs[teamIdx][oppIdx] = gamesToAssign;
-        gamesVs[oppIdx][teamIdx] = gamesToAssign;
+      if (aNeed4 && bNeed4) {
+        gamesVs[pair.teamA][pair.teamB] = 4;
+        gamesVs[pair.teamB][pair.teamA] = 4;
+        teamNeeds4x[pair.teamA]--;
+        teamNeeds4x[pair.teamB]--;
+        pair.assigned = 4;
+      } else if (aNeed3 && bNeed3) {
+        gamesVs[pair.teamA][pair.teamB] = 3;
+        gamesVs[pair.teamB][pair.teamA] = 3;
+        teamNeeds3x[pair.teamA]--;
+        teamNeeds3x[pair.teamB]--;
+        pair.assigned = 3;
+      } else if ((aNeed4 && bNeed3) || (aNeed3 && bNeed4)) {
+        // One needs 4, other needs 3 - assign 4 and adjust
+        gamesVs[pair.teamA][pair.teamB] = 4;
+        gamesVs[pair.teamB][pair.teamA] = 4;
+        if (teamNeeds4x[pair.teamA] > 0) teamNeeds4x[pair.teamA]--;
+        else teamNeeds3x[pair.teamA]--; // Use 3x slot
+        if (teamNeeds4x[pair.teamB] > 0) teamNeeds4x[pair.teamB]--;
+        else teamNeeds3x[pair.teamB]--;
+        pair.assigned = 4;
+      } else if (aNeed4 || bNeed4 || aNeed3 || bNeed3) {
+        // At least one team needs something - assign 3 as default
+        gamesVs[pair.teamA][pair.teamB] = 3;
+        gamesVs[pair.teamB][pair.teamA] = 3;
+        if (teamNeeds3x[pair.teamA] > 0) teamNeeds3x[pair.teamA]--;
+        if (teamNeeds3x[pair.teamB] > 0) teamNeeds3x[pair.teamB]--;
+        pair.assigned = 3;
       }
     }
   }
@@ -262,16 +314,34 @@ function validateMatchupMatrix(gamesVs, teams, expectedGamesPerTeam) {
   for (let i = 0; i < numTeams; i++) {
     for (let j = i + 1; j < numTeams; j++) {
       if (gamesVs[i][j] !== gamesVs[j][i]) {
-        errors.push(`Asymmetric: Team ${i} vs ${j} has ${gamesVs[i][j]} but reverse has ${gamesVs[j][i]}`);
+        errors.push(`Asymmetric: Team ${i} (${teams[i].name}) vs Team ${j} (${teams[j].name}) has ${gamesVs[i][j]} but reverse has ${gamesVs[j][i]}`);
       }
     }
   }
   
-  // Check each team's total games
+  // Check each team's total games with detailed breakdown
   for (let i = 0; i < numTeams; i++) {
     const totalGames = gamesVs[i].reduce((sum, count) => sum + count, 0);
     if (totalGames !== expectedGamesPerTeam) {
-      errors.push(`Team ${i} (${teams[i].name}): ${totalGames} games (expected ${expectedGamesPerTeam})`);
+      // Breakdown by opponent type
+      let divGames = 0;
+      let confGames = 0;
+      let otherConfGames = 0;
+      
+      for (let j = 0; j < numTeams; j++) {
+        if (i === j) continue;
+        const games = gamesVs[i][j];
+        
+        if (teams[i].division === teams[j].division) {
+          divGames += games;
+        } else if (teams[i].conference === teams[j].conference) {
+          confGames += games;
+        } else {
+          otherConfGames += games;
+        }
+      }
+      
+      errors.push(`Team ${i} (${teams[i].name}): ${totalGames} games (expected ${expectedGamesPerTeam}) - Division: ${divGames}, Conf: ${confGames}, Other: ${otherConfGames}`);
     }
   }
   
@@ -280,6 +350,10 @@ function validateMatchupMatrix(gamesVs, teams, expectedGamesPerTeam) {
   const expectedTotal = (numTeams * expectedGamesPerTeam) / 2;
   if (totalGames !== expectedTotal) {
     errors.push(`Total games: ${totalGames} (expected ${expectedTotal})`);
+  }
+  
+  if (errors.length > 0) {
+    console.error('[Schedule Matrix] Validation errors:', errors);
   }
   
   return {
