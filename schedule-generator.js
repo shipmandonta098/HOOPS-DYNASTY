@@ -120,6 +120,15 @@ function generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam) {
       // Step 1: Build symmetric matchup count matrix
       const gamesVs = buildMatchupMatrix(teams);
       
+      // Debug: Log matrix state
+      console.log('[Schedule] Matrix built, checking assignment...');
+      const matrixStats = {};
+      teams.forEach((team, idx) => {
+        const total = gamesVs[idx].reduce((sum, count) => sum + count, 0);
+        matrixStats[team.name] = total;
+      });
+      console.log('[Schedule] Games per team:', matrixStats);
+      
       // Step 2: Validate matrix
       const matrixValidation = validateMatchupMatrix(gamesVs, teams, gamesPerTeam);
       if (!matrixValidation.valid) {
@@ -194,108 +203,53 @@ function buildMatchupMatrix(teams) {
     }
   }
   
-  // Step 3: Set same-conference non-division matchups (4x and 3x pattern)
-  // Each team plays 10 non-division conference opponents: 6 get 4 games, 4 get 3 games
-  // Total: 6×4 + 4×3 = 24 + 12 = 36 same-conference non-division games
+  // Step 3: Set same-conference non-division matchups
+  // Goal: Each team plays 36 total games against conference opponents outside their division
+  // We'll use a flexible distribution: mostly 3-4 games per opponent
   for (const conference of ['East', 'West']) {
     const confTeams = conferenceTeams[conference];
     
-    // For each team, we need to assign exactly 6 opponents at 4 games and 4 opponents at 3 games
-    // This must be symmetric, so we'll use a pairing approach
-    
-    // First, collect all non-division pairs
-    const nonDivPairs = [];
-    for (let i = 0; i < confTeams.length; i++) {
-      for (let j = i + 1; j < confTeams.length; j++) {
-        const teamA = confTeams[i];
-        const teamB = confTeams[j];
+    // For each team, assign games to non-division conference opponents
+    // Target: 36 games total across 10 opponents = average 3.6 games per opponent
+    // We'll use a mix of 3x and 4x to hit exactly 36
+    for (const teamIdx of confTeams) {
+      const teamDiv = teams[teamIdx].division;
+      
+      // Get non-division conference opponents not yet assigned
+      const availableOpponents = confTeams.filter(idx => 
+        teams[idx].division !== teamDiv && gamesVs[teamIdx][idx] === 0
+      );
+      
+      // Calculate how many games this team still needs for conference play
+      let confGamesAssigned = 0;
+      for (let i = 0; i < numTeams; i++) {
+        if (teams[i].conference === teams[teamIdx].conference && teams[i].division !== teamDiv) {
+          confGamesAssigned += gamesVs[teamIdx][i];
+        }
+      }
+      
+      const confGamesNeeded = 36 - confGamesAssigned;
+      const opponentsRemaining = availableOpponents.length;
+      
+      if (opponentsRemaining === 0) continue;
+      
+      // Distribute games evenly: some opponents get 4, some get 3
+      // If we need 36 games across 10 opponents: 6 get 4 games (24) + 4 get 3 games (12) = 36
+      const gamesPerOpponent = Math.floor(confGamesNeeded / opponentsRemaining);
+      let extraGames = confGamesNeeded % opponentsRemaining;
+      
+      // Shuffle for variety
+      const shuffled = [...availableOpponents].sort(() => Math.random() - 0.5);
+      
+      for (const oppIdx of shuffled) {
+        if (gamesVs[teamIdx][oppIdx] > 0) continue;
         
-        // Skip if same division
-        if (teams[teamA].division === teams[teamB].division) continue;
+        // Assign base games plus 1 extra if needed
+        const gamesToAssign = gamesPerOpponent + (extraGames > 0 ? 1 : 0);
+        if (extraGames > 0) extraGames--;
         
-        nonDivPairs.push({ teamA, teamB, assigned: 0 });
-      }
-    }
-    
-    // Each team in a 15-team conference has 4 division opponents and 10 non-division opponents
-    // We need to assign: 6 at 4x and 4 at 3x
-    // Total pairs per team: 10
-    // Total 4x assignments needed per team: 6
-    // Total 3x assignments needed per team: 4
-    
-    // Strategy: Use a greedy assignment that tracks each team's needs
-    const teamNeeds4x = {};
-    const teamNeeds3x = {};
-    confTeams.forEach(tid => {
-      teamNeeds4x[tid] = 6;
-      teamNeeds3x[tid] = 4;
-    });
-    
-    // Shuffle pairs for randomness
-    nonDivPairs.sort(() => Math.random() - 0.5);
-    
-    // Assign 4x games first (higher priority)
-    for (const pair of nonDivPairs) {
-      if (teamNeeds4x[pair.teamA] > 0 && teamNeeds4x[pair.teamB] > 0) {
-        gamesVs[pair.teamA][pair.teamB] = 4;
-        gamesVs[pair.teamB][pair.teamA] = 4;
-        teamNeeds4x[pair.teamA]--;
-        teamNeeds4x[pair.teamB]--;
-        pair.assigned = 4;
-      }
-    }
-    
-    // Now assign 3x games to remaining pairs
-    for (const pair of nonDivPairs) {
-      if (pair.assigned > 0) continue; // Already assigned
-      
-      if (teamNeeds3x[pair.teamA] > 0 && teamNeeds3x[pair.teamB] > 0) {
-        gamesVs[pair.teamA][pair.teamB] = 3;
-        gamesVs[pair.teamB][pair.teamA] = 3;
-        teamNeeds3x[pair.teamA]--;
-        teamNeeds3x[pair.teamB]--;
-        pair.assigned = 3;
-      }
-    }
-    
-    // Handle any remaining unassigned pairs (fallback - assign based on what teams need)
-    for (const pair of nonDivPairs) {
-      if (pair.assigned > 0) continue;
-      
-      // Check what both teams still need
-      const aNeed4 = teamNeeds4x[pair.teamA] > 0;
-      const aNeed3 = teamNeeds3x[pair.teamA] > 0;
-      const bNeed4 = teamNeeds4x[pair.teamB] > 0;
-      const bNeed3 = teamNeeds3x[pair.teamB] > 0;
-      
-      if (aNeed4 && bNeed4) {
-        gamesVs[pair.teamA][pair.teamB] = 4;
-        gamesVs[pair.teamB][pair.teamA] = 4;
-        teamNeeds4x[pair.teamA]--;
-        teamNeeds4x[pair.teamB]--;
-        pair.assigned = 4;
-      } else if (aNeed3 && bNeed3) {
-        gamesVs[pair.teamA][pair.teamB] = 3;
-        gamesVs[pair.teamB][pair.teamA] = 3;
-        teamNeeds3x[pair.teamA]--;
-        teamNeeds3x[pair.teamB]--;
-        pair.assigned = 3;
-      } else if ((aNeed4 && bNeed3) || (aNeed3 && bNeed4)) {
-        // One needs 4, other needs 3 - assign 4 and adjust
-        gamesVs[pair.teamA][pair.teamB] = 4;
-        gamesVs[pair.teamB][pair.teamA] = 4;
-        if (teamNeeds4x[pair.teamA] > 0) teamNeeds4x[pair.teamA]--;
-        else teamNeeds3x[pair.teamA]--; // Use 3x slot
-        if (teamNeeds4x[pair.teamB] > 0) teamNeeds4x[pair.teamB]--;
-        else teamNeeds3x[pair.teamB]--;
-        pair.assigned = 4;
-      } else if (aNeed4 || bNeed4 || aNeed3 || bNeed3) {
-        // At least one team needs something - assign 3 as default
-        gamesVs[pair.teamA][pair.teamB] = 3;
-        gamesVs[pair.teamB][pair.teamA] = 3;
-        if (teamNeeds3x[pair.teamA] > 0) teamNeeds3x[pair.teamA]--;
-        if (teamNeeds3x[pair.teamB] > 0) teamNeeds3x[pair.teamB]--;
-        pair.assigned = 3;
+        gamesVs[teamIdx][oppIdx] = gamesToAssign;
+        gamesVs[oppIdx][teamIdx] = gamesToAssign;
       }
     }
   }
