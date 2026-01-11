@@ -145,32 +145,41 @@ function generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam) {
 }
 
 /**
- * Build matchup matrix using DETERMINISTIC algorithm
+ * Build matchup matrix using DETERMINISTIC algorithm with GUARANTEED 6 upgrades per team
  * No randomness - same teams always produce same matchups
+ * GUARANTEES: Each team gets exactly 82 games (16 div + 36 conf + 30 other)
  */
 function buildDeterministicMatchupMatrix(teams) {
   const numTeams = teams.length;
   const gamesVs = Array(numTeams).fill(null).map(() => Array(numTeams).fill(0));
   
-  // Group teams by conference and division
-  const conferenceTeams = { East: [], West: [] };
-  const divisionTeams = {};
+  // Step 1: Build conference/division structure
+  const conferences = { East: { divisions: [] }, West: { divisions: [] } };
+  const divisionMap = {};
   
   teams.forEach((team, idx) => {
-    conferenceTeams[team.conference].push(idx);
-    
     const divKey = `${team.conference}-${team.division}`;
-    if (!divisionTeams[divKey]) divisionTeams[divKey] = [];
-    divisionTeams[divKey].push(idx);
+    if (!divisionMap[divKey]) {
+      divisionMap[divKey] = [];
+    }
+    divisionMap[divKey].push(idx);
   });
   
-  // Sort conference teams by index for determinism
-  conferenceTeams.East.sort((a, b) => a - b);
-  conferenceTeams.West.sort((a, b) => a - b);
+  // Sort divisions and teams within divisions for determinism
+  for (const divKey in divisionMap) {
+    divisionMap[divKey].sort((a, b) => a - b);
+  }
   
-  // Step 1: Division games - 4 each (16 total per team)
-  for (const divKey in divisionTeams) {
-    const divTeams = divisionTeams[divKey].sort((a, b) => a - b);
+  // Organize into conference structure
+  const eastDivKeys = Object.keys(divisionMap).filter(k => k.startsWith('East-')).sort();
+  const westDivKeys = Object.keys(divisionMap).filter(k => k.startsWith('West-')).sort();
+  
+  conferences.East.divisions = eastDivKeys.map(k => divisionMap[k]);
+  conferences.West.divisions = westDivKeys.map(k => divisionMap[k]);
+  
+  // Step 2: Division games - 4 each (16 total per team)
+  for (const divKey in divisionMap) {
+    const divTeams = divisionMap[divKey];
     for (let i = 0; i < divTeams.length; i++) {
       for (let j = i + 1; j < divTeams.length; j++) {
         gamesVs[divTeams[i]][divTeams[j]] = 4;
@@ -179,55 +188,57 @@ function buildDeterministicMatchupMatrix(teams) {
     }
   }
   
-  // Step 2: Inter-conference games - 2 each (30 total per team)
-  for (const eastIdx of conferenceTeams.East) {
-    for (const westIdx of conferenceTeams.West) {
+  // Step 3: Inter-conference games - 2 each (30 total per team)
+  const eastTeams = conferences.East.divisions.flat().sort((a, b) => a - b);
+  const westTeams = conferences.West.divisions.flat().sort((a, b) => a - b);
+  
+  for (const eastIdx of eastTeams) {
+    for (const westIdx of westTeams) {
       gamesVs[eastIdx][westIdx] = 2;
       gamesVs[westIdx][eastIdx] = 2;
     }
   }
   
-  // Step 3: Same-conference non-division - DETERMINISTIC 6×4 + 4×3 assignment
-  // Total needed: 36 games per team against 10 non-division conference opponents
-  // Distribution: 6 opponents at 4 games (24) + 4 opponents at 3 games (12) = 36
-  for (const conference of ['East', 'West']) {
-    const confTeams = conferenceTeams[conference].sort((a, b) => a - b);
+  // Step 4: Same-conference non-division games using MODULAR PATTERN
+  // GUARANTEES: Each team gets exactly 6 upgrades (3 per other division pair)
+  // Result: 10 opponents with 6 at 4 games + 4 at 3 games = 36 total
+  for (const confName of ['East', 'West']) {
+    const divisions = conferences[confName].divisions;
     
-    // Build all non-division pairs in stable order
-    const pairs = [];
-    for (let i = 0; i < confTeams.length; i++) {
-      for (let j = i + 1; j < confTeams.length; j++) {
-        const teamA = confTeams[i];
-        const teamB = confTeams[j];
-        
-        // Skip if same division
-        if (teams[teamA].division === teams[teamB].division) continue;
-        
-        pairs.push({ teamA, teamB, key: teamA * 1000 + teamB });
+    // Process each division pair
+    const divisionPairs = [
+      [0, 1], // D0-D1
+      [0, 2], // D0-D2
+      [1, 2]  // D1-D2
+    ];
+    
+    for (const [d0Idx, d1Idx] of divisionPairs) {
+      const D0 = divisions[d0Idx];
+      const D1 = divisions[d1Idx];
+      
+      // First: Set all cross-division pairs to 3 games
+      for (let i = 0; i < D0.length; i++) {
+        for (let j = 0; j < D1.length; j++) {
+          const a = D0[i];
+          const b = D1[j];
+          if (gamesVs[a][b] === 0) {
+            gamesVs[a][b] = 3;
+            gamesVs[b][a] = 3;
+          }
+        }
       }
-    }
-    
-    // Sort pairs by key for determinism
-    pairs.sort((a, b) => a.key - b.key);
-    
-    // Initially set all non-division conference pairs to 3 games
-    for (const pair of pairs) {
-      gamesVs[pair.teamA][pair.teamB] = 3;
-      gamesVs[pair.teamB][pair.teamA] = 3;
-    }
-    
-    // Now upgrade exactly 6 pairs per team from 3→4 games
-    // Track upgrades per team
-    const upgradesNeeded = {};
-    confTeams.forEach(tid => upgradesNeeded[tid] = 6);
-    
-    // Upgrade pairs where both teams need upgrades
-    for (const pair of pairs) {
-      if (upgradesNeeded[pair.teamA] > 0 && upgradesNeeded[pair.teamB] > 0) {
-        gamesVs[pair.teamA][pair.teamB] = 4;
-        gamesVs[pair.teamB][pair.teamA] = 4;
-        upgradesNeeded[pair.teamA]--;
-        upgradesNeeded[pair.teamB]--;
+      
+      // Second: Upgrade specific pairs using modular pattern
+      // Each team i gets upgraded opponents at positions i, i+1, i+2 (mod 5)
+      // This gives exactly 3 upgrades per team per division pair
+      for (let i = 0; i < D0.length; i++) {
+        for (let offset = 0; offset < 3; offset++) {
+          const j = (i + offset) % D0.length;
+          const a = D0[i];
+          const b = D1[j];
+          gamesVs[a][b] = 4;
+          gamesVs[b][a] = 4;
+        }
       }
     }
   }
