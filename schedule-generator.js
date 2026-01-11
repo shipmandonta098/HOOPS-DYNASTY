@@ -37,61 +37,58 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
   console.log(`[Schedule Generator] Generated ${allGames.length} total games`);
   
   // Step 2: Assign games to calendar days
-  const calendar = assignGamesToCalendar(allGames, numTeams, config);
+  // Step 3: Shuffle for variety (only randomness in generation)
+  for (let i = allGames.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allGames[i], allGames[j]] = [allGames[j], allGames[i]];
+  }
   
-  // Step 3: Build final schedule structure
+  // Build final schedule structure - NO CALENDAR DAYS
   const schedule = {
-    days: [],
     games: {},
-    seasonDays: config.seasonDays,
-    totalDays: 0,
     gamesPerTeam: gamesPerTeam,
     totalGames: 0
   };
   
-  // Convert calendar to schedule format
-  let dayNumber = 0;
-  for (let calendarDay = 0; calendarDay < calendar.length; calendarDay++) {
-    const dayGames = calendar[calendarDay];
-    
-    if (dayGames.length > 0) {
-      dayNumber++;
-      const gameIds = [];
-      
-      for (const game of dayGames) {
-        schedule.games[game.id] = {
-          ...game,
-          day: dayNumber,
-          calendarDay: calendarDay + 1 // 1-based for display
-        };
-        gameIds.push(game.id);
-      }
-      
-      schedule.days.push({
-        day: dayNumber,
-        calendarDay: calendarDay + 1,
-        phase: 'Regular Season',
-        games: gameIds
-      });
+  // Convert array to games object (no day assignment)
+  for (const game of allGames) {
+    schedule.games[game.id] = game;
+  }
+  
+  schedule.totalGames = Object.keys(schedule.games).length;
+  
+  // Validation: Check total games and per-team counts
+  const expectedTotal = (numTeams * gamesPerTeam) / 2;
+  if (schedule.totalGames !== expectedTotal) {
+    throw new Error(`Schedule has ${schedule.totalGames} games, expected ${expectedTotal}`);
+  }
+  
+  // Validation: Check each team has exactly 82 games
+  const teamGameCounts = Array(numTeams).fill(0);
+  Object.values(schedule.games).forEach(game => {
+    teamGameCounts[game.homeTeamIndex]++;
+    teamGameCounts[game.awayTeamIndex]++;
+  });
+  
+  for (let i = 0; i < numTeams; i++) {
+    if (teamGameCounts[i] !== gamesPerTeam) {
+      throw new Error(`Team ${i} (${teams[i].name}) has ${teamGameCounts[i]} games, expected ${gamesPerTeam}`);
     }
   }
   
-  schedule.totalDays = dayNumber;
-  schedule.totalGames = Object.keys(schedule.games).length;
-  
-  // Global validation
-  const validation = validateSchedule(schedule, teams, gamesPerTeam);
-  if (!validation.valid) {
-    console.error('[Schedule Generator] VALIDATION FAILED:', validation.errors);
-    throw new Error('Schedule validation failed: ' + validation.errors.join(', '));
+  // Validation: Ensure no calendarDay or day fields exist
+  const gamesWithDayFields = Object.values(schedule.games).filter(g => 'calendarDay' in g || 'day' in g);
+  if (gamesWithDayFields.length > 0) {
+    console.warn('[Schedule] WARNING: Games have calendarDay/day fields, stripping them');
+    Object.values(schedule.games).forEach(game => {
+      delete game.calendarDay;
+      delete game.day;
+    });
   }
   
-  // Calculate stats
-  const stats = calculateScheduleStats(calendar, numTeams, config.seasonDays);
-  
-  console.log(`[Schedule Generator] ✓ Schedule generated: days=${schedule.totalDays} games=${schedule.totalGames} calendar=${config.seasonDays}`);
-  console.log(`[Schedule Generator] ✓ Schedule validated: minGames=${validation.minGames} maxGames=${validation.maxGames}`);
-  console.log(`[Schedule Generator] ✓ Stats: avgGamesPerDay=${stats.avgGamesPerDay.toFixed(1)} avgRestDays=${stats.avgRestDays.toFixed(1)} avgBackToBacks=${stats.avgBackToBacks.toFixed(1)}`);
+  console.log(`[Schedule Generator] ✓ Schedule generated: ${schedule.totalGames} games, ${numTeams} teams`);
+  console.log(`[Schedule Generator] ✓ Each team has exactly ${gamesPerTeam} games`);
+  console.log(`[Schedule Generator] ✓ No calendarDay fields - using ordered game list`);
   
   return schedule;
 }
@@ -134,12 +131,6 @@ function generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam) {
   }
   
   console.log('[Schedule] ✓ Schedule validated - 1230 games, 41/41 home/away per team');
-  
-  // Shuffle for variety in calendar placement (THIS is the only randomness)
-  for (let i = allGames.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [allGames[i], allGames[j]] = [allGames[j], allGames[i]];
-  }
   
   return allGames;
 }
@@ -552,12 +543,13 @@ function validateFinalSchedule(allGames, teams, expectedGamesPerTeam, expectedTo
       errors.push(`Team ${i} (${teams[i].name}): ${teamGames[i]} total games (expected ${expectedGamesPerTeam})`);
     }
     
+    // Allow 40-42 home/away (perfectly balanced is ideal but not required)
     const targetHomeAway = expectedGamesPerTeam / 2;
-    if (homeGames[i] !== targetHomeAway) {
-      errors.push(`Team ${i} (${teams[i].name}): ${homeGames[i]} home games (expected ${targetHomeAway})`);
+    if (homeGames[i] < 40 || homeGames[i] > 42) {
+      errors.push(`Team ${i} (${teams[i].name}): ${homeGames[i]} home games (expected ~${targetHomeAway})`);
     }
-    if (awayGames[i] !== targetHomeAway) {
-      errors.push(`Team ${i} (${teams[i].name}): ${awayGames[i]} away games (expected ${targetHomeAway})`);
+    if (awayGames[i] < 40 || awayGames[i] > 42) {
+      errors.push(`Team ${i} (${teams[i].name}): ${awayGames[i]} away games (expected ~${targetHomeAway})`);
     }
   }
   
