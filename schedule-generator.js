@@ -306,7 +306,8 @@ function validateMatchupMatrix(gamesVs, teams, expectedGamesPerTeam) {
 }
 
 /**
- * Convert matchup matrix to games with GUARANTEED 41/41 home/away balance
+ * Convert matchup matrix to games with GUARANTEED correct count
+ * CRITICAL: Must produce exactly 1230 games with 82 per team
  * DETERMINISTIC - no randomness
  */
 function convertMatrixToGamesBalanced(gamesVs, teams, season) {
@@ -316,56 +317,57 @@ function convertMatrixToGamesBalanced(gamesVs, teams, season) {
   
   const homeCount = Array(numTeams).fill(0);
   const awayCount = Array(numTeams).fill(0);
+  const gameCount = Array(numTeams).fill(0);
   
-  // Process each team pair in stable order
-  for (let i = 0; i < numTeams; i++) {
-    for (let j = i + 1; j < numTeams; j++) {
-      const numGames = gamesVs[i][j];
-      if (numGames === 0) continue;
+  // Process each team pair ONCE (a < b only) to avoid duplicates
+  for (let a = 0; a < numTeams; a++) {
+    for (let b = a + 1; b < numTeams; b++) {
+      const n = gamesVs[a][b];
+      if (n === 0) continue;
       
-      // Deterministic home/away split
-      let iHomeGames, jHomeGames;
+      // Determine home/away split for this pair
+      let aHomeGames, bHomeGames;
       
-      if (numGames === 2 || numGames === 4) {
-        // Even split
-        iHomeGames = numGames / 2;
-        jHomeGames = numGames / 2;
-      } else if (numGames === 3) {
-        // Odd - give extra home to team with fewer home games
-        // If tied, give to lower index team (deterministic)
-        const iBalance = homeCount[i] - 41;
-        const jBalance = homeCount[j] - 41;
-        
-        if (iBalance < jBalance) {
-          iHomeGames = 2;
-          jHomeGames = 1;
-        } else if (jBalance < iBalance) {
-          iHomeGames = 1;
-          jHomeGames = 2;
+      if (n === 2) {
+        // 2 games: 1 home each
+        aHomeGames = 1;
+        bHomeGames = 1;
+      } else if (n === 4) {
+        // 4 games: 2 home each
+        aHomeGames = 2;
+        bHomeGames = 2;
+      } else if (n === 3) {
+        // 3 games: 2 home for one team, 1 for the other
+        // Give extra home to team with fewer home games, tiebreak by lower tid
+        if (homeCount[a] < homeCount[b]) {
+          aHomeGames = 2;
+          bHomeGames = 1;
+        } else if (homeCount[b] < homeCount[a]) {
+          aHomeGames = 1;
+          bHomeGames = 2;
         } else {
           // Tied - use team index as tiebreaker
-          if (i < j) {
-            iHomeGames = 2;
-            jHomeGames = 1;
-          } else {
-            iHomeGames = 1;
-            jHomeGames = 2;
-          }
+          aHomeGames = 2; // 'a' is always lower
+          bHomeGames = 1;
         }
       } else {
-        throw new Error(`Unexpected game count: ${numGames} between teams ${i} and ${j}`);
+        throw new Error(`Unexpected game count ${n} between teams ${a} (${teams[a].name}) and ${b} (${teams[b].name})`);
       }
       
-      // Create games with team i as home
-      for (let g = 0; g < iHomeGames; g++) {
-        const gameId = `game_${season}_${gameIdCounter++}`;
+      // CRITICAL: Verify we're creating exactly n games
+      if (aHomeGames + bHomeGames !== n) {
+        throw new Error(`Home/away split error: ${aHomeGames} + ${bHomeGames} != ${n} for teams ${a} and ${b}`);
+      }
+      
+      // Create games with team a as home
+      for (let g = 0; g < aHomeGames; g++) {
         allGames.push({
-          id: gameId,
+          id: `game_${season}_${gameIdCounter++}`,
           season: season,
-          homeTeamId: teams[i].id,
-          awayTeamId: teams[j].id,
-          homeTeamIndex: i,
-          awayTeamIndex: j,
+          homeTeamId: teams[a].id,
+          awayTeamId: teams[b].id,
+          homeTeamIndex: a,
+          awayTeamIndex: b,
           status: 'scheduled',
           score: { home: 0, away: 0 },
           quarter: 0,
@@ -373,20 +375,21 @@ function convertMatrixToGamesBalanced(gamesVs, teams, season) {
           log: [],
           boxScore: null
         });
-        homeCount[i]++;
-        awayCount[j]++;
+        homeCount[a]++;
+        awayCount[b]++;
+        gameCount[a]++;
+        gameCount[b]++;
       }
       
-      // Create games with team j as home
-      for (let g = 0; g < jHomeGames; g++) {
-        const gameId = `game_${season}_${gameIdCounter++}`;
+      // Create games with team b as home
+      for (let g = 0; g < bHomeGames; g++) {
         allGames.push({
-          id: gameId,
+          id: `game_${season}_${gameIdCounter++}`,
           season: season,
-          homeTeamId: teams[j].id,
-          awayTeamId: teams[i].id,
-          homeTeamIndex: j,
-          awayTeamIndex: i,
+          homeTeamId: teams[b].id,
+          awayTeamId: teams[a].id,
+          homeTeamIndex: b,
+          awayTeamIndex: a,
           status: 'scheduled',
           score: { home: 0, away: 0 },
           quarter: 0,
@@ -394,16 +397,72 @@ function convertMatrixToGamesBalanced(gamesVs, teams, season) {
           log: [],
           boxScore: null
         });
-        homeCount[j]++;
-        awayCount[i]++;
+        homeCount[b]++;
+        awayCount[a]++;
+        gameCount[a]++;
+        gameCount[b]++;
       }
     }
   }
   
-  // Final balancing pass - flip games if needed to hit exactly 41/41
+  // IMMEDIATE VALIDATION - before any further processing
+  const errors = [];
+  
+  // Check total games
+  if (allGames.length !== 1230) {
+    errors.push(`Total games: ${allGames.length} (expected 1230)`);
+  }
+  
+  // Check each team's game count
+  for (let tid = 0; tid < numTeams; tid++) {
+    if (gameCount[tid] !== 82) {
+      errors.push(`Team ${tid} (${teams[tid].name}): ${gameCount[tid]} games (expected 82) - Home: ${homeCount[tid]}, Away: ${awayCount[tid]}`);
+    }
+  }
+  
+  // If validation failed, find the discrepancy
+  if (errors.length > 0) {
+    console.error('[Schedule Expansion] VALIDATION FAILED:');
+    console.error(errors);
+    
+    // Debug: Find which pairs don't match expected counts
+    console.error('[Schedule Expansion] Checking matrix vs actual games...');
+    for (let a = 0; a < numTeams; a++) {
+      for (let b = a + 1; b < numTeams; b++) {
+        const expected = gamesVs[a][b];
+        if (expected === 0) continue;
+        
+        const actual = allGames.filter(g => 
+          (g.homeTeamIndex === a && g.awayTeamIndex === b) ||
+          (g.homeTeamIndex === b && g.awayTeamIndex === a)
+        ).length;
+        
+        if (actual !== expected) {
+          console.error(`  Pair ${a}-${b} (${teams[a].name} vs ${teams[b].name}): expected ${expected} games, created ${actual}`);
+        }
+      }
+    }
+    
+    throw new Error('Game expansion validation failed: ' + errors.join('; '));
+  }
+  
+  console.log('[Schedule Expansion] ✓ Validated: 1230 games, 82 per team');
+  
+  // Final balancing pass for home/away to get as close to 41/41 as possible
+  balanceHomeAwayFinal(allGames, teams, homeCount, awayCount);
+  
+  return allGames;
+}
+
+/**
+ * Final balancing pass to get each team to exactly 41 home / 41 away
+ */
+function balanceHomeAwayFinal(allGames, teams, homeCount, awayCount) {
+  const numTeams = teams.length;
+  
   for (let teamIdx = 0; teamIdx < numTeams; teamIdx++) {
     while (homeCount[teamIdx] < 41 && awayCount[teamIdx] > 41) {
-      // Team needs more home games - find a game where they're away and flip it
+      // Team needs more home games - find a game where they're away and can flip
       const gameToFlip = allGames.find(g => 
         g.awayTeamIndex === teamIdx && 
         homeCount[g.homeTeamIndex] > 41
@@ -423,12 +482,12 @@ function convertMatrixToGamesBalanced(gamesVs, teams, season) {
         homeCount[tempIdx]--;
         awayCount[tempIdx]++;
       } else {
-        break; // Can't balance further
+        break;
       }
     }
     
     while (homeCount[teamIdx] > 41 && awayCount[teamIdx] < 41) {
-      // Team has too many home games - find a game where they're home and flip it
+      // Team has too many home games - find a game where they're home and can flip
       const gameToFlip = allGames.find(g => 
         g.homeTeamIndex === teamIdx && 
         awayCount[g.awayTeamIndex] > 41
@@ -453,7 +512,14 @@ function convertMatrixToGamesBalanced(gamesVs, teams, season) {
     }
   }
   
-  return allGames;
+  // Log final home/away distribution
+  let perfectBalance = 0;
+  for (let tid = 0; tid < numTeams; tid++) {
+    if (homeCount[tid] === 41 && awayCount[tid] === 41) {
+      perfectBalance++;
+    }
+  }
+  console.log(`[Schedule Balance] ${perfectBalance}/${numTeams} teams have exactly 41 home / 41 away`);
 }
 
 /**
