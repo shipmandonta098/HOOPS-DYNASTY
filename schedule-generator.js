@@ -171,167 +171,251 @@ function generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam) {
 }
 
 /**
- * Assign games to calendar days with rest days
- * ENFORCES OPENING WEEK RULE: Every team must play by Day 5
+ * Assign games to calendar days with realistic spacing constraints
+ * ENFORCES MAX_GAP RULE: No team can go more than MAX_GAP days without a game
  */
 function assignGamesToCalendar(allGames, numTeams, config) {
-  const calendar = Array(config.seasonDays).fill(null).map(() => []);
-  const lastPlayedDay = Array(numTeams).fill(-999);
-  const gamesAssigned = Array(numTeams).fill(0);
-  const backToBacks = Array(numTeams).fill(0);
+  const MAX_GAP = 4; // Maximum days between consecutive games for any team (HARD RULE)
+  const MIN_REST = 1; // Minimum rest days between games (1 = no back-to-back by default)
+  const TARGET_GAMES_PER_DAY = 10; // Target number of games per calendar day
+  const MAX_GAMES_PER_DAY = 12; // Hard limit on games per day
   
   let retries = 0;
-  const maxRetries = 5;
+  const maxRetries = 50;
+  let bestAttempt = null;
+  let bestScore = Infinity;
+  
+  console.log(`[Schedule] Starting calendar placement with MAX_GAP=${MAX_GAP}, MIN_REST=${MIN_REST}`);
   
   while (retries < maxRetries) {
-    // Reset for retry
-    calendar.forEach(day => day.length = 0);
-    lastPlayedDay.fill(-999);
-    gamesAssigned.fill(0);
-    backToBacks.fill(0);
+    const calendar = Array(config.seasonDays).fill(null).map(() => []);
+    const teamLastDayPlayed = Array(numTeams).fill(-999); // Start with very negative so first game is always valid
+    const teamGamesScheduled = Array(numTeams).fill(0);
+    const teamBackToBacks = Array(numTeams).fill(0);
     
-    // PART 1: OPENING WEEK PASS - Ensure all teams play early
-    const teamsNeedingOpener = new Set(Array.from({ length: numTeams }, (_, i) => i));
-    const openingDayLimit = 5; // Every team must play by day 5
+    // Shuffle games for variety on each retry
+    const remainingGames = [...allGames].sort(() => Math.random() - 0.5);
     
-    console.log('[Schedule] Opening Week Pass: Scheduling games for days 1-5...');
+    let calendarDay = 0;
+    let consecutiveEmptyDays = 0;
+    let placementFailed = false;
     
-    // Shuffle games for variety
-    const shuffledGames = [...allGames].sort(() => Math.random() - 0.5);
-    
-    // First pass: Schedule games where both teams need an opener
-    for (let day = 0; day < openingDayLimit && teamsNeedingOpener.size > 0; day++) {
-      for (const game of shuffledGames) {
-        if (teamsNeedingOpener.size === 0) break;
-        if (calendar[day].length >= config.maxGamesPerDayLeague) break;
+    while (remainingGames.length > 0 && calendarDay < config.seasonDays) {
+      const dayGames = [];
+      const teamsScheduledToday = new Set();
+      
+      // Step 1: Find teams that are overdue (would exceed MAX_GAP if not scheduled today)
+      const overdueTeams = new Set();
+      for (let teamIdx = 0; teamIdx < numTeams; teamIdx++) {
+        if (teamGamesScheduled[teamIdx] === 0) continue; // Skip teams with no games yet (handled separately)
+        
+        const daysSinceLastGame = calendarDay - teamLastDayPlayed[teamIdx];
+        if (daysSinceLastGame > MAX_GAP) {
+          overdueTeams.add(teamIdx);
+        }
+      }
+      
+      // Step 2: Build candidate games
+      const candidateGames = [];
+      const overdueGames = [];
+      
+      for (let i = remainingGames.length - 1; i >= 0; i--) {
+        const game = remainingGames[i];
+        const homeIdx = game.homeTeamIndex;
+        const awayIdx = game.awayTeamIndex;
+        
+        // Skip if either team already playing today
+        if (teamsScheduledToday.has(homeIdx) || teamsScheduledToday.has(awayIdx)) {
+          continue;
+        }
+        
+        // Check rest constraints
+        const homeDaysSince = calendarDay - teamLastDayPlayed[homeIdx];
+        const awayDaysSince = calendarDay - teamLastDayPlayed[awayIdx];
+        
+        // Calculate effective MIN_REST (allow back-to-backs if we're desperate)
+        let effectiveMinRest = MIN_REST;
+        if (retries > 10) effectiveMinRest = 0; // Allow back-to-backs after many retries
+        
+        // Check if rest requirement met
+        const homeRestOk = homeDaysSince >= effectiveMinRest + 1 || teamGamesScheduled[homeIdx] === 0;
+        const awayRestOk = awayDaysSince >= effectiveMinRest + 1 || teamGamesScheduled[awayIdx] === 0;
+        
+        if (!homeRestOk || !awayRestOk) {
+          // Check if it's a back-to-back situation
+          const homeIsBackToBack = homeDaysSince === 1;
+          const awayIsBackToBack = awayDaysSince === 1;
+          
+          // Limit back-to-backs per team
+          if (homeIsBackToBack && teamBackToBacks[homeIdx] >= 15) continue;
+          if (awayIsBackToBack && teamBackToBacks[awayIdx] >= 15) continue;
+          
+          // Only allow if desperate
+          if (effectiveMinRest > 0) continue;
+        }
+        
+        // Check if this game involves an overdue team
+        const involvesOverdueTeam = overdueTeams.has(homeIdx) || overdueTeams.has(awayIdx);
+        
+        if (involvesOverdueTeam) {
+          overdueGames.push({ game, index: i });
+        } else {
+          candidateGames.push({ game, index: i });
+        }
+      }
+      
+      // Step 3: Schedule games, prioritizing overdue teams
+      const gamesToSchedule = [...overdueGames, ...candidateGames];
+      
+      for (const { game, index } of gamesToSchedule) {
+        if (dayGames.length >= MAX_GAMES_PER_DAY) break;
         
         const homeIdx = game.homeTeamIndex;
         const awayIdx = game.awayTeamIndex;
         
-        // Skip if either team already playing this day
-        const homeAlreadyPlaying = calendar[day].some(g => g.homeTeamIndex === homeIdx || g.awayTeamIndex === homeIdx);
-        const awayAlreadyPlaying = calendar[day].some(g => g.homeTeamIndex === awayIdx || g.awayTeamIndex === awayIdx);
-        if (homeAlreadyPlaying || awayAlreadyPlaying) continue;
-        
-        // Prioritize games where at least one team needs an opener
-        if (!teamsNeedingOpener.has(homeIdx) && !teamsNeedingOpener.has(awayIdx)) continue;
-        
-        // Place the game
-        calendar[day].push(game);
-        lastPlayedDay[homeIdx] = day;
-        lastPlayedDay[awayIdx] = day;
-        gamesAssigned[homeIdx]++;
-        gamesAssigned[awayIdx]++;
-        teamsNeedingOpener.delete(homeIdx);
-        teamsNeedingOpener.delete(awayIdx);
-      }
-    }
-    
-    // Check if opening week succeeded
-    if (teamsNeedingOpener.size > 0) {
-      console.warn(`[Schedule] Retry ${retries + 1}: ${teamsNeedingOpener.size} teams still need openers`);
-      retries++;
-      continue; // Retry with different shuffle
-    }
-    
-    console.log('[Schedule] ✓ Opening Week Pass complete - all teams have games by day 5');
-    
-    // PART 2: NORMAL SCHEDULING for remaining games
-    const placedGames = new Set(calendar.flat().map(g => g.id));
-    const remainingGames = allGames.filter(g => !placedGames.has(g.id));
-    
-    let failedPlacements = 0;
-    
-    // Try to place each remaining game
-    for (const game of remainingGames) {
-      const homeIdx = game.homeTeamIndex;
-      const awayIdx = game.awayTeamIndex;
-      let placed = false;
-      
-      // Try to find earliest suitable day (start after opening week)
-      for (let day = openingDayLimit; day < config.seasonDays; day++) {
-        // Check constraints
-        const dayGames = calendar[day];
-        
-        // a) Neither team already playing this day
-        const homeAlreadyPlaying = dayGames.some(g => g.homeTeamIndex === homeIdx || g.awayTeamIndex === homeIdx);
-        const awayAlreadyPlaying = dayGames.some(g => g.homeTeamIndex === awayIdx || g.awayTeamIndex === awayIdx);
-        if (homeAlreadyPlaying || awayAlreadyPlaying) continue;
-        
-        // b) Day not full
-        if (dayGames.length >= config.maxGamesPerDayLeague) continue;
-        
-        // c) Rest rules
-        const homeDaysSinceLastGame = day - lastPlayedDay[homeIdx];
-        const awayDaysSinceLastGame = day - lastPlayedDay[awayIdx];
-        
-        const homeNeedsRest = homeDaysSinceLastGame < config.minRestDaysPreferred + 1;
-        const awayNeedsRest = awayDaysSinceLastGame < config.minRestDaysPreferred + 1;
-        
-        if (homeNeedsRest || awayNeedsRest) {
-          // Check if it's a back-to-back
-          const homeBackToBack = homeDaysSinceLastGame === 1;
-          const awayBackToBack = awayDaysSinceLastGame === 1;
-          
-          if (homeBackToBack && backToBacks[homeIdx] >= config.backToBackTargetPerTeam + 3) continue;
-          if (awayBackToBack && backToBacks[awayIdx] >= config.backToBackTargetPerTeam + 3) continue;
-          
-          // Allow if not too many back-to-backs
-          if (day < 15) continue; // More strict early in season
+        // Double-check constraints (teams might have been scheduled in this loop)
+        if (teamsScheduledToday.has(homeIdx) || teamsScheduledToday.has(awayIdx)) {
+          continue;
         }
         
         // Place the game
         dayGames.push(game);
-        lastPlayedDay[homeIdx] = day;
-        lastPlayedDay[awayIdx] = day;
-        gamesAssigned[homeIdx]++;
-        gamesAssigned[awayIdx]++;
+        teamsScheduledToday.add(homeIdx);
+        teamsScheduledToday.add(awayIdx);
         
-        // Track back-to-backs
-        if (homeDaysSinceLastGame === 1) backToBacks[homeIdx]++;
-        if (awayDaysSinceLastGame === 1) backToBacks[awayIdx]++;
+        // Update tracking
+        const homeDaysSince = calendarDay - teamLastDayPlayed[homeIdx];
+        const awayDaysSince = calendarDay - teamLastDayPlayed[awayIdx];
         
-        placed = true;
-        break;
+        if (homeDaysSince === 1) teamBackToBacks[homeIdx]++;
+        if (awayDaysSince === 1) teamBackToBacks[awayIdx]++;
+        
+        teamLastDayPlayed[homeIdx] = calendarDay;
+        teamLastDayPlayed[awayIdx] = calendarDay;
+        teamGamesScheduled[homeIdx]++;
+        teamGamesScheduled[awayIdx]++;
+        
+        // Remove from remaining games
+        remainingGames.splice(index, 1);
+        
+        // Stop if we hit target games per day (unless we have overdue teams)
+        if (dayGames.length >= TARGET_GAMES_PER_DAY && overdueTeams.size === 0) {
+          break;
+        }
       }
       
-      if (!placed) {
-        failedPlacements++;
+      // Add games to calendar
+      calendar[calendarDay] = dayGames;
+      
+      // Track empty days
+      if (dayGames.length === 0) {
+        consecutiveEmptyDays++;
+        if (consecutiveEmptyDays > 10 && remainingGames.length > 0) {
+          // We're stuck, can't place any more games
+          placementFailed = true;
+          break;
+        }
+      } else {
+        consecutiveEmptyDays = 0;
       }
+      
+      calendarDay++;
     }
     
-    if (failedPlacements === 0) {
-      console.log(`[Schedule Generator] ✓ All games placed successfully`);
-      
-      // VALIDATION: Check all teams started by day 5
-      const teamFirstGame = Array(numTeams).fill(Infinity);
-      calendar.forEach((dayGames, calendarDay) => {
-        dayGames.forEach(game => {
-          teamFirstGame[game.homeTeamIndex] = Math.min(teamFirstGame[game.homeTeamIndex], calendarDay);
-          teamFirstGame[game.awayTeamIndex] = Math.min(teamFirstGame[game.awayTeamIndex], calendarDay);
-        });
-      });
-      
-      const lateStarters = teamFirstGame.filter(day => day > openingDayLimit);
-      if (lateStarters.length > 0) {
-        console.warn(`[Schedule Generator] ⚠️ ${lateStarters.length} teams start after day ${openingDayLimit}, retrying...`);
-        retries++;
-        continue;
+    // Check if placement succeeded
+    if (remainingGames.length > 0 || placementFailed) {
+      console.warn(`[Schedule] Retry ${retries + 1}: Failed to place ${remainingGames.length} games`);
+      retries++;
+      continue;
+    }
+    
+    // Validate the schedule
+    const validation = validateCalendarPlacement(calendar, numTeams, MAX_GAP, config.gamesPerTeam || 82);
+    
+    if (validation.valid) {
+      console.log(`[Schedule] ✓ Valid placement found on retry ${retries + 1}`);
+      console.log(`[Schedule] ✓ Max gap: ${validation.maxGap} days, Avg gap: ${validation.avgGap.toFixed(1)} days`);
+      console.log(`[Schedule] ✓ Back-to-backs: ${validation.totalBackToBacks}, Days used: ${validation.daysUsed}/${config.seasonDays}`);
+      return calendar;
+    } else {
+      // Track best attempt
+      const score = validation.violations.length + (validation.maxGap - MAX_GAP) * 100;
+      if (score < bestScore) {
+        bestScore = score;
+        bestAttempt = calendar;
       }
       
-      console.log('[Schedule Generator] ✓ Validation passed: All teams start by day', openingDayLimit);
-      break;
-    } else {
-      console.warn(`[Schedule Generator] Failed to place ${failedPlacements} games, retry ${retries + 1}/${maxRetries}`);
+      console.warn(`[Schedule] Retry ${retries + 1}: ${validation.violations.length} violations, max gap: ${validation.maxGap}`);
       retries++;
-      
-      // Relax constraints for next retry
-      config.minRestDaysPreferred = Math.max(0, config.minRestDaysPreferred - 1);
-      config.backToBackTargetPerTeam += 3;
     }
   }
   
-  return calendar;
+  // If we exhausted retries, use best attempt or throw error
+  if (bestAttempt) {
+    console.error(`[Schedule] Using best attempt after ${maxRetries} retries (score: ${bestScore})`);
+    return bestAttempt;
+  }
+  
+  throw new Error(`Failed to generate valid schedule after ${maxRetries} retries`);
+}
+
+/**
+ * Validate calendar placement for MAX_GAP and game count
+ */
+function validateCalendarPlacement(calendar, numTeams, maxGap, expectedGamesPerTeam) {
+  const teamGames = Array(numTeams).fill(null).map(() => []);
+  const violations = [];
+  
+  // Collect all games by team
+  calendar.forEach((dayGames, calendarDay) => {
+    dayGames.forEach(game => {
+      teamGames[game.homeTeamIndex].push(calendarDay);
+      teamGames[game.awayTeamIndex].push(calendarDay);
+    });
+  });
+  
+  let maxGapFound = 0;
+  let totalGaps = 0;
+  let gapCount = 0;
+  let totalBackToBacks = 0;
+  
+  // Check each team
+  for (let teamIdx = 0; teamIdx < numTeams; teamIdx++) {
+    const games = teamGames[teamIdx].sort((a, b) => a - b);
+    
+    // Check game count
+    if (games.length !== expectedGamesPerTeam) {
+      violations.push(`Team ${teamIdx}: ${games.length} games (expected ${expectedGamesPerTeam})`);
+    }
+    
+    // Check gaps between consecutive games
+    for (let i = 1; i < games.length; i++) {
+      const gap = games[i] - games[i - 1];
+      maxGapFound = Math.max(maxGapFound, gap);
+      totalGaps += gap;
+      gapCount++;
+      
+      if (gap === 1) {
+        totalBackToBacks++;
+      }
+      
+      if (gap > maxGap) {
+        violations.push(`Team ${teamIdx}: gap of ${gap} days between games (max allowed: ${maxGap})`);
+      }
+    }
+  }
+  
+  const avgGap = gapCount > 0 ? totalGaps / gapCount : 0;
+  const daysUsed = calendar.filter(day => day.length > 0).length;
+  
+  return {
+    valid: violations.length === 0,
+    violations,
+    maxGap: maxGapFound,
+    avgGap,
+    totalBackToBacks,
+    daysUsed
+  };
 }
 
 /**
