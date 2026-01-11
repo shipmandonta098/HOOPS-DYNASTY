@@ -678,6 +678,9 @@ function assignGamesToCalendar(allGames, numTeams, config) {
       // Step 3: Schedule games, prioritizing overdue teams
       const gamesToSchedule = [...overdueGames, ...candidateGames];
       
+      // Track which indices to remove (will remove in descending order to avoid index shifting)
+      const indicesToRemove = [];
+      
       for (const { game, index } of gamesToSchedule) {
         if (dayGames.length >= MAX_GAMES_PER_DAY) break;
         
@@ -706,13 +709,19 @@ function assignGamesToCalendar(allGames, numTeams, config) {
         teamGamesScheduled[homeIdx]++;
         teamGamesScheduled[awayIdx]++;
         
-        // Remove from remaining games
-        remainingGames.splice(index, 1);
+        // Mark for removal (will remove later to avoid index shifting bug)
+        indicesToRemove.push(index);
         
         // Stop if we hit target games per day (unless we have overdue teams)
         if (dayGames.length >= TARGET_GAMES_PER_DAY && overdueTeams.size === 0) {
           break;
         }
+      }
+      
+      // Remove scheduled games in DESCENDING order to avoid index shifting
+      indicesToRemove.sort((a, b) => b - a);
+      for (const index of indicesToRemove) {
+        remainingGames.splice(index, 1);
       }
       
       // Add games to calendar
