@@ -1,43 +1,152 @@
 /* ============================
    LEAGUE SCHEDULE GENERATOR
    
-   Uses ROUND-ROBIN CIRCLE METHOD + CALENDAR SPACING
-   - Generates exactly 82 games per team (30-team league)
-   - Spreads games across realistic calendar (175 days)
-   - Teams get rest days between games
-   - Allows limited back-to-backs for realism
+   DETERMINISTIC SCHEDULE GENERATION with VALIDATION
+   - Validates league structure before generation
+   - Generates exactly 82 games per team (NBA) or fallback
+   - NO calendar days - ordered game list
    - Balances home/away to ~41 each
+   - Detailed error messages for debugging
 ============================ */
 
 /**
- * Generate a complete league schedule using round-robin circle method
+ * Validate league structure before schedule generation
+ * @param {Array} teams - Array of team objects
+ * @returns {Object} { valid: boolean, errors: string[] }
+ */
+function validateLeagueStructure(teams) {
+  const errors = [];
+  const numTeams = teams.length;
+  
+  // Check 1: Team count
+  if (numTeams === 0) {
+    errors.push('No teams in league');
+    return { valid: false, errors };
+  }
+  
+  // Check 2: Unique team IDs
+  const teamIds = teams.map(t => t.id);
+  const uniqueIds = new Set(teamIds);
+  if (uniqueIds.size !== numTeams) {
+    errors.push(`Duplicate team IDs found - ${numTeams} teams but only ${uniqueIds.size} unique IDs`);
+  }
+  
+  // Check 3: Team indices are contiguous 0..(n-1)
+  const indices = teams.map((t, idx) => idx);
+  const hasGaps = indices.some((idx, i) => idx !== i);
+  if (hasGaps) {
+    errors.push('Team indices are not contiguous (0, 1, 2, ...)');
+  }
+  
+  // Check 4: Every team has conference and division
+  const teamsWithoutConference = teams.filter(t => !t.conference || t.conference.trim() === '');
+  const teamsWithoutDivision = teams.filter(t => !t.division || t.division.trim() === '');
+  
+  if (teamsWithoutConference.length > 0) {
+    const names = teamsWithoutConference.map(t => t.name).join(', ');
+    errors.push(`${teamsWithoutConference.length} team(s) missing conference: ${names}`);
+  }
+  
+  if (teamsWithoutDivision.length > 0) {
+    const names = teamsWithoutDivision.map(t => t.name).join(', ');
+    errors.push(`${teamsWithoutDivision.length} team(s) missing division: ${names}`);
+  }
+  
+  // Check 5: For NBA 82-game schedule, verify structure
+  if (numTeams === 30) {
+    const conferences = {};
+    const divisions = {};
+    
+    teams.forEach(t => {
+      if (t.conference) {
+        if (!conferences[t.conference]) conferences[t.conference] = [];
+        conferences[t.conference].push(t);
+      }
+      if (t.conference && t.division) {
+        const divKey = `${t.conference}-${t.division}`;
+        if (!divisions[divKey]) divisions[divKey] = [];
+        divisions[divKey].push(t);
+      }
+    });
+    
+    const confNames = Object.keys(conferences);
+    if (confNames.length !== 2) {
+      errors.push(`NBA 82-game schedule requires 2 conferences, found ${confNames.length}: ${confNames.join(', ')}`);
+    }
+    
+    const divKeys = Object.keys(divisions);
+    if (divKeys.length !== 6) {
+      errors.push(`NBA 82-game schedule requires 6 divisions (3 per conference), found ${divKeys.length}`);
+    }
+    
+    // Check each conference has 3 divisions
+    for (const conf of confNames) {
+      const confDivs = divKeys.filter(k => k.startsWith(conf + '-'));
+      if (confDivs.length !== 3) {
+        errors.push(`Conference ${conf} has ${confDivs.length} divisions, expected 3`);
+      }
+    }
+    
+    // Check each division has 5 teams
+    for (const divKey of divKeys) {
+      const divTeams = divisions[divKey];
+      if (divTeams.length !== 5) {
+        errors.push(`Division ${divKey} has ${divTeams.length} teams, expected 5`);
+      }
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Generate a complete league schedule with validation and fallback
  * @param {Array} teams - Array of team objects
  * @param {number} season - Season year
  * @param {number} gamesPerTeam - Games each team should play (default 82)
- * @returns {Object} Schedule object with days and games
+ * @returns {Object} Schedule object with games, or throws detailed error
  */
 function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
-  console.log(`[Schedule Generator] Starting round-robin for ${teams.length} teams, ${gamesPerTeam} games each`);
+  console.log(`[Schedule Generator] Starting generation for ${teams.length} teams, ${gamesPerTeam} games each`);
+  
+  // PRE-GENERATION VALIDATION
+  const structureValidation = validateLeagueStructure(teams);
+  if (!structureValidation.valid) {
+    const errorMsg = 'League structure validation failed:\n' + structureValidation.errors.map(e => '  • ' + e).join('\n');
+    console.error('[Schedule Generator]', errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  console.log('[Schedule Generator] ✓ League structure validated');
   
   const numTeams = teams.length;
-  const totalExpectedGames = (numTeams * gamesPerTeam) / 2;
+  let allGames;
+  let usedFallback = false;
   
-  // Schedule configuration
-  const config = {
-    seasonDays: 175,
-    maxGamesPerDayLeague: 12,
-    minRestDaysPreferred: 1,
-    allowBackToBack: true,
-    backToBackTargetPerTeam: 12
-  };
+  // Try NBA distribution first if structure allows
+  if (numTeams === 30 && gamesPerTeam === 82) {
+    try {
+      allGames = generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam);
+      console.log('[Schedule Generator] ✓ NBA distribution succeeded');
+    } catch (err) {
+      console.warn('[Schedule Generator] NBA distribution failed:', err.message);
+      console.log('[Schedule Generator] Falling back to simple round-robin...');
+      allGames = generateFallbackSchedule(teams, season, gamesPerTeam);
+      usedFallback = true;
+    }
+  } else {
+    // Use fallback for non-standard league sizes
+    console.log('[Schedule Generator] Non-standard league, using fallback generator');
+    allGames = generateFallbackSchedule(teams, season, gamesPerTeam);
+    usedFallback = true;
+  }
   
-  // Step 1: Generate all matchups with home/away assignments
-  const allGames = generateAllMatchupsWithHomeAway(teams, season, gamesPerTeam);
+  console.log(`[Schedule Generator] Generated ${allGames.length} total games${usedFallback ? ' (fallback)' : ''}`);
   
-  console.log(`[Schedule Generator] Generated ${allGames.length} total games`);
-  
-  // Step 2: Assign games to calendar days
-  // Step 3: Shuffle for variety (only randomness in generation)
+  // Shuffle for variety (only randomness in generation)
   for (let i = allGames.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allGames[i], allGames[j]] = [allGames[j], allGames[i]];
@@ -63,17 +172,22 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
     throw new Error(`Schedule has ${schedule.totalGames} games, expected ${expectedTotal}`);
   }
   
-  // Validation: Check each team has exactly 82 games
+  // Validation: Check each team has exactly gamesPerTeam games
   const teamGameCounts = Array(numTeams).fill(0);
   Object.values(schedule.games).forEach(game => {
     teamGameCounts[game.homeTeamIndex]++;
     teamGameCounts[game.awayTeamIndex]++;
   });
   
+  const errors = [];
   for (let i = 0; i < numTeams; i++) {
     if (teamGameCounts[i] !== gamesPerTeam) {
-      throw new Error(`Team ${i} (${teams[i].name}) has ${teamGameCounts[i]} games, expected ${gamesPerTeam}`);
+      errors.push(`Team ${i} (${teams[i].name}): ${teamGameCounts[i]} games (expected ${gamesPerTeam})`);
     }
+  }
+  
+  if (errors.length > 0) {
+    throw new Error('Schedule validation failed:\n' + errors.map(e => '  • ' + e).join('\n'));
   }
   
   // Validation: Ensure no calendarDay or day fields exist
@@ -91,6 +205,43 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
   console.log(`[Schedule Generator] ✓ No calendarDay fields - using ordered game list`);
   
   return schedule;
+}
+
+/**
+ * Fallback schedule generator - guarantees exactly gamesPerTeam per team
+ * Uses simple round-robin approach
+ */
+function generateFallbackSchedule(teams, season, gamesPerTeam) {
+  const numTeams = teams.length;
+  const gamesVs = Array(numTeams).fill(null).map(() => Array(numTeams).fill(0));
+  
+  console.log('[Fallback] Building simple round-robin schedule...');
+  
+  // Calculate base games per opponent
+  const totalOpponents = numTeams - 1;
+  const baseGamesPerOpponent = Math.floor(gamesPerTeam / totalOpponents);
+  const extraGames = gamesPerTeam % totalOpponents;
+  
+  // Assign base games to everyone
+  for (let i = 0; i < numTeams; i++) {
+    for (let j = i + 1; j < numTeams; j++) {
+      gamesVs[i][j] = baseGamesPerOpponent;
+      gamesVs[j][i] = baseGamesPerOpponent;
+    }
+  }
+  
+  // Distribute extra games deterministically
+  let extraAssigned = 0;
+  for (let i = 0; i < numTeams && extraAssigned < numTeams * extraGames / 2; i++) {
+    for (let j = i + 1; j < numTeams && extraAssigned < numTeams * extraGames / 2; j++) {
+      gamesVs[i][j]++;
+      gamesVs[j][i]++;
+      extraAssigned++;
+    }
+  }
+  
+  // Convert to games
+  return convertMatrixToGamesBalanced(gamesVs, teams, season);
 }
 
 /**

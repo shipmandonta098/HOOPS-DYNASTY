@@ -2507,7 +2507,7 @@ function generateSchedule() {
   generateSeasonSchedule(league.season);
 }
 
-function generateSeasonSchedule(season) {
+async function generateSeasonSchedule(season) {
   if (!league || !league.teams || league.teams.length < 2) {
     console.error('Cannot generate schedule: insufficient teams');
     return;
@@ -2522,30 +2522,40 @@ function generateSeasonSchedule(season) {
     if (!league.schedule) {
       league.schedule = {
         games: {},
-        days: {},
-        currentDay: 1
+        gamesPerTeam: gamesPerTeam,
+        totalGames: 0,
+        generationError: null
       };
     }
     
     // Clear this season's schedule
     league.schedule.games = {};
-    league.schedule.days[season] = [];
+    league.schedule.generationError = null;
     
-    // Use the new schedule generator
+    // Use the new schedule generator (with validation and fallback)
     const newSchedule = generateLeagueSchedule(league.teams, season, gamesPerTeam);
     
-    // Migrate to league format
+    // Store schedule
     league.schedule.games = newSchedule.games;
-    league.schedule.days[season] = newSchedule.days;
-    league.schedule.currentDay = 1;
-    league.schedule.totalDays = newSchedule.totalDays;
     league.schedule.gamesPerTeam = newSchedule.gamesPerTeam;
+    league.schedule.totalGames = newSchedule.totalGames;
     
-    console.log(`[Engine] ✓ Schedule generated: days=${newSchedule.totalDays} games=${Object.keys(newSchedule.games).length}`);
+    console.log(`[Engine] ✓ Schedule generated: ${newSchedule.totalGames} games`);
+    
+    // Save to database
+    await saveLeague();
     
   } catch (error) {
     console.error('[Engine] Schedule generation failed:', error);
-    alert('Failed to generate schedule: ' + error.message);
+    
+    // Store the error message for display
+    if (!league.schedule) {
+      league.schedule = { games: {}, gamesPerTeam: gamesPerTeam, totalGames: 0 };
+    }
+    league.schedule.generationError = error.message;
+    
+    // Show detailed error to user
+    alert('Failed to generate schedule:\n\n' + error.message);
   }
 }
 

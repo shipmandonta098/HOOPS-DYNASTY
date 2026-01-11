@@ -8257,14 +8257,31 @@ let autoScrollPlays = true; // Auto-scroll play-by-play to latest
 function renderSchedule() {
   const el = document.getElementById('schedule-tab');
   
-  // Automatically ensure schedule exists before rendering
-  ensureSchedule();
-  
-  if (!league?.schedule || !league?.schedule.days[league.season]) {
+  // Check if schedule exists and has games
+  if (!league?.schedule || !league?.schedule.games || Object.keys(league.schedule.games).length === 0) {
+    // Show detailed error if available
+    const errorMsg = league?.schedule?.generationError || 'No schedule data available';
+    const errorLines = errorMsg.split('\n').map(line => `<div style="margin: 5px 0;">${escapeHtml(line)}</div>`).join('');
+    
     el.innerHTML = `
       <div style="padding: 20px;">
         <h2>📅 Schedule</h2>
-        <p style="color: #ff6b6b;">Unable to generate schedule. Please check your league setup.</p>
+        <div style="background: #2a1a1a; border-left: 4px solid #ff6b6b; padding: 20px; margin: 20px 0; border-radius: 4px;">
+          <h3 style="margin: 0 0 15px 0; color: #ff6b6b;">⚠ Schedule Generation Failed</h3>
+          <div style="font-family: monospace; font-size: 13px; line-height: 1.6; color: #ffb3b3;">
+            ${errorLines}
+          </div>
+          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #444;">
+            <strong>Common fixes:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #ccc;">
+              <li>Ensure every team has a conference and division assigned</li>
+              <li>For 30-team leagues: 2 conferences, 6 divisions (3 per conference), 5 teams per division</li>
+              <li>Check that team IDs are unique and sequential (0, 1, 2, ...)</li>
+              <li>Try regenerating the league if structure is correct</li>
+            </ul>
+          </div>
+        </div>
+        <button onclick="window.showTab('home')" style="padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">← Back to Home</button>
       </div>
     `;
     return;
@@ -8334,20 +8351,11 @@ function renderMyTeamSchedule() {
     return '<div style="padding: 20px; color: #ff6b6b;">User team not found.</div>';
   }
   
-  // Filter games for user's team from all schedule games
+  // Filter games for user's team from all schedule games (NO CALENDAR DAY - ordered list)
   const allGames = league.schedule.games || {};
   const userGames = Object.values(allGames).filter(game => 
     game.homeTeamId === league.userTid || game.awayTeamId === league.userTid
-  ).map(game => {
-    // Force day to be a number
-    const dayNum = Number(game.day);
-    if (isNaN(dayNum)) {
-      console.warn('[SCHEDULE] Game with invalid day:', game.id, 'day:', game.day);
-      return null;
-    }
-    return { ...game, day: dayNum };
-  }).filter(g => g !== null) // Remove invalid games
-    .sort((a, b) => Number(a.day) - Number(b.day)); // Force numeric sort
+  );
   
   const completedGames = userGames.filter(g => g.status === 'final');
   const upcomingGames = userGames.filter(g => g.status === 'scheduled');
@@ -8360,6 +8368,7 @@ function renderMyTeamSchedule() {
         <span>Completed: ${completedGames.length}</span>
         <span>Upcoming: ${upcomingGames.length}</span>
         ${liveGames.length > 0 ? `<span style="color: #f44336;">Live: ${liveGames.length}</span>` : ''}
+        <span>Total: ${userGames.length} / ${league.schedule.gamesPerTeam || 82}</span>
       </div>
     </div>
     
@@ -8373,20 +8382,11 @@ function renderOtherTeamsSchedule() {
     return '<div style="padding: 20px; color: #ff6b6b;">Team not found.</div>';
   }
   
-  // Filter games for selected team from all schedule games
+  // Filter games for selected team from all schedule games (NO CALENDAR DAY - ordered list)
   const allGames = league.schedule.games || {};
   const teamGames = Object.values(allGames).filter(game => 
     game.homeTeamId === scheduleSelectedTeamId || game.awayTeamId === scheduleSelectedTeamId
-  ).map(game => {
-    // Force day to be a number
-    const dayNum = Number(game.day);
-    if (isNaN(dayNum)) {
-      console.warn('[SCHEDULE] Game with invalid day:', game.id, 'day:', game.day);
-      return null;
-    }
-    return { ...game, day: dayNum };
-  }).filter(g => g !== null) // Remove invalid games
-    .sort((a, b) => Number(a.day) - Number(b.day)); // Force numeric sort
+  );
   
   const completedGames = teamGames.filter(g => g.status === 'final');
   const upcomingGames = teamGames.filter(g => g.status === 'scheduled');
@@ -8407,6 +8407,7 @@ function renderOtherTeamsSchedule() {
       <div style="display: flex; gap: 20px; color: #888;">
         <span>Completed: ${completedGames.length}</span>
         <span>Upcoming: ${upcomingGames.length}</span>
+        <span>Total: ${teamGames.length} / ${league.schedule.gamesPerTeam || 82}</span>
       </div>
     </div>
     
@@ -8415,29 +8416,11 @@ function renderOtherTeamsSchedule() {
 }
 
 function renderLeagueSchedule() {
-  // Get all games and group by day
+  // Get all games (NO CALENDAR DAY - simple ordered list)
   const allGames = league.schedule.games || {};
-  const gamesByDay = {};
+  const gamesArray = Object.values(allGames);
   
-  Object.values(allGames).forEach(game => {
-    const calendarDay = Number(game.calendarDay || game.day);
-    if (isNaN(calendarDay)) {
-      console.warn('[SCHEDULE] Game with invalid calendarDay:', game.id, 'calendarDay:', game.calendarDay, 'day:', game.day);
-      return;
-    }
-    if (!gamesByDay[calendarDay]) {
-      gamesByDay[calendarDay] = [];
-    }
-    gamesByDay[calendarDay].push(game);
-  });
-  
-  // Sort days numerically
-  const days = Object.keys(gamesByDay).map(d => parseInt(d)).sort((a, b) => a - b);
-  
-  // Debug: Log day distribution
-  console.log('[SCHEDULE] League view - Days:', days.length, 'Range:', days[0], '-', days[days.length - 1]);
-  
-  if (days.length === 0) {
+  if (gamesArray.length === 0) {
     return `
       <div style="background: #1a1a2e; border-radius: 10px; padding: 40px; text-align: center; color: #888;">
         <div style="font-size: 2em; margin-bottom: 10px;">📅</div>
@@ -8446,34 +8429,46 @@ function renderLeagueSchedule() {
     `;
   }
   
-  const seasonDays = league.schedule.seasonDays || 82;
+  // Group by status for display
+  const completedGames = gamesArray.filter(g => g.status === 'final');
+  const liveGames = gamesArray.filter(g => g.status === 'live');
+  const upcomingGames = gamesArray.filter(g => g.status === 'scheduled');
   
   return `
     <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
       <div style="margin-bottom: 15px; padding: 15px; background: #0f1624; border-radius: 8px; color: #888;">
-        <strong>Season Calendar:</strong> ${seasonDays} days | ${days.length} game days | ${Object.keys(allGames).length} total games
+        <strong>Season Overview:</strong> ${gamesArray.length} total games | Completed: ${completedGames.length} | Upcoming: ${upcomingGames.length}
+        ${liveGames.length > 0 ? ` | <span style="color: #f44336;">Live: ${liveGames.length}</span>` : ''}
       </div>
-      ${days.map(calendarDay => {
-        const games = gamesByDay[calendarDay];
-        const allFinal = games.every(g => g.status === 'final');
-        const anyLive = games.some(g => g.status === 'live');
-        
-        return `
-          <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-              <h3 style="margin: 0; color: #2196F3;">Calendar Day ${calendarDay}</h3>
-              <div style="display: flex; gap: 15px; align-items: center;">
-                <span style="color: #888;">${games.length} game${games.length !== 1 ? 's' : ''}</span>
-                ${anyLive ? '<span style="padding: 4px 10px; background: #f44336; border-radius: 4px; font-size: 0.85em;">🔴 LIVE</span>' : ''}
-                ${allFinal && !anyLive ? '<span style="padding: 4px 10px; background: #4CAF50; border-radius: 4px; font-size: 0.85em;">✓ Final</span>' : ''}
-              </div>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-              ${games.map(game => renderScheduleGameRow(game)).join('')}
-            </div>
+      
+      ${liveGames.length > 0 ? `
+        <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
+          <h3 style="margin: 0 0 15px 0; color: #f44336;">🔴 Live Games</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${liveGames.map(game => renderScheduleGameRow(game)).join('')}
           </div>
-        `;
-      }).join('')}
+        </div>
+      ` : ''}
+      
+      ${upcomingGames.length > 0 ? `
+        <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
+          <h3 style="margin: 0 0 15px 0; color: #4CAF50;">📅 Upcoming Games (${upcomingGames.length})</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${upcomingGames.slice(0, 20).map(game => renderScheduleGameRow(game)).join('')}
+            ${upcomingGames.length > 20 ? `<p style="text-align: center; color: #888; margin: 10px 0;">...and ${upcomingGames.length - 20} more</p>` : ''}
+          </div>
+        </div>
+      ` : ''}
+      
+      ${completedGames.length > 0 ? `
+        <div>
+          <h3 style="margin: 0 0 15px 0; color: #888;">✓ Completed Games (${completedGames.length})</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${completedGames.slice(-10).reverse().map(game => renderScheduleGameRow(game)).join('')}
+            ${completedGames.length > 10 ? `<p style="text-align: center; color: #888; margin: 10px 0;">Showing last 10 of ${completedGames.length}</p>` : ''}
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -8488,11 +8483,39 @@ function renderTeamScheduleGames(games, teamId) {
     `;
   }
   
+  // Group by status
+  const completedGames = games.filter(g => g.status === 'final');
+  const liveGames = games.filter(g => g.status === 'live');
+  const upcomingGames = games.filter(g => g.status === 'scheduled');
+  
   return `
     <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        ${games.map(game => renderScheduleGameRow(game)).join('')}
-      </div>
+      ${liveGames.length > 0 ? `
+        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
+          <h3 style="margin: 0 0 15px 0; color: #f44336;">🔴 Live Games</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${liveGames.map((game, idx) => renderScheduleGameRowWithNumber(game, completedGames.length + idx + 1, teamId)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      ${upcomingGames.length > 0 ? `
+        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
+          <h3 style="margin: 0 0 15px 0; color: #4CAF50;">📅 Upcoming Games</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${upcomingGames.map((game, idx) => renderScheduleGameRowWithNumber(game, completedGames.length + liveGames.length + idx + 1, teamId)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      
+      ${completedGames.length > 0 ? `
+        <div>
+          <h3 style="margin: 0 0 15px 0; color: #888;">✓ Completed Games</h3>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            ${completedGames.map((game, idx) => renderScheduleGameRowWithNumber(game, idx + 1, teamId)).join('')}
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -8537,7 +8560,7 @@ function renderScheduleGameRow(game) {
   
   const statusDisplay = game.status === 'final' ? 'FINAL' : 
                        game.status === 'live' ? `LIVE - Q${game.quarter} ${game.timeRemaining}` :
-                       game.calendarDay ? `Calendar Day ${game.calendarDay}` : `Day ${game.day}`;
+                       'Scheduled';
   
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
@@ -8554,6 +8577,109 @@ function renderScheduleGameRow(game) {
       transition: all 0.2s;
     " onmouseover="this.style.borderColor='#4CAF50'" onmouseout="this.style.borderColor='${isUserGame ? '#4CAF50' : '#2a2a40'}'">
       <div style="display: flex; justify-content: space-between; align-items: center;">
+        <!-- Teams Info -->
+        <div style="flex: 1;">
+          ${isUserGame ? '<div style="color: #4CAF50; font-weight: bold; font-size: 0.85em; margin-bottom: 8px;">★ YOUR TEAM</div>' : ''}
+          <div id="${rivalryBadgeId}" style="margin-bottom: 8px;"></div>
+          
+          <!-- Away Team -->
+          <div style="display: flex; align-items: center; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; width: 250px;">
+              <span style="font-size: ${awayTeam.logoSecondaryUrl ? '1.5em' : '1em'}; margin-right: 10px; min-width: 35px; text-align: center; background: ${awayTeam.logoSecondaryUrl ? 'transparent' : '#2a2a40'}; padding: ${awayTeam.logoSecondaryUrl ? '0' : '4px 8px'}; border-radius: 4px;">${awayLogo}</span>
+              <span style="font-weight: bold; font-size: 1.1em;">${awayTeam.name}</span>
+            </div>
+            <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${awayTeam.wins}-${awayTeam.losses})</span>
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : ''}
+          </div>
+          
+          <!-- vs/@ indicator -->
+          <div style="color: #666; font-size: 0.85em; margin-left: 45px; margin-bottom: 5px;">@</div>
+          
+          <!-- Home Team -->
+          <div style="display: flex; align-items: center;">
+            <div style="display: flex; align-items: center; width: 250px;">
+              <span style="font-size: ${homeTeam.logoSecondaryUrl ? '1.5em' : '1em'}; margin-right: 10px; min-width: 35px; text-align: center; background: ${homeTeam.logoSecondaryUrl ? 'transparent' : '#2a2a40'}; padding: ${homeTeam.logoSecondaryUrl ? '0' : '4px 8px'}; border-radius: 4px;">${homeLogo}</span>
+              <span style="font-weight: bold; font-size: 1.1em;">${homeTeam.name}</span>
+            </div>
+            <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${homeTeam.wins}-${homeTeam.losses})</span>
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : ''}
+          </div>
+        </div>
+        
+        <!-- Status & Actions -->
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+          <div style="color: ${statusColor}; font-weight: bold; font-size: 0.95em; text-align: right;">
+            ${statusDisplay}
+            ${game.status === 'live' ? '<div style="color: #f44336; font-size: 0.9em; margin-top: 4px;">● LIVE</div>' : ''}
+          </div>
+          
+          ${game.status === 'scheduled' ? `
+            <div style="display: flex; gap: 8px;">
+              <button onclick="simGameInstantUI('${game.id}')" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em;">⚡ Sim Game</button>
+              <button onclick="openGameDrawer('${game.id}')" style="padding: 8px 16px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em;">👁️ Watch Live</button>
+            </div>
+          ` : `
+            <button onclick="openGameDrawer('${game.id}')" style="padding: 8px 16px; background: #2a2a40; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em;">📊 View Details</button>
+          `}
+        </div>
+      </div>
+    </div>
+    <script>
+      // Load rivalry badge asynchronously
+      (async function() {
+        const score = await getRivalry(${game.homeTeamId}, ${game.awayTeamId});
+        const label = getRivalryLabel(score);
+        const badge = renderRivalryBadge(score, label);
+        const el = document.getElementById('${rivalryBadgeId}');
+        if (el && badge) {
+          el.innerHTML = badge;
+        }
+      })();
+    </script>
+  `;
+}
+
+// Render schedule game row WITH game number (for team schedules)
+function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
+  const homeTeam = league.teams.find(t => t.id === game.homeTeamId);
+  const awayTeam = league.teams.find(t => t.id === game.awayTeamId);
+  
+  if (!homeTeam || !awayTeam) return '';
+  
+  const isUserGame = game.homeTeamId === league.userTid || game.awayTeamId === league.userTid;
+  
+  // Get team abbreviations and logos
+  const awayAbbr = awayTeam.abbreviation || awayTeam.city.substring(0, 3).toUpperCase();
+  const homeAbbr = homeTeam.abbreviation || homeTeam.city.substring(0, 3).toUpperCase();
+  const awayLogo = awayTeam.logoSecondaryUrl || awayAbbr;
+  const homeLogo = homeTeam.logoSecondaryUrl || homeAbbr;
+  
+  const statusDisplay = game.status === 'final' ? 'FINAL' : 
+                       game.status === 'live' ? `LIVE - Q${game.quarter} ${game.timeRemaining}` :
+                       'Scheduled';
+  
+  const statusColor = game.status === 'final' ? '#888' : 
+                     game.status === 'live' ? '#f44336' : '#4CAF50';
+  
+  // Add rivalry badge placeholder
+  const rivalryBadgeId = `rivalry-badge-${game.id}`;
+  
+  return `
+    <div style="
+      background: ${isUserGame ? 'linear-gradient(135deg, #0f1624 0%, #1a2332 100%)' : '#0f1624'};
+      border: 2px solid ${isUserGame ? '#4CAF50' : '#2a2a40'};
+      border-radius: 8px;
+      padding: 18px;
+      transition: all 0.2s;
+    " onmouseover="this.style.borderColor='#4CAF50'" onmouseout="this.style.borderColor='${isUserGame ? '#4CAF50' : '#2a2a40'}'">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <!-- Game Number Badge -->
+        <div style="margin-right: 20px; min-width: 70px;">
+          <div style="background: #2196F3; color: white; padding: 8px 12px; border-radius: 6px; text-align: center; font-weight: bold;">
+            Game #${gameNumber}
+          </div>
+        </div>
+        
         <!-- Teams Info -->
         <div style="flex: 1;">
           ${isUserGame ? '<div style="color: #4CAF50; font-weight: bold; font-size: 0.85em; margin-bottom: 8px;">★ YOUR TEAM</div>' : ''}
