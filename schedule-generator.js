@@ -204,53 +204,72 @@ function buildMatchupMatrix(teams) {
   }
   
   // Step 3: Set same-conference non-division matchups
-  // Goal: Each team plays 36 total games against conference opponents outside their division
-  // We'll use a flexible distribution: mostly 3-4 games per opponent
+  // CRITICAL: Process pairs, not individual teams, to maintain symmetry
+  // Each team needs 36 games against 10 non-division conference opponents
   for (const conference of ['East', 'West']) {
     const confTeams = conferenceTeams[conference];
     
-    // For each team, assign games to non-division conference opponents
-    // Target: 36 games total across 10 opponents = average 3.6 games per opponent
-    // We'll use a mix of 3x and 4x to hit exactly 36
-    for (const teamIdx of confTeams) {
-      const teamDiv = teams[teamIdx].division;
-      
-      // Get non-division conference opponents not yet assigned
-      const availableOpponents = confTeams.filter(idx => 
-        teams[idx].division !== teamDiv && gamesVs[teamIdx][idx] === 0
-      );
-      
-      // Calculate how many games this team still needs for conference play
-      let confGamesAssigned = 0;
-      for (let i = 0; i < numTeams; i++) {
-        if (teams[i].conference === teams[teamIdx].conference && teams[i].division !== teamDiv) {
-          confGamesAssigned += gamesVs[teamIdx][i];
+    // Create all non-division pairs in this conference
+    const pairs = [];
+    for (let i = 0; i < confTeams.length; i++) {
+      for (let j = i + 1; j < confTeams.length; j++) {
+        const teamA = confTeams[i];
+        const teamB = confTeams[j];
+        
+        // Skip if same division (already have 4 games assigned)
+        if (teams[teamA].division === teams[teamB].division) continue;
+        
+        pairs.push({ teamA, teamB });
+      }
+    }
+    
+    // Shuffle pairs for variety
+    pairs.sort(() => Math.random() - 0.5);
+    
+    // Track how many conference games each team has been assigned
+    const confGamesAssigned = Array(numTeams).fill(0);
+    
+    // Count existing division games (already assigned in Step 1)
+    for (let i = 0; i < numTeams; i++) {
+      for (let j = 0; j < numTeams; j++) {
+        if (teams[i].conference === teams[j].conference && teams[i].division === teams[j].division) {
+          confGamesAssigned[i] += gamesVs[i][j];
         }
       }
+    }
+    
+    // Assign games to each pair
+    // Target: 36 conference non-division games per team
+    // We have 10 non-division opponents per team
+    // Average: 3.6 games per opponent
+    // Use mix of 3 and 4 games: some pairs get 4, some get 3
+    for (const pair of pairs) {
+      const { teamA, teamB } = pair;
       
-      const confGamesNeeded = 36 - confGamesAssigned;
-      const opponentsRemaining = availableOpponents.length;
+      // Calculate how many more conference games each team needs
+      const aNeeds = 52 - confGamesAssigned[teamA]; // 52 total conference games (16 div + 36 non-div)
+      const bNeeds = 52 - confGamesAssigned[teamB];
       
-      if (opponentsRemaining === 0) continue;
-      
-      // Distribute games evenly: some opponents get 4, some get 3
-      // If we need 36 games across 10 opponents: 6 get 4 games (24) + 4 get 3 games (12) = 36
-      const gamesPerOpponent = Math.floor(confGamesNeeded / opponentsRemaining);
-      let extraGames = confGamesNeeded % opponentsRemaining;
-      
-      // Shuffle for variety
-      const shuffled = [...availableOpponents].sort(() => Math.random() - 0.5);
-      
-      for (const oppIdx of shuffled) {
-        if (gamesVs[teamIdx][oppIdx] > 0) continue;
-        
-        // Assign base games plus 1 extra if needed
-        const gamesToAssign = gamesPerOpponent + (extraGames > 0 ? 1 : 0);
-        if (extraGames > 0) extraGames--;
-        
-        gamesVs[teamIdx][oppIdx] = gamesToAssign;
-        gamesVs[oppIdx][teamIdx] = gamesToAssign;
+      // Determine game count for this pair
+      // Prefer 4 games if both teams need more, 3 if both are close to target
+      let gamesToAssign;
+      if (aNeeds >= 20 && bNeeds >= 20) {
+        gamesToAssign = 4; // Both need many games
+      } else if (aNeeds <= 15 && bNeeds <= 15) {
+        gamesToAssign = 3; // Both close to target
+      } else {
+        // Mixed - use average
+        gamesToAssign = Math.round((aNeeds + bNeeds) / 2 / 5); // Divide by 5 remaining opponents (rough estimate)
+        gamesToAssign = Math.max(3, Math.min(4, gamesToAssign)); // Clamp to 3-4
       }
+      
+      // Assign symmetrically
+      gamesVs[teamA][teamB] = gamesToAssign;
+      gamesVs[teamB][teamA] = gamesToAssign;
+      
+      // Update tracking
+      confGamesAssigned[teamA] += gamesToAssign;
+      confGamesAssigned[teamB] += gamesToAssign;
     }
   }
   
