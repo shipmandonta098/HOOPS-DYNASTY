@@ -6028,7 +6028,7 @@ body.sidebar-open {
 }
 
 /* ============================
-   SIM CONTROL SPLIT BUTTON
+   EVENT-DRIVEN SIM CONTROLS
 ============================ */
 
 .sim-control-wrapper {
@@ -6042,144 +6042,167 @@ body.sidebar-open {
   font-size: 0.85em;
   color: #888;
   white-space: nowrap;
+  min-width: 200px;
 }
 
-.split-button-container {
-  position: relative;
+.sim-buttons-container {
   display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
-.sim-button {
-  padding: 8px 16px;
+.sim-button-compact {
+  padding: 8px 12px;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: #fff;
   border: 1px solid #60a5fa;
-  border-right: 1px solid #2563eb;
-  border-radius: 6px 0 0 6px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.95em;
+  font-size: 0.85em;
   transition: all 0.2s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
-.sim-button:hover {
+.sim-button-compact:hover {
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
 }
 
-.sim-button:active {
-  transform: translateY(1px);
+.sim-button-compact:active {
+  transform: translateY(0);
 }
 
-.sim-button:disabled {
+.sim-button-compact:disabled {
   background: #4b5563;
   border-color: #374151;
   cursor: not-allowed;
   opacity: 0.6;
+  transform: none;
 }
 
-.sim-dropdown-toggle {
-  padding: 8px 10px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+.sim-button-primary {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
-  border: 1px solid #60a5fa;
-  border-left: none;
-  border-radius: 0 6px 6px 0;
+  border: 1px solid #34d399;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.75em;
+  font-weight: 700;
+  font-size: 0.9em;
   transition: all 0.2s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
 }
 
-.sim-dropdown-toggle:hover {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+.sim-button-primary:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
 }
 
-.sim-dropdown-toggle:active {
+.sim-button-primary:active {
+  transform: translateY(0);
+}
+
+.sim-button-primary:disabled {
+  background: #4b5563;
+  border-color: #374151;
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.sim-button-resume {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85em;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+}
+
+.sim-button-resume:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  animation: none;
+}
+
+.sim-button-resume:active {
   transform: translateY(1px);
 }
 
-.sim-dropdown-menu {
-  display: none;
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  background: #1a2332;
-  border: 1px solid #2a2a40;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
-  min-width: 200px;
-  overflow: hidden;
-}
+/* ============================
+   LEGACY SIM STYLES (DEPRECATED)
+============================ */
 
-.sim-dropdown-menu.show {
-  display: block;
-  animation: dropdownFadeIn 0.15s ease-out;
-}
+/* ============================
+   LEGACY SIM STYLES (DEPRECATED)
+============================ */
 
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
+/* Old dropdown styles removed - using event-driven buttons now */
+
+/* ============================
+   RESPONSIVE SIM CONTROLS
+============================ */
+
+@media (max-width: 1024px) {
+  .sim-buttons-container {
+    gap: 4px;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  
+  .sim-button-compact span:first-child,
+  .sim-button-primary span:first-child,
+  .sim-button-resume span:first-child {
+    display: none; /* Hide emoji icons on smaller screens */
   }
-}
-
-.sim-dropdown-item {
-  padding: 10px 16px;
-  color: #ddd;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9em;
-  border-bottom: 1px solid #0f1624;
-}
-
-.sim-dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.sim-dropdown-item:hover {
-  background: #212d3f;
-  color: #fff;
-}
-
-.sim-mode-check {
-  width: 16px;
-  color: #3b82f6;
-  font-weight: bold;
-  text-align: center;
+  
+  .sim-button-compact,
+  .sim-button-primary {
+    font-size: 0.8em;
+    padding: 6px 10px;
+  }
 }
 
 @media (max-width: 768px) {
   .sim-control-wrapper {
     flex-direction: column;
+    gap: 8px;
     align-items: flex-start;
-    gap: 6px;
   }
   
   .sim-status-label {
-    font-size: 0.75em;
+    min-width: auto;
+    font-size: 0.8em;
   }
   
-  .sim-button {
-    padding: 6px 12px;
-    font-size: 0.85em;
-  }
-  
-  .sim-dropdown-toggle {
-    padding: 6px 8px;
+  .sim-buttons-container {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

@@ -4264,6 +4264,540 @@ function simGameInstant(gameId) {
 }
 
 /* ============================
+   EVENT-DRIVEN SIMULATION SYSTEM
+   
+   Season simulation is event-driven, not date-driven.
+   Events are processed sequentially with pause points for user decisions.
+============================ */
+
+const EVENT_TYPES = {
+  GAME: 'GAME',
+  PHASE_TRANSITION: 'PHASE_TRANSITION',
+  TRADE_DEADLINE: 'TRADE_DEADLINE',
+  TRADE_OFFER: 'TRADE_OFFER',
+  ALL_STAR_VOTING: 'ALL_STAR_VOTING',
+  ALL_STAR_GAME: 'ALL_STAR_GAME',
+  CONTRACT_OPTION: 'CONTRACT_OPTION',
+  CONTRACT_EXTENSION: 'CONTRACT_EXTENSION',
+  INJURY: 'INJURY',
+  PLAYOFF_CLINCH: 'PLAYOFF_CLINCH',
+  PLAYOFF_ELIMINATION: 'PLAYOFF_ELIMINATION'
+};
+
+/**
+ * Initialize simulation state
+ */
+function initSimulationState() {
+  return {
+    eventQueue: [],           // Queue of events to process
+    currentEventIndex: 0,     // Current position in queue
+    isPaused: false,          // Whether simulation is paused
+    pauseReason: null,        // Why simulation paused
+    pauseEventData: null,     // Data for the paused event
+    simLimit: null,           // Limit for current simulation (games, event, season, etc.)
+    gamesSimulated: 0,        // Counter for current simulation run
+    settings: {
+      autoPauseOnInjuries: true,
+      autoPauseOnTradeOffers: true,
+      autoPauseOnPlayoffClinch: false,
+      autoPauseOnPhaseChanges: true,
+      simSpeed: 'normal'      // 'fast', 'normal', 'slow'
+    }
+  };
+}
+
+/**
+ * Build event queue for the season
+ * Queue contains all games and league events in order
+ */
+function buildEventQueue() {
+  if (!league || !league.schedule || !league.schedule.days[league.season]) {
+    console.warn('[SIM] Cannot build event queue: no schedule exists');
+    return [];
+  }
+  
+  const events = [];
+  const days = league.schedule.days[league.season];
+  const season = league.season;
+  let eventId = 1;
+  
+  // Calculate key dates
+  const totalGames = days.length;
+  const tradeDeadlineGame = Math.floor(totalGames * 0.67); // ~67% through season
+  const allStarGame = Math.floor(totalGames * 0.50); // Midseason
+  
+  // Add preseason -> regular season transition
+  events.push({
+    id: `event_${eventId++}`,
+    type: EVENT_TYPES.PHASE_TRANSITION,
+    fromPhase: 'PRESEASON',
+    toPhase: 'REGULAR_SEASON',
+    gameNumber: 0,
+    description: 'Season begins'
+  });
+  
+  // Add all games from schedule
+  days.forEach((day, dayIndex) => {
+    day.games.forEach(gameId => {
+      const game = league.schedule.games[gameId];
+      if (game && game.status !== 'final') {
+        events.push({
+          id: `event_${eventId++}`,
+          type: EVENT_TYPES.GAME,
+          gameId,
+          gameNumber: dayIndex + 1,
+          dayNumber: day.dayNumber,
+          homeTeamId: game.homeTeamId,
+          awayTeamId: game.awayTeamId,
+          description: `Game ${dayIndex + 1}`
+        });
+      }
+    });
+    
+    // Add trade deadline event
+    if (dayIndex === tradeDeadlineGame) {
+      events.push({
+        id: `event_${eventId++}`,
+        type: EVENT_TYPES.TRADE_DEADLINE,
+        gameNumber: dayIndex + 1,
+        description: 'Trade deadline reached'
+      });
+    }
+    
+    // Add All-Star events
+    if (dayIndex === allStarGame - 1) {
+      events.push({
+        id: `event_${eventId++}`,
+        type: EVENT_TYPES.ALL_STAR_VOTING,
+        gameNumber: dayIndex + 1,
+        description: 'All-Star voting'
+      });
+    }
+    
+    if (dayIndex === allStarGame) {
+      events.push({
+        id: `event_${eventId++}`,
+        type: EVENT_TYPES.ALL_STAR_GAME,
+        gameNumber: dayIndex + 1,
+        description: 'All-Star Game'
+      });
+    }
+  });
+  
+  // Add regular season -> playoffs transition
+  events.push({
+    id: `event_${eventId++}`,
+    type: EVENT_TYPES.PHASE_TRANSITION,
+    fromPhase: 'REGULAR_SEASON',
+    toPhase: 'PLAYOFFS',
+    gameNumber: totalGames + 1,
+    description: 'Playoffs begin'
+  });
+  
+  // Sort events by game number
+  events.sort((a, b) => a.gameNumber - b.gameNumber);
+  
+  console.log(`[SIM] Built event queue: ${events.length} events`);
+  return events;
+}
+
+/**
+ * Check if simulation should pause for this event
+ */
+function checkShouldPause(event) {
+  if (!league?.simulation) return false;
+  
+  const settings = league.simulation.settings;
+  const userTid = league.userTid;
+  
+  switch (event.type) {
+    case EVENT_TYPES.TRADE_OFFER:
+      return settings.autoPauseOnTradeOffers && event.targetTeamId === userTid;
+      
+    case EVENT_TYPES.TRADE_DEADLINE:
+      return true; // Always pause at trade deadline
+      
+    case EVENT_TYPES.PHASE_TRANSITION:
+      return settings.autoPauseOnPhaseChanges;
+      
+    case EVENT_TYPES.ALL_STAR_VOTING:
+      return true; // Always pause for user voting
+      
+    case EVENT_TYPES.CONTRACT_OPTION:
+    case EVENT_TYPES.CONTRACT_EXTENSION:
+      return event.teamId === userTid;
+      
+    case EVENT_TYPES.INJURY:
+      return settings.autoPauseOnInjuries && event.severity === 'major';
+      
+    case EVENT_TYPES.PLAYOFF_CLINCH:
+    case EVENT_TYPES.PLAYOFF_ELIMINATION:
+      return settings.autoPauseOnPlayoffClinch && event.teamId === userTid;
+      
+    case EVENT_TYPES.GAME:
+      // Never pause for games (processed continuously)
+      return false;
+      
+    default:
+      return false;
+  }
+}
+
+/**
+ * Process a single event
+ */
+function processEvent(event) {
+  console.log(`[SIM] Processing event: ${event.type} (${event.description})`);
+  
+  switch (event.type) {
+    case EVENT_TYPES.GAME:
+      return processGameEvent(event);
+      
+    case EVENT_TYPES.PHASE_TRANSITION:
+      return processPhaseTransition(event);
+      
+    case EVENT_TYPES.TRADE_DEADLINE:
+      return processTradeDeadline(event);
+      
+    case EVENT_TYPES.TRADE_OFFER:
+      return processTradeOffer(event);
+      
+    case EVENT_TYPES.ALL_STAR_VOTING:
+      return processAllStarVoting(event);
+      
+    case EVENT_TYPES.ALL_STAR_GAME:
+      return processAllStarGame(event);
+      
+    case EVENT_TYPES.CONTRACT_OPTION:
+      return processContractOption(event);
+      
+    case EVENT_TYPES.INJURY:
+      return processInjury(event);
+      
+    default:
+      console.warn(`[SIM] Unknown event type: ${event.type}`);
+      return { success: true };
+  }
+}
+
+/**
+ * Process game event (simulate the game)
+ */
+function processGameEvent(event) {
+  const game = league.schedule.games[event.gameId];
+  if (!game || game.status === 'final') {
+    return { success: true, skipped: true };
+  }
+  
+  // Simulate the game instantly
+  simGameInstant(event.gameId);
+  
+  // Increment games simulated counter
+  if (league.simulation) {
+    league.simulation.gamesSimulated++;
+  }
+  
+  return { success: true };
+}
+
+/**
+ * Process phase transition
+ */
+function processPhaseTransition(event) {
+  console.log(`[SIM] Phase transition: ${event.fromPhase} → ${event.toPhase}`);
+  
+  // Update league phase
+  const phaseMap = {
+    PRESEASON: 'PRESEASON',
+    REGULAR_SEASON: 'REGULAR_SEASON',
+    PLAYOFFS: 'POSTSEASON',
+    OFFSEASON: 'OFFSEASON'
+  };
+  
+  league.phase = phaseMap[event.toPhase] || event.toPhase;
+  updateLeaguePhase();
+  
+  return {
+    success: true,
+    message: `${event.fromPhase} has ended. ${event.toPhase} begins.`
+  };
+}
+
+/**
+ * Process trade deadline
+ */
+function processTradeDeadline(event) {
+  console.log(`[SIM] Trade deadline reached`);
+  
+  // Mark trade deadline as passed
+  if (!league.tradeDeadlinePassed) {
+    league.tradeDeadlinePassed = true;
+  }
+  
+  return {
+    success: true,
+    message: 'Trade deadline has passed. No more trades allowed this season.'
+  };
+}
+
+/**
+ * Process trade offer (pauses simulation)
+ */
+function processTradeOffer(event) {
+  console.log(`[SIM] Trade offer received`);
+  
+  // Store trade offer details
+  return {
+    success: true,
+    pause: true,
+    message: `Trade offer from ${event.fromTeamName}`,
+    data: event.tradeOffer
+  };
+}
+
+/**
+ * Process All-Star voting
+ */
+function processAllStarVoting(event) {
+  console.log(`[SIM] All-Star voting begins`);
+  
+  return {
+    success: true,
+    message: 'All-Star voting is open. Select your starters!'
+  };
+}
+
+/**
+ * Process All-Star Game
+ */
+function processAllStarGame(event) {
+  console.log(`[SIM] All-Star Game`);
+  
+  return {
+    success: true,
+    message: 'All-Star Game completed.'
+  };
+}
+
+/**
+ * Process contract option decision
+ */
+function processContractOption(event) {
+  console.log(`[SIM] Contract option decision`);
+  
+  return {
+    success: true,
+    pause: true,
+    message: `Contract option decision for ${event.playerName}`,
+    data: event
+  };
+}
+
+/**
+ * Process injury event
+ */
+function processInjury(event) {
+  console.log(`[SIM] Injury: ${event.playerName} (${event.severity})`);
+  
+  return {
+    success: true,
+    message: `${event.playerName} injured (${event.severity})`
+  };
+}
+
+/**
+ * Main simulation loop
+ * Processes events until simulation limit reached or pause required
+ */
+function runSimulation() {
+  if (!league || !league.simulation) {
+    console.error('[SIM] Cannot run simulation: no league or simulation state');
+    return { success: false, error: 'No simulation state' };
+  }
+  
+  const sim = league.simulation;
+  
+  // Build event queue if empty
+  if (sim.eventQueue.length === 0) {
+    sim.eventQueue = buildEventQueue();
+    sim.currentEventIndex = 0;
+  }
+  
+  // Reset games simulated counter
+  sim.gamesSimulated = 0;
+  sim.isPaused = false;
+  sim.pauseReason = null;
+  
+  // Process events
+  while (sim.currentEventIndex < sim.eventQueue.length) {
+    const event = sim.eventQueue[sim.currentEventIndex];
+    
+    // Check if we should pause BEFORE processing
+    if (checkShouldPause(event)) {
+      sim.isPaused = true;
+      sim.pauseReason = event.type;
+      sim.pauseEventData = event;
+      
+      console.log(`[SIM] Paused at event: ${event.type} (${event.description})`);
+      
+      return {
+        success: true,
+        paused: true,
+        reason: event.type,
+        message: event.description,
+        event: event
+      };
+    }
+    
+    // Process the event
+    const result = processEvent(event);
+    
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || 'Event processing failed'
+      };
+    }
+    
+    // Check if event requested a pause
+    if (result.pause) {
+      sim.isPaused = true;
+      sim.pauseReason = event.type;
+      sim.pauseEventData = event;
+      
+      return {
+        success: true,
+        paused: true,
+        reason: event.type,
+        message: result.message,
+        event: event,
+        data: result.data
+      };
+    }
+    
+    // Move to next event
+    sim.currentEventIndex++;
+    
+    // Check simulation limit
+    if (sim.simLimit) {
+      if (sim.simLimit.type === 'games' && sim.gamesSimulated >= sim.simLimit.count) {
+        console.log(`[SIM] Reached game limit: ${sim.simLimit.count}`);
+        return {
+          success: true,
+          complete: true,
+          message: `Simulated ${sim.gamesSimulated} games`
+        };
+      }
+      
+      if (sim.simLimit.type === 'untilEvent' && event.type !== EVENT_TYPES.GAME) {
+        console.log(`[SIM] Reached next event: ${event.type}`);
+        return {
+          success: true,
+          complete: true,
+          message: event.description
+        };
+      }
+    }
+  }
+  
+  // Reached end of event queue
+  console.log('[SIM] All events processed');
+  return {
+    success: true,
+    complete: true,
+    message: 'Season simulation complete'
+  };
+}
+
+/**
+ * Resume simulation from paused state
+ */
+function resumeSimulation() {
+  if (!league?.simulation || !league.simulation.isPaused) {
+    console.warn('[SIM] Cannot resume: simulation not paused');
+    return { success: false, error: 'Simulation not paused' };
+  }
+  
+  // Move past the paused event
+  league.simulation.currentEventIndex++;
+  league.simulation.isPaused = false;
+  league.simulation.pauseReason = null;
+  league.simulation.pauseEventData = null;
+  
+  // Continue simulation
+  return runSimulation();
+}
+
+/**
+ * Simulation control functions
+ */
+
+function simOneGame() {
+  if (!league.simulation) {
+    league.simulation = initSimulationState();
+  }
+  
+  league.simulation.simLimit = {
+    type: 'games',
+    count: 1
+  };
+  
+  return runSimulation();
+}
+
+function simUntilNextEvent() {
+  if (!league.simulation) {
+    league.simulation = initSimulationState();
+  }
+  
+  league.simulation.simLimit = {
+    type: 'untilEvent',
+    stopOnNonGame: true
+  };
+  
+  return runSimulation();
+}
+
+function simWeek() {
+  if (!league.simulation) {
+    league.simulation = initSimulationState();
+  }
+  
+  // Week = 3-5 games
+  league.simulation.simLimit = {
+    type: 'games',
+    count: rand(3, 5)
+  };
+  
+  return runSimulation();
+}
+
+function simMonth() {
+  if (!league.simulation) {
+    league.simulation = initSimulationState();
+  }
+  
+  // Month = 12-15 games
+  league.simulation.simLimit = {
+    type: 'games',
+    count: rand(12, 15)
+  };
+  
+  return runSimulation();
+}
+
+function simSeason() {
+  if (!league.simulation) {
+    league.simulation = initSimulationState();
+  }
+  
+  // Simulate until end of season (no limit)
+  league.simulation.simLimit = null;
+  
+  return runSimulation();
+}
+
+/* ============================
    SHOT LOCATION SYSTEM
    
    Discrete zone-based shooting for realistic play-by-play generation.

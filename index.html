@@ -149,36 +149,28 @@
         <span style="font-weight: 500;">Commissioner Mode</span>
       </div>
       
-      <!-- Sim Control Split Button -->
+      <!-- Sim Control Buttons -->
       <div class="sim-control-wrapper">
         <div class="sim-status-label" id="simStatusLabel">2026 Regular Season · Idle</div>
-        <div class="split-button-container">
-          <button class="sim-button" onclick="executeSimulation()" id="simButton">
-            <span>⏩</span> Sim
+        <div class="sim-buttons-container">
+          <button class="sim-button-compact" onclick="executeSimGame()" id="simGameButton" title="Simulate one game">
+            <span>⏩</span> Game
           </button>
-          <button class="sim-dropdown-toggle" onclick="toggleSimDropdown()" id="simDropdownToggle">
-            <span>▼</span>
+          <button class="sim-button-primary" onclick="executeSimUntilEvent()" id="simEventButton" title="Simulate until next event (RECOMMENDED)">
+            <span>⏭️</span> Until Event
           </button>
-          <div class="sim-dropdown-menu" id="simDropdownMenu">
-            <div class="sim-dropdown-item" data-mode="oneDay" onclick="selectSimMode('oneDay')">
-              <span class="sim-mode-check" id="check-oneDay">✓</span> One day
-            </div>
-            <div class="sim-dropdown-item" data-mode="oneWeek" onclick="selectSimMode('oneWeek')">
-              <span class="sim-mode-check" id="check-oneWeek"></span> One week
-            </div>
-            <div class="sim-dropdown-item" data-mode="oneMonth" onclick="selectSimMode('oneMonth')">
-              <span class="sim-mode-check" id="check-oneMonth"></span> One month
-            </div>
-            <div class="sim-dropdown-item" data-mode="tradeDeadline" onclick="selectSimMode('tradeDeadline')">
-              <span class="sim-mode-check" id="check-tradeDeadline"></span> Until trade deadline
-            </div>
-            <div class="sim-dropdown-item" data-mode="allStar" onclick="selectSimMode('allStar')">
-              <span class="sim-mode-check" id="check-allStar"></span> Until All-Star events
-            </div>
-            <div class="sim-dropdown-item" data-mode="playoffs" onclick="selectSimMode('playoffs')">
-              <span class="sim-mode-check" id="check-playoffs"></span> Until playoffs
-            </div>
-          </div>
+          <button class="sim-button-compact" onclick="executeSimWeek()" id="simWeekButton" title="Simulate 3-5 games">
+            <span>📅</span> Week
+          </button>
+          <button class="sim-button-compact" onclick="executeSimMonth()" id="simMonthButton" title="Simulate 12-15 games">
+            <span>📆</span> Month
+          </button>
+          <button class="sim-button-compact" onclick="executeSimSeason()" id="simSeasonButton" title="Simulate entire season">
+            <span>🏀</span> Season
+          </button>
+          <button class="sim-button-resume" onclick="executeResumeSimulation()" id="resumeButton" style="display: none;" title="Resume paused simulation">
+            <span>▶️</span> Resume
+          </button>
         </div>
       </div>
       

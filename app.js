@@ -2177,9 +2177,12 @@ function updateLeagueInfo() {
   }
   
   // Initialize sim mode UI
-  if (typeof initializeSimMode === 'function') {
-    initializeSimMode();
+  if (league && !league.simulation) {
+    league.simulation = initSimulationState();
   }
+  
+  // Initialize status label
+  updateSimStatusLabel();
 }
 
 function switchTab(tab) {
@@ -16463,66 +16466,330 @@ function updateSimModeUI(mode) {
 }
 
 // Update status label
-function updateSimStatusLabel() {
+function updateSimStatusLabel(customText) {
   const label = document.getElementById('simStatusLabel');
-  if (!label || !league) return;
+  if (!label) return;
+  
+  if (customText) {
+    label.textContent = customText;
+    return;
+  }
+  
+  if (!league) {
+    label.textContent = 'No League';
+    return;
+  }
+  
+  // Check if simulation is paused
+  if (league.simulation?.isPaused) {
+    const reason = getPauseReasonText(league.simulation.pauseReason);
+    label.textContent = `⏸️ PAUSED: ${reason}`;
+    label.style.color = '#f39c12';
+    return;
+  }
+  
+  // Reset color
+  label.style.color = '#888';
   
   const season = league.season || new Date().getFullYear();
-  const phase = league.phase || 'preseason';
+  const phase = league.phase || 'PRESEASON';
   
-  let phaseText = phase.charAt(0).toUpperCase() + phase.slice(1);
-  if (phaseText === 'Preseason') phaseText = 'Regular Season';
+  // Get game progress
+  let gameInfo = '';
+  if (league.schedule?.days?.[season]) {
+    const totalDays = league.schedule.days[season].length;
+    const currentDay = league.schedule.currentDay || 1;
+    const gamesPlayed = Math.min(currentDay - 1, totalDays);
+    gameInfo = ` · Game ${gamesPlayed}/${totalDays}`;
+  }
   
-  label.textContent = season + ' ' + phaseText + '  Idle';
+  // Format phase name
+  let phaseText = phase.charAt(0).toUpperCase() + phase.slice(1).toLowerCase().replace(/_/g, ' ');
+  
+  label.textContent = `${season} ${phaseText}${gameInfo} · Idle`;
 }
 
 // Execute simulation based on selected mode
-async function executeSimulation() {
+/* ============================
+   EVENT-DRIVEN SIMULATION CONTROLS
+============================ */
+
+async function executeSimGame() {
   if (!league) {
     alert('No league loaded');
     return;
   }
   
-  const mode = league.simMode || 'oneDay';
-  const button = document.getElementById('simButton');
-  const label = document.getElementById('simStatusLabel');
-  
-  // Disable button and update status
-  if (button) button.disabled = true;
-  if (label) label.textContent = label.textContent.replace('Idle', 'Simulating...');
+  disableSimButtons();
+  updateSimStatusLabel('Simulating...');
   
   try {
-    switch (mode) {
-      case 'oneDay':
-        await simOneDay();
-        break;
-      case 'oneWeek':
-        await simOneWeek();
-        break;
-      case 'oneMonth':
-        await simOneMonth();
-        break;
-      case 'tradeDeadline':
-        await simUntilTradeDeadline();
-        break;
-      case 'allStar':
-        await simUntilAllStar();
-        break;
-      case 'playoffs':
-        await simUntilPlayoffs();
-        break;
-      default:
-        await simOneDay();
-    }
+    const result = simOneGame();
+    handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
     alert('Simulation error: ' + error.message);
   } finally {
-    // Re-enable button and update status
-    if (button) button.disabled = false;
+    enableSimButtons();
     updateSimStatusLabel();
     render();
   }
+}
+
+async function executeSimUntilEvent() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  disableSimButtons();
+  updateSimStatusLabel('Simulating until next event...');
+  
+  try {
+    const result = simUntilNextEvent();
+    handleSimulationResult(result);
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    enableSimButtons();
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+async function executeSimWeek() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  disableSimButtons();
+  updateSimStatusLabel('Simulating week...');
+  
+  try {
+    const result = simWeek();
+    handleSimulationResult(result);
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    enableSimButtons();
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+async function executeSimMonth() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  disableSimButtons();
+  updateSimStatusLabel('Simulating month...');
+  
+  try {
+    const result = simMonth();
+    handleSimulationResult(result);
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    enableSimButtons();
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+async function executeSimSeason() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  const confirm = window.confirm('Simulate entire season? This will process all remaining games.');
+  if (!confirm) return;
+  
+  disableSimButtons();
+  updateSimStatusLabel('Simulating season...');
+  
+  try {
+    const result = simSeason();
+    handleSimulationResult(result);
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    enableSimButtons();
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+async function executeResumeSimulation() {
+  if (!league?.simulation?.isPaused) {
+    alert('No paused simulation to resume');
+    return;
+  }
+  
+  disableSimButtons();
+  updateSimStatusLabel('Resuming...');
+  
+  try {
+    const result = resumeSimulation();
+    handleSimulationResult(result);
+  } catch (error) {
+    console.error('Simulation error:', error);
+    alert('Simulation error: ' + error.message);
+  } finally {
+    enableSimButtons();
+    updateSimStatusLabel();
+    render();
+  }
+}
+
+function handleSimulationResult(result) {
+  if (!result) return;
+  
+  if (result.paused) {
+    // Simulation paused - show pause indicator
+    showPauseIndicator(result);
+    showResumeButton();
+  } else if (result.complete) {
+    // Simulation complete
+    hideResumeButton();
+    if (result.message) {
+      showNotification(result.message, 'success');
+    }
+  } else if (!result.success) {
+    // Error
+    hideResumeButton();
+    showNotification(result.error || 'Simulation failed', 'error');
+  }
+}
+
+function showPauseIndicator(result) {
+  const statusLabel = document.getElementById('simStatusLabel');
+  if (statusLabel) {
+    const reasonText = getPauseReasonText(result.reason);
+    statusLabel.textContent = `⏸️ PAUSED: ${reasonText}`;
+    statusLabel.style.color = '#f39c12';
+  }
+  
+  // Show modal/notification if needed
+  if (result.reason === 'TRADE_OFFER') {
+    showTradeOfferModal(result.data);
+  } else if (result.reason === 'PHASE_TRANSITION') {
+    showNotification(result.message, 'info');
+  } else if (result.reason === 'TRADE_DEADLINE') {
+    showNotification(result.message, 'warning');
+  } else {
+    showNotification(result.message || 'Simulation paused', 'info');
+  }
+}
+
+function getPauseReasonText(reason) {
+  const reasons = {
+    TRADE_OFFER: 'Trade Offer',
+    TRADE_DEADLINE: 'Trade Deadline',
+    PHASE_TRANSITION: 'Phase Change',
+    ALL_STAR_VOTING: 'All-Star Voting',
+    CONTRACT_OPTION: 'Contract Decision',
+    INJURY: 'Major Injury',
+    PLAYOFF_CLINCH: 'Playoff Clinch'
+  };
+  return reasons[reason] || 'Event';
+}
+
+function showResumeButton() {
+  const resumeBtn = document.getElementById('resumeButton');
+  if (resumeBtn) {
+    resumeBtn.style.display = 'inline-flex';
+  }
+}
+
+function hideResumeButton() {
+  const resumeBtn = document.getElementById('resumeButton');
+  if (resumeBtn) {
+    resumeBtn.style.display = 'none';
+  }
+}
+
+function disableSimButtons() {
+  ['simGameButton', 'simEventButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = true;
+  });
+}
+
+function enableSimButtons() {
+  ['simGameButton', 'simEventButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = false;
+  });
+}
+
+function showNotification(message, type = 'info') {
+  // Simple notification (can be enhanced with a toast system)
+  const colors = {
+    success: '#27ae60',
+    error: '#e74c3c',
+    warning: '#f39c12',
+    info: '#3498db'
+  };
+  
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: ${colors[type]};
+    color: white;
+    padding: 15px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    font-weight: 500;
+    max-width: 300px;
+  `;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s';
+    setTimeout(() => notification.remove(), 300);
+  }, 4000);
+}
+
+/* ============================
+   LEGACY SIMULATION FUNCTIONS (DEPRECATED)
+============================ */
+
+// Keep old functions for backwards compatibility but mark as deprecated
+async function executeSimulation() {
+  console.warn('executeSimulation() is deprecated - use event-driven sim functions');
+  await executeSimUntilEvent();
+}
+
+function initializeSimMode() {
+  // No longer needed with event-driven system
+  console.log('[SIM] Event-driven simulation initialized');
+}
+
+function selectSimMode(mode) {
+  // No longer needed - kept for compatibility
+  console.warn('selectSimMode() is deprecated');
+}
+
+function updateSimModeUI(mode) {
+  // No longer needed - kept for compatibility
+}
+
+function toggleSimDropdown() {
+  // No longer needed - kept for compatibility
 }
 
 // Sim functions (UI control only - no data modification)
