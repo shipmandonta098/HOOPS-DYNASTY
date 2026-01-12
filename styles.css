@@ -6300,3 +6300,71 @@ body.sidebar-open {
   }
 }
 
+/* ============================
+   COMMISSIONER MODE - EDIT PLAYER MODAL
+============================ */
+
+.edit-section {
+  background: #0f172a;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid #334155;
+}
+
+.edit-section h3 {
+  margin: 0 0 16px 0;
+  color: #60a5fa;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 8px;
+}
+
+.edit-field {
+  margin-bottom: 12px;
+}
+
+.edit-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.edit-field input,
+.edit-field select {
+  transition: border-color 0.2s ease;
+}
+
+.edit-field input:focus,
+.edit-field select:focus {
+  outline: none;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Toast animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+

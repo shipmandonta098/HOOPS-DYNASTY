@@ -451,6 +451,18 @@ function renderPlayerRow(player) {
             cursor: pointer;
             font-size: 0.75em;
           ">View</button>
+          ${isCommissionerMode() ? `
+            <button onclick="showEditPlayerModal(${player.pid})" style="
+              padding: 4px 8px;
+              background: #f59e0b;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 0.75em;
+              margin-left: 4px;
+            ">✏️ Edit</button>
+          ` : ''}
         </div>
       </td>
     </tr>

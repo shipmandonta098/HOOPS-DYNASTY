@@ -13024,7 +13024,21 @@ function showPlayerModal(playerId) {
             ${player.pos} • Age ${player.age}${player.gender ? ` • <span style="color: ${player.gender === 'F' ? '#ec4899' : '#3b82f6'}; font-weight: 600;">${player.gender === 'F' ? '♀' : '♂'}</span>` : ''}
           </div>
         </div>
-        <button class="player-modal-close" onclick="closePlayerModal()">✕</button>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          ${isCommissionerMode() ? `
+            <button onclick="closePlayerModal(); showEditPlayerModal(${player.id});" style="
+              padding: 10px 20px;
+              background: #f59e0b;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 14px;
+            ">✏️ Edit Player</button>
+          ` : ''}
+          <button class="player-modal-close" onclick="closePlayerModal()">✕</button>
+        </div>
       </div>
       
       <!-- Overall & Potential -->
@@ -13234,6 +13248,647 @@ function closeModal(event) {
   if (!event || event.target.id === 'playerModal') {
     closePlayerModal();
   }
+}
+
+/* ============================
+   COMMISSIONER MODE - EDIT PLAYER
+============================ */
+
+function showEditPlayerModal(playerId) {
+  // Security guard: Only allow if Commissioner Mode is ON
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to edit players.\\n\\nEnable it in Settings first.');
+    return;
+  }
+  
+  // Find player
+  let player = null;
+  let currentTeam = null;
+  
+  for (let team of league.teams) {
+    const p = team.players.find(pl => pl.id === playerId);
+    if (p) {
+      player = p;
+      currentTeam = team;
+      break;
+    }
+  }
+  
+  if (!player) {
+    player = league.freeAgents.find(p => p.id === playerId);
+  }
+  
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
+  
+  // Normalize player data
+  player = normalizePlayer(player);
+  
+  // Build team options for dropdown
+  const teamOptions = [
+    '<option value="null">Free Agent</option>',
+    ...league.teams.map(t => `
+      <option value="${t.id}" ${currentTeam && currentTeam.id === t.id ? 'selected' : ''}>
+        ${t.name}
+      </option>
+    `)
+  ].join('');
+  
+  const modalHTML = `
+    <div id="editPlayerModal" class="modal" style="display: flex;" onclick="if(event.target.id === 'editPlayerModal') closeEditPlayerModal()">
+      <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155;">
+          <h2 style="margin: 0; color: #fff;">✏️ Edit Player - ${player.name}</h2>
+          <button onclick="closeEditPlayerModal()" style="
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-size: 2em;
+            line-height: 1;
+            padding: 0;
+          ">×</button>
+        </div>
+        
+        <form id="editPlayerForm" onsubmit="savePlayerEdits(event, ${player.id}); return false;">
+          <!-- Bio Section -->
+          <div class="edit-section">
+            <h3>Player Identity</h3>
+            
+            <div class="edit-field">
+              <label>Full Name</label>
+              <input type="text" id="edit_name" value="${player.name}" required style="
+                width: 100%;
+                padding: 10px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 14px;
+              ">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Age</label>
+                <input type="number" id="edit_age" value="${player.age}" min="18" max="45" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Position</label>
+                <select id="edit_pos" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+                  ${['PG', 'SG', 'SF', 'PF', 'C'].map(pos => `
+                    <option value="${pos}" ${player.pos === pos ? 'selected' : ''}>${pos}</option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Country</label>
+                <input type="text" id="edit_country" value="${player.bio.country || 'USA'}" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>College</label>
+                <input type="text" id="edit_college" value="${player.bio.college || ''}" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <div class="edit-field">
+              <label>Team Assignment</label>
+              <select id="edit_teamId" style="
+                width: 100%;
+                padding: 10px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+              ">
+                ${teamOptions}
+              </select>
+              <small style="color: #94a3b8; margin-top: 4px; display: block;">⚠️ Warning: Changing team will update roster assignments</small>
+            </div>
+          </div>
+          
+          <!-- Physical Attributes -->
+          <div class="edit-section">
+            <h3>Physical Attributes</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Height</label>
+                <input type="text" id="edit_height" value="${player.bio.height || '6-6'}" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Weight (lbs)</label>
+                <input type="number" id="edit_weight" value="${parseInt(player.bio.weight) || 200}" min="150" max="350" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Wingspan</label>
+                <input type="text" id="edit_wingspan" value="${player.bio.wingspan || '6-10'}" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Ratings -->
+          <div class="edit-section">
+            <h3>Ratings & Attributes</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Overall (OVR)</label>
+                <input type="number" id="edit_ovr" value="${player.ratings.ovr}" min="0" max="99" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Potential (POT)</label>
+                <input type="number" id="edit_pot" value="${player.ratings.pot}" min="0" max="99" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-top: 12px;">
+              <div class="edit-field">
+                <label>Shooting</label>
+                <input type="number" id="edit_shoot" value="${player.ratings.shoot}" min="0" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Defense</label>
+                <input type="number" id="edit_defense" value="${player.ratings.defense}" min="0" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Rebounding</label>
+                <input type="number" id="edit_rebound" value="${player.ratings.rebound}" min="0" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Passing</label>
+                <input type="number" id="edit_passing" value="${player.ratings.passing}" min="0" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Contract -->
+          <div class="edit-section">
+            <h3>Contract Details</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Annual Salary ($M)</label>
+                <input type="number" id="edit_salary" value="${player.contract.amount}" min="0" max="50" step="0.1" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Years Remaining</label>
+                <input type="number" id="edit_contractYears" value="${player.contract.yearsRemaining || Math.max(0, player.contract.exp - league.season)}" min="0" max="7" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+              <div class="edit-field">
+                <label>
+                  <input type="checkbox" id="edit_playerOption" ${player.contract.hasPlayerOption ? 'checked' : ''}>
+                  Player Option
+                </label>
+              </div>
+              
+              <div class="edit-field">
+                <label>
+                  <input type="checkbox" id="edit_teamOption" ${player.contract.hasTeamOption ? 'checked' : ''}>
+                  Team Option
+                </label>
+              </div>
+            </div>
+            
+            <div class="edit-field" style="margin-top: 12px;">
+              <label>Guaranteed %</label>
+              <input type="number" id="edit_guaranteed" value="${player.contract.guaranteed || 100}" min="0" max="100" step="1" style="
+                width: 100%;
+                padding: 10px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+              ">
+              <small style="color: #94a3b8; margin-top: 4px; display: block;">0% = Non-guaranteed, 100% = Fully guaranteed</small>
+            </div>
+          </div>
+          
+          <!-- Draft Info -->
+          <div class="edit-section">
+            <h3>Draft Information</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Draft Year</label>
+                <input type="number" id="edit_draftYear" value="${player.draft.year || ''}" min="1950" max="2050" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Round</label>
+                <input type="number" id="edit_draftRound" value="${player.draft.round || ''}" min="1" max="5" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Pick</label>
+                <input type="number" id="edit_draftPick" value="${player.draft.pick || ''}" min="1" max="60" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <div class="edit-field" style="margin-top: 12px;">
+              <label>Drafted By Team</label>
+              <select id="edit_draftedByTid" style="
+                width: 100%;
+                padding: 10px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+              ">
+                <option value="null">Undrafted</option>
+                ${league.teams.map(t => `
+                  <option value="${t.id}" ${player.draft.draftedByTid === t.id || player.draft.tid === t.id ? 'selected' : ''}>
+                    ${t.name}
+                  </option>
+                `).join('')}
+              </select>
+              <small style="color: #94a3b8; margin-top: 4px; display: block;">⚠️ Must be a valid team - never "Unknown Team" or "Free Agent"</small>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 2px solid #334155;">
+            <button type="submit" style="
+              flex: 1;
+              padding: 14px;
+              background: #10b981;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 16px;
+            ">💾 Save Changes</button>
+            
+            <button type="button" onclick="closeEditPlayerModal()" style="
+              flex: 1;
+              padding: 14px;
+              background: #6b7280;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 16px;
+            ">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeEditPlayerModal() {
+  const modal = document.getElementById('editPlayerModal');
+  if (modal) modal.remove();
+}
+
+function savePlayerEdits(event, playerId) {
+  event.preventDefault();
+  
+  // Security guard
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to save edits.');
+    return;
+  }
+  
+  // Find player
+  let player = null;
+  let oldTeam = null;
+  
+  for (let team of league.teams) {
+    const p = team.players.find(pl => pl.id === playerId);
+    if (p) {
+      player = p;
+      oldTeam = team;
+      break;
+    }
+  }
+  
+  if (!player) {
+    player = league.freeAgents.find(p => p.id === playerId);
+  }
+  
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
+  
+  // Collect form values
+  const formData = {
+    name: document.getElementById('edit_name').value.trim(),
+    age: parseInt(document.getElementById('edit_age').value),
+    pos: document.getElementById('edit_pos').value,
+    country: document.getElementById('edit_country').value.trim(),
+    college: document.getElementById('edit_college').value.trim(),
+    teamId: document.getElementById('edit_teamId').value === 'null' ? null : parseInt(document.getElementById('edit_teamId').value),
+    height: document.getElementById('edit_height').value.trim(),
+    weight: parseInt(document.getElementById('edit_weight').value),
+    wingspan: document.getElementById('edit_wingspan').value.trim(),
+    ovr: parseInt(document.getElementById('edit_ovr').value),
+    pot: parseInt(document.getElementById('edit_pot').value),
+    shoot: parseInt(document.getElementById('edit_shoot').value),
+    defense: parseInt(document.getElementById('edit_defense').value),
+    rebound: parseInt(document.getElementById('edit_rebound').value),
+    passing: parseInt(document.getElementById('edit_passing').value),
+    salary: parseFloat(document.getElementById('edit_salary').value),
+    contractYears: parseInt(document.getElementById('edit_contractYears').value),
+    playerOption: document.getElementById('edit_playerOption').checked,
+    teamOption: document.getElementById('edit_teamOption').checked,
+    guaranteed: parseInt(document.getElementById('edit_guaranteed').value),
+    draftYear: document.getElementById('edit_draftYear').value ? parseInt(document.getElementById('edit_draftYear').value) : null,
+    draftRound: document.getElementById('edit_draftRound').value ? parseInt(document.getElementById('edit_draftRound').value) : null,
+    draftPick: document.getElementById('edit_draftPick').value ? parseInt(document.getElementById('edit_draftPick').value) : null,
+    draftedByTid: document.getElementById('edit_draftedByTid').value === 'null' ? null : parseInt(document.getElementById('edit_draftedByTid').value)
+  };
+  
+  // Validation
+  if (!formData.name || formData.name.length < 2) {
+    alert('⚠️ Player name must be at least 2 characters');
+    return;
+  }
+  
+  if (formData.age < 18 || formData.age > 45) {
+    alert('⚠️ Age must be between 18 and 45');
+    return;
+  }
+  
+  if (formData.ovr < 0 || formData.ovr > 99) {
+    alert('⚠️ Overall rating must be between 0 and 99');
+    return;
+  }
+  
+  if (formData.pot < 0 || formData.pot > 99) {
+    alert('⚠️ Potential rating must be between 0 and 99');
+    return;
+  }
+  
+  if (formData.guaranteed < 0 || formData.guaranteed > 100) {
+    alert('⚠️ Guaranteed percentage must be between 0 and 100');
+    return;
+  }
+  
+  // Validate draft info consistency
+  const hasDraftYear = formData.draftYear !== null;
+  const hasDraftRound = formData.draftRound !== null;
+  const hasDraftPick = formData.draftPick !== null;
+  
+  if ((hasDraftYear || hasDraftRound || hasDraftPick) && !(hasDraftYear && hasDraftRound && hasDraftPick)) {
+    alert('⚠️ Draft info must be complete (Year, Round, Pick) or all empty for undrafted');
+    return;
+  }
+  
+  // Validate draftedByTid is a real team if drafted
+  if (hasDraftYear && formData.draftedByTid !== null) {
+    const draftTeamExists = league.teams.some(t => t.id === formData.draftedByTid);
+    if (!draftTeamExists) {
+      alert('⚠️ Drafted by team must be a valid team from the league');
+      return;
+    }
+  }
+  
+  // Apply edits
+  player.name = formData.name;
+  player.age = formData.age;
+  player.pos = formData.pos;
+  player.bio.country = formData.country;
+  player.bio.college = formData.college;
+  player.bio.height = formData.height;
+  player.bio.weight = formData.weight;
+  player.bio.wingspan = formData.wingspan;
+  player.ratings.ovr = formData.ovr;
+  player.ratings.pot = formData.pot;
+  player.ratings.shoot = formData.shoot;
+  player.ratings.defense = formData.defense;
+  player.ratings.rebound = formData.rebound;
+  player.ratings.passing = formData.passing;
+  player.contract.amount = formData.salary;
+  player.contract.yearsRemaining = formData.contractYears;
+  player.contract.exp = league.season + formData.contractYears;
+  player.contract.totalValue = formData.salary * formData.contractYears;
+  player.contract.hasPlayerOption = formData.playerOption;
+  player.contract.hasTeamOption = formData.teamOption;
+  player.contract.guaranteed = formData.guaranteed;
+  player.contract.isTrainingCamp = formData.guaranteed === 0;
+  player.draft.year = formData.draftYear;
+  player.draft.round = formData.draftRound;
+  player.draft.pick = formData.draftPick;
+  player.draft.draftedByTid = formData.draftedByTid;
+  player.draft.tid = formData.draftedByTid; // Backwards compatibility
+  
+  // Handle team change
+  if (formData.teamId !== (oldTeam ? oldTeam.id : null)) {
+    // Remove from old team
+    if (oldTeam) {
+      oldTeam.players = oldTeam.players.filter(p => p.id !== player.id);
+      updateTeamPayrolls();
+    } else {
+      // Remove from free agents
+      league.freeAgents = league.freeAgents.filter(p => p.id !== player.id);
+    }
+    
+    // Add to new team
+    if (formData.teamId !== null) {
+      const newTeam = league.teams.find(t => t.id === formData.teamId);
+      if (newTeam) {
+        newTeam.players.push(player);
+        player.teamId = newTeam.id;
+        updateTeamPayrolls();
+      }
+    } else {
+      // Move to free agents
+      league.freeAgents.push(player);
+      player.teamId = null;
+    }
+  }
+  
+  // Log commissioner action
+  if (typeof logCommissionerAction === 'function') {
+    logCommissionerAction('edit_player', {
+      playerId: player.id,
+      playerName: player.name,
+      changes: Object.keys(formData)
+    });
+  }
+  
+  // Save to database
+  saveLeagueState();
+  
+  // Close modal and refresh UI
+  closeEditPlayerModal();
+  render();
+  
+  // Show success toast
+  showToast('✅ ' + player.name + ' updated successfully!');
+}
+
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.style.cssText = \`
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #10b981;
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 9999;
+    font-weight: bold;
+    animation: slideIn 0.3s ease;
+  \`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
 }
 
 /* ============================
