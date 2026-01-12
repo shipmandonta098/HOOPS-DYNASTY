@@ -14191,7 +14191,7 @@ function renderRotations() {
           <a href="#" class="rotations-coach-link" onclick="event.preventDefault(); showCoachModal(${selectedTeamId});">
             Coach: ${team.coach?.name || 'Unknown'}
           </a>
-          <span class="rotations-season-text">${league.season} • ${league.phase.toUpperCase()}</span>
+          <span class="rotations-season-text">${league.season} • ${(league.phase || 'offseason').toUpperCase()}</span>
         </div>
       </div>
       
