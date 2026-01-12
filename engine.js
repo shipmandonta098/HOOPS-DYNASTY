@@ -3,7 +3,7 @@
 ============================ */
 
 // Schema Version for League Migrations
-const CURRENT_SCHEMA_VERSION = 5; // Incremented for leagueState refactor
+const CURRENT_SCHEMA_VERSION = 6; // Incremented for shot location system
 
 /* ============================
    PHASE CONSTANTS
@@ -3217,7 +3217,8 @@ function generateDraftClass(seasonYear, prospectCount = DRAFT_PROSPECT_POOL_SIZE
         shoot,
         defense,
         rebound,
-        passing
+        passing,
+        athleticism: Math.round((athleticBase + attributes.athletic.speed + attributes.athletic.vertical) / 3)
       },
       attributes,
       bio,
@@ -3228,7 +3229,8 @@ function generateDraftClass(seasonYear, prospectCount = DRAFT_PROSPECT_POOL_SIZE
       strengths: strengths.slice(0, 3), // Max 3 strengths
       weaknesses: weaknesses.slice(0, 3), // Max 3 weaknesses
       rank: 0, // Will be set after sorting
-      isWatchlisted: false
+      isWatchlisted: false,
+      shotTendencies: null // Will be generated when needed (based on final pos/ratings)
     });
   }
   
@@ -3337,7 +3339,7 @@ function createPlayerFromProspect(prospect, teamId, draftYear, round, pick) {
   }
   
   // Copy all prospect data and convert to player format
-  return {
+  const player = {
     id,
     name: prospect.name,
     age: prospect.age,
@@ -3348,7 +3350,8 @@ function createPlayerFromProspect(prospect, teamId, draftYear, round, pick) {
       shoot: prospect.ratings.shoot,
       defense: prospect.ratings.defense,
       rebound: prospect.ratings.rebound,
-      passing: prospect.ratings.passing
+      passing: prospect.ratings.passing,
+      athleticism: prospect.ratings.athleticism || rand(50, 80)
     },
     contract: {
       amount: salary,
@@ -3393,6 +3396,11 @@ function createPlayerFromProspect(prospect, teamId, draftYear, round, pick) {
       status: 'Rookie'
     }
   };
+  
+  // Generate shot tendencies based on final player attributes
+  player.shotTendencies = generateDefaultShotTendencies(player);
+  
+  return player;
 }
 
 // AI Draft Logic
@@ -4255,6 +4263,232 @@ function simGameInstant(gameId) {
   return game;
 }
 
+/* ============================
+   SHOT LOCATION SYSTEM
+   
+   Discrete zone-based shooting for realistic play-by-play generation.
+   Zones have distance ranges, base efficiencies, and shot types.
+   Players have shot tendencies (weighted distribution across zones).
+============================ */
+
+const SHOT_ZONES = {
+  RIM: {
+    name: 'Rim',
+    minDistance: 0,
+    maxDistance: 3,
+    baseEfficiency: 0.65, // 65% base make rate at rim
+    shotTypes: ['dunk', 'layup', 'finger roll'],
+    isThree: false
+  },
+  PAINT: {
+    name: 'Paint',
+    minDistance: 3,
+    maxDistance: 10,
+    baseEfficiency: 0.52,
+    shotTypes: ['floater', 'hook shot', 'close jumper'],
+    isThree: false
+  },
+  MID_RANGE: {
+    name: 'Mid-Range',
+    minDistance: 10,
+    maxDistance: 16,
+    baseEfficiency: 0.42,
+    shotTypes: ['jumper', 'pull-up'],
+    isThree: false
+  },
+  LONG_MID: {
+    name: 'Long Mid-Range',
+    minDistance: 16,
+    maxDistance: 23,
+    baseEfficiency: 0.38,
+    shotTypes: ['long two', 'elbow jumper'],
+    isThree: false
+  },
+  CORNER_3: {
+    name: 'Corner Three',
+    minDistance: 22,
+    maxDistance: 24,
+    baseEfficiency: 0.37, // Corner 3s are easier
+    shotTypes: ['corner three', 'three-pointer'],
+    isThree: true
+  },
+  WING_3: {
+    name: 'Wing Three',
+    minDistance: 23,
+    maxDistance: 26,
+    baseEfficiency: 0.35,
+    shotTypes: ['three-pointer', 'step-back three'],
+    isThree: true
+  },
+  DEEP_3: {
+    name: 'Deep Three',
+    minDistance: 26,
+    maxDistance: 35,
+    baseEfficiency: 0.28, // Deep shots are harder
+    shotTypes: ['deep three', 'logo three'],
+    isThree: true
+  }
+};
+
+/**
+ * Generate default shot tendencies based on player position and ratings
+ * Returns normalized distribution across zones
+ */
+function generateDefaultShotTendencies(player) {
+  const { pos } = player;
+  const { athleticism, shoot } = player.ratings;
+  
+  // Base distributions by position
+  const baseTendencies = {
+    PG: { RIM: 0.20, PAINT: 0.10, MID_RANGE: 0.15, LONG_MID: 0.10, CORNER_3: 0.10, WING_3: 0.25, DEEP_3: 0.10 },
+    SG: { RIM: 0.15, PAINT: 0.10, MID_RANGE: 0.20, LONG_MID: 0.10, CORNER_3: 0.15, WING_3: 0.20, DEEP_3: 0.10 },
+    SF: { RIM: 0.25, PAINT: 0.15, MID_RANGE: 0.15, LONG_MID: 0.10, CORNER_3: 0.15, WING_3: 0.15, DEEP_3: 0.05 },
+    PF: { RIM: 0.35, PAINT: 0.20, MID_RANGE: 0.15, LONG_MID: 0.10, CORNER_3: 0.10, WING_3: 0.08, DEEP_3: 0.02 },
+    C: { RIM: 0.50, PAINT: 0.25, MID_RANGE: 0.10, LONG_MID: 0.08, CORNER_3: 0.04, WING_3: 0.02, DEEP_3: 0.01 }
+  };
+  
+  const base = baseTendencies[pos] || baseTendencies.SF;
+  const tendencies = { ...base };
+  
+  // Adjust based on athleticism (more athletic = more rim attempts)
+  if (athleticism > 75) {
+    tendencies.RIM += 0.05;
+    tendencies.MID_RANGE -= 0.05;
+  } else if (athleticism < 50) {
+    tendencies.RIM -= 0.05;
+    tendencies.MID_RANGE += 0.05;
+  }
+  
+  // Adjust based on shooting (better shooters take more threes)
+  if (shoot > 75) {
+    tendencies.WING_3 += 0.05;
+    tendencies.DEEP_3 += 0.03;
+    tendencies.PAINT -= 0.08;
+  } else if (shoot < 50) {
+    tendencies.WING_3 -= 0.05;
+    tendencies.RIM += 0.05;
+  }
+  
+  // Normalize to ensure sum = 1.0
+  const sum = Object.values(tendencies).reduce((a, b) => a + b, 0);
+  Object.keys(tendencies).forEach(zone => {
+    tendencies[zone] = tendencies[zone] / sum;
+  });
+  
+  return tendencies;
+}
+
+/**
+ * Select shot zone using weighted random based on player tendencies
+ */
+function selectShotZone(player) {
+  if (!player.shotTendencies) {
+    player.shotTendencies = generateDefaultShotTendencies(player);
+  }
+  
+  const rand = Math.random();
+  let cumulative = 0;
+  
+  for (const [zoneName, weight] of Object.entries(player.shotTendencies)) {
+    cumulative += weight;
+    if (rand < cumulative) {
+      return zoneName;
+    }
+  }
+  
+  // Fallback (shouldn't happen if tendencies sum to 1.0)
+  return 'MID_RANGE';
+}
+
+/**
+ * Generate random distance within zone's range
+ */
+function generateShotDistance(zoneName) {
+  const zone = SHOT_ZONES[zoneName];
+  const distance = zone.minDistance + Math.random() * (zone.maxDistance - zone.minDistance);
+  return Math.round(distance);
+}
+
+/**
+ * Determine shot type based on zone and player athleticism
+ */
+function determineShotType(zoneName, player) {
+  const zone = SHOT_ZONES[zoneName];
+  const shotTypes = zone.shotTypes;
+  
+  // For RIM shots, high athleticism players get more dunks
+  if (zoneName === 'RIM') {
+    const { athleticism } = player.ratings;
+    if (athleticism > 70 && Math.random() < 0.6) {
+      return 'dunk';
+    } else if (Math.random() < 0.5) {
+      return 'layup';
+    } else {
+      return 'finger roll';
+    }
+  }
+  
+  // For other zones, random selection from available types
+  return shotTypes[Math.floor(Math.random() * shotTypes.length)];
+}
+
+/**
+ * Resolve shot attempt: calculate make chance and determine outcome
+ * 
+ * Formula: makeChance = zoneEfficiency * (1 + shooterBonus - defenderPenalty - fatiguePenalty)
+ * - zoneEfficiency: base efficiency from SHOT_ZONES
+ * - shooterBonus: (shootRating - 50) / 200 (ranges from -0.25 to +0.25)
+ * - defenderPenalty: defenseRating / 400 (ranges from 0 to +0.25)
+ * - fatiguePenalty: 0 to 0.15 based on minutes played
+ */
+function resolveShotAttempt(zoneName, shooter, defender, fatigue = 1.0) {
+  const zone = SHOT_ZONES[zoneName];
+  const { shoot } = shooter.ratings;
+  const defenseRating = defender?.ratings?.defense || 50;
+  
+  // Calculate modifiers
+  const shooterBonus = (shoot - 50) / 200; // -0.25 to +0.25
+  const defenderPenalty = defenseRating / 400; // 0 to +0.25
+  const fatiguePenalty = (1 - fatigue) * 0.15; // 0 to 0.15
+  
+  // Calculate final make chance
+  let makeChance = zone.baseEfficiency * (1 + shooterBonus - defenderPenalty - fatiguePenalty);
+  
+  // Clamp between 5% and 85%
+  makeChance = Math.max(0.05, Math.min(0.85, makeChance));
+  
+  const made = Math.random() < makeChance;
+  const points = made ? (zone.isThree ? 3 : 2) : 0;
+  
+  return {
+    made,
+    points,
+    isThree: zone.isThree
+  };
+}
+
+/**
+ * Generate play-by-play text for shot attempt
+ */
+function generateShotPlayText(player, distance, shotType, result) {
+  const { made } = result;
+  const outcome = made ? 'Made' : 'Missed';
+  
+  // Format shot description
+  let shotDescription = `${player.name} ${distance}' ${shotType}`;
+  
+  // Add flair for special shots
+  if (shotType === 'dunk') {
+    shotDescription = made 
+      ? `${player.name} throws down a thunderous dunk!` 
+      : `${player.name} attempts a dunk`;
+  } else if (shotType === 'deep three' || shotType === 'logo three') {
+    shotDescription = `${player.name} launches a deep ${distance}' three`;
+  }
+  
+  return `${shotDescription} — ${outcome}`;
+}
+
 function generateBasicBoxScore(homeTeam, awayTeam, result) {
   return {
     home: {
@@ -4420,17 +4654,36 @@ function stepLiveGame(gameId) {
   
   switch (eventType) {
     case 'shot':
-      const shotSuccess = Math.random() < 0.45;
-      const isThree = Math.random() < 0.35;
-      const points = isThree ? 3 : 2;
+      // === NEW ZONE-BASED SHOT SYSTEM ===
       
-      if (shotSuccess) {
+      // 1. Select shot zone based on player tendencies
+      const zoneName = selectShotZone(player);
+      
+      // 2. Generate distance within zone range
+      const distance = generateShotDistance(zoneName);
+      
+      // 3. Determine shot type (dunk, layup, jumper, etc.)
+      const shotType = determineShotType(zoneName, player);
+      
+      // 4. Get random defender for contest
+      const defender = defendingTeam.players[Math.floor(Math.random() * Math.min(5, defendingTeam.players.length))];
+      
+      // 5. Calculate fatigue (simple version for live game)
+      const minutesPlayed = game.boxScore 
+        ? (game.boxScore[game.possession === 'home' ? 'home' : 'away'].players.find(p => p.playerId === player.id)?.min || 0)
+        : 0;
+      const fatigue = minutesPlayed > 35 ? 0.95 : 1.0;
+      
+      // 6. Resolve shot attempt
+      const shotResult = resolveShotAttempt(zoneName, player, defender, fatigue);
+      
+      // 7. Update score if made
+      if (shotResult.made) {
         if (game.possession === 'home') {
-          game.score.home += points;
+          game.score.home += shotResult.points;
         } else {
-          game.score.away += points;
+          game.score.away += shotResult.points;
         }
-        logText = `${player.name} ${isThree ? 'hits a three-pointer' : 'makes the layup'}! ${points} points.`;
         scored = true;
         
         // Update box score
@@ -4438,12 +4691,15 @@ function stepLiveGame(gameId) {
           const side = game.possession === 'home' ? 'home' : 'away';
           const boxPlayer = game.boxScore[side].players.find(p => p.playerId === player.id);
           if (boxPlayer) {
-            boxPlayer.pts += points;
+            boxPlayer.pts += shotResult.points;
           }
         }
-      } else {
-        logText = `${player.name} misses the ${isThree ? 'three' : 'shot'}.`;
       }
+      
+      // 8. Generate play-by-play text with distance and shot type
+      logText = generateShotPlayText(player, distance, shotType, shotResult);
+      
+      // Change possession after shot
       game.possession = game.possession === 'home' ? 'away' : 'home';
       break;
       
@@ -6201,6 +6457,35 @@ const migrations = {
     }
     
     console.log('Migration to version 4 complete');
+  },
+  
+  // Migration 5: Placeholder for future use
+  5: function(league) {
+    console.log('Running migration to version 5: No changes required');
+    // Reserved for future migrations
+  },
+  
+  // Migration 6: Add shot tendencies to all players
+  6: function(league) {
+    console.log('Running migration to version 6: Adding shot tendencies to players');
+    
+    let playersUpdated = 0;
+    
+    // Add shot tendencies to all players (on teams + free agents + draft prospects)
+    const allPlayers = [
+      ...league.teams.flatMap(t => t.players),
+      ...league.freeAgents,
+      ...(league.draftProspects || [])
+    ];
+    
+    allPlayers.forEach(player => {
+      if (!player.shotTendencies) {
+        player.shotTendencies = generateDefaultShotTendencies(player);
+        playersUpdated++;
+      }
+    });
+    
+    console.log(`Migration to version 6 complete: ${playersUpdated} players updated with shot tendencies`);
   }
 };
 
