@@ -433,6 +433,12 @@ async function loadLeagueState(leagueId) {
                               ...league.freeAgents.map(p => p.id || 0)) + 1;
     }
     
+    // Initialize strengthVersion if not present (backward compatibility)
+    if (typeof leagueState.meta.strengthVersion === 'undefined') {
+      leagueState.meta.strengthVersion = 0;
+      console.log('[STATE] Initialized strengthVersion for point spread caching');
+    }
+    
     // Set RNG seed from league or localStorage
     if (leagueState.meta.rngSeed) {
       localStorage.setItem(STORAGE_KEYS.RNG_SEED, leagueState.meta.rngSeed);

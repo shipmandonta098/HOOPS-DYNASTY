@@ -1489,6 +1489,11 @@ function executeTrade(teamAId, teamBId, teamAAssets, teamBAssets) {
   // Update payrolls
   updateTeamPayrolls();
   
+  // Invalidate strength cache for point spreads
+  if (typeof incrementStrengthVersion === 'function') {
+    incrementStrengthVersion();
+  }
+  
   // Save league
   saveLeague(league);
   
@@ -4968,6 +4973,9 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   leagueState.meta.userTeamId = selectedTeamId;
   
   console.log('[LEAGUE STATE] League created with userTeamId:', userTeamId, 'selectedTeamId:', selectedTeamId);
+  
+  // Initialize strength version for point spread caching
+  leagueState.meta.strengthVersion = 0;
   
   // Convert to legacy format FIRST (so generateSeasonSchedule can access it)
   league = convertLeagueStateToLegacy(leagueState);

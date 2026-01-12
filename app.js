@@ -2986,6 +2986,142 @@ function getPowerScore(team) {
   return teamOVR * 1.0 + wpct * 20 + (last10Wins - last10Losses) * 1.5;
 }
 
+/* ============================
+   POINT SPREAD SYSTEM
+============================ */
+
+// Constants
+const HOME_COURT_ADVANTAGE = 2.5; // Points home team gets as advantage
+const MARGIN_SCALE = 0.55; // How much strength difference converts to point spread
+const MAX_SPREAD = 20; // Maximum point spread magnitude
+
+/**
+ * Compute team strength for spread calculations
+ * Uses weighted average of top 8 players OVR
+ */
+function computeTeamStrength(tid) {
+  const team = league.teams.find(t => t.id === tid);
+  if (!team || !team.players || team.players.length === 0) {
+    return 70; // Default fallback strength
+  }
+  
+  // Get top 8 players by OVR
+  const top8 = team.players
+    .filter(p => p.ratings && p.ratings.ovr)
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
+    .slice(0, 8);
+  
+  if (top8.length === 0) return 70;
+  
+  // Weighted average: starters count more than bench
+  const weights = [1.5, 1.5, 1.3, 1.3, 1.2, 1.0, 0.8, 0.7]; // Weighted by importance
+  let weightedSum = 0;
+  let totalWeight = 0;
+  
+  top8.forEach((player, i) => {
+    const weight = weights[i] || 0.5;
+    weightedSum += player.ratings.ovr * weight;
+    totalWeight += weight;
+  });
+  
+  const strength = weightedSum / totalWeight;
+  
+  // Optional: Add coach bonus if you have coach ratings
+  if (team.coach && team.coach.overall) {
+    const coachBonus = (team.coach.overall - 70) * 0.1; // Small bonus/penalty from coach
+    return strength + coachBonus;
+  }
+  
+  return strength;
+}
+
+/**
+ * Compute point spread for a game
+ * Returns { home: number, away: number } where negative = favored
+ */
+function computeGameSpread(awayTid, homeTid, isNeutralSite = false) {
+  const homeStrength = computeTeamStrength(homeTid);
+  const awayStrength = computeTeamStrength(awayTid);
+  
+  // Calculate home court advantage
+  const hca = isNeutralSite ? 0 : HOME_COURT_ADVANTAGE;
+  
+  // Calculate expected margin (positive = home favored, negative = away favored)
+  const strengthDiff = (homeStrength + hca) - awayStrength;
+  const expectedMargin = strengthDiff * MARGIN_SCALE;
+  
+  // Round to half points (0.5 increments)
+  let spread = Math.round(expectedMargin * 2) / 2;
+  
+  // Clamp to max spread
+  spread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, spread));
+  
+  // Return spread from each team's perspective
+  // Negative = favored, Positive = underdog
+  return {
+    home: -spread,  // Home team's spread (negative if favored)
+    away: +spread,  // Away team's spread (positive if underdog)
+    strengthVersion: league.strengthVersion || 0,
+    modelVersion: '1.0'
+  };
+}
+
+/**
+ * Get or compute spread for a game with caching
+ */
+function getGameSpread(game) {
+  // Don't show spread for completed games
+  if (game.status === 'final') {
+    return null;
+  }
+  
+  const currentVersion = league.strengthVersion || 0;
+  
+  // Check if we have cached spread and it's still valid
+  if (game.spread && game.spread.strengthVersion === currentVersion) {
+    return game.spread;
+  }
+  
+  // Compute new spread
+  const spread = computeGameSpread(game.awayTeamId, game.homeTeamId);
+  
+  // Cache it on the game object
+  game.spread = spread;
+  
+  return spread;
+}
+
+/**
+ * Format spread for display
+ */
+function formatSpread(spreadValue) {
+  if (spreadValue === 0) {
+    return 'PK'; // Pick'em
+  }
+  
+  const sign = spreadValue > 0 ? '+' : '';
+  
+  // Show whole numbers without decimal
+  if (spreadValue % 1 === 0) {
+    return `${sign}${spreadValue}`;
+  }
+  
+  // Show half points with .5
+  return `${sign}${spreadValue.toFixed(1)}`;
+}
+
+/**
+ * Increment strength version when team strength changes
+ * Call this after: trades, injuries, player edits, add/delete player
+ */
+function incrementStrengthVersion() {
+  if (!league.strengthVersion) {
+    league.strengthVersion = 0;
+  }
+  league.strengthVersion++;
+  console.log(`[Spread] Strength version updated to ${league.strengthVersion}`);
+}
+
 function getStatusTag(team) {
   const streak = team.stats?.streak || 0;
   
@@ -4548,195 +4684,6 @@ function commissionerForceSigning(playerId, teamId) {
 }
 
 /* ============================
-   GAME ODDS SYSTEM
-   Pre-game win probability and moneyline odds
-============================ */
-
-// Constants for odds calculation
-const ODDS_CONFIG = {
-  HOME_COURT_ADVANTAGE: 2.5,  // Rating points advantage for home team
-  SCALE: 8.0,                  // Logistic scale (lower = more extreme probabilities)
-  MIN_PROBABILITY: 0.05,       // Minimum win probability (5%)
-  MAX_PROBABILITY: 0.95        // Maximum win probability (95%)
-};
-
-/**
- * Initialize strength versioning system
- * Incremented whenever roster/ratings change
- */
-function initializeStrengthVersion() {
-  if (!league.meta) league.meta = {};
-  if (!league.meta.strengthVersion) {
-    league.meta.strengthVersion = 1;
-  }
-}
-
-/**
- * Increment strength version when rosters/ratings change
- * This invalidates all cached odds
- */
-function incrementStrengthVersion() {
-  if (!league.meta) league.meta = {};
-  league.meta.strengthVersion = (league.meta.strengthVersion || 0) + 1;
-  console.log(`[Odds] Strength version incremented to ${league.meta.strengthVersion}`);
-}
-
-/**
- * Compute team strength based on roster
- * Uses top 8 players weighted by OVR
- */
-function computeTeamStrength(teamId) {
-  const team = league.teams.find(t => t.id === teamId);
-  
-  if (!team) {
-    console.warn(`[Odds] Team ${teamId} not found`);
-    return 75; // Default fallback
-  }
-  
-  // If team has a powerRating or overall, use it
-  if (team.powerRating !== undefined && team.powerRating !== null) {
-    return team.powerRating;
-  }
-  
-  if (team.overall !== undefined && team.overall !== null) {
-    return team.overall;
-  }
-  
-  // Otherwise, compute from roster
-  if (!team.players || team.players.length === 0) {
-    console.warn(`[Odds] Team ${teamId} (${team.name}) has no players`);
-    return 50; // Very weak fallback
-  }
-  
-  // Get top 8 players by OVR
-  const sortedPlayers = [...team.players]
-    .filter(p => p.ratings && p.ratings.ovr !== undefined)
-    .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
-    .slice(0, 8);
-  
-  if (sortedPlayers.length === 0) {
-    console.warn(`[Odds] Team ${teamId} (${team.name}) has no players with valid OVR`);
-    return 50;
-  }
-  
-  // Weighted average: top players matter more
-  const weights = [0.25, 0.20, 0.15, 0.12, 0.10, 0.08, 0.06, 0.04];
-  let weightedSum = 0;
-  let totalWeight = 0;
-  
-  sortedPlayers.forEach((player, idx) => {
-    const weight = weights[idx] || 0.04;
-    weightedSum += player.ratings.ovr * weight;
-    totalWeight += weight;
-  });
-  
-  const strength = totalWeight > 0 ? weightedSum / totalWeight : 50;
-  
-  return Math.round(strength * 10) / 10; // Round to 1 decimal
-}
-
-/**
- * Convert probability to American moneyline odds
- * @param {number} p - Win probability (0-1)
- * @returns {string} Moneyline string (e.g., "-150", "+120")
- */
-function probabilityToMoneyline(p) {
-  if (p >= 0.5) {
-    // Favorite: negative odds
-    const odds = Math.round(100 * p / (1 - p));
-    return `-${odds}`;
-  } else {
-    // Underdog: positive odds
-    const odds = Math.round(100 * (1 - p) / p);
-    return `+${odds}`;
-  }
-}
-
-/**
- * Compute game odds for a matchup
- * @param {number} awayTid - Away team ID
- * @param {number} homeTid - Home team ID
- * @returns {Object} Odds object with win percentages and moneylines
- */
-function computeGameOdds(awayTid, homeTid) {
-  // Get team strengths
-  const awayStrength = computeTeamStrength(awayTid);
-  const homeStrength = computeTeamStrength(homeTid);
-  
-  // Apply home court advantage
-  const homeAdvantage = ODDS_CONFIG.HOME_COURT_ADVANTAGE;
-  const diff = (homeStrength + homeAdvantage) - awayStrength;
-  
-  // Logistic function for win probability
-  const pHome = 1 / (1 + Math.exp(-diff / ODDS_CONFIG.SCALE));
-  
-  // Clamp to reasonable bounds
-  const pHomeClamp = Math.max(ODDS_CONFIG.MIN_PROBABILITY, Math.min(ODDS_CONFIG.MAX_PROBABILITY, pHome));
-  const pAwayClamp = 1 - pHomeClamp;
-  
-  // Convert to percentages
-  const homeWinPct = Math.round(pHomeClamp * 100);
-  const awayWinPct = Math.round(pAwayClamp * 100);
-  
-  // Compute moneylines
-  const homeML = probabilityToMoneyline(pHomeClamp);
-  const awayML = probabilityToMoneyline(pAwayClamp);
-  
-  return {
-    awayWinPct,
-    homeWinPct,
-    awayML,
-    homeML,
-    strengthVersion: league.meta.strengthVersion || 1,
-    lastUpdatedAt: Date.now()
-  };
-}
-
-/**
- * Get or compute odds for a game
- * Uses cached odds if strength version hasn't changed
- */
-function getGameOdds(game) {
-  // Don't compute odds for completed games
-  if (game.status === 'final') {
-    return null;
-  }
-  
-  // Ensure strength versioning is initialized
-  initializeStrengthVersion();
-  
-  const currentVersion = league.meta.strengthVersion || 1;
-  
-  // Check if we have cached odds that are still valid
-  if (game.odds && game.odds.strengthVersion === currentVersion) {
-    return game.odds;
-  }
-  
-  // Compute new odds
-  const odds = computeGameOdds(game.awayTeamId, game.homeTeamId);
-  
-  // Cache odds on game object
-  game.odds = odds;
-  
-  return odds;
-}
-
-/**
- * Invalidate all game odds (called when strength version changes)
- */
-function invalidateAllOdds() {
-  if (!league.schedule || !league.schedule.games) return;
-  
-  Object.values(league.schedule.games).forEach(game => {
-    if (game.status !== 'final') {
-      delete game.odds;
-    }
-  });
-  
-  console.log('[Odds] All odds invalidated due to roster/rating changes');
-}
-
-/* ============================
    COMMISSIONER TOOLS - EXPANDED
    Add Player, Delete Player, Force Trade, Force Injury
 ============================ */
@@ -5313,7 +5260,7 @@ function saveNewPlayer(event) {
     'commissioner'
   );
   
-  // Invalidate odds cache
+  // Invalidate strength cache
   incrementStrengthVersion();
   
   // Save and refresh
@@ -5496,7 +5443,7 @@ function confirmDeletePlayer(playerId) {
     'commissioner'
   );
   
-  // Invalidate odds cache
+  // Invalidate strength cache
   incrementStrengthVersion();
   
   // Save and refresh
@@ -5775,7 +5722,7 @@ function executeForceTradeExecute() {
     'commissioner'
   );
   
-  // Invalidate odds cache
+  // Invalidate strength cache
   incrementStrengthVersion();
   
   // Save and refresh
@@ -6051,7 +5998,7 @@ function executeForceInjury(event, playerId) {
     'injury'
   );
   
-  // Invalidate odds cache
+  // Invalidate strength cache
   incrementStrengthVersion();
   
   // Save and refresh
@@ -10219,8 +10166,8 @@ function renderScheduleGameRow(game) {
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
   
-  // Get odds for scheduled games
-  const odds = game.status === 'scheduled' ? getGameOdds(game) : null;
+  // Get spread for scheduled games
+  const spread = game.status === 'scheduled' ? getGameSpread(game) : null;
   
   // Add rivalry badge placeholder
   const rivalryBadgeId = `rivalry-badge-${game.id}`;
@@ -10246,7 +10193,7 @@ function renderScheduleGameRow(game) {
               <span style="font-weight: bold; font-size: 1.1em;">${awayTeam.name}</span>
             </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${awayTeam.wins}-${awayTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : spread ? `<span style="color: ${spread.away > 0 ? '#f59e0b' : '#10b981'}; font-weight: bold; font-size: 0.9em;">${formatSpread(spread.away)} spread</span>` : ''}
           </div>
           
           <!-- vs/@ indicator -->
@@ -10259,7 +10206,7 @@ function renderScheduleGameRow(game) {
               <span style="font-weight: bold; font-size: 1.1em;">${homeTeam.name}</span>
             </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${homeTeam.wins}-${homeTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : spread ? `<span style="color: ${spread.home < 0 ? '#10b981' : '#f59e0b'}; font-weight: bold; font-size: 0.9em;">${formatSpread(spread.home)} spread</span>` : ''}
           </div>
         </div>
         
@@ -10269,32 +10216,6 @@ function renderScheduleGameRow(game) {
             ${statusDisplay}
             ${game.status === 'live' ? '<div style="color: #f44336; font-size: 0.9em; margin-top: 4px;">● LIVE</div>' : ''}
           </div>
-          
-          ${odds ? `
-            <div style="
-              background: #1a2332;
-              border: 1px solid #2a2a40;
-              border-radius: 6px;
-              padding: 8px 12px;
-              margin-top: 5px;
-            ">
-              <div style="color: #888; font-size: 0.75em; font-weight: bold; margin-bottom: 4px; text-align: center;">ODDS</div>
-              <div style="display: flex; gap: 8px; font-size: 0.85em;">
-                <div style="color: #fff;">
-                  <span style="color: #888;">${awayAbbr}</span> ${odds.awayWinPct}%
-                </div>
-                <div style="color: #666;">|</div>
-                <div style="color: #fff;">
-                  <span style="color: #888;">${homeAbbr}</span> ${odds.homeWinPct}%
-                </div>
-              </div>
-              <div style="display: flex; gap: 8px; font-size: 0.75em; margin-top: 4px; color: #888;">
-                <div>ML: ${odds.awayML}</div>
-                <div>/</div>
-                <div>${odds.homeML}</div>
-              </div>
-            </div>
-          ` : ''}
           
           ${game.status === 'scheduled' ? `
             <div style="display: flex; gap: 8px;">
@@ -10344,8 +10265,8 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
   
-  // Get odds for scheduled games
-  const odds = game.status === 'scheduled' ? getGameOdds(game) : null;
+  // Get spread for scheduled games
+  const spread = game.status === 'scheduled' ? getGameSpread(game) : null;
   
   // Add rivalry badge placeholder
   const rivalryBadgeId = `rivalry-badge-${game.id}`;
@@ -10378,7 +10299,7 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
               <span style="font-weight: bold; font-size: 1.1em;">${awayTeam.name}</span>
             </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${awayTeam.wins}-${awayTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.away > game.score.home ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.away}</span>` : spread ? `<span style="color: ${spread.away > 0 ? '#f59e0b' : '#10b981'}; font-weight: bold; font-size: 0.9em;">${formatSpread(spread.away)} spread</span>` : ''}
           </div>
           
           <!-- vs/@ indicator -->
@@ -10391,7 +10312,7 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
               <span style="font-weight: bold; font-size: 1.1em;">${homeTeam.name}</span>
             </div>
             <span style="color: #888; font-size: 0.9em; margin-right: 15px;">(${homeTeam.wins}-${homeTeam.losses})</span>
-            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : ''}
+            ${game.status !== 'scheduled' ? `<span style="font-size: 1.4em; font-weight: bold; color: ${game.score.home > game.score.away ? '#4CAF50' : '#fff'}; min-width: 40px; text-align: right;">${game.score.home}</span>` : spread ? `<span style="color: ${spread.home < 0 ? '#10b981' : '#f59e0b'}; font-weight: bold; font-size: 0.9em;">${formatSpread(spread.home)} spread</span>` : ''}
           </div>
         </div>
         
@@ -10401,32 +10322,6 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
             ${statusDisplay}
             ${game.status === 'live' ? '<div style="color: #f44336; font-size: 0.9em; margin-top: 4px;">● LIVE</div>' : ''}
           </div>
-          
-          ${odds ? `
-            <div style="
-              background: #1a2332;
-              border: 1px solid #2a2a40;
-              border-radius: 6px;
-              padding: 8px 12px;
-              margin-top: 5px;
-            ">
-              <div style="color: #888; font-size: 0.75em; font-weight: bold; margin-bottom: 4px; text-align: center;">ODDS</div>
-              <div style="display: flex; gap: 8px; font-size: 0.85em;">
-                <div style="color: #fff;">
-                  <span style="color: #888;">${awayAbbr}</span> ${odds.awayWinPct}%
-                </div>
-                <div style="color: #666;">|</div>
-                <div style="color: #fff;">
-                  <span style="color: #888;">${homeAbbr}</span> ${odds.homeWinPct}%
-                </div>
-              </div>
-              <div style="display: flex; gap: 8px; font-size: 0.75em; margin-top: 4px; color: #888;">
-                <div>ML: ${odds.awayML}</div>
-                <div>/</div>
-                <div>${odds.homeML}</div>
-              </div>
-            </div>
-          ` : ''}
           
           ${game.status === 'scheduled' ? `
             <div style="display: flex; gap: 8px;">
@@ -16100,7 +15995,7 @@ function savePlayerEdits(event, playerId) {
     });
   }
   
-  // Invalidate odds cache
+  // Invalidate strength cache for point spreads
   incrementStrengthVersion();
   
   // Save to database
