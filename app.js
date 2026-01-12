@@ -8292,11 +8292,35 @@ function renderSchedule() {
     scheduleSelectedTeamId = league.teams[0]?.id || null;
   }
   
+  // Get current season status
+  const allGames = Object.values(league.schedule.games || {});
+  const completedCount = allGames.filter(g => g.status === 'final').length / 2;
+  const totalGamesPerTeam = league.schedule.gamesPerTeam || 82;
+  
+  // Determine active season event
+  let activeEventBadge = '';
+  if (completedCount === 0) {
+    activeEventBadge = '<span style="background: #4CAF50; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏀 Season Start</span>';
+  } else if (completedCount >= totalGamesPerTeam) {
+    activeEventBadge = '<span style="background: #2196F3; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏁 Season Complete</span>';
+  } else if (isSeasonEventTriggered('trade_deadline')) {
+    activeEventBadge = '<span style="background: #f44336; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🔒 Post-Trade Deadline</span>';
+  } else if (isSeasonEventTriggered('allstar_break')) {
+    activeEventBadge = '<span style="background: #9C27B0; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">⭐ Post-All-Star</span>';
+  } else if (completedCount >= 41) {
+    activeEventBadge = '<span style="background: #FF9800; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">📊 Mid-Season</span>';
+  } else {
+    activeEventBadge = '<span style="background: #4CAF50; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏀 Regular Season</span>';
+  }
+  
   el.innerHTML = `
     <div style="padding: 20px;">
       <!-- Header with Tabs -->
       <div style="margin-bottom: 25px;">
-        <h2 style="margin: 0 0 15px 0;">📅 Schedule - ${league.season} Season</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <h2 style="margin: 0;">📅 Schedule - ${league.season} Season</h2>
+          ${activeEventBadge}
+        </div>
         
         <!-- Tab Navigation -->
         <div style="display: flex; gap: 5px; border-bottom: 2px solid #2a2a40; margin-bottom: 20px;">
@@ -8488,34 +8512,65 @@ function renderTeamScheduleGames(games, teamId) {
   const liveGames = games.filter(g => g.status === 'live');
   const upcomingGames = games.filter(g => g.status === 'scheduled');
   
+  // Get season events
+  const events = league.schedule.events || [];
+  
+  // Build game list with events inserted at appropriate positions
+  const gameListItems = [];
+  
+  // Season Start event (before Game 1)
+  const seasonStartEvent = events.find(e => e.type === 'season_start');
+  if (seasonStartEvent && completedGames.length === 0 && liveGames.length === 0) {
+    gameListItems.push(renderSeasonEvent(seasonStartEvent));
+  }
+  
+  // Completed games with events
+  completedGames.forEach((game, idx) => {
+    const gameNumber = idx + 1;
+    gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
+    
+    // Check for events after this game number
+    const eventsAfterThisGame = events.filter(e => e.afterGameNumber === gameNumber && e.type !== 'season_start');
+    eventsAfterThisGame.forEach(event => {
+      gameListItems.push(renderSeasonEvent(event));
+    });
+  });
+  
+  // Live games
+  liveGames.forEach((game, idx) => {
+    const gameNumber = completedGames.length + idx + 1;
+    gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
+  });
+  
+  // Upcoming games with events
+  upcomingGames.forEach((game, idx) => {
+    const gameNumber = completedGames.length + liveGames.length + idx + 1;
+    
+    // Check for events BEFORE this game
+    const eventsBeforeThisGame = events.filter(e => 
+      e.afterGameNumber < gameNumber && 
+      e.afterGameNumber >= completedGames.length + liveGames.length &&
+      e.type !== 'season_start' &&
+      !gameListItems.some(item => item.includes(`event-${e.id}`)) // Not already added
+    );
+    eventsBeforeThisGame.forEach(event => {
+      gameListItems.push(renderSeasonEvent(event));
+    });
+    
+    gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
+  });
+  
+  // Season End event (after all games)
+  const seasonEndEvent = events.find(e => e.type === 'season_end');
+  if (seasonEndEvent && upcomingGames.length === 0 && liveGames.length === 0 && completedGames.length >= league.schedule.gamesPerTeam) {
+    gameListItems.push(renderSeasonEvent(seasonEndEvent));
+  }
+  
   return `
     <div style="background: #1a1a2e; border-radius: 10px; padding: 20px;">
-      ${liveGames.length > 0 ? `
-        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
-          <h3 style="margin: 0 0 15px 0; color: #f44336;">🔴 Live Games</h3>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${liveGames.map((game, idx) => renderScheduleGameRowWithNumber(game, completedGames.length + idx + 1, teamId)).join('')}
-          </div>
-        </div>
-      ` : ''}
-      
-      ${upcomingGames.length > 0 ? `
-        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #2a2a40;">
-          <h3 style="margin: 0 0 15px 0; color: #4CAF50;">📅 Upcoming Games</h3>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${upcomingGames.map((game, idx) => renderScheduleGameRowWithNumber(game, completedGames.length + liveGames.length + idx + 1, teamId)).join('')}
-          </div>
-        </div>
-      ` : ''}
-      
-      ${completedGames.length > 0 ? `
-        <div>
-          <h3 style="margin: 0 0 15px 0; color: #888;">✓ Completed Games</h3>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            ${completedGames.map((game, idx) => renderScheduleGameRowWithNumber(game, idx + 1, teamId)).join('')}
-          </div>
-        </div>
-      ` : ''}
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        ${gameListItems.join('')}
+      </div>
     </div>
   `;
 }
@@ -8740,6 +8795,119 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
       })();
     </script>
   `;
+}
+
+// Render a season event marker
+function renderSeasonEvent(event) {
+  const bgColors = {
+    'season_start': 'linear-gradient(135deg, #1a4d2e 0%, #2d5f3f 100%)',
+    'allstar_break': 'linear-gradient(135deg, #4a1a4d 0%, #6b2d6f 100%)',
+    'trade_deadline': 'linear-gradient(135deg, #4d1a1a 0%, #6f2d2d 100%)',
+    'season_end': 'linear-gradient(135deg, #1a3a4d 0%, #2d5a6f 100%)'
+  };
+  
+  const borderColors = {
+    'season_start': '#4CAF50',
+    'allstar_break': '#9C27B0',
+    'trade_deadline': '#f44336',
+    'season_end': '#2196F3'
+  };
+  
+  const bg = bgColors[event.type] || 'linear-gradient(135deg, #2a2a40 0%, #3a3a50 100%)';
+  const borderColor = borderColors[event.type] || '#4CAF50';
+  
+  return `
+    <div id="event-${event.id}" style="
+      background: ${bg};
+      border: 3px solid ${borderColor};
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    ">
+      <div style="font-size: 2.5em; margin-bottom: 8px;">${event.icon}</div>
+      <h3 style="margin: 0 0 8px 0; color: ${borderColor}; font-size: 1.3em;">${event.name}</h3>
+      <p style="margin: 0; color: #ccc; font-size: 0.95em;">${event.description}</p>
+      ${event.unlocks ? `
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <span style="color: #4CAF50; font-size: 0.9em;">✓ Unlocks: ${event.unlocks.join(', ')}</span>
+        </div>
+      ` : ''}
+      ${event.locks ? `
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <span style="color: #f44336; font-size: 0.9em;">🔒 Locks: ${event.locks.join(', ')}</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Check if a season event has been triggered
+function isSeasonEventTriggered(eventType) {
+  const events = league?.schedule?.events || [];
+  const event = events.find(e => e.type === eventType);
+  return event?.triggered || false;
+}
+
+// Check if trades are currently allowed
+function areTradesAllowed() {
+  // Trades are locked after trade deadline
+  if (isSeasonEventTriggered('trade_deadline')) {
+    return false;
+  }
+  
+  // Trades are locked during playoffs
+  if (league?.phase === 'playoffs') {
+    return false;
+  }
+  
+  return true;
+}
+
+// Trigger a season event and handle its effects
+function triggerSeasonEvent(eventType) {
+  const events = league?.schedule?.events || [];
+  const event = events.find(e => e.type === eventType);
+  
+  if (!event || event.triggered) return;
+  
+  event.triggered = true;
+  
+  console.log(`[Season Event] Triggered: ${event.name}`);
+  
+  // Handle event effects
+  switch (eventType) {
+    case 'trade_deadline':
+      console.log('[Season Event] Trade deadline passed - trades now locked');
+      // UI will check isSeasonEventTriggered('trade_deadline') to disable trade button
+      break;
+      
+    case 'allstar_break':
+      console.log('[Season Event] All-Star Weekend - voting and game unlocked');
+      // Stub for future All-Star implementation
+      break;
+      
+    case 'season_end':
+      console.log('[Season Event] Regular season ended - awards and playoffs unlocked');
+      // Stub for future playoffs implementation
+      break;
+  }
+  
+  saveLeague();
+}
+
+// Check for events that should trigger based on completed games
+function checkSeasonEvents() {
+  if (!league?.schedule?.events) return;
+  
+  const allGames = Object.values(league.schedule.games || {});
+  const completedCount = allGames.filter(g => g.status === 'final').length / 2; // Divide by 2 since each game involves 2 teams
+  
+  league.schedule.events.forEach(event => {
+    if (!event.triggered && completedCount >= event.afterGameNumber) {
+      triggerSeasonEvent(event.type);
+    }
+  });
 }
 
 function switchGamecastTab(tab) {

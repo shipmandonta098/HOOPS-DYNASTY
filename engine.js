@@ -2647,6 +2647,11 @@ function simGameInstant(gameId) {
   // Update rivalry system
   updateRivalryFromGame(game);
   
+  // Check for season events that should trigger
+  if (typeof checkSeasonEvents === 'function') {
+    checkSeasonEvents();
+  }
+  
   return game;
 }
 

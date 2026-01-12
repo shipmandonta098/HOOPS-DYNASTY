@@ -204,7 +204,69 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
   console.log(`[Schedule Generator] ✓ Each team has exactly ${gamesPerTeam} games`);
   console.log(`[Schedule Generator] ✓ No calendarDay fields - using ordered game list`);
   
+  // Add season event markers
+  schedule.events = createSeasonEventMarkers(gamesPerTeam);
+  console.log(`[Schedule Generator] ✓ Created ${schedule.events.length} season event markers`);
+  
   return schedule;
+}
+
+/**
+ * Create season event markers for key moments in the season
+ * @param {number} gamesPerTeam - Total games per team (default 82)
+ * @returns {Array} Array of event objects
+ */
+function createSeasonEventMarkers(gamesPerTeam = 82) {
+  const events = [];
+  
+  // Season Start - before any games
+  events.push({
+    id: 'season_start',
+    type: 'season_start',
+    name: 'Season Start',
+    description: 'The regular season begins',
+    afterGameNumber: 0, // Occurs before Game 1
+    icon: '🏀',
+    triggered: false
+  });
+  
+  // All-Star Weekend - after Game 41 (midpoint of 82-game season)
+  events.push({
+    id: 'allstar_weekend',
+    type: 'allstar_break',
+    name: 'All-Star Weekend',
+    description: 'Mid-season break featuring the All-Star Game',
+    afterGameNumber: 41,
+    icon: '⭐',
+    triggered: false,
+    unlocks: ['allstar_voting', 'allstar_game']
+  });
+  
+  // Trade Deadline - after Game 55 (67% through season)
+  events.push({
+    id: 'trade_deadline',
+    type: 'trade_deadline',
+    name: 'Trade Deadline',
+    description: 'Last day to make trades - all trading disabled after this point',
+    afterGameNumber: 55,
+    icon: '🔒',
+    triggered: false,
+    locks: ['trades']
+  });
+  
+  // Regular Season End - after Game 82
+  events.push({
+    id: 'season_end',
+    type: 'season_end',
+    name: 'Regular Season End',
+    description: 'Season concludes - standings locked, awards voting begins',
+    afterGameNumber: gamesPerTeam,
+    icon: '🏁',
+    triggered: false,
+    unlocks: ['awards', 'playoffs']
+  });
+  
+  return events;
 }
 
 /**
