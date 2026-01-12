@@ -7432,7 +7432,7 @@ function renderTeamManagement() {
               // Avoid duplication if city is in the name
               const displayName = t.name?.startsWith(t.city) ? t.name : `${t.city} ${t.name}`;
               return `
-              <option value="${t.id}" ${t.id === team.id ? 'selected' : ''}>
+              <option value="${t.id}" ${t.id === selectedTeamForManagement ? 'selected' : ''}>
                 ${t.conference === 'East' ? '🟦' : '🟥'} ${displayName} ${t.id === league.userTeamId ? '(Your Team)' : ''}
               </option>
             `}).join('')}
