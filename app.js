@@ -8577,6 +8577,18 @@ function renderTeamScheduleGames(games, teamId) {
   // Upcoming games with events
   upcomingGames.forEach((game, idx) => {
     const gameNumber = completedGames.length + liveGames.length + idx + 1;
+    
+    // Insert events BEFORE this game (events that should appear after the previous game)
+    const eventsBeforeThisGame = events.filter(e => 
+      e.afterGameNumber === gameNumber - 1 && 
+      e.type !== 'season_start' &&
+      !gameListItems.some(item => item.includes(`event-${e.id}`))
+    );
+    eventsBeforeThisGame.forEach(event => {
+      console.log(`[DEBUG] Inserting event "${event.name}" before Game ${gameNumber}`);
+      gameListItems.push(renderSeasonEvent(event));
+    });
+    
     gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
   });
   
