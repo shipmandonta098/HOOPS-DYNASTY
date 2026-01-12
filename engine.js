@@ -7262,6 +7262,8 @@ function debugRatings() {
 // Expose to window for console access
 if (typeof window !== 'undefined') {
   window.debugRatings = debugRatings;
+  window.generateDefaultRotations = generateDefaultRotations;
+  window.calcTotalMinutes = calcTotalMinutes;
 }
 
 /* ============================
