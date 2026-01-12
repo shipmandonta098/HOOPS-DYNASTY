@@ -5244,8 +5244,8 @@ function stepLiveGame(gameId) {
       break;
       
     case 'foul':
-      const defender = defendingTeam.players[Math.floor(Math.random() * Math.min(5, defendingTeam.players.length))];
-      logText = `Foul by ${defender.name} on ${player.name}.`;
+      const foulDefender = defendingTeam.players[Math.floor(Math.random() * Math.min(5, defendingTeam.players.length))];
+      logText = `Foul by ${foulDefender.name} on ${player.name}.`;
       break;
       
     case 'rebound':
