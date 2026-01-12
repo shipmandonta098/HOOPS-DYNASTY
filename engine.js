@@ -158,26 +158,30 @@ function updateLeaguePhase() {
 function advancePhase() {
   if (!league) return false;
   
-  const currentPhase = league.phase?.toLowerCase() || 'offseason';
+  const currentPhase = league.phase?.toUpperCase() || 'OFFSEASON';
   console.log(`[Phase] Advancing from ${currentPhase}`);
   
-  if (currentPhase === 'offseason') {
-    league.phase = 'preseason';
+  if (currentPhase === 'OFFSEASON') {
+    league.phase = 'PRESEASON';
     console.log('[Phase] Transitioned to PRESEASON');
-  } else if (currentPhase === 'preseason') {
-    league.phase = 'season';
+  } else if (currentPhase === 'PRESEASON') {
+    league.phase = 'REGULAR_SEASON';
     ensureSchedule();
     console.log('[Phase] Transitioned to REGULAR_SEASON');
-  } else if (currentPhase === 'season') {
-    league.phase = 'playoffs';
+  } else if (currentPhase === 'REGULAR_SEASON' || currentPhase === 'SEASON') {
+    league.phase = 'PLAYOFFS';
     console.log('[Phase] Transitioned to PLAYOFFS');
-  } else if (currentPhase === 'playoffs') {
-    league.phase = 'offseason';
+  } else if (currentPhase === 'PLAYOFFS') {
+    league.phase = 'OFFSEASON';
     league.season++;
     console.log(`[Phase] Transitioned to OFFSEASON, incremented season to ${league.season}`);
   }
   
-  save();
+  if (typeof saveLeagueState === 'function') {
+    saveLeagueState();
+  } else if (typeof save === 'function') {
+    save();
+  }
   return true;
 }
 

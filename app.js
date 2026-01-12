@@ -325,6 +325,7 @@ function getCurrentPhaseDisplay() {
     'REGULAR_SEASON': 'Regular Season',
     'ALL_STAR_BREAK': 'All-Star Break',
     'POSTSEASON': 'Playoffs',
+    'PLAYOFFS': 'Playoffs',
     'OFFSEASON': 'Offseason',
     'DRAFT': 'Draft',
     'FREE_AGENCY': 'Free Agency',
@@ -335,7 +336,7 @@ function getCurrentPhaseDisplay() {
     'draft': 'Draft'
   };
   
-  return displayMap[phase] || (phase ? phase.toUpperCase() : 'OFFSEASON');
+  return displayMap[phase] || (phase ? phase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'OFFSEASON');
 }
 
 /**
@@ -347,9 +348,9 @@ function startRegularSeason() {
     return;
   }
   
-  const currentPhase = league.phase?.toLowerCase() || '';
+  const currentPhase = league.phase?.toUpperCase() || '';
   
-  if (currentPhase !== 'preseason') {
+  if (currentPhase !== 'PRESEASON') {
     alert('Can only start season from Preseason phase');
     return;
   }
@@ -357,7 +358,7 @@ function startRegularSeason() {
   console.log('[Season Start] Transitioning to REGULAR_SEASON');
   
   // Transition phase
-  league.phase = 'season';
+  league.phase = 'REGULAR_SEASON';
   
   // Ensure schedule exists
   if (typeof ensureSchedule === 'function') {
@@ -373,7 +374,11 @@ function startRegularSeason() {
   }
   
   // Save state
-  save();
+  if (typeof saveLeagueState === 'function') {
+    saveLeagueState();
+  } else if (typeof save === 'function') {
+    save();
+  }
   
   // Re-render UI
   render();
@@ -2225,8 +2230,8 @@ function updateLeagueInfo() {
   }
   
   // Update simulation button states based on phase
-  const phase = league.phase?.toLowerCase() || 'offseason';
-  const canSimulate = (phase === 'season' || phase === 'playoffs');
+  const phase = league.phase?.toUpperCase() || 'OFFSEASON';
+  const canSimulate = (phase === 'REGULAR_SEASON' || phase === 'SEASON' || phase === 'PLAYOFFS');
   
   const simButtons = ['simGameButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'];
   simButtons.forEach(id => {
@@ -9941,7 +9946,7 @@ function renderSchedule() {
   const totalGamesPerTeam = league.schedule.gamesPerTeam || 82;
   
   // Check if in preseason
-  const isPreseason = league.phase?.toLowerCase() === 'preseason';
+  const isPreseason = league.phase?.toUpperCase() === 'PRESEASON';
   
   // Determine active season event
   let activeEventBadge = '';
