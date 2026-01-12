@@ -212,6 +212,79 @@ function generateLeagueSchedule(teams, season, gamesPerTeam = 82) {
 }
 
 /**
+ * Generate preseason schedule
+ * @param {Array} teams - Array of team objects
+ * @param {number} season - Season year
+ * @param {number} gamesPerTeam - Preseason games per team (default 2)
+ * @returns {Object} Preseason schedule with games
+ */
+function generatePreseasonSchedule(teams, season, gamesPerTeam = 2) {
+  console.log(`[Preseason Generator] Creating ${gamesPerTeam} games per team for ${teams.length} teams`);
+  
+  const numTeams = teams.length;
+  const allGames = [];
+  let gameId = 1;
+  
+  // Create simple rotation - each team plays N random opponents
+  for (let teamIdx = 0; teamIdx < numTeams; teamIdx++) {
+    let gamesScheduled = 0;
+    
+    while (gamesScheduled < gamesPerTeam) {
+      // Pick random opponent (deterministic based on seed)
+      const opponentIdx = (teamIdx + gamesScheduled * 7 + 3) % numTeams;
+      
+      if (opponentIdx === teamIdx) continue; // Can't play self
+      
+      // Check if this matchup already exists in reverse
+      const existingGame = allGames.find(g => 
+        (g.homeTeamIndex === opponentIdx && g.awayTeamIndex === teamIdx) ||
+        (g.homeTeamIndex === teamIdx && g.awayTeamIndex === opponentIdx)
+      );
+      
+      if (existingGame) {
+        gamesScheduled++;
+        continue;
+      }
+      
+      // Create game (home team is lower index for consistency)
+      const homeIdx = teamIdx < opponentIdx ? teamIdx : opponentIdx;
+      const awayIdx = teamIdx < opponentIdx ? opponentIdx : teamIdx;
+      
+      allGames.push({
+        id: `preseason_${season}_${gameId++}`,
+        season: season,
+        phase: 'Preseason',
+        homeTeamId: teams[homeIdx].id,
+        homeTeamIndex: homeIdx,
+        awayTeamId: teams[awayIdx].id,
+        awayTeamIndex: awayIdx,
+        status: 'scheduled',
+        isPreseason: true // Flag to identify preseason games
+      });
+      
+      gamesScheduled++;
+    }
+  }
+  
+  console.log(`[Preseason Generator] Created ${allGames.length} preseason games`);
+  
+  // Build schedule structure
+  const schedule = {
+    games: {},
+    gamesPerTeam: gamesPerTeam,
+    totalGames: allGames.length,
+    isPreseason: true
+  };
+  
+  allGames.forEach(game => {
+    schedule.games[game.id] = game;
+  });
+  
+  return schedule;
+}
+
+
+/**
  * Create season event markers for key moments in the season
  * @param {number} gamesPerTeam - Total games per team (default 82)
  * @returns {Array} Array of event objects

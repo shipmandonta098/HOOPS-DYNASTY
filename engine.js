@@ -137,7 +137,15 @@ function createEmptyLeagueState() {
       // Job Security & Firing (OFF by default)
       enableJobSecurity: false,
       jobSecurityDifficulty: 'realistic', // 'forgiving', 'realistic', 'ruthless'
-      allowMidseasonFiring: false
+      allowMidseasonFiring: false,
+      
+      // Preseason (OFF by default)
+      enablePreseason: false,
+      preseasonGames: 2, // 2 or 4 preseason games per team
+      preseasonRosterLimit: 20, // Max players during preseason (regular season uses maxRosterSize)
+      preseasonInjuryReduction: 0.5, // 50% reduction in injury rate
+      preseasonFatigueReduction: 0.6, // 40% reduction in fatigue impact
+      preseasonDevelopmentBoost: 1.5 // 50% faster uncertainty reduction
     },
     
     // Migration tracking - prevents re-running one-time migrations
@@ -946,7 +954,10 @@ function makePlayer(age, isRookie = false) {
       totalValue: salary * yearsRemaining,
       startYear: league ? league.season : 2026,
       hasPlayerOption: false,
-      hasTeamOption: false
+      hasTeamOption: false,
+      type: 'standard', // 'standard', 'training_camp', 'two_way'
+      guaranteed: 100, // % of contract guaranteed (0-100)
+      isTrainingCamp: false // Training camp contracts auto-expire before regular season
     },
     seasonStats: {
       gp: 0,
@@ -2530,7 +2541,14 @@ async function generateSeasonSchedule(season) {
     
     // Clear this season's schedule
     league.schedule.games = {};
+    league.schedule.preseasonGames = {};
     league.schedule.generationError = null;
+    
+    // Generate preseason schedule if enabled
+    if (league.settings?.enablePreseason && league.phase === 'preseason') {
+      console.log('[Engine] Generating preseason schedule...');
+      generatePreseasonScheduleIfNeeded();
+    }
     
     // Use the new schedule generator (with validation and fallback)
     const newSchedule = generateLeagueSchedule(league.teams, season, gamesPerTeam);
@@ -3049,6 +3067,238 @@ function updateTeamPayrolls() {
     });
   }
 }
+
+/* ============================
+   PRESEASON SYSTEM
+============================ */
+
+/**
+ * Generate preseason schedule if enabled
+ */
+function generatePreseasonScheduleIfNeeded() {
+  if (!league || !league.settings || !league.settings.enablePreseason) return;
+  
+  const preseasonGames = league.settings.preseasonGames || 2;
+  
+  console.log(`[Preseason] Generating ${preseasonGames} games per team`);
+  
+  if (typeof generatePreseasonSchedule === 'function') {
+    const preseasonSchedule = generatePreseasonSchedule(league.teams, league.season, preseasonGames);
+    
+    // Merge preseason games into main schedule
+    if (!league.schedule.preseasonGames) {
+      league.schedule.preseasonGames = {};
+    }
+    
+    league.schedule.preseasonGames = preseasonSchedule.games;
+    console.log(`[Preseason] Added ${Object.keys(preseasonSchedule.games).length} preseason games`);
+  }
+}
+
+/**
+ * Apply preseason modifiers to game simulation
+ * Reduces injury/fatigue and increases development
+ */
+function applyPreseasonModifiers(game) {
+  if (!game || !game.isPreseason) return {};
+  
+  const settings = league?.settings || {};
+  
+  return {
+    injuryReduction: settings.preseasonInjuryReduction || 0.5,
+    fatigueReduction: settings.preseasonFatigueReduction || 0.6,
+    developmentBoost: settings.preseasonDevelopmentBoost || 1.5,
+    countsForStandings: false, // Preseason games don't affect standings
+    countsForStats: false // Preseason games don't count for official stats/awards
+  };
+}
+
+/**
+ * Create training camp contract for a player
+ */
+function createTrainingCampContract(player, salary = 1, duration = 1) {
+  if (!player) return;
+  
+  player.contract = {
+    amount: salary,
+    exp: league ? league.season + duration : new Date().getFullYear() + duration,
+    yearsRemaining: duration,
+    totalValue: salary * duration,
+    startYear: league ? league.season : new Date().getFullYear(),
+    hasPlayerOption: false,
+    hasTeamOption: false,
+    type: 'training_camp',
+    guaranteed: 0, // 0% guaranteed
+    isTrainingCamp: true
+  };
+  
+  console.log(`[Preseason] Created training camp contract for ${player.name}`);
+}
+
+/**
+ * Calculate cap penalty for waiving a player
+ * Based on contract guarantee percentage
+ */
+function calculateWaiverCapPenalty(player) {
+  if (!player || !player.contract) return 0;
+  
+  const contract = player.contract;
+  const guaranteedPct = contract.guaranteed || 100; // Default to fully guaranteed
+  
+  // Training camp contracts have no penalty
+  if (contract.isTrainingCamp || contract.type === 'training_camp') {
+    return 0;
+  }
+  
+  // Calculate guaranteed portion
+  const totalRemaining = contract.amount * contract.yearsRemaining;
+  const guaranteedAmount = totalRemaining * (guaranteedPct / 100);
+  
+  return guaranteedAmount;
+}
+
+/**
+ * Waive a player with proper cap accounting
+ */
+function waivePlayer(team, player) {
+  if (!team || !player) return false;
+  
+  const capPenalty = calculateWaiverCapPenalty(player);
+  
+  console.log(`[Roster] Waiving ${player.name} - Cap penalty: $${capPenalty.toFixed(1)}M`);
+  
+  // Remove from team
+  const playerIndex = team.players.findIndex(p => p.id === player.id);
+  if (playerIndex === -1) return false;
+  
+  team.players.splice(playerIndex, 1);
+  
+  // Add cap penalty if applicable
+  if (capPenalty > 0) {
+    if (!team.capPenalties) team.capPenalties = [];
+    team.capPenalties.push({
+      playerId: player.id,
+      playerName: player.name,
+      amount: capPenalty,
+      yearsRemaining: player.contract.yearsRemaining,
+      waivedYear: league.season
+    });
+  }
+  
+  // Add to free agent pool
+  player.teamId = null;
+  if (league.freeAgents) {
+    league.freeAgents.push(player);
+  }
+  
+  return true;
+}
+
+/**
+ * Check roster limit for preseason vs regular season
+ */
+function getRosterLimit(team) {
+  if (!league || !league.settings) return 15;
+  
+  const isPreseason = league.phase === 'preseason';
+  const settings = league.settings;
+  
+  if (isPreseason && settings.enablePreseason) {
+    return settings.preseasonRosterLimit || 20;
+  }
+  
+  return settings.maxRosterSize || 15;
+}
+
+/**
+ * Transition from Preseason to Regular Season (Opening Day)
+ * - Auto-waive excess players
+ * - Expire training camp contracts
+ * - Change phase to 'season'
+ */
+function transitionToRegularSeason() {
+  if (!league) return;
+  
+  console.log('[Opening Day] Transitioning from Preseason to Regular Season');
+  
+  const settings = league.settings;
+  const regularRosterLimit = settings.maxRosterSize || 15;
+  
+  // Process each team
+  league.teams.forEach(team => {
+    console.log(`[Opening Day] Processing ${team.name} roster`);
+    
+    // Step 1: Auto-expire training camp contracts that weren't promoted
+    const trainingCampPlayers = team.players.filter(p => 
+      p.contract && p.contract.isTrainingCamp
+    );
+    
+    trainingCampPlayers.forEach(player => {
+      console.log(`[Opening Day] Training camp contract expired: ${player.name}`);
+      waivePlayer(team, player);
+    });
+    
+    // Step 2: Check if roster exceeds regular season limit
+    if (team.players.length > regularRosterLimit) {
+      const excessCount = team.players.length - regularRosterLimit;
+      console.log(`[Opening Day] ${team.name} has ${excessCount} excess players`);
+      
+      // Sort by OVR (lowest first) to determine who to cut
+      const sortedPlayers = [...team.players].sort((a, b) => 
+        a.ratings.ovr - b.ratings.ovr
+      );
+      
+      // Auto-waive lowest-rated players (AI teams only)
+      if (!team.isUserTeam) {
+        for (let i = 0; i < excessCount; i++) {
+          const playerToCut = sortedPlayers[i];
+          console.log(`[Opening Day] Auto-waiving ${playerToCut.name} (${playerToCut.ratings.ovr} OVR)`);
+          waivePlayer(team, playerToCut);
+        }
+      } else {
+        // For user team, just log warning - they must manually cut
+        console.warn(`[Opening Day] User team has ${excessCount} excess players - manual cuts required`);
+      }
+    }
+  });
+  
+  // Update league phase
+  league.phase = 'season';
+  leagueState.meta.phase = 'season';
+  
+  console.log('[Opening Day] Transition complete - Regular season ready');
+  
+  saveLeagueState();
+}
+
+/**
+ * Promote training camp player to regular roster
+ * Converts training camp contract to standard contract
+ */
+function promoteTrainingCampPlayer(team, player, newSalary, years = 2) {
+  if (!player || !player.contract || !player.contract.isTrainingCamp) {
+    console.error('[Roster] Cannot promote - not a training camp player');
+    return false;
+  }
+  
+  console.log(`[Roster] Promoting ${player.name} to regular roster`);
+  
+  player.contract = {
+    amount: newSalary,
+    exp: league.season + years,
+    yearsRemaining: years,
+    totalValue: newSalary * years,
+    startYear: league.season,
+    hasPlayerOption: false,
+    hasTeamOption: false,
+    type: 'standard',
+    guaranteed: 100,
+    isTrainingCamp: false
+  };
+  
+  return true;
+}
+
 
 /* ============================
    FAN HYPE SYSTEM

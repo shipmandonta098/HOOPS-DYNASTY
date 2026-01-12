@@ -542,7 +542,12 @@ let newLeagueState = {
     newsFrequency: 'Normal',
     moraleSystem: true,
     rivalries: true,
-    commissionerMode: false
+    commissionerMode: false,
+    
+    // Preseason (OFF by default)
+    enablePreseason: false,
+    preseasonGames: 2,
+    preseasonRosterLimit: 20
   },
   expandedSections: new Set(['structure']) // Track which settings sections are expanded
 };
@@ -1410,6 +1415,12 @@ function renderNewLeagueSettings() {
         { label: 'Morale System', field: 'moraleSystem', type: 'boolean' },
         { label: 'Team Rivalries', field: 'rivalries', type: 'boolean' },
         { label: 'Enable Commissioner Mode', field: 'commissionerMode', type: 'boolean' }
+      ])}
+      
+      ${renderSettingSection('preseason', 'Preseason (Optional)', [
+        { label: 'Enable Preseason', field: 'enablePreseason', type: 'boolean' },
+        { label: 'Preseason Games Per Team', field: 'preseasonGames', type: 'select', options: [2, 4] },
+        { label: 'Preseason Roster Limit', field: 'preseasonRosterLimit', type: 'number', min: 15, max: 20 }
       ])}
       
       ${renderRatingProfileSection()}
@@ -3080,11 +3091,18 @@ function renderRosterMobileCards(team) {
       const apg = p.seasonStats.gp > 0 ? (p.seasonStats.ast / p.seasonStats.gp).toFixed(1) : '0.0';
       const yearsLeft = Math.max(0, p.contract.exp - league.season);
       
+      // Contract type badge
+      const contractBadge = p.contract.isTrainingCamp ? 
+        '<span style="background:#dc2626; color:white; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600; margin-left:6px;">TC</span>' :
+        p.contract.guaranteed < 100 ?
+        `<span style="background:#f59e0b; color:white; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600; margin-left:6px;">${p.contract.guaranteed}%</span>` :
+        '';
+      
       return `
         <div class="player-card-mobile">
           <div class="player-card-main">
             <div class="player-card-left">
-              <div class="player-name-mobile">${p.name}</div>
+              <div class="player-name-mobile">${p.name}${contractBadge}</div>
               <div class="player-details-mobile">
                 ${p.age} • ${yearsLeft}yr${yearsLeft !== 1 ? 's' : ''} • ${formatMoneyM(p.contract.amount)}/yr
               </div>
