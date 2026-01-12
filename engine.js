@@ -5,6 +5,15 @@
 // Schema Version for League Migrations
 const CURRENT_SCHEMA_VERSION = 6; // Incremented for shot location system
 
+/**
+ * Normalize phase to uppercase standard format
+ * Single source of truth for phase normalization
+ */
+function normalizePhase(phase) {
+  if (!phase) return 'PRESEASON';
+  return String(phase).toUpperCase();
+}
+
 // Debug Flags
 const DEBUG_INJURIES = false; // Set to true to see injury logs
 
@@ -7327,6 +7336,8 @@ if (typeof window !== 'undefined') {
   window.generateDefaultRotations = generateDefaultRotations;
   window.calcTotalMinutes = calcTotalMinutes;
   window.advancePhase = advancePhase;
+  window.normalizePhase = normalizePhase;
+  window.DEBUG_PHASE = false; // Set to true to enable phase debugging
 }
 
 /* ============================

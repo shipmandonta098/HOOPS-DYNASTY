@@ -315,6 +315,13 @@ function getCurrentPhaseDisplay() {
   
   const phase = getCurrentPhase();
   
+  // DEBUG: Show raw phase value (set DEBUG_PHASE = true to enable)
+  if (window.DEBUG_PHASE) {
+    const rawPhase = leagueState?.meta?.phase || league?.phase || 'undefined';
+    const normalized = (rawPhase || '').toUpperCase();
+    console.log('[PHASE DEBUG] raw=' + rawPhase + ' normalized=' + normalized);
+  }
+  
   if (typeof getPhaseDisplayName === 'function') {
     return getPhaseDisplayName(phase);
   }
@@ -348,17 +355,25 @@ function startRegularSeason() {
     return;
   }
   
-  const currentPhase = league.phase?.toUpperCase() || '';
+  const currentPhase = (league.phase || '').toUpperCase();
   
   if (currentPhase !== 'PRESEASON') {
-    alert('Can only start season from Preseason phase');
+    alert(`Can only start season from Preseason phase (current: ${currentPhase})`);
     return;
   }
   
-  console.log('[Season Start] Transitioning to REGULAR_SEASON');
+  console.log('[Season Start] Transitioning PRESEASON → REGULAR_SEASON');
   
-  // Transition phase
+  // Transition phase in BOTH stores (critical!)
   league.phase = 'REGULAR_SEASON';
+  if (leagueState && leagueState.meta) {
+    leagueState.meta.phase = 'REGULAR_SEASON';
+  }
+  
+  // Mark season as started
+  if (leagueState && leagueState.meta) {
+    leagueState.meta.regularSeasonStarted = true;
+  }
   
   // Ensure schedule exists
   if (typeof ensureSchedule === 'function') {
@@ -373,18 +388,23 @@ function startRegularSeason() {
     league.simulation.eventQueue = [];
   }
   
-  // Save state
+  // Save state (REQUIRED)
   if (typeof saveLeagueState === 'function') {
     saveLeagueState();
   } else if (typeof save === 'function') {
     save();
   }
   
+  console.log('[Season Start] ✓ Phase transition complete');
+  
   // Re-render UI
   render();
   
   alert('Regular season has begun!');
 }
+
+// Expose to window for onclick handlers
+window.startRegularSeason = startRegularSeason;
 
 /**
  * Get current season
@@ -9946,7 +9966,9 @@ function renderSchedule() {
   const totalGamesPerTeam = league.schedule.gamesPerTeam || 82;
   
   // Check if in preseason
-  const isPreseason = league.phase?.toUpperCase() === 'PRESEASON';
+  // Normalize phase for reliable comparison
+  const currentPhase = (league.phase || '').toUpperCase();
+  const isPreseason = currentPhase === 'PRESEASON' && !leagueState?.meta?.regularSeasonStarted;
   
   // Determine active season event
   let activeEventBadge = '';

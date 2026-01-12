@@ -369,7 +369,17 @@ async function loadLeagueState(leagueId) {
     // Validate and migrate schema if needed
     if (!leagueState.meta.schemaVersion || leagueState.meta.schemaVersion < CURRENT_SCHEMA_VERSION) {
       console.log('[STATE] Migrating schema from', leagueState.meta.schemaVersion, 'to', CURRENT_SCHEMA_VERSION);
-      migrateLeagueState(leagueState);
+      const needsSave = migrateLeagueState(leagueState);
+      
+      // Save immediately after migration if phase was normalized
+      if (needsSave) {
+        setTimeout(() => {
+          if (typeof saveLeagueState === 'function') {
+            saveLeagueState();
+            console.log('[STATE] Saved after phase migration');
+          }
+        }, 50);
+      }
     }
     
     // Convert to legacy format for backward compatibility
@@ -467,6 +477,8 @@ async function loadLeagueState(leagueId) {
  * Migrate league state to current schema version
  */
 function migrateLeagueState(state) {
+  let needsSave = false;
+  
   // Add missing meta fields
   if (!state.meta) {
     state.meta = {};
@@ -485,15 +497,25 @@ function migrateLeagueState(state) {
   }
   
   // Migrate phase to uppercase (schema v6+)
-  if (state.meta.phase && typeof state.meta.phase === 'string') {
-    state.meta.phase = state.meta.phase.toUpperCase();
-    console.log('[STATE] Migrated phase to uppercase:', state.meta.phase);
+  // CRITICAL: This ensures phase is always uppercase
+  const oldPhase = state.meta.phase;
+  if (!state.meta.phase) {
+    state.meta.phase = 'PRESEASON';
+    console.log('[STATE] Set default phase: PRESEASON');
+    needsSave = true;
+  } else {
+    state.meta.phase = String(state.meta.phase).toUpperCase();
+    if (oldPhase !== state.meta.phase) {
+      console.log('[STATE] Normalized phase:', oldPhase, '→', state.meta.phase);
+      needsSave = true;
+    }
   }
   
   // Update schema version
   state.meta.schemaVersion = CURRENT_SCHEMA_VERSION;
   
   console.log('[STATE] Migration complete');
+  return needsSave;
 }
 
 /**
