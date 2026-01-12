@@ -13526,6 +13526,442 @@ function showEditPlayerModal(playerId) {
             </div>
           </div>
           
+          <!-- Athletic Attributes -->
+          <div class="edit-section">
+            <h3>Athletic Attributes</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Speed</label>
+                <input type="number" id="edit_speed" value="${player.attributes?.athletic?.speed || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Acceleration</label>
+                <input type="number" id="edit_acceleration" value="${player.attributes?.athletic?.acceleration || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Strength</label>
+                <input type="number" id="edit_strength" value="${player.attributes?.athletic?.strength || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Vertical</label>
+                <input type="number" id="edit_vertical" value="${player.attributes?.athletic?.vertical || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Lateral Quickness</label>
+                <input type="number" id="edit_lateralQuickness" value="${player.attributes?.athletic?.lateralQuickness || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Stamina</label>
+                <input type="number" id="edit_stamina" value="${player.attributes?.athletic?.stamina || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Hustle</label>
+                <input type="number" id="edit_hustle" value="${player.attributes?.athletic?.hustle || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Offensive Skills -->
+          <div class="edit-section">
+            <h3>Offensive Skills</h3>
+            <h4 style="color: #94a3b8; font-size: 14px; margin: 10px 0;">Scoring</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Finishing</label>
+                <input type="number" id="edit_finishing" value="${player.attributes?.offensive?.scoringSkills?.finishing || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Mid-Range</label>
+                <input type="number" id="edit_midRangeShooting" value="${player.attributes?.offensive?.scoringSkills?.midRangeShooting || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Three-Point</label>
+                <input type="number" id="edit_threePointShooting" value="${player.attributes?.offensive?.scoringSkills?.threePointShooting || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Free Throw</label>
+                <input type="number" id="edit_freeThrowShooting" value="${player.attributes?.offensive?.scoringSkills?.freeThrowShooting || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Post Scoring</label>
+                <input type="number" id="edit_postScoring" value="${player.attributes?.offensive?.scoringSkills?.postScoring || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Shot Creation</label>
+                <input type="number" id="edit_shotCreation" value="${player.attributes?.offensive?.scoringSkills?.shotCreation || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <h4 style="color: #94a3b8; font-size: 14px; margin: 10px 0;">Playmaking</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Ball Handling</label>
+                <input type="number" id="edit_ballHandling" value="${player.attributes?.offensive?.playmakingSkills?.ballHandling || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Passing Vision</label>
+                <input type="number" id="edit_passingVision" value="${player.attributes?.offensive?.playmakingSkills?.passingVision || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Passing Accuracy</label>
+                <input type="number" id="edit_passingAccuracy" value="${player.attributes?.offensive?.playmakingSkills?.passingAccuracy || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Off-Ball Movement</label>
+                <input type="number" id="edit_offBallMovement" value="${player.attributes?.offensive?.playmakingSkills?.offBallMovement || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Defensive Skills -->
+          <div class="edit-section">
+            <h3>Defensive Skills</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Perimeter Defense</label>
+                <input type="number" id="edit_perimeterDefense" value="${player.attributes?.defensive?.perimeterDefense || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Interior Defense</label>
+                <input type="number" id="edit_interiorDefense" value="${player.attributes?.defensive?.interiorDefense || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Block Rating</label>
+                <input type="number" id="edit_blockRating" value="${player.attributes?.defensive?.blockRating || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Steal Rating</label>
+                <input type="number" id="edit_stealRating" value="${player.attributes?.defensive?.stealRating || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Def. Rebounding</label>
+                <input type="number" id="edit_defensiveRebounding" value="${player.attributes?.defensive?.defensiveRebounding || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Off. Rebounding</label>
+                <input type="number" id="edit_offensiveRebounding" value="${player.attributes?.defensive?.offensiveRebounding || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Def. Awareness</label>
+                <input type="number" id="edit_defensiveAwareness" value="${player.attributes?.defensive?.defensiveAwareness || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Mental Attributes -->
+          <div class="edit-section">
+            <h3>Mental Attributes</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Basketball IQ</label>
+                <input type="number" id="edit_basketballIQ" value="${player.attributes?.mental?.basketballIQ || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Consistency</label>
+                <input type="number" id="edit_consistency" value="${player.attributes?.mental?.consistency || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Work Ethic</label>
+                <input type="number" id="edit_workEthic" value="${player.attributes?.mental?.workEthic || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Leadership</label>
+                <input type="number" id="edit_leadership" value="${player.attributes?.mental?.leadership || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Composure</label>
+                <input type="number" id="edit_composure" value="${player.attributes?.mental?.composure || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Discipline</label>
+                <input type="number" id="edit_discipline" value="${player.attributes?.mental?.discipline || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Clutch</label>
+                <input type="number" id="edit_clutch" value="${player.attributes?.mental?.clutch || 70}" min="40" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Personality Attributes -->
+          <div class="edit-section">
+            <h3>Personality Traits</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Loyalty</label>
+                <input type="number" id="edit_loyalty" value="${player.personality?.loyalty || 70}" min="30" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Money Focus</label>
+                <input type="number" id="edit_moneyFocus" value="${player.personality?.moneyFocus || 70}" min="30" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Winning Drive</label>
+                <input type="number" id="edit_winningDrive" value="${player.personality?.winningDrive || 70}" min="30" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Ego</label>
+                <input type="number" id="edit_ego" value="${player.personality?.ego || 70}" min="30" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              <div class="edit-field">
+                <label>Temperament</label>
+                <input type="number" id="edit_temperament" value="${player.personality?.temperament || 70}" min="30" max="99" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
           <!-- Contract -->
           <div class="edit-section">
             <h3>Contract Details</h3>
@@ -13736,6 +14172,48 @@ function savePlayerEdits(event, playerId) {
     defense: parseInt(document.getElementById('edit_defense').value),
     rebound: parseInt(document.getElementById('edit_rebound').value),
     passing: parseInt(document.getElementById('edit_passing').value),
+    // Athletic
+    speed: parseInt(document.getElementById('edit_speed').value),
+    acceleration: parseInt(document.getElementById('edit_acceleration').value),
+    strength: parseInt(document.getElementById('edit_strength').value),
+    vertical: parseInt(document.getElementById('edit_vertical').value),
+    lateralQuickness: parseInt(document.getElementById('edit_lateralQuickness').value),
+    stamina: parseInt(document.getElementById('edit_stamina').value),
+    hustle: parseInt(document.getElementById('edit_hustle').value),
+    // Offensive Skills
+    finishing: parseInt(document.getElementById('edit_finishing').value),
+    midRangeShooting: parseInt(document.getElementById('edit_midRangeShooting').value),
+    threePointShooting: parseInt(document.getElementById('edit_threePointShooting').value),
+    freeThrowShooting: parseInt(document.getElementById('edit_freeThrowShooting').value),
+    postScoring: parseInt(document.getElementById('edit_postScoring').value),
+    shotCreation: parseInt(document.getElementById('edit_shotCreation').value),
+    ballHandling: parseInt(document.getElementById('edit_ballHandling').value),
+    passingVision: parseInt(document.getElementById('edit_passingVision').value),
+    passingAccuracy: parseInt(document.getElementById('edit_passingAccuracy').value),
+    offBallMovement: parseInt(document.getElementById('edit_offBallMovement').value),
+    // Defensive Skills
+    perimeterDefense: parseInt(document.getElementById('edit_perimeterDefense').value),
+    interiorDefense: parseInt(document.getElementById('edit_interiorDefense').value),
+    blockRating: parseInt(document.getElementById('edit_blockRating').value),
+    stealRating: parseInt(document.getElementById('edit_stealRating').value),
+    defensiveRebounding: parseInt(document.getElementById('edit_defensiveRebounding').value),
+    offensiveRebounding: parseInt(document.getElementById('edit_offensiveRebounding').value),
+    defensiveAwareness: parseInt(document.getElementById('edit_defensiveAwareness').value),
+    // Mental
+    basketballIQ: parseInt(document.getElementById('edit_basketballIQ').value),
+    consistency: parseInt(document.getElementById('edit_consistency').value),
+    workEthic: parseInt(document.getElementById('edit_workEthic').value),
+    leadership: parseInt(document.getElementById('edit_leadership').value),
+    composure: parseInt(document.getElementById('edit_composure').value),
+    discipline: parseInt(document.getElementById('edit_discipline').value),
+    clutch: parseInt(document.getElementById('edit_clutch').value),
+    // Personality
+    loyalty: parseInt(document.getElementById('edit_loyalty').value),
+    moneyFocus: parseInt(document.getElementById('edit_moneyFocus').value),
+    winningDrive: parseInt(document.getElementById('edit_winningDrive').value),
+    ego: parseInt(document.getElementById('edit_ego').value),
+    temperament: parseInt(document.getElementById('edit_temperament').value),
+    // Contract & Draft
     salary: parseFloat(document.getElementById('edit_salary').value),
     contractYears: parseInt(document.getElementById('edit_contractYears').value),
     playerOption: document.getElementById('edit_playerOption').checked,
@@ -13792,7 +14270,27 @@ function savePlayerEdits(event, playerId) {
     }
   }
   
-  // Apply edits
+  // Initialize nested structures if missing
+  if (!player.attributes) {
+    player.attributes = {
+      athletic: {},
+      offensive: {
+        scoringSkills: {},
+        playmakingSkills: {}
+      },
+      defensive: {},
+      mental: {}
+    };
+  }
+  if (!player.attributes.athletic) player.attributes.athletic = {};
+  if (!player.attributes.offensive) player.attributes.offensive = {};
+  if (!player.attributes.offensive.scoringSkills) player.attributes.offensive.scoringSkills = {};
+  if (!player.attributes.offensive.playmakingSkills) player.attributes.offensive.playmakingSkills = {};
+  if (!player.attributes.defensive) player.attributes.defensive = {};
+  if (!player.attributes.mental) player.attributes.mental = {};
+  if (!player.personality) player.personality = {};
+  
+  // Apply basic edits
   player.name = formData.name;
   player.age = formData.age;
   player.pos = formData.pos;
@@ -13807,6 +14305,56 @@ function savePlayerEdits(event, playerId) {
   player.ratings.defense = formData.defense;
   player.ratings.rebound = formData.rebound;
   player.ratings.passing = formData.passing;
+  
+  // Apply athletic attributes
+  player.attributes.athletic.speed = formData.speed;
+  player.attributes.athletic.acceleration = formData.acceleration;
+  player.attributes.athletic.strength = formData.strength;
+  player.attributes.athletic.vertical = formData.vertical;
+  player.attributes.athletic.lateralQuickness = formData.lateralQuickness;
+  player.attributes.athletic.stamina = formData.stamina;
+  player.attributes.athletic.hustle = formData.hustle;
+  
+  // Apply offensive scoring skills
+  player.attributes.offensive.scoringSkills.finishing = formData.finishing;
+  player.attributes.offensive.scoringSkills.midRange = formData.midRangeShooting;
+  player.attributes.offensive.scoringSkills.threePoint = formData.threePointShooting;
+  player.attributes.offensive.scoringSkills.freeThrow = formData.freeThrowShooting;
+  player.attributes.offensive.scoringSkills.postScoring = formData.postScoring;
+  player.attributes.offensive.scoringSkills.shotCreation = formData.shotCreation;
+  
+  // Apply offensive playmaking skills
+  player.attributes.offensive.playmakingSkills.ballHandling = formData.ballHandling;
+  player.attributes.offensive.playmakingSkills.passingVision = formData.passingVision;
+  player.attributes.offensive.playmakingSkills.passingAccuracy = formData.passingAccuracy;
+  player.attributes.offensive.playmakingSkills.offBallMovement = formData.offBallMovement;
+  
+  // Apply defensive attributes
+  player.attributes.defensive.perimeterDefense = formData.perimeterDefense;
+  player.attributes.defensive.interiorDefense = formData.interiorDefense;
+  player.attributes.defensive.blockRating = formData.blockRating;
+  player.attributes.defensive.stealRating = formData.stealRating;
+  player.attributes.defensive.defensiveRebounding = formData.defensiveRebounding;
+  player.attributes.defensive.offensiveRebounding = formData.offensiveRebounding;
+  player.attributes.defensive.defensiveAwareness = formData.defensiveAwareness;
+  
+  // Apply mental attributes
+  player.attributes.mental.basketballIQ = formData.basketballIQ;
+  player.attributes.mental.consistency = formData.consistency;
+  player.attributes.mental.workEthic = formData.workEthic;
+  player.attributes.mental.leadership = formData.leadership;
+  player.attributes.mental.composure = formData.composure;
+  player.attributes.mental.discipline = formData.discipline;
+  player.attributes.mental.clutch = formData.clutch;
+  
+  // Apply personality traits
+  player.personality.loyalty = formData.loyalty;
+  player.personality.moneyFocus = formData.moneyFocus;
+  player.personality.winningDrive = formData.winningDrive;
+  player.personality.ego = formData.ego;
+  player.personality.temperament = formData.temperament;
+  
+  // Apply contract details
   player.contract.amount = formData.salary;
   player.contract.yearsRemaining = formData.contractYears;
   player.contract.exp = league.season + formData.contractYears;
@@ -13815,6 +14363,8 @@ function savePlayerEdits(event, playerId) {
   player.contract.hasTeamOption = formData.teamOption;
   player.contract.guaranteed = formData.guaranteed;
   player.contract.isTrainingCamp = formData.guaranteed === 0;
+  
+  // Apply draft details
   player.draft.year = formData.draftYear;
   player.draft.round = formData.draftRound;
   player.draft.pick = formData.draftPick;
