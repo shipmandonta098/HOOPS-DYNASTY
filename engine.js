@@ -7442,6 +7442,11 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   openWelcomeOverlay();
 }
 
+// Expose createLeague to global scope
+if (typeof window !== 'undefined') {
+  window.createLeague = createLeague;
+}
+
 /* ============================
    PLAYER SEASON STATS TRACKING
 ============================ */
