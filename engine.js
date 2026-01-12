@@ -930,18 +930,9 @@ function evaluateTradeForTeam(trade, teamId) {
     debug
   };
 }
-    accept,
-    reasoning,
-    incomingValue: Math.round(incomingValue),
-    outgoingValue: Math.round(outgoingValue),
-    penalties: Math.round(penalties),
-    timeline
-  };
-}
 
 /**
  * Validate trade legality (roster size, cap rules)
- * @param {Object} trade - Trade object
  * @param {number} teamId - Team to validate for
  * @returns {Object} {legal: boolean, reason: string}
  */
