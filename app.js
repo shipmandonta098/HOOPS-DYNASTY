@@ -8512,8 +8512,14 @@ function renderTeamScheduleGames(games, teamId) {
   const liveGames = games.filter(g => g.status === 'live');
   const upcomingGames = games.filter(g => g.status === 'scheduled');
   
-  // Get season events
-  const events = league.schedule.events || [];
+  // Get season events - create if missing (for leagues created before events system)
+  let events = league.schedule.events;
+  if (!events || events.length === 0) {
+    console.log('[Schedule] Creating missing event markers for existing league');
+    events = createSeasonEventMarkersForExistingLeague(league.schedule.gamesPerTeam || 82);
+    league.schedule.events = events;
+    saveLeague(); // Save the updated schedule
+  }
   
   // Build game list with events inserted at appropriate positions
   const gameListItems = [];
@@ -8848,6 +8854,60 @@ function renderSeasonEvent(event) {
       ` : ''}
     </div>
   `;
+}
+
+// Create season event markers for existing leagues (migration helper)
+function createSeasonEventMarkersForExistingLeague(gamesPerTeam = 82) {
+  const events = [];
+  
+  // Season Start - before any games
+  events.push({
+    id: 'season_start',
+    type: 'season_start',
+    name: 'Season Start',
+    description: 'The regular season begins',
+    afterGameNumber: 0,
+    icon: '🏀',
+    triggered: false
+  });
+  
+  // All-Star Weekend - after Game 41
+  events.push({
+    id: 'allstar_weekend',
+    type: 'allstar_break',
+    name: 'All-Star Weekend',
+    description: 'Mid-season break featuring the All-Star Game',
+    afterGameNumber: 41,
+    icon: '⭐',
+    triggered: false,
+    unlocks: ['allstar_voting', 'allstar_game']
+  });
+  
+  // Trade Deadline - after Game 55
+  events.push({
+    id: 'trade_deadline',
+    type: 'trade_deadline',
+    name: 'Trade Deadline',
+    description: 'Last day to make trades - all trading disabled after this point',
+    afterGameNumber: 55,
+    icon: '🔒',
+    triggered: false,
+    locks: ['trades']
+  });
+  
+  // Regular Season End - after Game 82
+  events.push({
+    id: 'season_end',
+    type: 'season_end',
+    name: 'Regular Season End',
+    description: 'Season concludes - standings locked, awards voting begins',
+    afterGameNumber: gamesPerTeam,
+    icon: '🏁',
+    triggered: false,
+    unlocks: ['awards', 'playoffs']
+  });
+  
+  return events;
 }
 
 // Check if a season event has been triggered
