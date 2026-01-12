@@ -135,6 +135,1415 @@ function updateLeaguePhase() {
 }
 
 /* ============================
+   PHASE RULES SYSTEM
+   Centralized action gating by league phase
+============================ */
+
+/**
+ * Game actions that can be restricted by phase
+ */
+const ACTIONS = {
+  TRADE: 'TRADE',
+  SIGN_FA: 'SIGN_FA',
+  WAIVE: 'WAIVE',
+  PLAY_GAME: 'PLAY_GAME',
+  SIM_DAY: 'SIM_DAY',
+  DRAFT: 'DRAFT',
+  RESIGN: 'RESIGN',
+  EXTEND: 'EXTEND',
+  ALL_STAR_EVENT: 'ALL_STAR_EVENT',
+  EDIT_PLAYER: 'EDIT_PLAYER',
+  FORCE_TRADE: 'FORCE_TRADE',
+  FORCE_INJURY: 'FORCE_INJURY',
+  ADD_PLAYER: 'ADD_PLAYER',
+  DELETE_PLAYER: 'DELETE_PLAYER',
+  ADVANCE_PHASE: 'ADVANCE_PHASE'
+};
+
+/**
+ * Rules mapping: which actions are allowed in each phase
+ * true = always allowed
+ * false = always blocked
+ * 'conditional' = check settings/state
+ */
+const RULES_BY_PHASE = {
+  [PHASES.PRESEASON]: {
+    [ACTIONS.PLAY_GAME]: true,
+    [ACTIONS.SIM_DAY]: true,
+    [ACTIONS.SIGN_FA]: true,
+    [ACTIONS.WAIVE]: true,
+    [ACTIONS.TRADE]: 'conditional', // Check allowTradesInPreseason
+    [ACTIONS.RESIGN]: true,
+    [ACTIONS.EXTEND]: true,
+    [ACTIONS.DRAFT]: false,
+    [ACTIONS.ALL_STAR_EVENT]: false,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: true
+  },
+  
+  [PHASES.REGULAR_SEASON]: {
+    [ACTIONS.PLAY_GAME]: true,
+    [ACTIONS.SIM_DAY]: true,
+    [ACTIONS.SIGN_FA]: true,
+    [ACTIONS.WAIVE]: true,
+    [ACTIONS.TRADE]: 'conditional', // Check trade deadline
+    [ACTIONS.RESIGN]: false,
+    [ACTIONS.EXTEND]: true,
+    [ACTIONS.DRAFT]: false,
+    [ACTIONS.ALL_STAR_EVENT]: false,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: false
+  },
+  
+  [PHASES.ALL_STAR_BREAK]: {
+    [ACTIONS.PLAY_GAME]: false,
+    [ACTIONS.SIM_DAY]: false,
+    [ACTIONS.SIGN_FA]: 'conditional', // Check settings
+    [ACTIONS.WAIVE]: 'conditional', // Check settings
+    [ACTIONS.TRADE]: 'conditional', // Check trade deadline
+    [ACTIONS.RESIGN]: false,
+    [ACTIONS.EXTEND]: true,
+    [ACTIONS.DRAFT]: false,
+    [ACTIONS.ALL_STAR_EVENT]: true,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: true
+  },
+  
+  [PHASES.POSTSEASON]: {
+    [ACTIONS.PLAY_GAME]: true,
+    [ACTIONS.SIM_DAY]: true,
+    [ACTIONS.SIGN_FA]: 'conditional', // Check allowSigningsInPlayoffs
+    [ACTIONS.WAIVE]: 'conditional', // Check allowWaiversInPlayoffs
+    [ACTIONS.TRADE]: false,
+    [ACTIONS.RESIGN]: false,
+    [ACTIONS.EXTEND]: false,
+    [ACTIONS.DRAFT]: false,
+    [ACTIONS.ALL_STAR_EVENT]: false,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: false
+  },
+  
+  [PHASES.OFFSEASON]: {
+    [ACTIONS.PLAY_GAME]: false,
+    [ACTIONS.SIM_DAY]: false,
+    [ACTIONS.SIGN_FA]: true,
+    [ACTIONS.WAIVE]: true,
+    [ACTIONS.TRADE]: true,
+    [ACTIONS.RESIGN]: true,
+    [ACTIONS.EXTEND]: true,
+    [ACTIONS.DRAFT]: 'conditional', // Only if draft not completed
+    [ACTIONS.ALL_STAR_EVENT]: false,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: true
+  },
+  
+  [PHASES.DRAFT]: {
+    [ACTIONS.PLAY_GAME]: false,
+    [ACTIONS.SIM_DAY]: false,
+    [ACTIONS.SIGN_FA]: false,
+    [ACTIONS.WAIVE]: false,
+    [ACTIONS.TRADE]: true, // Draft pick trades
+    [ACTIONS.RESIGN]: false,
+    [ACTIONS.EXTEND]: false,
+    [ACTIONS.DRAFT]: true,
+    [ACTIONS.ALL_STAR_EVENT]: false,
+    [ACTIONS.EDIT_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_TRADE]: 'conditional', // Commissioner only
+    [ACTIONS.FORCE_INJURY]: 'conditional', // Commissioner only
+    [ACTIONS.ADD_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.DELETE_PLAYER]: 'conditional', // Commissioner only
+    [ACTIONS.ADVANCE_PHASE]: 'conditional' // Only when draft complete
+  }
+};
+
+/**
+ * Check if trade deadline has passed
+ */
+function isBeforeTradeDeadline() {
+  if (!league || !league.schedule) return true;
+  
+  const currentPhase = computeCurrentPhase();
+  if (currentPhase !== PHASES.REGULAR_SEASON) return false;
+  
+  // Trade deadline is typically 60% through regular season
+  const tradeDeadlineDay = league.settings?.tradeDeadlineDay || 
+                           Math.floor((league.settings?.gamesPerTeam || 82) * 0.6);
+  
+  const currentDay = league.currentDay || 0;
+  return currentDay < tradeDeadlineDay;
+}
+
+/**
+ * Check if an action is allowed in the current state
+ * @param {string} action - Action from ACTIONS enum
+ * @param {object} state - Optional state override (for testing)
+ * @returns {boolean} Whether action is allowed
+ */
+function isActionAllowed(action, state = null) {
+  if (!league) return false;
+  
+  const currentPhase = state?.phase || computeCurrentPhase();
+  const settings = state?.settings || league.settings || {};
+  const isCommissioner = state?.commissionerMode !== undefined ? 
+                        state.commissionerMode : 
+                        (league.meta?.commissionerMode || false);
+  
+  // Get rule for this action in current phase
+  const phaseRules = RULES_BY_PHASE[currentPhase];
+  if (!phaseRules) return false;
+  
+  const rule = phaseRules[action];
+  
+  // Simple true/false rules
+  if (rule === true) return true;
+  if (rule === false) return false;
+  
+  // Conditional rules
+  if (rule === 'conditional') {
+    switch (action) {
+      // Commissioner-only actions
+      case ACTIONS.EDIT_PLAYER:
+      case ACTIONS.FORCE_TRADE:
+      case ACTIONS.FORCE_INJURY:
+      case ACTIONS.ADD_PLAYER:
+      case ACTIONS.DELETE_PLAYER:
+      case ACTIONS.ADVANCE_PHASE:
+        return isCommissioner;
+      
+      // Trade rules
+      case ACTIONS.TRADE:
+        if (currentPhase === PHASES.PRESEASON) {
+          return settings.allowTradesInPreseason || isCommissioner;
+        }
+        if (currentPhase === PHASES.REGULAR_SEASON) {
+          return isBeforeTradeDeadline() || isCommissioner;
+        }
+        if (currentPhase === PHASES.ALL_STAR_BREAK) {
+          return isBeforeTradeDeadline() || isCommissioner;
+        }
+        return isCommissioner;
+      
+      // Playoff rules
+      case ACTIONS.SIGN_FA:
+        if (currentPhase === PHASES.POSTSEASON) {
+          return settings.allowSigningsInPlayoffs || isCommissioner;
+        }
+        if (currentPhase === PHASES.ALL_STAR_BREAK) {
+          return settings.allowSigningsDuringAllStar || isCommissioner;
+        }
+        return true;
+      
+      case ACTIONS.WAIVE:
+        if (currentPhase === PHASES.POSTSEASON) {
+          return settings.allowWaiversInPlayoffs || isCommissioner;
+        }
+        if (currentPhase === PHASES.ALL_STAR_BREAK) {
+          return settings.allowWaiversDuringAllStar || isCommissioner;
+        }
+        return true;
+      
+      // Draft rules
+      case ACTIONS.DRAFT:
+        if (currentPhase === PHASES.OFFSEASON) {
+          return !league.draft?.completed;
+        }
+        return currentPhase === PHASES.DRAFT;
+      
+      default:
+        return false;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Get human-readable reason why an action is locked
+ * @param {string} action - Action from ACTIONS enum
+ * @param {object} state - Optional state override
+ * @returns {string|null} Lock reason or null if allowed
+ */
+function getActionLockReason(action, state = null) {
+  if (isActionAllowed(action, state)) return null;
+  
+  const currentPhase = state?.phase || computeCurrentPhase();
+  const phaseName = getPhaseDisplayName(currentPhase);
+  const settings = state?.settings || league.settings || {};
+  const isCommissioner = state?.commissionerMode !== undefined ? 
+                        state.commissionerMode : 
+                        (league.meta?.commissionerMode || false);
+  
+  // Action-specific messages
+  switch (action) {
+    case ACTIONS.TRADE:
+      if (currentPhase === PHASES.PRESEASON) {
+        return 'Trades are disabled during preseason. Enable in league settings or use Commissioner Mode.';
+      }
+      if (currentPhase === PHASES.REGULAR_SEASON || currentPhase === PHASES.ALL_STAR_BREAK) {
+        if (!isBeforeTradeDeadline()) {
+          return 'Trade deadline has passed.';
+        }
+      }
+      if (currentPhase === PHASES.POSTSEASON) {
+        return 'Trades are disabled during the postseason.';
+      }
+      return `Trades are not allowed during ${phaseName}.`;
+    
+    case ACTIONS.SIGN_FA:
+      if (currentPhase === PHASES.POSTSEASON) {
+        return 'Free agent signings are disabled during playoffs. Enable in league settings.';
+      }
+      if (currentPhase === PHASES.ALL_STAR_BREAK) {
+        return 'Free agent signings are disabled during All-Star Break.';
+      }
+      if (currentPhase === PHASES.DRAFT) {
+        return 'Free agent signings are disabled during the draft.';
+      }
+      return `Free agent signings are not allowed during ${phaseName}.`;
+    
+    case ACTIONS.WAIVE:
+      if (currentPhase === PHASES.POSTSEASON) {
+        return 'Waivers are disabled during playoffs. Enable in league settings.';
+      }
+      if (currentPhase === PHASES.DRAFT) {
+        return 'Waivers are disabled during the draft.';
+      }
+      return `Waivers are not allowed during ${phaseName}.`;
+    
+    case ACTIONS.PLAY_GAME:
+    case ACTIONS.SIM_DAY:
+      if (currentPhase === PHASES.OFFSEASON) {
+        return 'No games to play during offseason.';
+      }
+      if (currentPhase === PHASES.DRAFT) {
+        return 'Complete the draft before playing games.';
+      }
+      if (currentPhase === PHASES.ALL_STAR_BREAK) {
+        return 'Games are paused during All-Star Break.';
+      }
+      return 'No games available to play.';
+    
+    case ACTIONS.DRAFT:
+      if (currentPhase === PHASES.OFFSEASON && league.draft?.completed) {
+        return 'Draft has already been completed.';
+      }
+      return `Draft is only available during offseason, not during ${phaseName}.`;
+    
+    case ACTIONS.RESIGN:
+      if (currentPhase !== PHASES.OFFSEASON && currentPhase !== PHASES.PRESEASON) {
+        return 'Player re-signings are only available during offseason and preseason.';
+      }
+      return 'Re-signings are not available at this time.';
+    
+    case ACTIONS.EXTEND:
+      if (currentPhase === PHASES.POSTSEASON) {
+        return 'Contract extensions are disabled during playoffs.';
+      }
+      return 'Contract extensions are not available at this time.';
+    
+    case ACTIONS.ALL_STAR_EVENT:
+      return 'All-Star events are only available during All-Star Break.';
+    
+    case ACTIONS.EDIT_PLAYER:
+    case ACTIONS.FORCE_TRADE:
+    case ACTIONS.FORCE_INJURY:
+    case ACTIONS.ADD_PLAYER:
+    case ACTIONS.DELETE_PLAYER:
+    case ACTIONS.ADVANCE_PHASE:
+      if (!isCommissioner) {
+        return 'This action requires Commissioner Mode to be enabled.';
+      }
+      return 'This action is not available.';
+    
+    default:
+      return `This action is not allowed during ${phaseName}.`;
+  }
+}
+
+/* ============================
+   AI TRADE LOGIC SYSTEM
+============================ */
+
+/**
+ * Trade value constants - tunable for balance
+ */
+const TRADE_VALUE_CONSTANTS = {
+  SALARY_PER_OVR: 0.5,        // Expected salary per OVR point (in millions)
+  CONTRACT_WEIGHT: 2.5,       // How much $1M surplus affects trade value
+  SLOT_PENALTY: 0.8,          // Draft slot penalty (per slot)
+  FUTURE_DISCOUNT: 3.5,       // Discount per year into future
+  ROUND_1_BASE: 30,           // Base value for 1st round pick
+  ROUND_2_BASE: 12            // Base value for 2nd round pick
+};
+
+/**
+ * Team Timeline States - determines trading strategy
+ */
+const TEAM_TIMELINE = {
+  CONTENDER: 'CONTENDER',     // Top teams, buy win-now pieces
+  PLAYOFF: 'PLAYOFF',         // Competitive, minor upgrades only
+  MIDDLING: 'MIDDLING',       // Average teams, flexible strategy
+  REBUILD: 'REBUILD'          // Bottom teams, sell for picks/youth
+};
+
+/**
+ * Acceptance thresholds by timeline
+ */
+const TIMELINE_THRESHOLDS = {
+  CONTENDER: 3,   // Accept if netValue >= +3
+  PLAYOFF: 5,     // Accept if netValue >= +5
+  MIDDLING: 7,    // Accept if netValue >= +7
+  REBUILD: 10     // Accept if netValue >= +10
+};
+
+/**
+ * Classify team's timeline state based on record, SRS, roster age, and strength
+ * @param {Object} team - Team to classify
+ * @returns {string} Team timeline constant
+ */
+function classifyTeamTimeline(team) {
+  if (!team || !team.players || team.players.length === 0) {
+    return TEAM_TIMELINE.MIDDLING;
+  }
+  
+  const totalGames = (team.wins || 0) + (team.losses || 0);
+  const winPct = totalGames > 0 ? team.wins / totalGames : 0.5;
+  
+  // Calculate roster metrics
+  const sortedByOvr = [...team.players].sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  const top5Players = sortedByOvr.slice(0, 5);
+  const avgTop5Ovr = top5Players.reduce((sum, p) => sum + p.ratings.ovr, 0) / top5Players.length;
+  const avgTop5Age = top5Players.reduce((sum, p) => sum + p.age, 0) / top5Players.length;
+  
+  // Simple Rating System (SRS) - combine win% and point differential
+  const srs = team.srs || ((winPct - 0.5) * 20);
+  
+  // Classification logic
+  if (winPct >= 0.60 && srs > 3 && avgTop5Ovr >= 75) {
+    // Strong record + good players = Contender
+    return TEAM_TIMELINE.CONTENDER;
+  } else if (winPct >= 0.50 && avgTop5Ovr >= 70) {
+    // Decent record + decent players = Playoff team
+    return TEAM_TIMELINE.PLAYOFF;
+  } else if (winPct < 0.35 || avgTop5Ovr < 65 || (avgTop5Age > 30 && winPct < 0.45)) {
+    // Poor record OR weak roster OR aging losing team = Rebuild
+    return TEAM_TIMELINE.REBUILD;
+  } else {
+    // Everything else = Middling
+    return TEAM_TIMELINE.MIDDLING;
+  }
+}
+
+/**
+ * Calculate deterministic trade value for a player
+ * Formula-based system to prevent exploitation
+ * 
+ * @param {Object} player - Player to evaluate
+ * @param {Object} team - Team context for role calculation (optional)
+ * @returns {number} Trade value (clamped to -40 to 120)
+ */
+function calculatePlayerTradeValue(player, team = null) {
+  if (!player || !player.ratings) return 0;
+  
+  const ovr = player.ratings.ovr || 50;
+  const pot = player.ratings.pot || ovr;
+  const age = player.age || 25;
+  
+  // 1) Base Talent: (ovr / 10) ^ 2
+  const baseTalent = Math.pow(ovr / 10, 2);
+  
+  // 2) Age Multiplier
+  let ageMultiplier = 1.0;
+  if (age <= 21) {
+    ageMultiplier = 1.25;
+  } else if (age >= 22 && age <= 25) {
+    ageMultiplier = 1.15;
+  } else if (age >= 26 && age <= 28) {
+    ageMultiplier = 1.05;
+  } else if (age >= 29 && age <= 31) {
+    ageMultiplier = 0.95;
+  } else if (age >= 32 && age <= 34) {
+    ageMultiplier = 0.80;
+  } else { // age >= 35
+    ageMultiplier = 0.65;
+  }
+  
+  // 3) Potential Boost: (pot - ovr) * 0.6, clamped to [-10, +15]
+  let potentialBoost = (pot - ovr) * 0.6;
+  potentialBoost = Math.max(-10, Math.min(15, potentialBoost));
+  
+  // 4) Contract Surplus
+  let contractValue = 0;
+  if (player.contract && player.contract.amount !== undefined) {
+    const expectedSalary = ovr * TRADE_VALUE_CONSTANTS.SALARY_PER_OVR;
+    const actualSalary = player.contract.amount;
+    const surplus = expectedSalary - actualSalary;
+    contractValue = surplus * TRADE_VALUE_CONSTANTS.CONTRACT_WEIGHT;
+    
+    // Discount for expiring contracts (1 year remaining)
+    const yearsRemaining = player.contract.yearsRemaining || 1;
+    if (yearsRemaining === 1) {
+      contractValue *= 0.75;
+    }
+    
+    // Discount for non-guaranteed contracts
+    if (player.contract.nonGuaranteed) {
+      contractValue *= 0.9;
+    }
+  }
+  
+  // 5) Injury / Availability Risk
+  let riskPenalty = 0;
+  
+  if (player.injuryProne) {
+    riskPenalty -= 8;
+  }
+  
+  if (player.injury && player.injury.gamesRemaining > 0) {
+    const gamesOut = player.injury.gamesRemaining;
+    riskPenalty -= gamesOut * 0.3;
+  }
+  
+  // 6) Role Bonus
+  let roleBonus = 0;
+  if (team && team.players) {
+    const sortedByMinutes = [...team.players]
+      .filter(p => p.stats && p.stats.gp > 0)
+      .sort((a, b) => (b.stats.min || 0) - (a.stats.min || 0));
+    
+    const playerIndex = sortedByMinutes.findIndex(p => p.id === player.id);
+    
+    if (playerIndex >= 0 && playerIndex < 5) {
+      roleBonus = 6; // Starter
+    } else if (playerIndex >= 5 && playerIndex < 10) {
+      roleBonus = 3; // Key bench
+    }
+    // Otherwise 0 (deep bench / no role)
+  }
+  
+  // FINAL PLAYER VALUE
+  let tradeValue = (baseTalent * ageMultiplier) + potentialBoost + contractValue + roleBonus + riskPenalty;
+  
+  // Clamp to [-40, 120]
+  tradeValue = Math.max(-40, Math.min(120, tradeValue));
+  
+  return Math.round(tradeValue * 10) / 10; // Round to 1 decimal
+}
+
+/**
+ * Calculate deterministic trade value for a draft pick
+ * 
+ * @param {Object} pick - Draft pick object {round, year, originalTeamId, currentOwner}
+ * @returns {number} Pick trade value (minimum 0)
+ */
+function calculatePickTradeValue(pick) {
+  if (!pick) return 0;
+  
+  const currentYear = league?.season || new Date().getFullYear();
+  const yearsOut = Math.max(0, (pick.year || currentYear) - currentYear);
+  
+  // Base value by round
+  let baseValue = 0;
+  if (pick.round === 1) {
+    baseValue = TRADE_VALUE_CONSTANTS.ROUND_1_BASE;
+  } else if (pick.round === 2) {
+    baseValue = TRADE_VALUE_CONSTANTS.ROUND_2_BASE;
+  } else {
+    baseValue = 5; // Later rounds
+  }
+  
+  // Estimate projected slot
+  const projectedSlot = estimatePickSlot(pick);
+  
+  // Apply penalties
+  const slotPenalty = projectedSlot * TRADE_VALUE_CONSTANTS.SLOT_PENALTY;
+  const futureDiscount = yearsOut * TRADE_VALUE_CONSTANTS.FUTURE_DISCOUNT;
+  
+  let pickValue = baseValue - slotPenalty - futureDiscount;
+  
+  // Clamp minimum to 0
+  pickValue = Math.max(0, pickValue);
+  
+  return Math.round(pickValue * 10) / 10; // Round to 1 decimal
+}
+
+/**
+ * Estimate draft slot for a pick (1-30 in first round)
+ * Based on current team record (inverse)
+ * 
+ * @param {Object} pick - Draft pick
+ * @returns {number} Estimated slot (1-30)
+ */
+function estimatePickSlot(pick) {
+  if (!pick.originalTeamId || !league?.teams) return 15; // Default mid-first
+  
+  const team = league.teams.find(t => t.id === pick.originalTeamId);
+  if (!team) return 15;
+  
+  // Estimate based on current record (inverse)
+  const totalGames = (team.wins || 0) + (team.losses || 0);
+  if (totalGames === 0) return 15; // No games played yet
+  
+  const winPct = team.wins / totalGames;
+  
+  // Convert win% to draft slot (worse teams pick earlier)
+  // 0.0 win% → slot 1, 1.0 win% → slot 30
+  const estimatedSlot = Math.round(1 + (winPct * 29));
+  return Math.min(30, Math.max(1, estimatedSlot));
+}
+
+/**
+ * Evaluate a trade from a specific team's perspective
+ * @param {Object} trade - Trade object {teamAId, teamBId, teamAAssets, teamBAssets}
+ * @param {number} teamId - ID of team evaluating the trade
+ * @returns {Object} Evaluation result {legal, netValue, accept, reasoning}
+ */
+/**
+ * Evaluate a trade from a specific team's perspective
+ * Uses deterministic formulas and timeline-based thresholds
+ * 
+ * @param {Object} trade - Trade object {teamAId, teamBId, teamAAssets, teamBAssets}
+ * @param {number} teamId - ID of team evaluating the trade
+ * @returns {Object} Evaluation result {legal, netValue, accept, reasoning, debug}
+ */
+function evaluateTradeForTeam(trade, teamId) {
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team) {
+    return { 
+      legal: false, 
+      netValue: 0, 
+      accept: false, 
+      reasoning: 'Team not found',
+      debug: {}
+    };
+  }
+  
+  // Determine which side of trade this team is on
+  const isTeamA = teamId === trade.teamAId;
+  const incomingAssets = isTeamA ? trade.teamBAssets : trade.teamAAssets;
+  const outgoingAssets = isTeamA ? trade.teamAAssets : trade.teamBAssets;
+  const partnerTeamId = isTeamA ? trade.teamBId : trade.teamAId;
+  const partnerTeam = league.teams.find(t => t.id === partnerTeamId);
+  
+  if (!partnerTeam) {
+    return {
+      legal: false,
+      netValue: 0,
+      accept: false,
+      reasoning: 'Partner team not found',
+      debug: {}
+    };
+  }
+  
+  // Step 1: Validate legality (roster size, cap rules)
+  const legalityCheck = validateTradeLegality(trade, teamId);
+  if (!legalityCheck.legal) {
+    return {
+      legal: false,
+      netValue: 0,
+      accept: false,
+      reasoning: legalityCheck.reason,
+      debug: {}
+    };
+  }
+  
+  // Step 2: Calculate incoming and outgoing value
+  let incomingValue = 0;
+  let outgoingValue = 0;
+  const incomingPlayers = [];
+  const outgoingPlayers = [];
+  
+  // Value incoming players
+  if (incomingAssets.players && Array.isArray(incomingAssets.players)) {
+    incomingAssets.players.forEach(playerId => {
+      const player = partnerTeam.players.find(p => p.id === playerId);
+      if (player) {
+        const value = calculatePlayerTradeValue(player, partnerTeam);
+        incomingValue += value;
+        incomingPlayers.push({ name: player.name, value });
+      }
+    });
+  }
+  
+  // Value incoming picks
+  if (incomingAssets.picks && Array.isArray(incomingAssets.picks)) {
+    incomingAssets.picks.forEach(pickId => {
+      const pick = league.draftPicks?.find(p => p.id === pickId);
+      if (pick) {
+        const value = calculatePickTradeValue(pick);
+        incomingValue += value;
+      }
+    });
+  }
+  
+  // Value outgoing players
+  if (outgoingAssets.players && Array.isArray(outgoingAssets.players)) {
+    outgoingAssets.players.forEach(playerId => {
+      const player = team.players.find(p => p.id === playerId);
+      if (player) {
+        const value = calculatePlayerTradeValue(player, team);
+        outgoingValue += value;
+        outgoingPlayers.push({ name: player.name, value });
+      }
+    });
+  }
+  
+  // Value outgoing picks
+  if (outgoingAssets.picks && Array.isArray(outgoingAssets.picks)) {
+    outgoingAssets.picks.forEach(pickId => {
+      const pick = league.draftPicks?.find(p => p.id === pickId);
+      if (pick) {
+        const value = calculatePickTradeValue(pick);
+        outgoingValue += value;
+      }
+    });
+  }
+  
+  // Step 3: Calculate base net value
+  let netValue = incomingValue - outgoingValue;
+  
+  // Step 4: Apply bonuses and penalties
+  let bonuses = 0;
+  let penalties = 0;
+  const modifiers = [];
+  
+  // Bonus: Filling a positional need (+3)
+  const teamNeeds = identifyTeamNeeds(team);
+  const fillsNeed = incomingAssets.players?.some(playerId => {
+    const player = partnerTeam.players.find(p => p.id === playerId);
+    return player && teamNeeds.includes(player.pos);
+  });
+  if (fillsNeed) {
+    bonuses += 3;
+    modifiers.push('fills positional need (+3)');
+  }
+  
+  // Penalty: Taking on bad contract (-5)
+  const takesBadContract = incomingAssets.players?.some(playerId => {
+    const player = partnerTeam.players.find(p => p.id === playerId);
+    if (!player || !player.contract) return false;
+    const expectedSalary = player.ratings.ovr * TRADE_VALUE_CONSTANTS.SALARY_PER_OVR;
+    const actualSalary = player.contract.amount;
+    return actualSalary > expectedSalary * 1.5; // 50% overpaid = bad contract
+  });
+  if (takesBadContract) {
+    penalties += 5;
+    modifiers.push('takes bad contract (-5)');
+  }
+  
+  // Penalty: Luxury tax/apron hit (-5)
+  const SALARY_CAP = league?.settings?.salaryCap || 123.5;
+  const TAX_LINE = league?.settings?.luxuryTaxLine || 150;
+  
+  let salaryChange = 0;
+  incomingAssets.players?.forEach(playerId => {
+    const player = partnerTeam.players.find(p => p.id === playerId);
+    if (player?.contract) salaryChange += player.contract.amount;
+  });
+  outgoingAssets.players?.forEach(playerId => {
+    const player = team.players.find(p => p.id === playerId);
+    if (player?.contract) salaryChange -= player.contract.amount;
+  });
+  
+  const currentPayroll = team.players.reduce((sum, p) => sum + (p.contract?.amount || 0), 0);
+  const newPayroll = currentPayroll + salaryChange;
+  
+  if (league?.settings?.luxuryTax && newPayroll > TAX_LINE && currentPayroll <= TAX_LINE) {
+    penalties += 5;
+    modifiers.push('enters luxury tax (-5)');
+  }
+  
+  // Apply bonuses and penalties to net value
+  netValue += bonuses - penalties;
+  
+  // Step 5: Determine acceptance based on timeline
+  const timeline = classifyTeamTimeline(team);
+  const threshold = TIMELINE_THRESHOLDS[timeline] || 7;
+  const accept = netValue >= threshold;
+  
+  // Step 6: Build reasoning string
+  let reasoning = '';
+  if (accept) {
+    reasoning = `Accepted: +${netValue.toFixed(1)} value (threshold: +${threshold})`;
+    if (timeline === TEAM_TIMELINE.CONTENDER) {
+      reasoning += ', helps championship push';
+    } else if (timeline === TEAM_TIMELINE.REBUILD) {
+      reasoning += ', aids rebuild';
+    }
+    if (modifiers.length > 0) {
+      reasoning += ', ' + modifiers.join(', ');
+    }
+  } else {
+    reasoning = `Rejected: +${netValue.toFixed(1)} value (threshold: +${threshold})`;
+    const shortfall = threshold - netValue;
+    reasoning += `, needs +${shortfall.toFixed(1)} more value`;
+  }
+  
+  // Debug info
+  const debug = {
+    incomingValue: Math.round(incomingValue * 10) / 10,
+    outgoingValue: Math.round(outgoingValue * 10) / 10,
+    bonuses,
+    penalties,
+    timeline,
+    threshold,
+    incomingPlayers,
+    outgoingPlayers
+  };
+  
+  // Log if enabled
+  const settings = league?.settings || {};
+  if (settings.aiTradeLogging) {
+    console.log(`[AI Trade] ${team.name} evaluating trade:`);
+    console.log(`  Incoming value: ${debug.incomingValue}`);
+    console.log(`  Outgoing value: ${debug.outgoingValue}`);
+    console.log(`  Net value: ${netValue.toFixed(1)}`);
+    console.log(`  Timeline: ${timeline} (threshold: +${threshold})`);
+    console.log(`  ${reasoning}`);
+  }
+  
+  return {
+    legal: true,
+    netValue: Math.round(netValue * 10) / 10,
+    accept,
+    reasoning,
+    debug
+  };
+}
+    accept,
+    reasoning,
+    incomingValue: Math.round(incomingValue),
+    outgoingValue: Math.round(outgoingValue),
+    penalties: Math.round(penalties),
+    timeline
+  };
+}
+
+/**
+ * Validate trade legality (roster size, cap rules)
+ * @param {Object} trade - Trade object
+ * @param {number} teamId - Team to validate for
+ * @returns {Object} {legal: boolean, reason: string}
+ */
+function validateTradeLegality(trade, teamId) {
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team) {
+    return { legal: false, reason: 'Team not found' };
+  }
+  
+  const settings = league?.settings || {};
+  const isTeamA = teamId === trade.teamAId;
+  const incomingAssets = isTeamA ? trade.teamBAssets : trade.teamAAssets;
+  const outgoingAssets = isTeamA ? trade.teamAAssets : trade.teamBAssets;
+  const partnerTeamId = isTeamA ? trade.teamBId : trade.teamAId;
+  const partnerTeam = league.teams.find(t => t.id === partnerTeamId);
+  
+  // Check roster size
+  const playersIn = incomingAssets.players?.length || 0;
+  const playersOut = outgoingAssets.players?.length || 0;
+  const finalRosterSize = team.players.length - playersOut + playersIn;
+  
+  const minRoster = settings.minRosterSize || 13;
+  const maxRoster = settings.maxRosterSize || 15;
+  
+  if (finalRosterSize < minRoster) {
+    return { legal: false, reason: `Roster would drop below minimum (${minRoster})` };
+  }
+  
+  if (finalRosterSize > maxRoster) {
+    return { legal: false, reason: `Roster would exceed maximum (${maxRoster})` };
+  }
+  
+  // Check salary cap (hard cap only if enabled)
+  if (settings.capSystem === 'hard') {
+    const SALARY_CAP = settings.salaryCap || 123.5;
+    let salaryChange = 0;
+    
+    incomingAssets.players?.forEach(playerId => {
+      const player = partnerTeam.players.find(p => p.id === playerId);
+      if (player?.contract) salaryChange += player.contract.amount;
+    });
+    
+    outgoingAssets.players?.forEach(playerId => {
+      const player = team.players.find(p => p.id === playerId);
+      if (player?.contract) salaryChange -= player.contract.amount;
+    });
+    
+    const currentPayroll = team.players.reduce((sum, p) => sum + (p.contract?.amount || 0), 0);
+    const newPayroll = currentPayroll + salaryChange;
+    
+    if (newPayroll > SALARY_CAP) {
+      return { legal: false, reason: 'Trade would exceed hard salary cap' };
+    }
+  }
+  
+  return { legal: true, reason: '' };
+}
+
+/**
+ * Generate trade block for a team (available, untouchable, asking prices)
+ * @param {Object} team - Team to generate block for
+ * @returns {Object} {available: [], untouchable: [], askingPrices: {}}
+ */
+function generateTradeBlock(team) {
+  if (!team || !team.players) {
+    return { available: [], untouchable: [], askingPrices: {} };
+  }
+  
+  const timeline = classifyTeamTimeline(team);
+  const sortedByValue = [...team.players]
+    .map(p => ({ player: p, value: calculatePlayerTradeValue(p, team) }))
+    .sort((a, b) => b.value - a.value);
+  
+  const available = [];
+  const untouchable = [];
+  const askingPrices = {};
+  
+  sortedByValue.forEach(({ player, value }, index) => {
+    // Top player is usually untouchable unless rebuilding
+    if (index === 0 && timeline !== TEAM_TIMELINE.REBUILD) {
+      untouchable.push(player.id);
+      return;
+    }
+    
+    // Top 2-3 players untouchable for contenders
+    if (index <= 2 && timeline === TEAM_TIMELINE.CONTENDER) {
+      untouchable.push(player.id);
+      return;
+    }
+    
+    // Everyone is available for rebuilders
+    // Aging veterans especially available
+    if (timeline === TEAM_TIMELINE.REBUILD || player.age >= 30 || value < 30) {
+      available.push(player.id);
+      // Asking price is slightly inflated
+      askingPrices[player.id] = Math.round(value * 1.15);
+    } else {
+      // Mid-tier players available but expensive
+      available.push(player.id);
+      askingPrices[player.id] = Math.round(value * 1.3);
+    }
+  });
+  
+  return { available, untouchable, askingPrices };
+}
+
+/**
+ * Trade offer templates
+ */
+const TRADE_TEMPLATES = {
+  UPGRADE_2FOR1: 'upgrade_2for1',        // Trade 2 okay players for 1 better player
+  VETERAN_FOR_PICKS: 'veteran_for_picks', // Sell aging vet for draft capital
+  SALARY_DUMP: 'salary_dump',            // Dump bad contract + sweetener for cap space
+  SWAP_SURPLUSES: 'swap_surpluses',      // Swap players at positions of surplus/need
+  STAR_FOR_PACKAGE: 'star_for_package'   // Trade star for multiple good pieces
+};
+
+/**
+ * Generate trade offers from a buying team to potential sellers
+ * @param {Object} buyingTeam - Team looking to acquire assets
+ * @param {number} maxOffers - Maximum offers to generate (5-20)
+ * @returns {Array} Array of trade offer objects
+ */
+function generateTradeOffers(buyingTeam, maxOffers = 10) {
+  if (!buyingTeam || !league?.teams) return [];
+  
+  const offers = [];
+  const buyerTimeline = classifyTeamTimeline(buyingTeam);
+  const buyerBlock = generateTradeBlock(buyingTeam);
+  
+  // Identify buyer's needs and surpluses
+  const buyerNeeds = identifyTeamNeeds(buyingTeam);
+  const buyerSurplus = identifyTeamSurplus(buyingTeam);
+  
+  // Find potential trade partners
+  const otherTeams = league.teams.filter(t => t.id !== buyingTeam.id);
+  
+  otherTeams.forEach(sellerTeam => {
+    if (offers.length >= maxOffers) return;
+    
+    const sellerTimeline = classifyTeamTimeline(sellerTeam);
+    const sellerBlock = generateTradeBlock(sellerTeam);
+    
+    // Generate 1-3 offers per partner based on template matching
+    const partnerOffers = [];
+    
+    // Template 1: UPGRADE_2FOR1 (contenders consolidating talent)
+    if (buyerTimeline === TEAM_TIMELINE.CONTENDER && sellerBlock.available.length >= 1) {
+      const upgrade = tryUpgrade2For1(buyingTeam, sellerTeam, buyerBlock, sellerBlock);
+      if (upgrade) partnerOffers.push(upgrade);
+    }
+    
+    // Template 2: VETERAN_FOR_PICKS (rebuilders selling vets)
+    if (buyerTimeline === TEAM_TIMELINE.CONTENDER && sellerTimeline === TEAM_TIMELINE.REBUILD) {
+      const vetDeal = tryVeteranForPicks(buyingTeam, sellerTeam, buyerBlock, sellerBlock);
+      if (vetDeal) partnerOffers.push(vetDeal);
+    }
+    
+    // Template 3: SWAP_SURPLUSES (mutual fit trades)
+    if (buyerSurplus.length > 0) {
+      const swap = trySwapSurpluses(buyingTeam, sellerTeam, buyerSurplus, buyerNeeds);
+      if (swap) partnerOffers.push(swap);
+    }
+    
+    // Template 4: STAR_FOR_PACKAGE (rebuilders breaking up stars)
+    if (sellerTimeline === TEAM_TIMELINE.REBUILD && buyerTimeline === TEAM_TIMELINE.CONTENDER) {
+      const starDeal = tryStarForPackage(buyingTeam, sellerTeam, buyerBlock, sellerBlock);
+      if (starDeal) partnerOffers.push(starDeal);
+    }
+    
+    // Add partner offers to main list
+    offers.push(...partnerOffers.slice(0, 2)); // Max 2 offers per partner
+  });
+  
+  return offers.slice(0, maxOffers);
+}
+
+/**
+ * Identify team needs by position/role
+ * @param {Object} team - Team to analyze
+ * @returns {Array} Array of needed positions ['PG', 'C', etc]
+ */
+function identifyTeamNeeds(team) {
+  if (!team?.players) return [];
+  
+  const needs = [];
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  
+  positions.forEach(pos => {
+    const atPosition = team.players.filter(p => p.pos === pos);
+    const avgOvr = atPosition.length > 0 
+      ? atPosition.reduce((sum, p) => sum + p.ratings.ovr, 0) / atPosition.length 
+      : 0;
+    
+    // Need if weak or lacking depth
+    if (avgOvr < 65 || atPosition.length < 2) {
+      needs.push(pos);
+    }
+  });
+  
+  return needs;
+}
+
+/**
+ * Identify team surplus positions
+ * @param {Object} team - Team to analyze
+ * @returns {Array} Array of surplus positions
+ */
+function identifyTeamSurplus(team) {
+  if (!team?.players) return [];
+  
+  const surplus = [];
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  
+  positions.forEach(pos => {
+    const atPosition = team.players.filter(p => p.pos === pos);
+    
+    // Surplus if >3 players at position with avg OVR > 65
+    if (atPosition.length > 3) {
+      const avgOvr = atPosition.reduce((sum, p) => sum + p.ratings.ovr, 0) / atPosition.length;
+      if (avgOvr > 65) {
+        surplus.push(pos);
+      }
+    }
+  });
+  
+  return surplus;
+}
+
+/**
+ * Template: Upgrade 2-for-1 (trade 2 decent players for 1 better player)
+ */
+function tryUpgrade2For1(buyer, seller, buyerBlock, sellerBlock) {
+  const availableSellers = sellerBlock.available
+    .map(id => seller.players.find(p => p.id === id))
+    .filter(p => p && p.ratings.ovr >= 75)
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  
+  if (availableSellers.length === 0) return null;
+  
+  const target = availableSellers[0];
+  const targetValue = calculatePlayerTradeValue(target, seller);
+  
+  // Find 2 buyers that combine to match value
+  const buyerPlayers = buyer.players
+    .filter(p => buyerBlock.available.includes(p.id))
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  
+  for (let i = 0; i < buyerPlayers.length - 1; i++) {
+    for (let j = i + 1; j < buyerPlayers.length; j++) {
+      const p1 = buyerPlayers[i];
+      const p2 = buyerPlayers[j];
+      const combinedValue = calculatePlayerTradeValue(p1, buyer) + calculatePlayerTradeValue(p2, buyer);
+      
+      // Check if values roughly match (within 20%)
+      if (Math.abs(combinedValue - targetValue) <= targetValue * 0.2) {
+        return {
+          template: TRADE_TEMPLATES.UPGRADE_2FOR1,
+          teamAId: buyer.id,
+          teamBId: seller.id,
+          teamAAssets: { players: [], picks: [] },
+          teamBAssets: { players: [p1.id, p2.id], picks: [] },
+          description: `${buyer.name} upgrades: ${p1.name} + ${p2.name} for ${target.name}`
+        };
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Template: Veteran for picks (rebuilder sells vet for draft capital)
+ */
+function tryVeteranForPicks(buyer, seller, buyerBlock, sellerBlock) {
+  // Find veteran on seller
+  const vets = sellerBlock.available
+    .map(id => seller.players.find(p => p.id === id))
+    .filter(p => p && p.age >= 28 && p.ratings.ovr >= 72)
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  
+  if (vets.length === 0 || !league.draftPicks) return null;
+  
+  const vet = vets[0];
+  const vetValue = calculatePlayerTradeValue(vet, seller);
+  
+  // Find picks buyer can offer
+  const buyerPicks = league.draftPicks.filter(p => p.currentOwner === buyer.id);
+  if (buyerPicks.length === 0) return null;
+  
+  // Try to match value with picks
+  const firstRoundPicks = buyerPicks.filter(p => p.round === 1);
+  if (firstRoundPicks.length > 0) {
+    const pick = firstRoundPicks[0];
+    const pickValue = calculatePickTradeValue(pick);
+    
+    // If pick alone is close to vet value, offer it
+    if (Math.abs(pickValue - vetValue) <= 15) {
+      return {
+        template: TRADE_TEMPLATES.VETERAN_FOR_PICKS,
+        teamAId: buyer.id,
+        teamBId: seller.id,
+        teamAAssets: { players: [vet.id], picks: [] },
+        teamBAssets: { players: [], picks: [pick.id] },
+        description: `${seller.name} rebuilds: ${vet.name} for draft pick`
+      };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Template: Swap surpluses (trade from strength to fill weakness)
+ */
+function trySwapSurpluses(buyer, seller, buyerSurplus, buyerNeeds) {
+  if (buyerSurplus.length === 0 || buyerNeeds.length === 0) return null;
+  
+  const sellerNeeds = identifyTeamNeeds(seller);
+  const sellerSurplus = identifyTeamSurplus(seller);
+  
+  // Find mutual fit: buyer's surplus = seller's need AND seller's surplus = buyer's need
+  for (const buyerSurplusPos of buyerSurplus) {
+    if (sellerNeeds.includes(buyerSurplusPos)) {
+      for (const buyerNeedPos of buyerNeeds) {
+        if (sellerSurplus.includes(buyerNeedPos)) {
+          // Found mutual fit! Find players to swap
+          const buyerOffer = buyer.players
+            .filter(p => p.pos === buyerSurplusPos)
+            .sort((a, b) => b.ratings.ovr - a.ratings.ovr)[0];
+          
+          const sellerOffer = seller.players
+            .filter(p => p.pos === buyerNeedPos)
+            .sort((a, b) => b.ratings.ovr - a.ratings.ovr)[0];
+          
+          if (buyerOffer && sellerOffer) {
+            return {
+              template: TRADE_TEMPLATES.SWAP_SURPLUSES,
+              teamAId: buyer.id,
+              teamBId: seller.id,
+              teamAAssets: { players: [sellerOffer.id], picks: [] },
+              teamBAssets: { players: [buyerOffer.id], picks: [] },
+              description: `Swap surpluses: ${buyerOffer.name} (${buyerOffer.pos}) for ${sellerOffer.name} (${sellerOffer.pos})`
+            };
+          }
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Template: Star for package (rebuilder trades star for multiple pieces)
+ */
+function tryStarForPackage(buyer, seller, buyerBlock, sellerBlock) {
+  // Find star on seller
+  const stars = seller.players
+    .filter(p => p.ratings.ovr >= 80 && sellerBlock.available.includes(p.id))
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  
+  if (stars.length === 0) return null;
+  
+  const star = stars[0];
+  const starValue = calculatePlayerTradeValue(star, seller);
+  
+  // Build package from buyer (2-3 players + pick)
+  const buyerPlayers = buyer.players
+    .filter(p => buyerBlock.available.includes(p.id) && p.ratings.ovr >= 65 && p.ratings.ovr < 80)
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
+  
+  if (buyerPlayers.length < 2) return null;
+  
+  const p1 = buyerPlayers[0];
+  const p2 = buyerPlayers[1];
+  let packageValue = calculatePlayerTradeValue(p1, buyer) + calculatePlayerTradeValue(p2, buyer);
+  
+  const playerIds = [p1.id, p2.id];
+  const pickIds = [];
+  
+  // Add pick if needed to balance
+  if (packageValue < starValue * 0.8 && league.draftPicks) {
+    const buyerPicks = league.draftPicks.filter(p => p.currentOwner === buyer.id && p.round === 1);
+    if (buyerPicks.length > 0) {
+      const pick = buyerPicks[0];
+      packageValue += calculatePickTradeValue(pick);
+      pickIds.push(pick.id);
+    }
+  }
+  
+  // Check if package is reasonable
+  if (Math.abs(packageValue - starValue) <= starValue * 0.25) {
+    return {
+      template: TRADE_TEMPLATES.STAR_FOR_PACKAGE,
+      teamAId: buyer.id,
+      teamBId: seller.id,
+      teamAAssets: { players: [star.id], picks: [] },
+      teamBAssets: { players: playerIds, picks: pickIds },
+      description: `${seller.name} rebuilds: ${star.name} for package`
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Negotiate trade offer (1-3 step negotiation)
+ * If rejected, try adding small asset or adjusting salary filler
+ * @param {Object} offer - Initial trade offer
+ * @param {number} sellerTeamId - Team receiving the offer
+ * @param {number} maxSteps - Maximum negotiation steps (1-3)
+ * @returns {Object} {accepted: boolean, finalOffer: Object, steps: Array}
+ */
+function negotiateTrade(offer, sellerTeamId, maxSteps = 3) {
+  const steps = [];
+  let currentOffer = { ...offer };
+  
+  for (let step = 1; step <= maxSteps; step++) {
+    // Evaluate current offer
+    const evaluation = evaluateTradeForTeam(currentOffer, sellerTeamId);
+    
+    steps.push({
+      step,
+      offer: { ...currentOffer },
+      evaluation: { ...evaluation }
+    });
+    
+    // If accepted, we're done
+    if (evaluation.accept) {
+      return {
+        accepted: true,
+        finalOffer: currentOffer,
+        steps,
+        reasoning: evaluation.reasoning
+      };
+    }
+    
+    // If this was the last step, reject
+    if (step === maxSteps) {
+      return {
+        accepted: false,
+        finalOffer: currentOffer,
+        steps,
+        reasoning: evaluation.reasoning
+      };
+    }
+    
+    // Try to sweeten the deal
+    const sweetened = sweetenOffer(currentOffer, evaluation);
+    if (!sweetened) {
+      // Can't improve offer, reject
+      return {
+        accepted: false,
+        finalOffer: currentOffer,
+        steps,
+        reasoning: 'Could not improve offer enough'
+      };
+    }
+    
+    currentOffer = sweetened;
+  }
+  
+  return {
+    accepted: false,
+    finalOffer: currentOffer,
+    steps,
+    reasoning: 'Max negotiation steps reached'
+  };
+}
+
+/**
+ * Sweeten trade offer by adding small asset
+ * @param {Object} offer - Current offer
+ * @param {Object} evaluation - Evaluation showing why it was rejected
+ * @returns {Object|null} Improved offer or null if can't improve
+ */
+function sweetenOffer(offer, evaluation) {
+  const buyerTeamId = offer.teamAId;
+  const buyerTeam = league.teams.find(t => t.id === buyerTeamId);
+  
+  if (!buyerTeam) return null;
+  
+  const currentBuyerAssets = offer.teamBAssets; // What buyer is giving
+  
+  // Try adding a second-round pick
+  if (league.draftPicks) {
+    const availablePicks = league.draftPicks.filter(p => 
+      p.currentOwner === buyerTeamId && 
+      p.round === 2 &&
+      !currentBuyerAssets.picks.includes(p.id)
+    );
+    
+    if (availablePicks.length > 0) {
+      return {
+        ...offer,
+        teamBAssets: {
+          players: [...currentBuyerAssets.players],
+          picks: [...currentBuyerAssets.picks, availablePicks[0].id]
+        }
+      };
+    }
+  }
+  
+  // Try adding a low-value player as salary filler
+  const availablePlayers = buyerTeam.players
+    .filter(p => 
+      !currentBuyerAssets.players.includes(p.id) &&
+      p.ratings.ovr < 65
+    )
+    .sort((a, b) => a.ratings.ovr - b.ratings.ovr);
+  
+  if (availablePlayers.length > 0) {
+    return {
+      ...offer,
+      teamBAssets: {
+        players: [...currentBuyerAssets.players, availablePlayers[0].id],
+        picks: [...currentBuyerAssets.picks]
+      }
+    };
+  }
+  
+  return null; // Can't improve
+}
+
+/**
+ * Main AI trade processing - called periodically during season
+ * Generates and processes trades based on frequency settings
+ */
+function processAITrades() {
+  if (!league?.teams || !league.settings) return;
+  
+  const settings = league.settings;
+  const frequency = settings.aiTradeFrequency || 'Normal';
+  
+  // Determine how many teams attempt trades based on frequency
+  let tradeAttempts = 0;
+  switch (frequency) {
+    case 'Very High': tradeAttempts = 8; break;
+    case 'High': tradeAttempts = 5; break;
+    case 'Normal': tradeAttempts = 3; break;
+    case 'Low': tradeAttempts = 1; break;
+    default: tradeAttempts = 3;
+  }
+  
+  // Randomly select teams to initiate trades
+  const shuffled = [...league.teams].sort(() => Math.random() - 0.5);
+  const initiators = shuffled.slice(0, tradeAttempts);
+  
+  let tradesExecuted = 0;
+  
+  initiators.forEach(team => {
+    // Generate trade offers
+    const offers = generateTradeOffers(team, 10);
+    
+    if (offers.length === 0) return;
+    
+    // Try each offer with negotiation
+    for (const offer of offers) {
+      if (tradesExecuted >= tradeAttempts) break;
+      
+      const negotiation = negotiateTrade(offer, offer.teamBId, 2);
+      
+      if (negotiation.accepted) {
+        // Execute the trade
+        const result = executeTrade(negotiation.finalOffer);
+        
+        if (result.success) {
+          tradesExecuted++;
+          
+          if (settings.aiTradeLogging) {
+            console.log(`[AI Trade] Trade executed: ${offer.description}`);
+            console.log(`[AI Trade] ${negotiation.reasoning}`);
+          }
+          
+          // Log to history
+          if (!league.history) league.history = {};
+          if (!league.history.transactionLog) league.history.transactionLog = [];
+          
+          league.history.transactionLog.push({
+            type: 'trade',
+            date: league.meta?.day || 0,
+            season: league.meta?.season || league.season,
+            teams: [offer.teamAId, offer.teamBId],
+            description: offer.description,
+            reasoning: negotiation.reasoning
+          });
+          
+          break; // Only execute one trade per team per cycle
+        }
+      }
+    }
+  });
+  
+  if (tradesExecuted > 0 && settings.aiTradeLogging) {
+    console.log(`[AI Trade] Processed ${tradesExecuted} trades this cycle`);
+  }
+  
+  return tradesExecuted;
+}
+
+/* ============================
    CENTRALIZED LEAGUE STATE
 ============================ */
 
@@ -274,7 +1683,23 @@ function createEmptyLeagueState() {
       preseasonRosterLimit: 20, // Max players during preseason (regular season uses maxRosterSize)
       preseasonInjuryReduction: 0.5, // 50% reduction in injury rate
       preseasonFatigueReduction: 0.6, // 40% reduction in fatigue impact
-      preseasonDevelopmentBoost: 1.5 // 50% faster uncertainty reduction
+      preseasonDevelopmentBoost: 1.5, // 50% faster uncertainty reduction
+      
+      // Phase Rules (transaction restrictions by phase)
+      allowTradesInPreseason: false, // Allow trades during preseason
+      allowSigningsInPlayoffs: false, // Allow free agent signings during playoffs
+      allowWaiversInPlayoffs: false, // Allow waivers during playoffs
+      allowSigningsDuringAllStar: false, // Allow FA signings during All-Star Break
+      allowWaiversDuringAllStar: false, // Allow waivers during All-Star Break
+      tradeDeadlineDay: null, // Null = auto-calculate at 60% of season
+      
+      // AI Trade Logic Settings
+      aiTradeFrequency: 'Normal', // 'Low', 'Normal', 'High', 'Very High'
+      aiStinginess: 50, // 0-100, how much extra value AI demands (higher = harder to trade with)
+      aiValueNoise: 15, // 0-100, randomness in value calculations (prevents exploit patterns)
+      aiContenderBias: 1.2, // Multiplier for how much contenders overvalue win-now players
+      aiRebuilderBias: 1.3, // Multiplier for how much rebuilders overvalue picks/youth
+      aiTradeLogging: true // Log trade reasoning for debugging
     },
     
     // Migration tracking - prevents re-running one-time migrations
@@ -1582,8 +3007,19 @@ function aiEvaluateTrade(teamId, evaluation) {
 }
 
 function executeTrade(teamAId, teamBId, teamAAssets, teamBAssets) {
+  // Validate trade is allowed
+  if (!isActionAllowed(ACTIONS.TRADE)) {
+    const reason = getActionLockReason(ACTIONS.TRADE);
+    console.error('[Trade] Trade blocked:', reason);
+    return { success: false, error: reason };
+  }
+  
   const teamA = league.teams.find(t => t.id === teamAId);
   const teamB = league.teams.find(t => t.id === teamBId);
+  
+  if (!teamA || !teamB) {
+    return { success: false, error: 'Invalid teams' };
+  }
   
   // Move players from Team A to Team B
   teamAAssets.players.forEach(pId => {
@@ -1626,7 +3062,7 @@ function executeTrade(teamAId, teamBId, teamAAssets, teamBAssets) {
   // Save league
   saveLeague(league);
   
-  return true;
+  return { success: true };
 }
 
 /* ============================
@@ -2004,6 +3440,12 @@ function aiDraftPick(teamId, availableProspects) {
 
 // Make a draft pick
 function makeDraftPick(prospectId, teamId = null) {
+  // Check if draft actions are allowed
+  if (!isActionAllowed(ACTIONS.DRAFT)) {
+    const reason = getActionLockReason(ACTIONS.DRAFT);
+    return { success: false, error: reason };
+  }
+  
   if (!league.draft || !league.draft.inProgress) {
     return { success: false, error: 'No draft in progress' };
   }
@@ -3307,7 +4749,13 @@ function calculateWaiverCapPenalty(player) {
  * Waive a player with proper cap accounting
  */
 function waivePlayer(team, player) {
-  if (!team || !player) return false;
+  // Check if waiving players is allowed
+  if (!isActionAllowed(ACTIONS.WAIVE)) {
+    const reason = getActionLockReason(ACTIONS.WAIVE);
+    return { success: false, error: reason };
+  }
+  
+  if (!team || !player) return { success: false, error: 'Team or player not found' };
   
   const capPenalty = calculateWaiverCapPenalty(player);
   
@@ -3315,7 +4763,7 @@ function waivePlayer(team, player) {
   
   // Remove from team
   const playerIndex = team.players.findIndex(p => p.id === player.id);
-  if (playerIndex === -1) return false;
+  if (playerIndex === -1) return { success: false, error: 'Player not found on roster' };
   
   team.players.splice(playerIndex, 1);
   
@@ -3337,7 +4785,7 @@ function waivePlayer(team, player) {
     league.freeAgents.push(player);
   }
   
-  return true;
+  return { success: true };
 }
 
 /**
@@ -3381,7 +4829,10 @@ function transitionToRegularSeason() {
     
     trainingCampPlayers.forEach(player => {
       console.log(`[Opening Day] Training camp contract expired: ${player.name}`);
-      waivePlayer(team, player);
+      const result = waivePlayer(team, player);
+      if (!result.success) {
+        console.warn(`[Opening Day] Failed to waive ${player.name}: ${result.error}`);
+      }
     });
     
     // Step 2: Check if roster exceeds regular season limit
@@ -3399,7 +4850,10 @@ function transitionToRegularSeason() {
         for (let i = 0; i < excessCount; i++) {
           const playerToCut = sortedPlayers[i];
           console.log(`[Opening Day] Auto-waiving ${playerToCut.name} (${playerToCut.ratings.ovr} OVR)`);
-          waivePlayer(team, playerToCut);
+          const result = waivePlayer(team, playerToCut);
+          if (!result.success) {
+            console.warn(`[Opening Day] Failed to waive ${playerToCut.name}: ${result.error}`);
+          }
         }
       } else {
         // For user team, just log warning - they must manually cut
@@ -4199,44 +5653,88 @@ function runDraft() {
 
 function cutPlayer(playerId, teamId) {
   const team = league.teams.find(t => t.id === teamId);
-  if (!team) return;
+  if (!team) {
+    alert('Team not found');
+    return;
+  }
   
   const player = team.players.find(p => p.id === playerId);
-  if (!player) return;
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
   
   if (!confirm(`Cut ${player.name}? (Salary: $${player.contract.amount}M)`)) return;
   
-  team.players = team.players.filter(p => p.id !== playerId);
-  league.freeAgents.push(player);
+  const result = waivePlayer(team, player);
+  
+  if (!result.success) {
+    alert('❌ Waive Failed\n\n' + result.error);
+    return;
+  }
   
   updateTeamPayrolls();
   render();
   save();
 }
 
-function signFreeAgent(playerId, teamId) {
+function signFreeAgent(playerId, teamId, contractTerms) {
+  // Check if free agent signing is allowed
+  if (!isActionAllowed(ACTIONS.SIGN_FA)) {
+    const reason = getActionLockReason(ACTIONS.SIGN_FA);
+    return { success: false, error: reason };
+  }
+  
   const team = league.teams.find(t => t.id === teamId);
   const player = league.freeAgents.find(p => p.id === playerId);
   
-  if (!team || !player) return;
+  if (!team || !player) return { success: false, error: 'Team or player not found' };
+  
+  // If no contract terms provided, use existing contract
+  const terms = contractTerms || {
+    salary: player.contract.amount,
+    years: player.contract.yearsRemaining || 1,
+    hasPlayerOption: player.contract.hasPlayerOption || false,
+    hasTeamOption: player.contract.hasTeamOption || false
+  };
   
   const currentPayroll = team.players.reduce((sum, p) => sum + p.contract.amount, 0);
-  if (currentPayroll + player.contract.amount > SALARY_CAP) {
-    alert('Not enough cap space!');
-    return;
+  if (currentPayroll + terms.salary > SALARY_CAP) {
+    return { success: false, error: 'Not enough cap space!' };
   }
   
   if (team.players.length >= 15) {
-    alert('Roster full! (Max 15 players)');
-    return;
+    return { success: false, error: 'Roster full! (Max 15 players)' };
   }
   
+  // Update player contract
+  player.contract = {
+    amount: terms.salary,
+    exp: league.season + terms.years,
+    yearsRemaining: terms.years,
+    totalValue: terms.salary * terms.years,
+    startYear: league.season,
+    hasPlayerOption: terms.hasPlayerOption,
+    hasTeamOption: terms.hasTeamOption
+  };
+  
+  // Remove from free agents
+  const faIndex = league.freeAgents.findIndex(p => p.id === playerId);
+  if (faIndex !== -1) {
+    league.freeAgents.splice(faIndex, 1);
+  }
+  
+  // Add to team
   team.players.push(player);
-  league.freeAgents = league.freeAgents.filter(p => p.id !== playerId);
+  
+  // Update team payroll
+  team.payroll = team.players.reduce((sum, p) => sum + (p.contract?.amount || 0), 0);
   
   updateTeamPayrolls();
   render();
   saveLeagueState();
+  
+  return { success: true };
 }
 
 /* ============================

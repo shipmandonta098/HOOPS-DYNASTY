@@ -3379,12 +3379,21 @@ function showPlayerActionMenu(playerId, event) {
   
   if (!player) return;
   
+  // Check if waiving is allowed
+  const waiveAllowed = typeof isActionAllowed === 'function' ? isActionAllowed(ACTIONS.WAIVE) : true;
+  const waiveLockReason = !waiveAllowed && typeof getActionLockReason === 'function' ? 
+                          getActionLockReason(ACTIONS.WAIVE) : null;
+  
   const menu = document.createElement('div');
   menu.className = 'player-action-menu';
   menu.innerHTML = `
     <div class="action-menu-item" onclick="showPlayerModal(${playerId}); closeActionMenu();">View Player</div>
     <div class="action-menu-item" onclick="alert('Trade feature coming soon!'); closeActionMenu();">Trade</div>
-    <div class="action-menu-item danger" onclick="cutPlayer(${playerId}, ${teamId}); closeActionMenu();">Cut/Waive</div>
+    <div class="action-menu-item danger ${!waiveAllowed ? 'disabled' : ''}" 
+         ${waiveLockReason ? `title="${waiveLockReason}"` : ''}
+         onclick="${waiveAllowed ? `cutPlayer(${playerId}, ${teamId}); closeActionMenu();` : `alert('❌ Waive Not Allowed\\n\\n${waiveLockReason}'); closeActionMenu();`}">
+      Cut/Waive
+    </div>
   `;
   
   // Position menu near the button
@@ -3421,6 +3430,11 @@ function renderPlayer() {
 
 function renderFreeAgents() {
   const el = document.getElementById('freeagents-tab');
+  
+  // Check if free agent signing is allowed
+  const signingAllowed = typeof isActionAllowed === 'function' ? isActionAllowed(ACTIONS.SIGN_FA) : true;
+  const lockReason = !signingAllowed && typeof getActionLockReason === 'function' ? 
+                     getActionLockReason(ACTIONS.SIGN_FA) : null;
   
   if (league.freeAgents.length === 0) {
     el.innerHTML = `
@@ -3492,7 +3506,10 @@ function renderFreeAgents() {
               <span class="freeagents-market-badge ${p.marketValue.status.toLowerCase()}">${p.marketValue.status}</span>
             </div>
             <div class="freeagents-cell action">
-              <button class="freeagents-negotiate-btn" onclick="openNegotiationModal(${p.id})">Negotiate</button>
+              <button class="freeagents-negotiate-btn" 
+                      ${!signingAllowed ? 'disabled' : ''}
+                      ${lockReason ? `title="${lockReason}"` : ''}
+                      onclick="openNegotiationModal(${p.id})">Negotiate</button>
             </div>
           </div>
         `).join('')}
@@ -12546,6 +12563,15 @@ let negotiationState = {
 };
 
 function openNegotiationModal(playerId) {
+  // Check if free agent signing is allowed
+  if (typeof isActionAllowed === 'function' && !isActionAllowed(ACTIONS.SIGN_FA)) {
+    const reason = typeof getActionLockReason === 'function' ? 
+                   getActionLockReason(ACTIONS.SIGN_FA) : 
+                   'Free agent signings are not allowed at this time.';
+    alert('❌ Signing Not Allowed\n\n' + reason);
+    return;
+  }
+  
   const player = league.freeAgents.find(p => p.id === playerId);
   if (!player) return;
   
@@ -12765,31 +12791,13 @@ function acceptCounteroffer() {
 }
 
 function signPlayerToContract(player, team, contractTerms) {
-  // Remove from free agents
-  const faIndex = league.freeAgents.findIndex(p => p.id === player.id);
-  if (faIndex !== -1) {
-    league.freeAgents.splice(faIndex, 1);
+  // Check if free agent signing is allowed
+  const result = signFreeAgent(player.id, team.id, contractTerms);
+  
+  if (!result.success) {
+    alert('❌ Signing Failed\n\n' + result.error);
+    return;
   }
-  
-  // Update player contract
-  player.contract = {
-    amount: contractTerms.salary,
-    exp: league.season + contractTerms.years,
-    yearsRemaining: contractTerms.years,
-    totalValue: contractTerms.salary * contractTerms.years,
-    startYear: league.season,
-    hasPlayerOption: contractTerms.hasPlayerOption,
-    hasTeamOption: contractTerms.hasTeamOption
-  };
-  
-  // Add to team
-  team.players.push(player);
-  
-  // Update team payroll
-  team.payroll = team.players.reduce((sum, p) => sum + (p.contract?.amount || 0), 0);
-  
-  // Save league
-  saveLeague(league);
   
   alert(`${player.name} has signed with ${team.city} ${team.name}!`);
 }
@@ -12809,6 +12817,11 @@ let tradeState = {
 
 function renderTrades() {
   const el = document.getElementById('trades-tab');
+  
+  // Check if trades are allowed
+  const tradesAllowed = typeof isActionAllowed === 'function' ? isActionAllowed(ACTIONS.TRADE) : true;
+  const lockReason = !tradesAllowed && typeof getActionLockReason === 'function' ? 
+                     getActionLockReason(ACTIONS.TRADE) : null;
   
   // Initialize draft picks if missing
   if (!league.draftPicks) {
@@ -12966,7 +12979,9 @@ function renderTrades() {
         
         <div class="trades-actions">
           <button class="trades-btn clear" onclick="clearTrade()">Clear Trade</button>
-          <button class="trades-btn propose" ${!evaluation.isLegal ? 'disabled' : ''} 
+          <button class="trades-btn propose" 
+                  ${!evaluation.isLegal || !tradesAllowed ? 'disabled' : ''} 
+                  ${lockReason ? `title="${lockReason}"` : ''}
                   onclick="proposeTrade()">Propose Trade</button>
         </div>
       ` : '<div class="trades-empty">Add players or picks to build a trade</div>'}
@@ -13123,6 +13138,15 @@ function clearTrade() {
 }
 
 function proposeTrade() {
+  // Check if trades are allowed
+  if (typeof isActionAllowed === 'function' && !isActionAllowed(ACTIONS.TRADE)) {
+    const reason = typeof getActionLockReason === 'function' ? 
+                   getActionLockReason(ACTIONS.TRADE) : 
+                   'Trades are not allowed at this time.';
+    alert('❌ Trade Not Allowed\n\n' + reason);
+    return;
+  }
+  
   const evaluation = evaluateTrade(tradeState.teamAId, tradeState.teamBId, tradeState.teamAAssets, tradeState.teamBAssets);
   evaluation.teamAId = tradeState.teamAId;
   evaluation.teamBId = tradeState.teamBId;
@@ -13183,7 +13207,14 @@ function closeTradeResponseModal() {
 }
 
 function acceptTrade() {
-  executeTrade(tradeState.teamAId, tradeState.teamBId, tradeState.teamAAssets, tradeState.teamBAssets);
+  const result = executeTrade(tradeState.teamAId, tradeState.teamBId, tradeState.teamAAssets, tradeState.teamBAssets);
+  
+  if (!result.success) {
+    alert('❌ Trade Failed\n\n' + result.error);
+    closeTradeResponseModal();
+    return;
+  }
+  
   closeTradeResponseModal();
   clearTrade();
   alert('Trade completed successfully!');
