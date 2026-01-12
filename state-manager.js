@@ -3,6 +3,9 @@
    Persistent state management with localStorage + IndexedDB
 ============================ */
 
+// Schema version constant (must match engine.js)
+const CURRENT_SCHEMA_VERSION = 6;
+
 /**
  * LocalStorage keys for quick-access metadata
  */
