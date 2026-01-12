@@ -288,23 +288,11 @@ function getFreeAgents() {
 
 /**
  * Get current league phase
+ * SINGLE SOURCE OF TRUTH: league.phase
  */
 function getCurrentPhase() {
-  if (!league) return 'OFFSEASON';
-  
-  // Use computed phase if available
-  if (typeof computeCurrentPhase === 'function') {
-    return computeCurrentPhase();
-  }
-  
-  // Fallback to stored phase
-  if (leagueState) {
-    return leagueState.meta.phase;
-  }
-  if (league) {
-    return league.phase;
-  }
-  return 'OFFSEASON';
+  if (!league || !league.phase) return 'OFFSEASON';
+  return league.phase.toUpperCase();
 }
 
 /**
@@ -357,6 +345,9 @@ function startRegularSeason() {
   
   const currentPhase = (league.phase || '').toUpperCase();
   
+  console.log('[Season Start] BEFORE - league.phase:', league.phase);
+  console.log('[Season Start] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
+  
   if (currentPhase !== 'PRESEASON') {
     alert(`Can only start season from Preseason phase (current: ${currentPhase})`);
     return;
@@ -364,8 +355,10 @@ function startRegularSeason() {
   
   console.log('[Season Start] Transitioning PRESEASON → REGULAR_SEASON');
   
-  // Transition phase in BOTH stores (critical!)
+  // CRITICAL: Set league.phase as single source of truth
   league.phase = 'REGULAR_SEASON';
+  
+  // Also update leagueState for persistence
   if (leagueState && leagueState.meta) {
     leagueState.meta.phase = 'REGULAR_SEASON';
   }
@@ -395,10 +388,14 @@ function startRegularSeason() {
     save();
   }
   
+  console.log('[Season Start] AFTER - league.phase:', league.phase);
+  console.log('[Season Start] AFTER - leagueState.meta.phase:', leagueState?.meta?.phase);
   console.log('[Season Start] ✓ Phase transition complete');
   
-  // Re-render UI
+  // CRITICAL: Force full UI re-render
+  console.log('[Season Start] Triggering UI re-render...');
   render();
+  console.log('[Season Start] UI re-render complete');
   
   alert('Regular season has begun!');
 }
@@ -2222,7 +2219,10 @@ function updateLeagueInfo() {
   // Get current phase display
   const phaseDisplay = getCurrentPhaseDisplay();
   
-  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${phaseDisplay}${jobSecurityHTML}`;
+  // Debug: Show phase source
+  const debugPhase = window.DEBUG_PHASE ? ` | <span style="color: #ff6b6b; font-size: 0.85em;">DEBUG: league.phase="${league.phase}"</span>` : '';
+  
+  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${phaseDisplay}${debugPhase}${jobSecurityHTML}`;
   
   // Update button states (sidebar buttons)
   const simSeasonBtn = document.getElementById('simSeasonBtnSidebar');
@@ -2250,13 +2250,16 @@ function updateLeagueInfo() {
   }
   
   // Update simulation button states based on phase
-  const phase = league.phase?.toUpperCase() || 'OFFSEASON';
+  const phase = getCurrentPhase();
   const canSimulate = (phase === 'REGULAR_SEASON' || phase === 'SEASON' || phase === 'PLAYOFFS');
   
   const simButtons = ['simGameButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'];
   simButtons.forEach(id => {
     const btn = document.getElementById(id);
-    if (btn) btn.disabled = !canSimulate;
+    if (btn) {
+      btn.disabled = !canSimulate;
+      console.log(`[Sim Button] ${id} disabled=${!canSimulate} (phase=${phase})`);
+    }
   });
   
   // Until Event button is always enabled
@@ -9965,14 +9968,16 @@ function renderSchedule() {
   const completedCount = allGames.filter(g => g.status === 'final').length / 2;
   const totalGamesPerTeam = league.schedule.gamesPerTeam || 82;
   
-  // Check if in preseason
-  // Normalize phase for reliable comparison
-  const currentPhase = (league.phase || '').toUpperCase();
+  // Check if in preseason (using single source of truth)
+  const currentPhase = getCurrentPhase();
   const isPreseason = currentPhase === 'PRESEASON' && !leagueState?.meta?.regularSeasonStarted;
+  
+  console.log('[Schedule] currentPhase:', currentPhase, '| isPreseason:', isPreseason);
   
   // Determine active season event
   let activeEventBadge = '';
   if (isPreseason) {
+    console.log('[Schedule] Showing Start Regular Season button');
     activeEventBadge = `
       <button onclick="startRegularSeason()" style="
         background: #4CAF50;
@@ -9989,6 +9994,7 @@ function renderSchedule() {
       </button>
     `;
   } else if (completedCount === 0) {
+    console.log('[Schedule] Showing Season Start badge (not preseason, no games played)');
     activeEventBadge = '<span style="background: #4CAF50; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏀 Season Start</span>';
   } else if (completedCount >= totalGamesPerTeam) {
     activeEventBadge = '<span style="background: #2196F3; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏁 Season Complete</span>';

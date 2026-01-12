@@ -385,6 +385,8 @@ async function loadLeagueState(leagueId) {
     // Convert to legacy format for backward compatibility
     league = convertLeagueStateToLegacy(leagueState);
     
+    console.log('[STATE] League loaded - league.phase:', league.phase, '| leagueState.meta.phase:', leagueState.meta.phase);
+    
     // Clamp player ratings to maximum values (backward compatibility)
     clampPlayerRatings(league);
     
