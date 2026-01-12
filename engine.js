@@ -4881,9 +4881,6 @@ async function simMonth() {
   
   return await runSimulation();
 }
-  
-  return runSimulation();
-}
 
 async function simSeason() {
   if (!league.simulation) {
