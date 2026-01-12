@@ -16581,7 +16581,7 @@ async function executeSimUntilEvent() {
   updateSimStatusLabel('Simulating until next event...');
   
   try {
-    const result = simUntilNextEvent();
+    const result = await simUntilNextEvent();
     handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
@@ -16589,6 +16589,7 @@ async function executeSimUntilEvent() {
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }
@@ -16603,7 +16604,7 @@ async function executeSimWeek() {
   updateSimStatusLabel('Simulating week...');
   
   try {
-    const result = simWeek();
+    const result = await simWeek();
     handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
@@ -16611,6 +16612,7 @@ async function executeSimWeek() {
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }
@@ -16625,7 +16627,7 @@ async function executeSimMonth() {
   updateSimStatusLabel('Simulating month...');
   
   try {
-    const result = simMonth();
+    const result = await simMonth();
     handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
@@ -16633,6 +16635,7 @@ async function executeSimMonth() {
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }
@@ -16650,14 +16653,21 @@ async function executeSimSeason() {
   updateSimStatusLabel('Simulating season...');
   
   try {
-    const result = simSeason();
+    const result = await simSeason();
     handleSimulationResult(result);
+    
+    // Show completion message
+    if (result.complete) {
+      const gamesSimmed = league.simulation?.gamesSimulated || 0;
+      alert(`Season complete! Simulated ${gamesSimmed} games.`);
+    }
   } catch (error) {
     console.error('Simulation error:', error);
     alert('Simulation error: ' + error.message);
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }
@@ -16672,7 +16682,7 @@ async function executeResumeSimulation() {
   updateSimStatusLabel('Resuming...');
   
   try {
-    const result = resumeSimulation();
+    const result = await resumeSimulation();
     handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
@@ -16680,6 +16690,7 @@ async function executeResumeSimulation() {
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }

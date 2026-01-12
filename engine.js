@@ -4698,7 +4698,7 @@ function processInjury(event) {
  * Main simulation loop
  * Processes events until simulation limit reached or pause required
  */
-function runSimulation() {
+async function runSimulation() {
   if (!league || !league.simulation) {
     console.error('[SIM] Cannot run simulation: no league or simulation state');
     return { success: false, error: 'No simulation state' };
@@ -4717,8 +4717,15 @@ function runSimulation() {
   sim.isPaused = false;
   sim.pauseReason = null;
   
+  let eventsProcessed = 0;
+  
   // Process events
   while (sim.currentEventIndex < sim.eventQueue.length) {
+    // Yield every 10 events to prevent UI freeze
+    if (eventsProcessed > 0 && eventsProcessed % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    eventsProcessed++;
     const event = sim.eventQueue[sim.currentEventIndex];
     
     // Check if we should pause BEFORE processing
@@ -4801,7 +4808,7 @@ function runSimulation() {
 /**
  * Resume simulation from paused state
  */
-function resumeSimulation() {
+async function resumeSimulation() {
   if (!league?.simulation || !league.simulation.isPaused) {
     console.warn('[SIM] Cannot resume: simulation not paused');
     return { success: false, error: 'Simulation not paused' };
@@ -4814,14 +4821,14 @@ function resumeSimulation() {
   league.simulation.pauseEventData = null;
   
   // Continue simulation
-  return runSimulation();
+  return await runSimulation();
 }
 
 /**
  * Simulation control functions
  */
 
-function simOneGame() {
+async function simOneGame() {
   if (!league.simulation) {
     league.simulation = initSimulationState();
   }
@@ -4831,10 +4838,10 @@ function simOneGame() {
     count: 1
   };
   
-  return runSimulation();
+  return await runSimulation();
 }
 
-function simUntilNextEvent() {
+async function simUntilNextEvent() {
   if (!league.simulation) {
     league.simulation = initSimulationState();
   }
@@ -4844,10 +4851,10 @@ function simUntilNextEvent() {
     stopOnNonGame: true
   };
   
-  return runSimulation();
+  return await runSimulation();
 }
 
-function simWeek() {
+async function simWeek() {
   if (!league.simulation) {
     league.simulation = initSimulationState();
   }
@@ -4858,10 +4865,10 @@ function simWeek() {
     count: rand(3, 5)
   };
   
-  return runSimulation();
+  return await runSimulation();
 }
 
-function simMonth() {
+async function simMonth() {
   if (!league.simulation) {
     league.simulation = initSimulationState();
   }
@@ -4872,18 +4879,41 @@ function simMonth() {
     count: rand(12, 15)
   };
   
+  return await runSimulation();
+}
+  
   return runSimulation();
 }
 
-function simSeason() {
+async function simSeason() {
   if (!league.simulation) {
     league.simulation = initSimulationState();
   }
   
+  // Count remaining regular season games
+  const remainingGames = league.schedule?.games ? 
+    Object.values(league.schedule.games).filter(g => 
+      g.phase === 'Regular Season' && g.status !== 'final'
+    ).length : 0;
+  
+  console.log(`[SIM SEASON] Starting season simulation`);
+  console.log(`[SIM SEASON] Remaining regular season games: ${remainingGames}`);
+  
   // Simulate until end of season (no limit)
   league.simulation.simLimit = null;
   
-  return runSimulation();
+  const result = await runSimulation();
+  
+  console.log(`[SIM SEASON] Season simulation finished`);
+  console.log(`[SIM SEASON] Games simulated: ${league.simulation.gamesSimulated}`);
+  
+  // Save state after season completion
+  if (result.complete) {
+    save();
+    updateLeaguePhase();
+  }
+  
+  return result;
 }
 
 /* ============================
