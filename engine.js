@@ -7518,7 +7518,7 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   // Set meta information
   leagueState.meta.name = leagueName;
   leagueState.meta.season = seasonYear;
-  leagueState.meta.phase = 'preseason';
+  leagueState.meta.phase = 'PRESEASON';
   leagueState.meta.userTeamId = userTeamId;
   leagueState.meta.day = 0;
   leagueState.draft.year = seasonYear;
