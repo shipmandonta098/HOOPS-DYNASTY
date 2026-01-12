@@ -339,6 +339,49 @@ function getCurrentPhaseDisplay() {
 }
 
 /**
+ * Start the regular season from preseason
+ */
+function startRegularSeason() {
+  if (!league) {
+    alert('No league loaded');
+    return;
+  }
+  
+  const currentPhase = league.phase?.toLowerCase() || '';
+  
+  if (currentPhase !== 'preseason') {
+    alert('Can only start season from Preseason phase');
+    return;
+  }
+  
+  console.log('[Season Start] Transitioning to REGULAR_SEASON');
+  
+  // Transition phase
+  league.phase = 'season';
+  
+  // Ensure schedule exists
+  if (typeof ensureSchedule === 'function') {
+    ensureSchedule();
+  }
+  
+  // Reset simulation state
+  if (league.simulation) {
+    league.simulation.currentEventIndex = 0;
+    league.simulation.gamesSimulated = 0;
+    league.simulation.isPaused = false;
+    league.simulation.eventQueue = [];
+  }
+  
+  // Save state
+  save();
+  
+  // Re-render UI
+  render();
+  
+  alert('Regular season has begun!');
+}
+
+/**
  * Get current season
  */
 function getCurrentSeason() {
@@ -2180,6 +2223,20 @@ function updateLeagueInfo() {
   if (league && !league.simulation) {
     league.simulation = initSimulationState();
   }
+  
+  // Update simulation button states based on phase
+  const phase = league.phase?.toLowerCase() || 'offseason';
+  const canSimulate = (phase === 'season' || phase === 'playoffs');
+  
+  const simButtons = ['simGameButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'];
+  simButtons.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !canSimulate;
+  });
+  
+  // Until Event button is always enabled
+  const eventBtn = document.getElementById('simEventButton');
+  if (eventBtn) eventBtn.disabled = false;
   
   // Initialize status label
   updateSimStatusLabel();
@@ -9883,9 +9940,28 @@ function renderSchedule() {
   const completedCount = allGames.filter(g => g.status === 'final').length / 2;
   const totalGamesPerTeam = league.schedule.gamesPerTeam || 82;
   
+  // Check if in preseason
+  const isPreseason = league.phase?.toLowerCase() === 'preseason';
+  
   // Determine active season event
   let activeEventBadge = '';
-  if (completedCount === 0) {
+  if (isPreseason) {
+    activeEventBadge = `
+      <button onclick="startRegularSeason()" style="
+        background: #4CAF50;
+        color: #fff;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+      ">
+        🏀 Start Regular Season
+      </button>
+    `;
+  } else if (completedCount === 0) {
     activeEventBadge = '<span style="background: #4CAF50; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏀 Season Start</span>';
   } else if (completedCount >= totalGamesPerTeam) {
     activeEventBadge = '<span style="background: #2196F3; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏁 Season Complete</span>';
@@ -16559,7 +16635,7 @@ async function executeSimGame() {
   updateSimStatusLabel('Simulating...');
   
   try {
-    const result = simOneGame();
+    const result = await simOneGame();
     handleSimulationResult(result);
   } catch (error) {
     console.error('Simulation error:', error);
@@ -16567,6 +16643,7 @@ async function executeSimGame() {
   } finally {
     enableSimButtons();
     updateSimStatusLabel();
+    save();
     render();
   }
 }

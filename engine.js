@@ -151,6 +151,36 @@ function updateLeaguePhase() {
   }
 }
 
+/**
+ * Transition to next phase
+ * OFFSEASON → PRESEASON → REGULAR_SEASON → PLAYOFFS → OFFSEASON
+ */
+function advancePhase() {
+  if (!league) return false;
+  
+  const currentPhase = league.phase?.toLowerCase() || 'offseason';
+  console.log(`[Phase] Advancing from ${currentPhase}`);
+  
+  if (currentPhase === 'offseason') {
+    league.phase = 'preseason';
+    console.log('[Phase] Transitioned to PRESEASON');
+  } else if (currentPhase === 'preseason') {
+    league.phase = 'season';
+    ensureSchedule();
+    console.log('[Phase] Transitioned to REGULAR_SEASON');
+  } else if (currentPhase === 'season') {
+    league.phase = 'playoffs';
+    console.log('[Phase] Transitioned to PLAYOFFS');
+  } else if (currentPhase === 'playoffs') {
+    league.phase = 'offseason';
+    league.season++;
+    console.log(`[Phase] Transitioned to OFFSEASON, incremented season to ${league.season}`);
+  }
+  
+  save();
+  return true;
+}
+
 /* ============================
    PHASE RULES SYSTEM
    Centralized action gating by league phase
@@ -7292,6 +7322,7 @@ if (typeof window !== 'undefined') {
   window.debugRatings = debugRatings;
   window.generateDefaultRotations = generateDefaultRotations;
   window.calcTotalMinutes = calcTotalMinutes;
+  window.advancePhase = advancePhase;
 }
 
 /* ============================
