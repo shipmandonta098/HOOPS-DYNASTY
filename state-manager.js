@@ -484,6 +484,12 @@ function migrateLeagueState(state) {
     state.meta.createdAt = Date.now();
   }
   
+  // Migrate phase to uppercase (schema v6+)
+  if (state.meta.phase && typeof state.meta.phase === 'string') {
+    state.meta.phase = state.meta.phase.toUpperCase();
+    console.log('[STATE] Migrated phase to uppercase:', state.meta.phase);
+  }
+  
   // Update schema version
   state.meta.schemaVersion = CURRENT_SCHEMA_VERSION;
   
