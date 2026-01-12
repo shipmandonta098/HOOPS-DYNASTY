@@ -4548,6 +4548,195 @@ function commissionerForceSigning(playerId, teamId) {
 }
 
 /* ============================
+   GAME ODDS SYSTEM
+   Pre-game win probability and moneyline odds
+============================ */
+
+// Constants for odds calculation
+const ODDS_CONFIG = {
+  HOME_COURT_ADVANTAGE: 2.5,  // Rating points advantage for home team
+  SCALE: 8.0,                  // Logistic scale (lower = more extreme probabilities)
+  MIN_PROBABILITY: 0.05,       // Minimum win probability (5%)
+  MAX_PROBABILITY: 0.95        // Maximum win probability (95%)
+};
+
+/**
+ * Initialize strength versioning system
+ * Incremented whenever roster/ratings change
+ */
+function initializeStrengthVersion() {
+  if (!league.meta) league.meta = {};
+  if (!league.meta.strengthVersion) {
+    league.meta.strengthVersion = 1;
+  }
+}
+
+/**
+ * Increment strength version when rosters/ratings change
+ * This invalidates all cached odds
+ */
+function incrementStrengthVersion() {
+  if (!league.meta) league.meta = {};
+  league.meta.strengthVersion = (league.meta.strengthVersion || 0) + 1;
+  console.log(`[Odds] Strength version incremented to ${league.meta.strengthVersion}`);
+}
+
+/**
+ * Compute team strength based on roster
+ * Uses top 8 players weighted by OVR
+ */
+function computeTeamStrength(teamId) {
+  const team = league.teams.find(t => t.id === teamId);
+  
+  if (!team) {
+    console.warn(`[Odds] Team ${teamId} not found`);
+    return 75; // Default fallback
+  }
+  
+  // If team has a powerRating or overall, use it
+  if (team.powerRating !== undefined && team.powerRating !== null) {
+    return team.powerRating;
+  }
+  
+  if (team.overall !== undefined && team.overall !== null) {
+    return team.overall;
+  }
+  
+  // Otherwise, compute from roster
+  if (!team.players || team.players.length === 0) {
+    console.warn(`[Odds] Team ${teamId} (${team.name}) has no players`);
+    return 50; // Very weak fallback
+  }
+  
+  // Get top 8 players by OVR
+  const sortedPlayers = [...team.players]
+    .filter(p => p.ratings && p.ratings.ovr !== undefined)
+    .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
+    .slice(0, 8);
+  
+  if (sortedPlayers.length === 0) {
+    console.warn(`[Odds] Team ${teamId} (${team.name}) has no players with valid OVR`);
+    return 50;
+  }
+  
+  // Weighted average: top players matter more
+  const weights = [0.25, 0.20, 0.15, 0.12, 0.10, 0.08, 0.06, 0.04];
+  let weightedSum = 0;
+  let totalWeight = 0;
+  
+  sortedPlayers.forEach((player, idx) => {
+    const weight = weights[idx] || 0.04;
+    weightedSum += player.ratings.ovr * weight;
+    totalWeight += weight;
+  });
+  
+  const strength = totalWeight > 0 ? weightedSum / totalWeight : 50;
+  
+  return Math.round(strength * 10) / 10; // Round to 1 decimal
+}
+
+/**
+ * Convert probability to American moneyline odds
+ * @param {number} p - Win probability (0-1)
+ * @returns {string} Moneyline string (e.g., "-150", "+120")
+ */
+function probabilityToMoneyline(p) {
+  if (p >= 0.5) {
+    // Favorite: negative odds
+    const odds = Math.round(100 * p / (1 - p));
+    return `-${odds}`;
+  } else {
+    // Underdog: positive odds
+    const odds = Math.round(100 * (1 - p) / p);
+    return `+${odds}`;
+  }
+}
+
+/**
+ * Compute game odds for a matchup
+ * @param {number} awayTid - Away team ID
+ * @param {number} homeTid - Home team ID
+ * @returns {Object} Odds object with win percentages and moneylines
+ */
+function computeGameOdds(awayTid, homeTid) {
+  // Get team strengths
+  const awayStrength = computeTeamStrength(awayTid);
+  const homeStrength = computeTeamStrength(homeTid);
+  
+  // Apply home court advantage
+  const homeAdvantage = ODDS_CONFIG.HOME_COURT_ADVANTAGE;
+  const diff = (homeStrength + homeAdvantage) - awayStrength;
+  
+  // Logistic function for win probability
+  const pHome = 1 / (1 + Math.exp(-diff / ODDS_CONFIG.SCALE));
+  
+  // Clamp to reasonable bounds
+  const pHomeClamp = Math.max(ODDS_CONFIG.MIN_PROBABILITY, Math.min(ODDS_CONFIG.MAX_PROBABILITY, pHome));
+  const pAwayClamp = 1 - pHomeClamp;
+  
+  // Convert to percentages
+  const homeWinPct = Math.round(pHomeClamp * 100);
+  const awayWinPct = Math.round(pAwayClamp * 100);
+  
+  // Compute moneylines
+  const homeML = probabilityToMoneyline(pHomeClamp);
+  const awayML = probabilityToMoneyline(pAwayClamp);
+  
+  return {
+    awayWinPct,
+    homeWinPct,
+    awayML,
+    homeML,
+    strengthVersion: league.meta.strengthVersion || 1,
+    lastUpdatedAt: Date.now()
+  };
+}
+
+/**
+ * Get or compute odds for a game
+ * Uses cached odds if strength version hasn't changed
+ */
+function getGameOdds(game) {
+  // Don't compute odds for completed games
+  if (game.status === 'final') {
+    return null;
+  }
+  
+  // Ensure strength versioning is initialized
+  initializeStrengthVersion();
+  
+  const currentVersion = league.meta.strengthVersion || 1;
+  
+  // Check if we have cached odds that are still valid
+  if (game.odds && game.odds.strengthVersion === currentVersion) {
+    return game.odds;
+  }
+  
+  // Compute new odds
+  const odds = computeGameOdds(game.awayTeamId, game.homeTeamId);
+  
+  // Cache odds on game object
+  game.odds = odds;
+  
+  return odds;
+}
+
+/**
+ * Invalidate all game odds (called when strength version changes)
+ */
+function invalidateAllOdds() {
+  if (!league.schedule || !league.schedule.games) return;
+  
+  Object.values(league.schedule.games).forEach(game => {
+    if (game.status !== 'final') {
+      delete game.odds;
+    }
+  });
+  
+  console.log('[Odds] All odds invalidated due to roster/rating changes');
+}
+
+/* ============================
    COMMISSIONER TOOLS - EXPANDED
    Add Player, Delete Player, Force Trade, Force Injury
 ============================ */
@@ -5124,6 +5313,9 @@ function saveNewPlayer(event) {
     'commissioner'
   );
   
+  // Invalidate odds cache
+  incrementStrengthVersion();
+  
   // Save and refresh
   save();
   render();
@@ -5303,6 +5495,9 @@ function confirmDeletePlayer(playerId) {
     `${playerName} was removed from the league`,
     'commissioner'
   );
+  
+  // Invalidate odds cache
+  incrementStrengthVersion();
   
   // Save and refresh
   save();
@@ -5580,6 +5775,9 @@ function executeForceTradeExecute() {
     'commissioner'
   );
   
+  // Invalidate odds cache
+  incrementStrengthVersion();
+  
   // Save and refresh
   save();
   render();
@@ -5852,6 +6050,9 @@ function executeForceInjury(event, playerId) {
     `${player.name} has been placed on the injury report with a ${injuryType} (${gamesOut} games)`,
     'injury'
   );
+  
+  // Invalidate odds cache
+  incrementStrengthVersion();
   
   // Save and refresh
   save();
@@ -10018,6 +10219,9 @@ function renderScheduleGameRow(game) {
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
   
+  // Get odds for scheduled games
+  const odds = game.status === 'scheduled' ? getGameOdds(game) : null;
+  
   // Add rivalry badge placeholder
   const rivalryBadgeId = `rivalry-badge-${game.id}`;
   
@@ -10066,6 +10270,32 @@ function renderScheduleGameRow(game) {
             ${game.status === 'live' ? '<div style="color: #f44336; font-size: 0.9em; margin-top: 4px;">● LIVE</div>' : ''}
           </div>
           
+          ${odds ? `
+            <div style="
+              background: #1a2332;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              padding: 8px 12px;
+              margin-top: 5px;
+            ">
+              <div style="color: #888; font-size: 0.75em; font-weight: bold; margin-bottom: 4px; text-align: center;">ODDS</div>
+              <div style="display: flex; gap: 8px; font-size: 0.85em;">
+                <div style="color: #fff;">
+                  <span style="color: #888;">${awayAbbr}</span> ${odds.awayWinPct}%
+                </div>
+                <div style="color: #666;">|</div>
+                <div style="color: #fff;">
+                  <span style="color: #888;">${homeAbbr}</span> ${odds.homeWinPct}%
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; font-size: 0.75em; margin-top: 4px; color: #888;">
+                <div>ML: ${odds.awayML}</div>
+                <div>/</div>
+                <div>${odds.homeML}</div>
+              </div>
+            </div>
+          ` : ''}
+          
           ${game.status === 'scheduled' ? `
             <div style="display: flex; gap: 8px;">
               <button onclick="simGameInstantUI('${game.id}')" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em;">⚡ Sim Game</button>
@@ -10113,6 +10343,9 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
   
   const statusColor = game.status === 'final' ? '#888' : 
                      game.status === 'live' ? '#f44336' : '#4CAF50';
+  
+  // Get odds for scheduled games
+  const odds = game.status === 'scheduled' ? getGameOdds(game) : null;
   
   // Add rivalry badge placeholder
   const rivalryBadgeId = `rivalry-badge-${game.id}`;
@@ -10168,6 +10401,32 @@ function renderScheduleGameRowWithNumber(game, gameNumber, teamId) {
             ${statusDisplay}
             ${game.status === 'live' ? '<div style="color: #f44336; font-size: 0.9em; margin-top: 4px;">● LIVE</div>' : ''}
           </div>
+          
+          ${odds ? `
+            <div style="
+              background: #1a2332;
+              border: 1px solid #2a2a40;
+              border-radius: 6px;
+              padding: 8px 12px;
+              margin-top: 5px;
+            ">
+              <div style="color: #888; font-size: 0.75em; font-weight: bold; margin-bottom: 4px; text-align: center;">ODDS</div>
+              <div style="display: flex; gap: 8px; font-size: 0.85em;">
+                <div style="color: #fff;">
+                  <span style="color: #888;">${awayAbbr}</span> ${odds.awayWinPct}%
+                </div>
+                <div style="color: #666;">|</div>
+                <div style="color: #fff;">
+                  <span style="color: #888;">${homeAbbr}</span> ${odds.homeWinPct}%
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; font-size: 0.75em; margin-top: 4px; color: #888;">
+                <div>ML: ${odds.awayML}</div>
+                <div>/</div>
+                <div>${odds.homeML}</div>
+              </div>
+            </div>
+          ` : ''}
           
           ${game.status === 'scheduled' ? `
             <div style="display: flex; gap: 8px;">
@@ -15840,6 +16099,9 @@ function savePlayerEdits(event, playerId) {
       changes: Object.keys(formData)
     });
   }
+  
+  // Invalidate odds cache
+  incrementStrengthVersion();
   
   // Save to database
   saveLeagueState();
