@@ -8521,6 +8521,9 @@ function renderTeamScheduleGames(games, teamId) {
     saveLeague(); // Save the updated schedule
   }
   
+  console.log('[DEBUG] Events array:', events);
+  console.log('[DEBUG] Completed games count:', completedGames.length);
+  
   // Build game list with events inserted at appropriate positions
   const gameListItems = [];
   
@@ -8537,6 +8540,9 @@ function renderTeamScheduleGames(games, teamId) {
     
     // Check for events after this game number
     const eventsAfterThisGame = events.filter(e => e.afterGameNumber === gameNumber && e.type !== 'season_start');
+    if (eventsAfterThisGame.length > 0) {
+      console.log(`[DEBUG] Game ${gameNumber}: Found events:`, eventsAfterThisGame.map(e => e.name));
+    }
     eventsAfterThisGame.forEach(event => {
       gameListItems.push(renderSeasonEvent(event));
     });
