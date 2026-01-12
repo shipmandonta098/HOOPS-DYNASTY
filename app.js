@@ -4547,6 +4547,1320 @@ function commissionerForceSigning(playerId, teamId) {
   render();
 }
 
+/* ============================
+   COMMISSIONER TOOLS - EXPANDED
+   Add Player, Delete Player, Force Trade, Force Injury
+============================ */
+
+// Helper: Generate unique player ID
+function generatePlayerId() {
+  if (!league) return 1;
+  
+  let maxId = 0;
+  
+  // Check team players
+  league.teams.forEach(team => {
+    if (team.players) {
+      team.players.forEach(p => {
+        if (p.id > maxId) maxId = p.id;
+      });
+    }
+  });
+  
+  // Check free agents
+  if (league.freeAgents) {
+    league.freeAgents.forEach(p => {
+      if (p.id > maxId) maxId = p.id;
+    });
+  }
+  
+  return maxId + 1;
+}
+
+// Helper: Add news item to feed
+function addNewsItem(title, description, category = 'transaction') {
+  if (!league.news) league.news = [];
+  
+  league.news.unshift({
+    id: Date.now() + Math.random(),
+    season: league.season,
+    day: league.currentDay || 0,
+    title,
+    description,
+    category,
+    timestamp: Date.now()
+  });
+  
+  // Keep only last 100 news items
+  if (league.news.length > 100) {
+    league.news = league.news.slice(0, 100);
+  }
+}
+
+/* ============================
+   A) ADD PLAYER
+============================ */
+
+function showAddPlayerModal() {
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to add players.');
+    return;
+  }
+  
+  // Build team options
+  const teamOptions = [
+    '<option value="fa">Free Agent</option>',
+    ...league.teams.map(t => `
+      <option value="${t.id}">${t.city} ${t.name}</option>
+    `)
+  ].join('');
+  
+  const modalHTML = `
+    <div id="addPlayerModal" class="modal" style="display: flex;" onclick="if(event.target.id === 'addPlayerModal') closeAddPlayerModal()">
+      <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155;">
+          <h2 style="margin: 0; color: #fff;">➕ Add New Player</h2>
+          <button onclick="closeAddPlayerModal()" style="
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-size: 2em;
+            line-height: 1;
+            padding: 0;
+          ">×</button>
+        </div>
+        
+        <form id="addPlayerForm" onsubmit="saveNewPlayer(event); return false;">
+          <!-- 1) Identity -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">👤 Identity</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>First Name</label>
+                <input type="text" id="add_firstName" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Last Name</label>
+                <input type="text" id="add_lastName" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Position</label>
+                <select id="add_pos" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+                  <option value="PG">PG</option>
+                  <option value="SG">SG</option>
+                  <option value="SF">SF</option>
+                  <option value="PF">PF</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+              
+              <div class="edit-field">
+                <label>Age</label>
+                <input type="number" id="add_age" value="22" min="18" max="45" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Gender</label>
+                <select id="add_gender" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 2) Body -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">📏 Physical Attributes</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Height (inches)</label>
+                <input type="number" id="add_height" value="78" min="60" max="96" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+                <small style="color: #888;">6'6" = 78 inches</small>
+              </div>
+              
+              <div class="edit-field">
+                <label>Weight (lbs)</label>
+                <input type="number" id="add_weight" value="210" min="120" max="350" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Wingspan (inches)</label>
+                <input type="number" id="add_wingspan" value="82" min="60" max="100" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- 3) Ratings -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">⭐ Ratings</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Overall (OVR)</label>
+                <input type="number" id="add_ovr" value="75" min="0" max="99" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Potential (POT)</label>
+                <input type="number" id="add_pot" value="80" min="0" max="99" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- 4) Contract -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">💰 Contract</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Salary ($ millions)</label>
+                <input type="number" id="add_salary" value="5" min="0" max="60" step="0.1" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Years</label>
+                <input type="number" id="add_years" value="2" min="0" max="6" required style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Contract Type</label>
+                <select id="add_contractType" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+                  <option value="guaranteed">Guaranteed</option>
+                  <option value="partial">Partially Guaranteed</option>
+                  <option value="non-guaranteed">Non-Guaranteed</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 5) Destination -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">🏀 Team Assignment</h3>
+            
+            <div class="edit-field">
+              <label>Destination Team</label>
+              <select id="add_team" style="
+                width: 100%;
+                padding: 12px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 14px;
+              ">
+                ${teamOptions}
+              </select>
+            </div>
+          </div>
+          
+          <!-- 6) Draft Info (Optional) -->
+          <div class="edit-section">
+            <h3 style="color: #3b82f6; margin-bottom: 15px;">📋 Draft Info (Optional)</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+              <div class="edit-field">
+                <label>Draft Year</label>
+                <input type="number" id="add_draftYear" placeholder="Leave blank if undrafted" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Round</label>
+                <input type="number" id="add_round" placeholder="1-2" min="1" max="2" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+              
+              <div class="edit-field">
+                <label>Pick</label>
+                <input type="number" id="add_pick" placeholder="1-60" min="1" max="60" style="
+                  width: 100%;
+                  padding: 10px;
+                  background: #1e293b;
+                  border: 1px solid #334155;
+                  border-radius: 6px;
+                  color: #fff;
+                ">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Submit -->
+          <div style="display: flex; gap: 12px; margin-top: 25px;">
+            <button type="submit" style="
+              flex: 1;
+              padding: 15px;
+              background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 1.1em;
+            ">✅ Create Player</button>
+            
+            <button type="button" onclick="closeAddPlayerModal()" style="
+              flex: 1;
+              padding: 15px;
+              background: #334155;
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+            ">❌ Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeAddPlayerModal() {
+  const modal = document.getElementById('addPlayerModal');
+  if (modal) modal.remove();
+}
+
+function saveNewPlayer(event) {
+  event.preventDefault();
+  
+  if (!isCommissionerMode()) return;
+  
+  // Gather form data
+  const firstName = document.getElementById('add_firstName').value.trim();
+  const lastName = document.getElementById('add_lastName').value.trim();
+  const pos = document.getElementById('add_pos').value;
+  const age = parseInt(document.getElementById('add_age').value);
+  const gender = document.getElementById('add_gender').value;
+  const heightInches = parseInt(document.getElementById('add_height').value);
+  const weightLbs = parseInt(document.getElementById('add_weight').value);
+  const wingspanInches = parseInt(document.getElementById('add_wingspan').value);
+  const ovr = parseInt(document.getElementById('add_ovr').value);
+  const pot = parseInt(document.getElementById('add_pot').value);
+  const salary = parseFloat(document.getElementById('add_salary').value);
+  const years = parseInt(document.getElementById('add_years').value);
+  const contractType = document.getElementById('add_contractType').value;
+  const teamValue = document.getElementById('add_team').value;
+  const draftYear = document.getElementById('add_draftYear').value ? parseInt(document.getElementById('add_draftYear').value) : null;
+  const round = document.getElementById('add_round').value ? parseInt(document.getElementById('add_round').value) : null;
+  const pick = document.getElementById('add_pick').value ? parseInt(document.getElementById('add_pick').value) : null;
+  
+  // Validate
+  if (!firstName || !lastName) {
+    alert('First and last name are required');
+    return;
+  }
+  
+  // Clamp values
+  const clampedOvr = Math.max(0, Math.min(99, ovr));
+  const clampedPot = Math.max(0, Math.min(99, pot));
+  const clampedHeight = Math.max(60, Math.min(96, heightInches));
+  const clampedWeight = Math.max(120, Math.min(350, weightLbs));
+  const clampedWingspan = Math.max(60, Math.min(100, wingspanInches));
+  
+  // Generate unique ID
+  const pid = generatePlayerId();
+  
+  // Helper to convert inches to feet-inches
+  const inchesToFeetInches = (inches) => {
+    const feet = Math.floor(inches / 12);
+    const remainingInches = Math.round(inches % 12);
+    return `${feet}'${remainingInches}"`;
+  };
+  
+  // Create player object
+  const newPlayer = {
+    id: pid,
+    name: `${firstName} ${lastName}`,
+    age,
+    pos,
+    gender,
+    bio: {
+      height: inchesToFeetInches(clampedHeight),
+      heightInches: clampedHeight,
+      weight: `${clampedWeight} lbs`,
+      weightLbs: clampedWeight,
+      wingspan: inchesToFeetInches(clampedWingspan),
+      wingspanInches: clampedWingspan,
+      country: 'USA',
+      college: 'N/A',
+      hometown: 'N/A'
+    },
+    ratings: {
+      ovr: clampedOvr,
+      pot: clampedPot,
+      shoot: clampedOvr,
+      defense: clampedOvr,
+      rebound: clampedOvr,
+      passing: clampedOvr
+    },
+    contract: years > 0 ? {
+      amount: salary * 1000000,
+      exp: league.season + years,
+      yearsRemaining: years,
+      totalValue: salary * years * 1000000,
+      startYear: league.season,
+      type: contractType,
+      hasPlayerOption: false,
+      hasTeamOption: false
+    } : null,
+    draft: {
+      year: draftYear,
+      round: round,
+      pick: pick,
+      draftedByTid: teamValue !== 'fa' ? parseInt(teamValue) : null
+    },
+    attributes: {
+      athletic: {
+        speed: clampedOvr,
+        acceleration: clampedOvr,
+        strength: clampedOvr,
+        vertical: clampedOvr,
+        lateralQuickness: clampedOvr,
+        stamina: clampedOvr,
+        hustle: clampedOvr
+      },
+      offensive: {
+        scoringSkills: {
+          finishing: clampedOvr,
+          midRangeShooting: clampedOvr,
+          threePointShooting: clampedOvr,
+          freeThrowShooting: clampedOvr,
+          postScoring: clampedOvr,
+          shotCreation: clampedOvr
+        },
+        playmakingSkills: {
+          ballHandling: clampedOvr,
+          passingVision: clampedOvr,
+          passingAccuracy: clampedOvr,
+          offBallMovement: clampedOvr
+        }
+      },
+      defensive: {
+        perimeterDefense: clampedOvr,
+        interiorDefense: clampedOvr,
+        blockRating: clampedOvr,
+        stealRating: clampedOvr,
+        defensiveRebounding: clampedOvr,
+        offensiveRebounding: clampedOvr,
+        defensiveAwareness: clampedOvr
+      },
+      mental: {
+        basketballIQ: clampedOvr,
+        consistency: clampedOvr,
+        workEthic: clampedOvr,
+        leadership: clampedOvr,
+        composure: clampedOvr,
+        discipline: clampedOvr,
+        clutch: clampedOvr
+      }
+    },
+    personality: {
+      currentSatisfactionPct: 75,
+      satisfactionLabel: 'Content',
+      loyalty: 70,
+      moneyFocus: 60,
+      winningDrive: 80,
+      playingTimeDesire: 65,
+      teamPlayer: 70,
+      workEthic: 75,
+      ego: 60,
+      temperament: 70
+    },
+    stats: {
+      gp: 0,
+      pts: 0,
+      reb: 0,
+      ast: 0,
+      stl: 0,
+      blk: 0,
+      tov: 0,
+      fg: 0,
+      fga: 0,
+      fg3: 0,
+      fg3a: 0,
+      ft: 0,
+      fta: 0,
+      min: 0
+    }
+  };
+  
+  // Add to team or free agents
+  if (teamValue === 'fa') {
+    if (!league.freeAgents) league.freeAgents = [];
+    league.freeAgents.push(newPlayer);
+  } else {
+    const teamId = parseInt(teamValue);
+    const team = league.teams.find(t => t.id === teamId);
+    if (team) {
+      if (!team.players) team.players = [];
+      team.players.push(newPlayer);
+    } else {
+      alert('Team not found!');
+      return;
+    }
+  }
+  
+  // Log action
+  const destination = teamValue === 'fa' ? 'Free Agents' : league.teams.find(t => t.id === parseInt(teamValue))?.name;
+  logCommissionerAction('ADD_PLAYER', `Created ${newPlayer.name} (${pos}, ${clampedOvr} OVR) → ${destination}`, { playerId: pid, teamId: teamValue });
+  
+  // Add news item
+  addNewsItem(
+    `Commissioner Added Player`,
+    `${newPlayer.name} (${pos}, ${clampedOvr} OVR) was added to ${destination}`,
+    'commissioner'
+  );
+  
+  // Save and refresh
+  save();
+  render();
+  closeAddPlayerModal();
+  
+  alert(`✅ ${newPlayer.name} created successfully!`);
+}
+
+/* ============================
+   B) DELETE PLAYER
+============================ */
+
+function showDeletePlayerModal(playerId) {
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to delete players.');
+    return;
+  }
+  
+  // Find player
+  let player = null;
+  let currentTeam = null;
+  
+  for (let team of league.teams) {
+    const p = team.players?.find(pl => pl.id === playerId);
+    if (p) {
+      player = p;
+      currentTeam = team;
+      break;
+    }
+  }
+  
+  if (!player && league.freeAgents) {
+    player = league.freeAgents.find(p => p.id === playerId);
+  }
+  
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
+  
+  const modalHTML = `
+    <div id="deletePlayerModal" class="modal" style="display: flex;" onclick="if(event.target.id === 'deletePlayerModal') closeDeletePlayerModal()">
+      <div class="modal-content" style="max-width: 600px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155;">
+          <h2 style="margin: 0; color: #e74c3c;">🗑️ Delete Player</h2>
+          <button onclick="closeDeletePlayerModal()" style="
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-size: 2em;
+            line-height: 1;
+            padding: 0;
+          ">×</button>
+        </div>
+        
+        <div style="
+          padding: 20px;
+          background: #f39c12;
+          color: #000;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          font-weight: bold;
+        ">
+          ⚠️ WARNING: This action cannot be undone!
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #fff; margin-bottom: 10px;">Player to Delete:</h3>
+          <div style="
+            padding: 15px;
+            background: #1e293b;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+          ">
+            <div style="color: #fff; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">
+              ${player.name}
+            </div>
+            <div style="color: #888; font-size: 0.9em;">
+              ${player.pos} • ${player.age} years old • ${player.ratings?.ovr || 0} OVR<br>
+              Team: ${currentTeam ? currentTeam.name : 'Free Agent'}
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="confirmDelete" style="width: 20px; height: 20px;">
+            <span style="color: #fff; font-weight: bold;">I understand this player will be permanently deleted</span>
+          </label>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <button onclick="confirmDeletePlayer(${playerId})" style="
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">🗑️ Delete Player</button>
+          
+          <button onclick="closeDeletePlayerModal()" style="
+            flex: 1;
+            padding: 15px;
+            background: #334155;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeDeletePlayerModal() {
+  const modal = document.getElementById('deletePlayerModal');
+  if (modal) modal.remove();
+}
+
+function confirmDeletePlayer(playerId) {
+  if (!isCommissionerMode()) return;
+  
+  const checkbox = document.getElementById('confirmDelete');
+  if (!checkbox || !checkbox.checked) {
+    alert('⚠️ Please confirm deletion by checking the checkbox');
+    return;
+  }
+  
+  // Find and remove player
+  let playerName = 'Unknown';
+  let teamName = 'Unknown';
+  let found = false;
+  
+  // Check teams
+  for (let team of league.teams) {
+    const index = team.players?.findIndex(p => p.id === playerId);
+    if (index !== undefined && index >= 0) {
+      playerName = team.players[index].name;
+      teamName = team.name;
+      team.players.splice(index, 1);
+      found = true;
+      break;
+    }
+  }
+  
+  // Check free agents
+  if (!found && league.freeAgents) {
+    const index = league.freeAgents.findIndex(p => p.id === playerId);
+    if (index >= 0) {
+      playerName = league.freeAgents[index].name;
+      teamName = 'Free Agents';
+      league.freeAgents.splice(index, 1);
+      found = true;
+    }
+  }
+  
+  if (!found) {
+    alert('Player not found');
+    return;
+  }
+  
+  // Log action
+  logCommissionerAction('DELETE_PLAYER', `Deleted ${playerName} from ${teamName}`, { playerId });
+  
+  // Add news item
+  addNewsItem(
+    `Commissioner Deleted Player`,
+    `${playerName} was removed from the league`,
+    'commissioner'
+  );
+  
+  // Save and refresh
+  save();
+  render();
+  closeDeletePlayerModal();
+  
+  alert(`✅ ${playerName} has been deleted from the league.`);
+}
+
+/* ============================
+   C) FORCE TRADE
+============================ */
+
+function showForceTradeModal() {
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to force trades.');
+    return;
+  }
+  
+  const teamOptions = league.teams.map(t => `
+    <option value="${t.id}">${t.city} ${t.name}</option>
+  `).join('');
+  
+  const modalHTML = `
+    <div id="forceTradeModal" class="modal" style="display: flex;" onclick="if(event.target.id === 'forceTradeModal') closeForceTradeModal()">
+      <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155;">
+          <h2 style="margin: 0; color: #fff;">🔄 Force Trade</h2>
+          <button onclick="closeForceTradeModal()" style="
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-size: 2em;
+            line-height: 1;
+            padding: 0;
+          ">×</button>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #3b82f6; margin-bottom: 15px;">Select Teams</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+              <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">Team A</label>
+              <select id="trade_teamA" onchange="loadTeamPlayers('A')" style="
+                width: 100%;
+                padding: 12px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 14px;
+              ">
+                <option value="">-- Select Team A --</option>
+                ${teamOptions}
+              </select>
+            </div>
+            
+            <div>
+              <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">Team B</label>
+              <select id="trade_teamB" onchange="loadTeamPlayers('B')" style="
+                width: 100%;
+                padding: 12px;
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #fff;
+                font-size: 14px;
+              ">
+                <option value="">-- Select Team B --</option>
+                ${teamOptions}
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
+          <div>
+            <h3 style="color: #3b82f6; margin-bottom: 10px;">Team A Assets</h3>
+            <div id="teamA_players" style="
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 8px;
+              padding: 15px;
+              min-height: 200px;
+              max-height: 400px;
+              overflow-y: auto;
+            ">
+              <div style="color: #888; text-align: center; padding: 40px;">
+                Select Team A to see players
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 style="color: #3b82f6; margin-bottom: 10px;">Team B Assets</h3>
+            <div id="teamB_players" style="
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 8px;
+              padding: 15px;
+              min-height: 200px;
+              max-height: 400px;
+              overflow-y: auto;
+            ">
+              <div style="color: #888; text-align: center; padding: 40px;">
+                Select Team B to see players
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 10px;">
+            <input type="checkbox" id="trade_ignoreRules" checked style="width: 18px; height: 18px;">
+            <span style="color: #fff;">Ignore salary cap and trade rules</span>
+          </label>
+          
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="trade_updateRotation" checked style="width: 18px; height: 18px;">
+            <span style="color: #fff;">Automatically update team needs and rotations</span>
+          </label>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <button onclick="executeForceTradeExecute()" style="
+            flex: 1;
+            padding: 15px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+          ">✅ Execute Trade</button>
+          
+          <button onclick="closeForceTradeModal()" style="
+            flex: 1;
+            padding: 15px;
+            background: #334155;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeForceTradeModal() {
+  const modal = document.getElementById('forceTradeModal');
+  if (modal) modal.remove();
+}
+
+function loadTeamPlayers(side) {
+  const selectId = `trade_team${side}`;
+  const containerId = `team${side}_players`;
+  
+  const teamId = parseInt(document.getElementById(selectId).value);
+  const container = document.getElementById(containerId);
+  
+  if (!teamId) {
+    container.innerHTML = `<div style="color: #888; text-align: center; padding: 40px;">Select Team ${side} to see players</div>`;
+    return;
+  }
+  
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team || !team.players || team.players.length === 0) {
+    container.innerHTML = `<div style="color: #888; text-align: center; padding: 20px;">No players on this team</div>`;
+    return;
+  }
+  
+  const playersHTML = team.players.map(p => `
+    <label style="
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background: #0f172a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    " onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='#0f172a'">
+      <input type="checkbox" class="trade-player-${side}" data-player-id="${p.id}" style="width: 18px; height: 18px;">
+      <div style="flex: 1;">
+        <div style="color: #fff; font-weight: bold;">${p.name}</div>
+        <div style="color: #888; font-size: 0.85em;">
+          ${p.pos} • ${p.ratings?.ovr || 0} OVR • $${((p.contract?.amount || 0) / 1000000).toFixed(1)}M
+        </div>
+      </div>
+    </label>
+  `).join('');
+  
+  container.innerHTML = playersHTML;
+}
+
+function executeForceTradeExecute() {
+  if (!isCommissionerMode()) return;
+  
+  const teamAId = parseInt(document.getElementById('trade_teamA').value);
+  const teamBId = parseInt(document.getElementById('trade_teamB').value);
+  
+  if (!teamAId || !teamBId) {
+    alert('Please select both teams');
+    return;
+  }
+  
+  if (teamAId === teamBId) {
+    alert('Cannot trade with the same team');
+    return;
+  }
+  
+  const teamA = league.teams.find(t => t.id === teamAId);
+  const teamB = league.teams.find(t => t.id === teamBId);
+  
+  if (!teamA || !teamB) {
+    alert('Teams not found');
+    return;
+  }
+  
+  // Get selected players
+  const playersACheckboxes = document.querySelectorAll('.trade-player-A:checked');
+  const playersBCheckboxes = document.querySelectorAll('.trade-player-B:checked');
+  
+  const playersAIds = Array.from(playersACheckboxes).map(cb => parseInt(cb.getAttribute('data-player-id')));
+  const playersBIds = Array.from(playersBCheckboxes).map(cb => parseInt(cb.getAttribute('data-player-id')));
+  
+  if (playersAIds.length === 0 && playersBIds.length === 0) {
+    alert('Please select at least one player to trade');
+    return;
+  }
+  
+  if (!confirm(`Execute trade?\n\n${teamA.name} sends: ${playersAIds.length} player(s)\n${teamB.name} sends: ${playersBIds.length} player(s)`)) {
+    return;
+  }
+  
+  // Execute trade: Move players
+  const playersA = [];
+  const playersB = [];
+  
+  // Move players from A to B
+  for (let pid of playersAIds) {
+    const index = teamA.players.findIndex(p => p.id === pid);
+    if (index >= 0) {
+      const player = teamA.players.splice(index, 1)[0];
+      playersA.push(player.name);
+      teamB.players.push(player);
+    }
+  }
+  
+  // Move players from B to A
+  for (let pid of playersBIds) {
+    const index = teamB.players.findIndex(p => p.id === pid);
+    if (index >= 0) {
+      const player = teamB.players.splice(index, 1)[0];
+      playersB.push(player.name);
+      teamA.players.push(player);
+    }
+  }
+  
+  // Log action
+  const description = `Trade: ${teamA.name} ↔ ${teamB.name}\n${teamA.name} receives: ${playersB.join(', ') || 'None'}\n${teamB.name} receives: ${playersA.join(', ') || 'None'}`;
+  logCommissionerAction('FORCE_TRADE', description, { teamAId, teamBId, playersAIds, playersBIds });
+  
+  // Add news item
+  addNewsItem(
+    `Commissioner Forced Trade`,
+    `${teamA.name} and ${teamB.name} completed a commissioner-mandated trade`,
+    'commissioner'
+  );
+  
+  // Save and refresh
+  save();
+  render();
+  closeForceTradeModal();
+  
+  alert(`✅ Trade executed successfully!\n\n${description}`);
+}
+
+/* ============================
+   D) FORCE INJURY
+============================ */
+
+function showForceInjuryModal(playerId) {
+  if (!isCommissionerMode()) {
+    alert('⚠️ Commissioner Mode must be enabled to force injuries.');
+    return;
+  }
+  
+  // Find player
+  let player = null;
+  let currentTeam = null;
+  
+  for (let team of league.teams) {
+    const p = team.players?.find(pl => pl.id === playerId);
+    if (p) {
+      player = p;
+      currentTeam = team;
+      break;
+    }
+  }
+  
+  if (!player && league.freeAgents) {
+    player = league.freeAgents.find(p => p.id === playerId);
+  }
+  
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
+  
+  const modalHTML = `
+    <div id="forceInjuryModal" class="modal" style="display: flex;" onclick="if(event.target.id === 'forceInjuryModal') closeForceInjuryModal()">
+      <div class="modal-content" style="max-width: 600px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #334155;">
+          <h2 style="margin: 0; color: #e74c3c;">🏥 Force Injury</h2>
+          <button onclick="closeForceInjuryModal()" style="
+            background: transparent;
+            color: #888;
+            border: none;
+            cursor: pointer;
+            font-size: 2em;
+            line-height: 1;
+            padding: 0;
+          ">×</button>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="color: #fff; margin-bottom: 10px;">Player</h3>
+          <div style="
+            padding: 15px;
+            background: #1e293b;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+          ">
+            <div style="color: #fff; font-size: 1.2em; font-weight: bold; margin-bottom: 5px;">
+              ${player.name}
+            </div>
+            <div style="color: #888; font-size: 0.9em;">
+              ${player.pos} • ${player.age} years old • ${player.ratings?.ovr || 0} OVR<br>
+              Team: ${currentTeam ? currentTeam.name : 'Free Agent'}
+            </div>
+          </div>
+        </div>
+        
+        <form id="forceInjuryForm" onsubmit="executeForceInjury(event, ${playerId}); return false;">
+          <div style="margin-bottom: 20px;">
+            <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">Injury Type</label>
+            <select id="injury_type" style="
+              width: 100%;
+              padding: 12px;
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 6px;
+              color: #fff;
+              font-size: 14px;
+            ">
+              <option value="Ankle Sprain">Ankle Sprain</option>
+              <option value="Knee Strain">Knee Strain</option>
+              <option value="Hamstring Strain">Hamstring Strain</option>
+              <option value="Shoulder Injury">Shoulder Injury</option>
+              <option value="Back Spasms">Back Spasms</option>
+              <option value="Concussion">Concussion</option>
+              <option value="Fracture">Fracture</option>
+              <option value="Torn Ligament">Torn Ligament</option>
+              <option value="Illness">Illness</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+          
+          <div id="customInjuryContainer" style="margin-bottom: 20px; display: none;">
+            <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">Custom Injury Name</label>
+            <input type="text" id="injury_custom" placeholder="Enter custom injury name" style="
+              width: 100%;
+              padding: 12px;
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 6px;
+              color: #fff;
+            ">
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">Severity</label>
+            <select id="injury_severity" onchange="updateInjuryDuration()" style="
+              width: 100%;
+              padding: 12px;
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 6px;
+              color: #fff;
+              font-size: 14px;
+            ">
+              <option value="minor">Minor (1-2 weeks)</option>
+              <option value="moderate">Moderate (2-6 weeks)</option>
+              <option value="severe">Severe (6-12 weeks)</option>
+              <option value="season-ending">Season Ending</option>
+            </select>
+          </div>
+          
+          <div style="margin-bottom: 20px;">
+            <label style="color: #fff; font-weight: bold; display: block; margin-bottom: 8px;">
+              Duration (games out)
+            </label>
+            <input type="number" id="injury_games" value="5" min="1" max="100" required style="
+              width: 100%;
+              padding: 12px;
+              background: #1e293b;
+              border: 1px solid #334155;
+              border-radius: 6px;
+              color: #fff;
+              font-size: 14px;
+            ">
+            <small style="color: #888;">Typical: ~3 games per week</small>
+          </div>
+          
+          <div style="display: flex; gap: 12px; margin-top: 25px;">
+            <button type="submit" style="
+              flex: 1;
+              padding: 15px;
+              background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 1.1em;
+            ">🏥 Apply Injury</button>
+            
+            <button type="button" onclick="closeForceInjuryModal()" style="
+              flex: 1;
+              padding: 15px;
+              background: #334155;
+              color: #fff;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+              font-weight: bold;
+            ">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    
+    <script>
+      // Show/hide custom injury input
+      document.getElementById('injury_type').addEventListener('change', function() {
+        const customContainer = document.getElementById('customInjuryContainer');
+        customContainer.style.display = this.value === 'Custom' ? 'block' : 'none';
+      });
+    </script>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeForceInjuryModal() {
+  const modal = document.getElementById('forceInjuryModal');
+  if (modal) modal.remove();
+}
+
+function updateInjuryDuration() {
+  const severity = document.getElementById('injury_severity').value;
+  const gamesInput = document.getElementById('injury_games');
+  
+  switch (severity) {
+    case 'minor':
+      gamesInput.value = 5;
+      break;
+    case 'moderate':
+      gamesInput.value = 15;
+      break;
+    case 'severe':
+      gamesInput.value = 30;
+      break;
+    case 'season-ending':
+      gamesInput.value = 82;
+      break;
+  }
+}
+
+function executeForceInjury(event, playerId) {
+  event.preventDefault();
+  
+  if (!isCommissionerMode()) return;
+  
+  // Find player
+  let player = null;
+  
+  for (let team of league.teams) {
+    const p = team.players?.find(pl => pl.id === playerId);
+    if (p) {
+      player = p;
+      break;
+    }
+  }
+  
+  if (!player && league.freeAgents) {
+    player = league.freeAgents.find(p => p.id === playerId);
+  }
+  
+  if (!player) {
+    alert('Player not found');
+    return;
+  }
+  
+  // Get form data
+  let injuryType = document.getElementById('injury_type').value;
+  const severity = document.getElementById('injury_severity').value;
+  const gamesOut = parseInt(document.getElementById('injury_games').value);
+  
+  if (injuryType === 'Custom') {
+    const customName = document.getElementById('injury_custom').value.trim();
+    if (!customName) {
+      alert('Please enter a custom injury name');
+      return;
+    }
+    injuryType = customName;
+  }
+  
+  if (gamesOut <= 0) {
+    alert('Duration must be at least 1 game');
+    return;
+  }
+  
+  // Apply injury
+  player.injury = {
+    type: injuryType,
+    gamesRemaining: gamesOut,
+    severity: severity,
+    startGameIndex: league.currentDay || 0,
+    isActive: true
+  };
+  
+  // Log action
+  logCommissionerAction('FORCE_INJURY', `${player.name}: ${injuryType} (${gamesOut} games, ${severity})`, { playerId });
+  
+  // Add news item
+  addNewsItem(
+    `Player Injury`,
+    `${player.name} has been placed on the injury report with a ${injuryType} (${gamesOut} games)`,
+    'injury'
+  );
+  
+  // Save and refresh
+  save();
+  render();
+  closeForceInjuryModal();
+  
+  alert(`✅ ${player.name} has been injured with ${injuryType}\nGames out: ${gamesOut}`);
+}
+
 // Main Settings Renderer
 function renderSettings() {
   const el = document.getElementById('settings-tab');
@@ -5313,6 +6627,40 @@ function renderCommissionerModeSection() {
                 cursor: pointer;
                 font-weight: bold;
               ">⭐ Apply Star Ratings</button>
+            </div>
+            
+            <h4 style="color: #10b981; margin: 20px 0 15px 0;">⚡ Commissioner Tools</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+              <button onclick="showAddPlayerModal()" style="
+                padding: 12px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">➕ Add Player</button>
+              
+              <button onclick="showForceTradeModal()" style="
+                padding: 12px;
+                background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                color: #fff;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: bold;
+              ">🔄 Force Trade</button>
+            </div>
+            <div style="
+              margin-top: 10px;
+              padding: 10px;
+              background: #1e293b;
+              border-left: 4px solid #10b981;
+              border-radius: 4px;
+              color: #94a3b8;
+              font-size: 0.85em;
+            ">
+              💡 Tip: Delete Player and Force Injury tools are available on individual player pages
             </div>
             
             <div style="
@@ -13026,16 +14374,79 @@ function showPlayerModal(playerId) {
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
           ${isCommissionerMode() ? `
-            <button onclick="closePlayerModal(); showEditPlayerModal(${player.id});" style="
-              padding: 10px 20px;
-              background: #f59e0b;
-              color: white;
-              border: none;
-              border-radius: 8px;
-              cursor: pointer;
-              font-weight: bold;
-              font-size: 14px;
-            ">✏️ Edit Player</button>
+            <div style="position: relative;">
+              <button onclick="toggleCommissionerToolsDropdown(${player.id})" style="
+                padding: 10px 20px;
+                background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              ">
+                <span>👑 Commissioner Tools</span>
+                <span style="font-size: 0.8em;">▼</span>
+              </button>
+              <div id="commToolsDropdown_${player.id}" style="
+                display: none;
+                position: absolute;
+                top: 100%;
+                right: 0;
+                margin-top: 5px;
+                background: #1e293b;
+                border: 2px solid #e74c3c;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                min-width: 200px;
+                z-index: 10000;
+              ">
+                <button onclick="closePlayerModal(); showEditPlayerModal(${player.id});" style="
+                  width: 100%;
+                  padding: 12px 16px;
+                  background: transparent;
+                  color: #fff;
+                  border: none;
+                  border-bottom: 1px solid #334155;
+                  cursor: pointer;
+                  font-weight: bold;
+                  text-align: left;
+                  transition: background 0.2s;
+                " onmouseover="this.style.background='#334155'" onmouseout="this.style.background='transparent'">
+                  ✏️ Edit Player
+                </button>
+                <button onclick="closePlayerModal(); showDeletePlayerModal(${player.id});" style="
+                  width: 100%;
+                  padding: 12px 16px;
+                  background: transparent;
+                  color: #ef4444;
+                  border: none;
+                  border-bottom: 1px solid #334155;
+                  cursor: pointer;
+                  font-weight: bold;
+                  text-align: left;
+                  transition: background 0.2s;
+                " onmouseover="this.style.background='#334155'" onmouseout="this.style.background='transparent'">
+                  🗑️ Delete Player
+                </button>
+                <button onclick="closePlayerModal(); showForceInjuryModal(${player.id});" style="
+                  width: 100%;
+                  padding: 12px 16px;
+                  background: transparent;
+                  color: #f59e0b;
+                  border: none;
+                  cursor: pointer;
+                  font-weight: bold;
+                  text-align: left;
+                  transition: background 0.2s;
+                " onmouseover="this.style.background='#334155'" onmouseout="this.style.background='transparent'">
+                  🏥 Force Injury
+                </button>
+              </div>
+            </div>
           ` : ''}
           <button class="player-modal-close" onclick="closePlayerModal()">✕</button>
         </div>
@@ -13249,6 +14660,30 @@ function closeModal(event) {
     closePlayerModal();
   }
 }
+
+// Toggle Commissioner Tools dropdown on player page
+function toggleCommissionerToolsDropdown(playerId) {
+  const dropdown = document.getElementById(`commToolsDropdown_${playerId}`);
+  if (!dropdown) return;
+  
+  // Toggle display
+  if (dropdown.style.display === 'none' || !dropdown.style.display) {
+    dropdown.style.display = 'block';
+  } else {
+    dropdown.style.display = 'none';
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+  // Close all commissioner tools dropdowns if clicking outside
+  if (!event.target.closest('[onclick*="toggleCommissionerToolsDropdown"]') && 
+      !event.target.closest('[id^="commToolsDropdown_"]')) {
+    document.querySelectorAll('[id^="commToolsDropdown_"]').forEach(dropdown => {
+      dropdown.style.display = 'none';
+    });
+  }
+});
 
 /* ============================
    COMMISSIONER MODE - EDIT PLAYER
