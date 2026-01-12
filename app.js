@@ -14225,21 +14225,30 @@ function renderRotations() {
         </div>
         
         <div class="lineup-slots">
-          ${starters.map(p => `
+          ${starters.map(p => {
+            if (!p) {
+              console.warn('[ROTATION] Undefined player in starters lineup slot');
+              return '<div class="lineup-slot"><div class="lineup-slot-position">-</div><div class="lineup-slot-player">Empty</div><div class="lineup-slot-minutes">0 min</div></div>';
+            }
+            return `
             <div class="lineup-slot">
-              <div class="lineup-slot-position">${p.pos}</div>
-              <div class="lineup-slot-player clickable-player" onclick="showPlayerModal(${p.id})">${p.name}</div>
+              <div class="lineup-slot-position">${p.pos || 'G'}</div>
+              <div class="lineup-slot-player clickable-player" onclick="showPlayerModal(${p.id})">${p.name || 'Unknown'}</div>
               <div class="lineup-slot-minutes">${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min</div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
         
         <div class="lineup-bench">
           <div class="lineup-bench-title">Top Bench</div>
           <div class="lineup-bench-players">
-            ${benchPlayers.map(p => `
-              <div class="bench-player-chip clickable-player" onclick="showPlayerModal(${p.id})">${p.name} (${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min)</div>
-            `).join('')}
+            ${benchPlayers.map(p => {
+              if (!p) {
+                console.warn('[ROTATION] Undefined player in bench');
+                return '<div class="bench-player-chip">Empty (0 min)</div>';
+              }
+              return `<div class="bench-player-chip clickable-player" onclick="showPlayerModal(${p.id})">${p.name || 'Unknown'} (${team.rotations.minuteTargetsByPlayerId[p.id] || 0} min)</div>`;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -14335,6 +14344,32 @@ function renderPositionSection(position, players, team) {
 }
 
 function renderRotationPlayerCard(player, team) {
+  // Null safety checks
+  if (!player) {
+    console.warn('[ROTATION] Undefined player in rotation card');
+    return '<div class="rotation-player-card"><div class="rotation-player-info">Empty Slot</div></div>';
+  }
+  
+  if (!player.pos) {
+    console.warn('[ROTATION] Player missing pos field:', player.id, player.name);
+    player.pos = 'G'; // Default fallback
+  }
+  
+  if (!player.name) {
+    console.warn('[ROTATION] Player missing name:', player.id);
+    player.name = 'Unknown Player';
+  }
+  
+  if (!player.ratings) {
+    console.warn('[ROTATION] Player missing ratings:', player.id, player.name);
+    player.ratings = { ovr: 50 };
+  }
+  
+  if (!player.contract) {
+    console.warn('[ROTATION] Player missing contract:', player.id, player.name);
+    player.contract = { amount: 0, yearsRemaining: 0 };
+  }
+  
   const ovrClass = player.ratings.ovr >= 90 ? 'ovr-purple' :
                    player.ratings.ovr >= 85 ? 'ovr-blue' :
                    player.ratings.ovr >= 80 ? 'ovr-green' :
@@ -14351,9 +14386,9 @@ function renderRotationPlayerCard(player, team) {
           <div class="rotation-player-name clickable-player" onclick="showPlayerModal(${player.id})">${player.name}</div>
           <div class="rotation-player-meta">
             <span class="rotation-ovr ${ovrClass}">${player.ratings.ovr}</span>
-            <span>${player.pos}</span>
-            <span class="rotation-role-badge ${role}">${role.toUpperCase()}</span>
-            <span>Age ${player.age}</span>
+            <span>${player.pos || 'G'}</span>
+            <span class="rotation-role-badge ${role}">${(role || 'bench').toUpperCase()}</span>
+            <span>Age ${player.age || 0}</span>
             <span>$${player.contract.amount.toFixed(1)}M/yr</span>
             <span>${player.contract.yearsRemaining}yr</span>
           </div>
