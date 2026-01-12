@@ -8540,29 +8540,37 @@ function renderTeamScheduleGames(games, teamId) {
   liveGames.forEach((game, idx) => {
     const gameNumber = completedGames.length + idx + 1;
     gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
+    
+    // Check for events after this game
+    const eventsAfterThisGame = events.filter(e => 
+      e.afterGameNumber === gameNumber && e.type !== 'season_start'
+    );
+    eventsAfterThisGame.forEach(event => {
+      gameListItems.push(renderSeasonEvent(event));
+    });
+  });
+  
+  // Check if any events should appear between completed/live and upcoming games
+  const currentGameNumber = completedGames.length + liveGames.length;
+  const missedEvents = events.filter(e => 
+    e.afterGameNumber > 0 && 
+    e.afterGameNumber <= currentGameNumber && 
+    e.type !== 'season_start' &&
+    !gameListItems.some(item => item.includes(`event-${e.id}`))
+  );
+  missedEvents.forEach(event => {
+    gameListItems.push(renderSeasonEvent(event));
   });
   
   // Upcoming games with events
   upcomingGames.forEach((game, idx) => {
     const gameNumber = completedGames.length + liveGames.length + idx + 1;
-    
-    // Check for events BEFORE this game
-    const eventsBeforeThisGame = events.filter(e => 
-      e.afterGameNumber < gameNumber && 
-      e.afterGameNumber >= completedGames.length + liveGames.length &&
-      e.type !== 'season_start' &&
-      !gameListItems.some(item => item.includes(`event-${e.id}`)) // Not already added
-    );
-    eventsBeforeThisGame.forEach(event => {
-      gameListItems.push(renderSeasonEvent(event));
-    });
-    
     gameListItems.push(renderScheduleGameRowWithNumber(game, gameNumber, teamId));
   });
   
   // Season End event (after all games)
   const seasonEndEvent = events.find(e => e.type === 'season_end');
-  if (seasonEndEvent && upcomingGames.length === 0 && liveGames.length === 0 && completedGames.length >= league.schedule.gamesPerTeam) {
+  if (seasonEndEvent && completedGames.length >= (league.schedule.gamesPerTeam || 82)) {
     gameListItems.push(renderSeasonEvent(seasonEndEvent));
   }
   
