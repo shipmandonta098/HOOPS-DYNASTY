@@ -3,9 +3,6 @@
    Persistent state management with localStorage + IndexedDB
 ============================ */
 
-// Schema version constant (must match engine.js)
-const CURRENT_SCHEMA_VERSION = 6;
-
 /**
  * LocalStorage keys for quick-access metadata
  */
@@ -497,7 +494,7 @@ function migrateLeagueState(state) {
  * Initialize app on boot
  * This is the ONLY entry point for app initialization
  */
-async function initializeApp() {
+window.initializeApp = async function initializeApp() {
   console.log('[STATE] Initializing app...');
   
   try {
