@@ -6,6 +6,135 @@
 const CURRENT_SCHEMA_VERSION = 5; // Incremented for leagueState refactor
 
 /* ============================
+   PHASE CONSTANTS
+============================ */
+
+const PHASES = {
+  PRESEASON: 'PRESEASON',
+  REGULAR_SEASON: 'REGULAR_SEASON',
+  ALL_STAR_BREAK: 'ALL_STAR_BREAK',
+  POSTSEASON: 'POSTSEASON',
+  OFFSEASON: 'OFFSEASON',
+  DRAFT: 'DRAFT',
+  FREE_AGENCY: 'FREE_AGENCY'
+};
+
+/**
+ * Compute the current league phase based on game states
+ * This is the SINGLE SOURCE OF TRUTH for phase detection
+ * 
+ * Phase Logic:
+ * 1. If preseason games exist and are not all completed → PRESEASON
+ * 2. Else if regular season games exist and at least one is unplayed → REGULAR_SEASON
+ * 3. Else if all regular season games completed and All-Star events active → ALL_STAR_BREAK
+ * 4. Else if playoff games exist and are not all completed → POSTSEASON
+ * 5. Else → OFFSEASON (or DRAFT/FREE_AGENCY if those are active)
+ * 
+ * @returns {string} Current phase constant from PHASES
+ */
+function computeCurrentPhase() {
+  if (!league || !league.schedule) {
+    return PHASES.OFFSEASON;
+  }
+  
+  // Check for active draft
+  if (league.draft && league.draft.inProgress) {
+    return PHASES.DRAFT;
+  }
+  
+  const games = league.schedule.games || {};
+  const allGames = Object.values(games);
+  
+  if (allGames.length === 0) {
+    return PHASES.OFFSEASON;
+  }
+  
+  // Separate games by phase
+  const preseasonGames = allGames.filter(g => g.phase === 'Preseason');
+  const regularGames = allGames.filter(g => g.phase === 'Regular Season');
+  const playoffGames = allGames.filter(g => g.phase === 'Playoffs');
+  
+  // Check preseason: if any preseason games exist and not all completed
+  if (preseasonGames.length > 0) {
+    const allPreseasonComplete = preseasonGames.every(g => g.status === 'final');
+    if (!allPreseasonComplete) {
+      return PHASES.PRESEASON;
+    }
+  }
+  
+  // Check regular season: if any regular season games exist and not all completed
+  if (regularGames.length > 0) {
+    const allRegularComplete = regularGames.every(g => g.status === 'final');
+    if (!allRegularComplete) {
+      return PHASES.REGULAR_SEASON;
+    }
+    
+    // All regular season games complete - check for All-Star break
+    // (This would require All-Star event tracking - placeholder for now)
+    if (league.allStarWeekend && league.allStarWeekend.active) {
+      return PHASES.ALL_STAR_BREAK;
+    }
+  }
+  
+  // Check playoffs: if any playoff games exist and not all completed
+  if (playoffGames.length > 0) {
+    const allPlayoffsComplete = playoffGames.every(g => g.status === 'final');
+    if (!allPlayoffsComplete) {
+      return PHASES.POSTSEASON;
+    }
+  }
+  
+  // All games completed or no games exist
+  return PHASES.OFFSEASON;
+}
+
+/**
+ * Get the display-friendly name for a phase
+ */
+function getPhaseDisplayName(phase) {
+  const displayNames = {
+    [PHASES.PRESEASON]: 'Preseason',
+    [PHASES.REGULAR_SEASON]: 'Regular Season',
+    [PHASES.ALL_STAR_BREAK]: 'All-Star Break',
+    [PHASES.POSTSEASON]: 'Playoffs',
+    [PHASES.OFFSEASON]: 'Offseason',
+    [PHASES.DRAFT]: 'Draft',
+    [PHASES.FREE_AGENCY]: 'Free Agency'
+  };
+  
+  return displayNames[phase] || phase;
+}
+
+/**
+ * Update league.phase based on computed phase
+ * Should be called after any game state change
+ */
+function updateLeaguePhase() {
+  if (!league) return;
+  
+  const computedPhase = computeCurrentPhase();
+  const oldPhase = league.phase;
+  
+  // Map computed phase to legacy format for compatibility
+  const legacyPhaseMap = {
+    [PHASES.PRESEASON]: 'preseason',
+    [PHASES.REGULAR_SEASON]: 'season',
+    [PHASES.ALL_STAR_BREAK]: 'season',
+    [PHASES.POSTSEASON]: 'playoffs',
+    [PHASES.OFFSEASON]: 'offseason',
+    [PHASES.DRAFT]: 'draft',
+    [PHASES.FREE_AGENCY]: 'offseason'
+  };
+  
+  league.phase = legacyPhaseMap[computedPhase] || 'offseason';
+  league.computedPhase = computedPhase; // Store computed phase for UI
+  
+  if (oldPhase !== league.phase) {
+    console.log(`[Phase] Phase changed: ${oldPhase} → ${league.phase} (${computedPhase})`);
+  }
+}
+
+/* ============================
    CENTRALIZED LEAGUE STATE
 ============================ */
 
@@ -2565,6 +2694,9 @@ async function generateSeasonSchedule(season) {
     
     console.log(`[Engine] ✓ Schedule generated: ${newSchedule.totalGames} games`);
     
+    // Update league phase after schedule generation
+    updateLeaguePhase();
+    
     // Save to database
     await saveLeague();
     
@@ -2669,6 +2801,9 @@ function simGameInstant(gameId) {
   
   // Update rivalry system
   updateRivalryFromGame(game);
+  
+  // Update league phase based on game completion
+  updateLeaguePhase();
   
   // Check for season events that should trigger
   if (typeof checkSeasonEvents === 'function') {
@@ -2982,6 +3117,9 @@ function finishLiveGame(gameId) {
   // Update player season stats
   updatePlayerSeasonStats(game);
   
+  // Update league phase
+  updateLeaguePhase();
+  
   updateTeamPayrolls();
 }
 
@@ -2999,6 +3137,9 @@ function simEntireDay(season, dayNumber) {
   if (day) {
     day.simulated = true;
   }
+  
+  // Update league phase after simulating all games
+  updateLeaguePhase();
   
   save();
 }
@@ -4982,6 +5123,9 @@ function createLeague(leagueName, seasonYear, teamCount, newLeagueSetup, userTea
   
   // Automatically ensure schedule exists for the new league
   ensureSchedule();
+  
+  // Set initial phase based on league state
+  updateLeaguePhase();
   
   appView = 'league';
   save();

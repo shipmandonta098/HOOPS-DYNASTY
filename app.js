@@ -290,13 +290,52 @@ function getFreeAgents() {
  * Get current league phase
  */
 function getCurrentPhase() {
+  if (!league) return 'OFFSEASON';
+  
+  // Use computed phase if available
+  if (typeof computeCurrentPhase === 'function') {
+    return computeCurrentPhase();
+  }
+  
+  // Fallback to stored phase
   if (leagueState) {
     return leagueState.meta.phase;
   }
   if (league) {
     return league.phase;
   }
-  return 'preseason';
+  return 'OFFSEASON';
+}
+
+/**
+ * Get display name for current phase
+ */
+function getCurrentPhaseDisplay() {
+  if (!league) return 'No League';
+  
+  const phase = getCurrentPhase();
+  
+  if (typeof getPhaseDisplayName === 'function') {
+    return getPhaseDisplayName(phase);
+  }
+  
+  // Fallback formatting
+  const displayMap = {
+    'PRESEASON': 'Preseason',
+    'REGULAR_SEASON': 'Regular Season',
+    'ALL_STAR_BREAK': 'All-Star Break',
+    'POSTSEASON': 'Playoffs',
+    'OFFSEASON': 'Offseason',
+    'DRAFT': 'Draft',
+    'FREE_AGENCY': 'Free Agency',
+    'preseason': 'Preseason',
+    'season': 'Regular Season',
+    'playoffs': 'Playoffs',
+    'offseason': 'Offseason',
+    'draft': 'Draft'
+  };
+  
+  return displayMap[phase] || (phase ? phase.toUpperCase() : 'OFFSEASON');
 }
 
 /**
@@ -2001,6 +2040,11 @@ async function confirmCreateLeague() {
 ============================ */
 
 function render() {
+  // Update league phase before rendering
+  if (league && typeof updateLeaguePhase === 'function') {
+    updateLeaguePhase();
+  }
+  
   // Control landing header visibility
   const landingHeader = document.getElementById('landingHeader');
   const isLandingView = appView === 'home' || appView === 'myLeagues' || appView === 'newLeague' || appView === 'editTeam';
@@ -2107,16 +2151,24 @@ function updateLeagueInfo() {
     `;
   }
   
-  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${league.phase.toUpperCase()}${jobSecurityHTML}`;
+  // Get current phase display
+  const phaseDisplay = getCurrentPhaseDisplay();
+  
+  el.innerHTML = `<strong>${leagueName}</strong> | Season: ${league.season} | Phase: ${phaseDisplay}${jobSecurityHTML}`;
   
   // Update button states (sidebar buttons)
   const simSeasonBtn = document.getElementById('simSeasonBtnSidebar');
   const offseasonBtn = document.getElementById('offseasonBtnSidebar');
   const draftBtn = document.getElementById('draftBtnSidebar');
   
-  if (simSeasonBtn) simSeasonBtn.disabled = league.phase !== 'preseason';
-  if (offseasonBtn) offseasonBtn.disabled = league.phase !== 'offseason';
-  if (draftBtn) draftBtn.disabled = league.phase !== 'draft';
+  const currentPhase = getCurrentPhase();
+  const isPreseason = currentPhase === 'PRESEASON' || currentPhase === 'preseason';
+  const isOffseason = currentPhase === 'OFFSEASON' || currentPhase === 'offseason';
+  const isDraft = currentPhase === 'DRAFT' || currentPhase === 'draft';
+  
+  if (simSeasonBtn) simSeasonBtn.disabled = !isPreseason;
+  if (offseasonBtn) offseasonBtn.disabled = !isOffseason;
+  if (draftBtn) draftBtn.disabled = !isDraft;
   
   // Update Commissioner Badge
   const commissionerBadge = document.getElementById('commissionerBadge');
@@ -13177,7 +13229,7 @@ function renderDraft() {
         <div class="draft-header-right">
           <div class="draft-phase-info">
             <div class="draft-season">Season ${league.season}</div>
-            <div class="draft-phase">Phase: ${league.phase.toUpperCase()}</div>
+            <div class="draft-phase">Phase: ${getCurrentPhaseDisplay()}</div>
           </div>
         </div>
       </div>
