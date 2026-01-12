@@ -7291,6 +7291,7 @@ function debugRatings() {
 
 // Expose to window for console access
 if (typeof window !== 'undefined') {
+  window.CURRENT_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
   window.debugRatings = debugRatings;
   window.generateDefaultRotations = generateDefaultRotations;
   window.calcTotalMinutes = calcTotalMinutes;
