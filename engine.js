@@ -5,6 +5,23 @@
 // Schema Version for League Migrations
 const CURRENT_SCHEMA_VERSION = 6; // Incremented for shot location system
 
+// Debug Flags
+const DEBUG_INJURIES = false; // Set to true to see injury logs
+
+/* ============================
+   INJURY SYSTEM - PHASE 1
+============================ */
+
+const INJURY_CATALOG = [
+  { type: 'Ankle Sprain', minGames: 3, maxGames: 10, weight: 30 },
+  { type: 'Hamstring Strain', minGames: 5, maxGames: 15, weight: 25 },
+  { type: 'Wrist Sprain', minGames: 2, maxGames: 8, weight: 20 },
+  { type: 'Knee Soreness', minGames: 1, maxGames: 5, weight: 15 },
+  { type: 'Back Tightness', minGames: 2, maxGames: 7, weight: 10 }
+];
+
+const INJURY_CHANCE_PER_GAME = 0.02; // 2% chance per team per game
+
 /* ============================
    PHASE CONSTANTS
 ============================ */
@@ -3374,6 +3391,11 @@ function createPlayerFromProspect(prospect, teamId, draftYear, round, pick) {
       ego: prospect.personality.ego,
       temperament: rand(50, 85)
     },
+    injury: {
+      type: null,
+      gamesRemaining: 0,
+      severity: null
+    },
     agent: {
       name: ['Rich Paul', 'Aaron Mintz', 'Jeff Schwartz', 'Mark Bartelstein', 'Bill Duffy'][rand(0, 4)],
       style: ['Aggressive', 'Patient', 'Analytical'][rand(0, 2)],
@@ -4199,6 +4221,77 @@ function getNextUserGameDay() {
   return null;
 }
 
+/**
+ * Maybe injure a player on the team during/after a game
+ * @param {number} teamId - Team ID to check for injuries
+ */
+function maybeInjurePlayer(teamId) {
+  if (Math.random() > INJURY_CHANCE_PER_GAME) return;
+  
+  const team = league.teams.find(t => t.id === teamId);
+  if (!team || !team.players || team.players.length === 0) return;
+  
+  // Get healthy players (exclude already injured)
+  const healthyPlayers = team.players.filter(p => !p.injury || p.injury.gamesRemaining === 0);
+  if (healthyPlayers.length === 0) return;
+  
+  // Pick random player (could be weighted by minutes in future)
+  const player = healthyPlayers[Math.floor(Math.random() * healthyPlayers.length)];
+  
+  // Pick random injury type based on weights
+  const totalWeight = INJURY_CATALOG.reduce((sum, inj) => sum + inj.weight, 0);
+  let roll = Math.random() * totalWeight;
+  let selectedInjury = INJURY_CATALOG[0];
+  
+  for (const injury of INJURY_CATALOG) {
+    roll -= injury.weight;
+    if (roll <= 0) {
+      selectedInjury = injury;
+      break;
+    }
+  }
+  
+  // Assign injury
+  const gamesOut = Math.floor(Math.random() * (selectedInjury.maxGames - selectedInjury.minGames + 1)) + selectedInjury.minGames;
+  
+  if (!player.injury) {
+    player.injury = { type: null, gamesRemaining: 0, severity: null };
+  }
+  
+  player.injury.type = selectedInjury.type;
+  player.injury.gamesRemaining = gamesOut;
+  player.injury.severity = gamesOut <= 5 ? 'Minor' : gamesOut <= 10 ? 'Moderate' : 'Serious';
+  
+  if (DEBUG_INJURIES) {
+    console.log(`[INJURY] ${player.name} (${team.name}) injured: ${selectedInjury.type} - Out ${gamesOut} games (${player.injury.severity})`);
+  }
+}
+
+/**
+ * Decrement injury timers for all players after their team plays a game
+ */
+function tickInjuriesAfterGame() {
+  if (!league || !league.teams) return;
+  
+  for (const team of league.teams) {
+    if (!team.players) continue;
+    
+    for (const player of team.players) {
+      if (!player.injury || player.injury.gamesRemaining <= 0) continue;
+      
+      player.injury.gamesRemaining--;
+      
+      if (player.injury.gamesRemaining === 0) {
+        if (DEBUG_INJURIES) {
+          console.log(`[INJURY] ${player.name} (${team.name}) recovered from ${player.injury.type}`);
+        }
+        player.injury.type = null;
+        player.injury.severity = null;
+      }
+    }
+  }
+}
+
 function simGameInstant(gameId) {
   const game = league.schedule.games[gameId];
   if (!game || game.status === 'final') return;
@@ -4242,6 +4335,11 @@ function simGameInstant(gameId) {
   
   // Update rivalry system
   updateRivalryFromGame(game);
+  
+  // Process injuries
+  maybeInjurePlayer(game.homeTeamId);
+  maybeInjurePlayer(game.awayTeamId);
+  tickInjuriesAfterGame();
   
   // Update league phase based on game completion
   updateLeaguePhase();
@@ -6740,31 +6838,37 @@ function getProjectedMinutes(team, player) {
 }
 
 function getGameRotation(team) {
+  // Helper to check if player is injured
+  const isInjured = (p) => p.injury && p.injury.gamesRemaining > 0;
+  
   // Get players who should play this game based on rotation
   if (!team.rotations) {
-    // Fallback: top 8 by OVR
-    return team.players.sort((a, b) => b.ratings.ovr - a.ratings.ovr).slice(0, 8);
+    // Fallback: top 8 by OVR, excluding injured
+    return team.players
+      .filter(p => !isInjured(p))
+      .sort((a, b) => b.ratings.ovr - a.ratings.ovr)
+      .slice(0, 8);
   }
   
-  // Get players with minute targets > 0, sorted by target minutes
+  // Get healthy players with minute targets > 0, sorted by target minutes
   const playersWithMinutes = team.players
-    .filter(p => (team.rotations.minuteTargetsByPlayerId[p.id] || 0) > 0)
+    .filter(p => !isInjured(p) && (team.rotations.minuteTargetsByPlayerId[p.id] || 0) > 0)
     .sort((a, b) => {
       const minsB = team.rotations.minuteTargetsByPlayerId[b.id] || 0;
       const minsA = team.rotations.minuteTargetsByPlayerId[a.id] || 0;
       return minsB - minsA;
     });
   
-  // Ensure at least 8 players (fill with next best OVR if needed)
+  // Ensure at least 8 players (fill with next best healthy OVR if needed)
   if (playersWithMinutes.length < 8) {
     const remainingPlayers = team.players
-      .filter(p => !playersWithMinutes.includes(p))
+      .filter(p => !isInjured(p) && !playersWithMinutes.includes(p))
       .sort((a, b) => b.ratings.ovr - a.ratings.ovr);
     
     playersWithMinutes.push(...remainingPlayers.slice(0, 8 - playersWithMinutes.length));
   }
   
-  return playersWithMinutes.slice(0, 10); // Top 10 players for rotation
+  return playersWithMinutes.slice(0, 10); // Top 10 healthy players for rotation
 }
 
 /* ============================
