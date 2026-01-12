@@ -336,8 +336,9 @@ function getCurrentPhaseDisplay() {
 
 /**
  * Start the regular season from preseason
+ * CRITICAL: This is the handler for the Season Start button
  */
-function startRegularSeason() {
+async function startRegularSeason() {
   if (!league) {
     alert('No league loaded');
     return;
@@ -345,15 +346,19 @@ function startRegularSeason() {
   
   const currentPhase = (league.phase || '').toUpperCase();
   
-  console.log('[Season Start] BEFORE - league.phase:', league.phase);
-  console.log('[Season Start] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
+  console.log('═══════════════════════════════════════');
+  console.log('[PHASE] Season Start Button Clicked');
+  console.log('[PHASE] BEFORE - league.phase:', league.phase);
+  console.log('[PHASE] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
+  console.log('[PHASE] BEFORE - league.day:', league.day);
+  console.log('═══════════════════════════════════════');
   
   if (currentPhase !== 'PRESEASON') {
     alert(`Can only start season from Preseason phase (current: ${currentPhase})`);
     return;
   }
   
-  console.log('[Season Start] Transitioning PRESEASON → REGULAR_SEASON');
+  console.log('[PHASE] ✓ Phase check passed - advancing to REGULAR_SEASON');
   
   // CRITICAL: Set league.phase as single source of truth
   league.phase = 'REGULAR_SEASON';
@@ -361,12 +366,17 @@ function startRegularSeason() {
   // Also update leagueState for persistence
   if (leagueState && leagueState.meta) {
     leagueState.meta.phase = 'REGULAR_SEASON';
-  }
-  
-  // Mark season as started
-  if (leagueState && leagueState.meta) {
+    leagueState.meta.day = 1; // Start at day 1 of regular season
     leagueState.meta.regularSeasonStarted = true;
   }
+  
+  // Sync day to league object
+  if (league) {
+    league.day = 1;
+  }
+  
+  console.log('[PHASE] advanced to', leagueState.meta.phase);
+  console.log('[PHASE] day set to', leagueState.meta.day);
   
   // Ensure schedule exists
   if (typeof ensureSchedule === 'function') {
@@ -381,23 +391,32 @@ function startRegularSeason() {
     league.simulation.eventQueue = [];
   }
   
-  // Save state (REQUIRED)
+  // Save state (REQUIRED) - MUST complete before UI refresh
+  console.log('[PHASE] Saving league state...');
   if (typeof saveLeagueState === 'function') {
-    saveLeagueState();
+    await saveLeagueState();
+    console.log('[PHASE] ✓ saveLeagueState() complete');
   } else if (typeof save === 'function') {
-    save();
+    await save();
+    console.log('[PHASE] ✓ save() complete');
+  } else {
+    console.error('[PHASE] ✗ No save function available!');
   }
   
-  console.log('[Season Start] AFTER - league.phase:', league.phase);
-  console.log('[Season Start] AFTER - leagueState.meta.phase:', leagueState?.meta?.phase);
-  console.log('[Season Start] ✓ Phase transition complete');
+  console.log('═══════════════════════════════════════');
+  console.log('[PHASE] AFTER - league.phase:', league.phase);
+  console.log('[PHASE] AFTER - leagueState.meta.phase:', leagueState?.meta?.phase);
+  console.log('[PHASE] AFTER - league.day:', league.day);
+  console.log('[PHASE] ✓ Phase transition complete');
+  console.log('═══════════════════════════════════════');
+  console.log('═══════════════════════════════════════');
   
   // CRITICAL: Force full UI re-render
-  console.log('[Season Start] Triggering UI re-render...');
+  console.log('[PHASE] Triggering UI re-render...');
   render();
-  console.log('[Season Start] UI re-render complete');
+  console.log('[PHASE] ✓ UI re-render complete');
   
-  alert('Regular season has begun!');
+  alert('✅ Regular season has begun! Sim buttons are now enabled.');
 }
 
 // Expose to window for onclick handlers
@@ -2256,10 +2275,7 @@ function updateLeagueInfo() {
   const simButtons = ['simGameButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton'];
   simButtons.forEach(id => {
     const btn = document.getElementById(id);
-    if (btn) {
-      btn.disabled = !canSimulate;
-      console.log(`[Sim Button] ${id} disabled=${!canSimulate} (phase=${phase})`);
-    }
+    if (btn) btn.disabled = !canSimulate;
   });
   
   // Until Event button is always enabled
@@ -9972,12 +9988,9 @@ function renderSchedule() {
   const currentPhase = getCurrentPhase();
   const isPreseason = currentPhase === 'PRESEASON' && !leagueState?.meta?.regularSeasonStarted;
   
-  console.log('[Schedule] currentPhase:', currentPhase, '| isPreseason:', isPreseason);
-  
   // Determine active season event
   let activeEventBadge = '';
   if (isPreseason) {
-    console.log('[Schedule] Showing Start Regular Season button');
     activeEventBadge = `
       <button onclick="startRegularSeason()" style="
         background: #4CAF50;
@@ -9994,7 +10007,6 @@ function renderSchedule() {
       </button>
     `;
   } else if (completedCount === 0) {
-    console.log('[Schedule] Showing Season Start badge (not preseason, no games played)');
     activeEventBadge = '<span style="background: #4CAF50; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏀 Season Start</span>';
   } else if (completedCount >= totalGamesPerTeam) {
     activeEventBadge = '<span style="background: #2196F3; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🏁 Season Complete</span>';

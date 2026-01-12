@@ -659,4 +659,9 @@ function switchUserTeam(teamId) {
   saveLeagueState();
 }
 
+// Expose to window for global access
+window.saveLeagueState = saveLeagueState;
+window.loadLeagueState = loadLeagueState;
+window.deleteLeague = deleteLeague;
+
 console.log('[STATE] State manager loaded');
