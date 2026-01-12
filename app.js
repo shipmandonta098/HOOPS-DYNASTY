@@ -13869,7 +13869,7 @@ function savePlayerEdits(event, playerId) {
 
 function showToast(message) {
   const toast = document.createElement('div');
-  toast.style.cssText = \`
+  toast.style.cssText = `
     position: fixed;
     top: 20px;
     right: 20px;
@@ -13881,7 +13881,7 @@ function showToast(message) {
     z-index: 9999;
     font-weight: bold;
     animation: slideIn 0.3s ease;
-  \`;
+  `;
   toast.textContent = message;
   document.body.appendChild(toast);
   
