@@ -385,6 +385,15 @@ async function loadLeagueState(leagueId) {
     // Convert to legacy format for backward compatibility
     league = convertLeagueStateToLegacy(leagueState);
     
+    // CRITICAL: Ensure phase is never undefined
+    if (!league.phase || league.phase === 'undefined') {
+      league.phase = 'PRESEASON';
+      leagueState.meta.phase = 'PRESEASON';
+      console.log('[STATE] ⚠️ Fixed undefined phase after load');
+      needsSave = true;
+      setTimeout(() => saveLeagueState(), 100);
+    }
+    
     console.log('[STATE] League loaded - league.phase:', league.phase, '| leagueState.meta.phase:', leagueState.meta.phase);
     
     // Clamp player ratings to maximum values (backward compatibility)
@@ -501,13 +510,14 @@ function migrateLeagueState(state) {
   // Migrate phase to uppercase (schema v6+)
   // CRITICAL: This ensures phase is always uppercase
   const oldPhase = state.meta.phase;
-  if (!state.meta.phase) {
+  if (!state.meta.phase || state.meta.phase === 'undefined' || String(state.meta.phase).trim() === '') {
     state.meta.phase = 'PRESEASON';
-    console.log('[STATE] Set default phase: PRESEASON');
+    console.log('[STATE] ⚠️ Phase was undefined/empty - set default: PRESEASON');
     needsSave = true;
   } else {
-    state.meta.phase = String(state.meta.phase).toUpperCase();
-    if (oldPhase !== state.meta.phase) {
+    const normalized = String(state.meta.phase).toUpperCase();
+    if (oldPhase !== normalized) {
+      state.meta.phase = normalized;
       console.log('[STATE] Normalized phase:', oldPhase, '→', state.meta.phase);
       needsSave = true;
     }

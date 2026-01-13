@@ -1875,7 +1875,7 @@ function convertLeagueStateToLegacy(state) {
     id: state.meta.leagueId,
     name: state.meta.name,
     season: state.meta.season,
-    phase: state.meta.phase,
+    phase: state.meta.phase || 'PRESEASON', // Never allow undefined
     teams: state.teams,
     freeAgents: state.freeAgents,
     history: state.history,
