@@ -401,6 +401,15 @@ async function loadLeagueState(leagueId) {
     console.log('[STATE] League loaded - league.phase:', league.phase, '| leagueState.meta.phase:', leagueState.meta.phase);
     console.log('[STATE] Exposed to window.league and window.leagueState');
     
+    // Verify phase is set
+    if (!league.phase || league.phase === 'undefined' || league.phase === '') {
+      console.error('[STATE] ⚠️ WARNING: Phase is still undefined after all fixes!');
+      league.phase = 'PRESEASON';
+      leagueState.meta.phase = 'PRESEASON';
+      window.league = league;
+      window.leagueState = leagueState;
+    }
+    
     // Clamp player ratings to maximum values (backward compatibility)
     clampPlayerRatings(league);
     

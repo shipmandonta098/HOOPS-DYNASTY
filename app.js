@@ -10114,8 +10114,14 @@ function renderSchedule() {
         window.leagueState.meta.day = 1;
         window.leagueState.meta.regularSeasonStarted = true;
         
+        // CRITICAL: Also update module-level variables
+        league = window.league;
+        leagueState = window.leagueState;
+        
         console.log('AFTER SET - window.league.phase:', window.league.phase);
         console.log('AFTER SET - window.leagueState.meta.phase:', window.leagueState.meta.phase);
+        console.log('AFTER SET - league.phase:', league.phase);
+        console.log('AFTER SET - leagueState.meta.phase:', leagueState.meta.phase);
         
         // Save to storage
         console.log('Calling saveLeagueState...');
@@ -10132,14 +10138,25 @@ function renderSchedule() {
         
         console.log('AFTER SAVE - window.league.phase:', window.league.phase);
         console.log('AFTER SAVE - window.leagueState.meta.phase:', window.leagueState.meta.phase);
+        console.log('AFTER SAVE - league.phase:', league.phase);
+        console.log('AFTER SAVE - leagueState.meta.phase:', leagueState.meta.phase);
         
         // Re-render UI
         console.log('Calling render()...');
         render();
         console.log('✅ Render complete');
+        
+        // Force update league info display
+        console.log('Force updating league info...');
+        updateLeagueInfo();
+        
+        // Verify phase after render
+        console.log('AFTER RENDER - window.league.phase:', window.league.phase);
+        console.log('AFTER RENDER - leagueState.meta.phase:', window.leagueState.meta.phase);
+        console.log('AFTER RENDER - getCurrentPhase():', getCurrentPhase());
         console.log('═══════════════════════════════════════');
         
-        alert('✅ Regular season started!\n\nPhase is now: ' + window.league.phase);
+        alert('✅ Regular season started!\n\nPhase: ' + window.league.phase + '\nSim buttons should now be enabled.');
       });
     }
   }
