@@ -10029,6 +10029,9 @@ function renderSchedule() {
           ${activeEventBadge}
         </div>
         
+        <!-- START REGULAR SEASON BUTTON -->
+        <div id="seasonStartButtonContainer" style="margin-bottom: 20px;"></div>
+        
         <!-- Tab Navigation -->
         <div style="display: flex; gap: 5px; border-bottom: 2px solid #2a2a40; margin-bottom: 20px;">
           <button 
@@ -10054,6 +10057,57 @@ function renderSchedule() {
       <div id="game-drawer-container"></div>
     </div>
   `;
+  
+  // Inject Start Season button if in preseason
+  const buttonContainer = document.getElementById('seasonStartButtonContainer');
+  if (buttonContainer) {
+    const currentPhase = (league.phase || '').toUpperCase();
+    if (currentPhase === 'PRESEASON' || currentPhase === '' || !currentPhase) {
+      buttonContainer.innerHTML = `
+        <div style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);">
+          <div style="font-size: 2em; margin-bottom: 10px;">🏀</div>
+          <h3 style="margin: 0 0 10px 0; color: #fff;">Ready to Begin?</h3>
+          <p style="margin: 0 0 20px 0; color: rgba(255,255,255,0.9);">The regular season is ready to start!</p>
+          <button id="actualStartButton" style="
+            background: #fff;
+            color: #4CAF50;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+          " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            START REGULAR SEASON
+          </button>
+        </div>
+      `;
+      
+      // Attach click handler directly
+      document.getElementById('actualStartButton').addEventListener('click', async function() {
+        console.log('Button clicked!');
+        
+        // Set phase
+        league.phase = 'REGULAR_SEASON';
+        if (leagueState && leagueState.meta) {
+          leagueState.meta.phase = 'REGULAR_SEASON';
+          leagueState.meta.day = 1;
+        }
+        
+        // Save
+        if (window.saveLeagueState) {
+          await window.saveLeagueState();
+        }
+        
+        // Re-render
+        render();
+        
+        alert('✅ Regular season started!');
+      });
+    }
+  }
 }
 
 function switchScheduleView(view) {
