@@ -10087,24 +10087,38 @@ function renderSchedule() {
       
       // Attach click handler directly
       document.getElementById('actualStartButton').addEventListener('click', async function() {
-        console.log('Button clicked!');
+        console.log('═══════════════════════════════════════');
+        console.log('[START BUTTON] Button clicked!');
+        console.log('[START BUTTON] BEFORE - league.phase:', league.phase);
+        console.log('[START BUTTON] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
         
         // Set phase
         league.phase = 'REGULAR_SEASON';
         if (leagueState && leagueState.meta) {
           leagueState.meta.phase = 'REGULAR_SEASON';
           leagueState.meta.day = 1;
+          leagueState.meta.regularSeasonStarted = true;
         }
         
+        console.log('[START BUTTON] AFTER - league.phase:', league.phase);
+        console.log('[START BUTTON] AFTER - leagueState.meta.phase:', leagueState?.meta?.phase);
+        
         // Save
+        console.log('[START BUTTON] Calling saveLeagueState...');
         if (window.saveLeagueState) {
           await window.saveLeagueState();
+          console.log('[START BUTTON] ✓ Save complete');
+        } else {
+          console.error('[START BUTTON] ✗ saveLeagueState not found!');
         }
         
         // Re-render
+        console.log('[START BUTTON] Calling render()...');
         render();
+        console.log('[START BUTTON] ✓ Render complete');
+        console.log('═══════════════════════════════════════');
         
-        alert('✅ Regular season started!');
+        alert('✅ Regular season started! Phase is now: ' + league.phase);
       });
     }
   }
