@@ -10108,7 +10108,10 @@ function renderSchedule() {
           return;
         }
         
-        // Set phase in BOTH global objects
+        // Hide the modal immediately
+        buttonContainer.style.display = 'none';
+        
+        // Set phase in ALL global objects
         window.league.phase = 'REGULAR_SEASON';
         window.leagueState.meta.phase = 'REGULAR_SEASON';
         window.leagueState.meta.day = 1;
@@ -10141,22 +10144,30 @@ function renderSchedule() {
         console.log('AFTER SAVE - league.phase:', league.phase);
         console.log('AFTER SAVE - leagueState.meta.phase:', leagueState.meta.phase);
         
-        // Re-render UI
-        console.log('Calling render()...');
-        render();
-        console.log('✅ Render complete');
-        
-        // Force update league info display
-        console.log('Force updating league info...');
+        // Update league info display (header) WITHOUT full re-render
+        console.log('Updating league info header...');
         updateLeagueInfo();
         
-        // Verify phase after render
-        console.log('AFTER RENDER - window.league.phase:', window.league.phase);
-        console.log('AFTER RENDER - leagueState.meta.phase:', window.leagueState.meta.phase);
-        console.log('AFTER RENDER - getCurrentPhase():', getCurrentPhase());
+        // Manually enable sim buttons
+        console.log('Enabling sim buttons...');
+        const simButtons = ['simGameButton', 'simWeekButton', 'simMonthButton', 'simSeasonButton', 'simEventButton'];
+        simButtons.forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) {
+            btn.disabled = false;
+            console.log('✅ Enabled:', id);
+          } else {
+            console.warn('⚠️ Button not found:', id);
+          }
+        });
+        
+        // Verify phase after all updates
+        console.log('FINAL - window.league.phase:', window.league.phase);
+        console.log('FINAL - leagueState.meta.phase:', window.leagueState.meta.phase);
+        console.log('FINAL - getCurrentPhase():', getCurrentPhase());
         console.log('═══════════════════════════════════════');
         
-        alert('✅ Regular season started!\n\nPhase: ' + window.league.phase + '\nSim buttons should now be enabled.');
+        alert('✅ Regular season started!\n\nPhase: ' + window.league.phase + '\n\nYou can now simulate games using the top buttons.');
       });
     }
   }
