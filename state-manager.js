@@ -394,7 +394,12 @@ async function loadLeagueState(leagueId) {
       setTimeout(() => saveLeagueState(), 100);
     }
     
+    // CRITICAL: Expose to window for global access
+    window.league = league;
+    window.leagueState = leagueState;
+    
     console.log('[STATE] League loaded - league.phase:', league.phase, '| leagueState.meta.phase:', leagueState.meta.phase);
+    console.log('[STATE] Exposed to window.league and window.leagueState');
     
     // Clamp player ratings to maximum values (backward compatibility)
     clampPlayerRatings(league);

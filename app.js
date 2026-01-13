@@ -10090,19 +10090,32 @@ function renderSchedule() {
         console.log('═══════════════════════════════════════');
         console.log('🏀 START REGULAR SEASON BUTTON CLICKED');
         console.log('═══════════════════════════════════════');
+        console.log('BEFORE - window.league:', window.league);
+        console.log('BEFORE - window.leagueState:', window.leagueState);
         console.log('BEFORE - window.league.phase:', window.league?.phase);
         console.log('BEFORE - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
         
-        // Set phase in BOTH global objects
-        window.league.phase = 'REGULAR_SEASON';
-        if (window.leagueState && window.leagueState.meta) {
-          window.leagueState.meta.phase = 'REGULAR_SEASON';
-          window.leagueState.meta.day = 1;
-          window.leagueState.meta.regularSeasonStarted = true;
+        // Safety check: ensure objects exist
+        if (!window.league) {
+          alert('❌ Error: league object not loaded');
+          console.error('window.league is undefined');
+          return;
         }
         
-        console.log('AFTER SET - window.league.phase:', window.league?.phase);
-        console.log('AFTER SET - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
+        if (!window.leagueState || !window.leagueState.meta) {
+          alert('❌ Error: leagueState not loaded');
+          console.error('window.leagueState.meta is undefined');
+          return;
+        }
+        
+        // Set phase in BOTH global objects
+        window.league.phase = 'REGULAR_SEASON';
+        window.leagueState.meta.phase = 'REGULAR_SEASON';
+        window.leagueState.meta.day = 1;
+        window.leagueState.meta.regularSeasonStarted = true;
+        
+        console.log('AFTER SET - window.league.phase:', window.league.phase);
+        console.log('AFTER SET - window.leagueState.meta.phase:', window.leagueState.meta.phase);
         
         // Save to storage
         console.log('Calling saveLeagueState...');
@@ -10117,8 +10130,8 @@ function renderSchedule() {
           console.error('❌ saveLeagueState not found on window');
         }
         
-        console.log('AFTER SAVE - window.league.phase:', window.league?.phase);
-        console.log('AFTER SAVE - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
+        console.log('AFTER SAVE - window.league.phase:', window.league.phase);
+        console.log('AFTER SAVE - window.leagueState.meta.phase:', window.leagueState.meta.phase);
         
         // Re-render UI
         console.log('Calling render()...');
