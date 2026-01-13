@@ -10089,25 +10089,28 @@ function renderSchedule() {
       document.getElementById('actualStartButton').addEventListener('click', async function() {
         console.log('═══════════════════════════════════════');
         console.log('[START BUTTON] Button clicked!');
+        console.log('[START BUTTON] BEFORE - league:', league);
+        console.log('[START BUTTON] BEFORE - leagueState:', leagueState);
         console.log('[START BUTTON] BEFORE - league.phase:', league.phase);
         console.log('[START BUTTON] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
+        console.log('[START BUTTON] Are we modifying the global objects?', window.league === league, window.leagueState === leagueState);
         
-        // Set phase
-        league.phase = 'REGULAR_SEASON';
-        if (leagueState && leagueState.meta) {
-          leagueState.meta.phase = 'REGULAR_SEASON';
-          leagueState.meta.day = 1;
-          leagueState.meta.regularSeasonStarted = true;
-        }
+        // CRITICAL: Modify phase on BOTH global objects
+        window.league.phase = 'REGULAR_SEASON';
+        window.leagueState.meta.phase = 'REGULAR_SEASON';
+        window.leagueState.meta.day = 1;
+        window.leagueState.meta.regularSeasonStarted = true;
         
-        console.log('[START BUTTON] AFTER - league.phase:', league.phase);
-        console.log('[START BUTTON] AFTER - leagueState.meta.phase:', leagueState?.meta?.phase);
+        console.log('[START BUTTON] AFTER ASSIGNMENT - league.phase:', window.league.phase);
+        console.log('[START BUTTON] AFTER ASSIGNMENT - leagueState.meta.phase:', window.leagueState.meta.phase);
         
         // Save
         console.log('[START BUTTON] Calling saveLeagueState...');
         if (window.saveLeagueState) {
           await window.saveLeagueState();
           console.log('[START BUTTON] ✓ Save complete');
+          console.log('[START BUTTON] AFTER SAVE - league.phase:', window.league.phase);
+          console.log('[START BUTTON] AFTER SAVE - leagueState.meta.phase:', window.leagueState.meta.phase);
         } else {
           console.error('[START BUTTON] ✗ saveLeagueState not found!');
         }
@@ -10115,10 +10118,12 @@ function renderSchedule() {
         // Re-render
         console.log('[START BUTTON] Calling render()...');
         render();
+        console.log('[START BUTTON] AFTER RENDER - league.phase:', window.league.phase);
+        console.log('[START BUTTON] AFTER RENDER - leagueState.meta.phase:', window.leagueState.meta.phase);
         console.log('[START BUTTON] ✓ Render complete');
         console.log('═══════════════════════════════════════');
         
-        alert('✅ Regular season started! Phase is now: ' + league.phase);
+        alert('✅ Regular season started! Phase is now: ' + window.league.phase);
       });
     }
   }

@@ -385,15 +385,6 @@ async function loadLeagueState(leagueId) {
     // Convert to legacy format for backward compatibility
     league = convertLeagueStateToLegacy(leagueState);
     
-    // CRITICAL: Ensure phase is never undefined
-    if (!league.phase || league.phase === 'undefined') {
-      league.phase = 'PRESEASON';
-      leagueState.meta.phase = 'PRESEASON';
-      console.log('[STATE] ⚠️ Fixed undefined phase after load');
-      needsSave = true;
-      setTimeout(() => saveLeagueState(), 100);
-    }
-    
     console.log('[STATE] League loaded - league.phase:', league.phase, '| leagueState.meta.phase:', leagueState.meta.phase);
     
     // Clamp player ratings to maximum values (backward compatibility)
