@@ -10088,42 +10088,45 @@ function renderSchedule() {
       // Attach click handler directly
       document.getElementById('actualStartButton').addEventListener('click', async function() {
         console.log('═══════════════════════════════════════');
-        console.log('[START BUTTON] Button clicked!');
-        console.log('[START BUTTON] BEFORE - league:', league);
-        console.log('[START BUTTON] BEFORE - leagueState:', leagueState);
-        console.log('[START BUTTON] BEFORE - league.phase:', league.phase);
-        console.log('[START BUTTON] BEFORE - leagueState.meta.phase:', leagueState?.meta?.phase);
-        console.log('[START BUTTON] Are we modifying the global objects?', window.league === league, window.leagueState === leagueState);
+        console.log('🏀 START REGULAR SEASON BUTTON CLICKED');
+        console.log('═══════════════════════════════════════');
+        console.log('BEFORE - window.league.phase:', window.league?.phase);
+        console.log('BEFORE - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
         
-        // CRITICAL: Modify phase on BOTH global objects
+        // Set phase in BOTH global objects
         window.league.phase = 'REGULAR_SEASON';
-        window.leagueState.meta.phase = 'REGULAR_SEASON';
-        window.leagueState.meta.day = 1;
-        window.leagueState.meta.regularSeasonStarted = true;
-        
-        console.log('[START BUTTON] AFTER ASSIGNMENT - league.phase:', window.league.phase);
-        console.log('[START BUTTON] AFTER ASSIGNMENT - leagueState.meta.phase:', window.leagueState.meta.phase);
-        
-        // Save
-        console.log('[START BUTTON] Calling saveLeagueState...');
-        if (window.saveLeagueState) {
-          await window.saveLeagueState();
-          console.log('[START BUTTON] ✓ Save complete');
-          console.log('[START BUTTON] AFTER SAVE - league.phase:', window.league.phase);
-          console.log('[START BUTTON] AFTER SAVE - leagueState.meta.phase:', window.leagueState.meta.phase);
-        } else {
-          console.error('[START BUTTON] ✗ saveLeagueState not found!');
+        if (window.leagueState && window.leagueState.meta) {
+          window.leagueState.meta.phase = 'REGULAR_SEASON';
+          window.leagueState.meta.day = 1;
+          window.leagueState.meta.regularSeasonStarted = true;
         }
         
-        // Re-render
-        console.log('[START BUTTON] Calling render()...');
+        console.log('AFTER SET - window.league.phase:', window.league?.phase);
+        console.log('AFTER SET - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
+        
+        // Save to storage
+        console.log('Calling saveLeagueState...');
+        if (window.saveLeagueState) {
+          try {
+            await window.saveLeagueState();
+            console.log('✅ Save complete');
+          } catch (err) {
+            console.error('❌ Save failed:', err);
+          }
+        } else {
+          console.error('❌ saveLeagueState not found on window');
+        }
+        
+        console.log('AFTER SAVE - window.league.phase:', window.league?.phase);
+        console.log('AFTER SAVE - window.leagueState.meta.phase:', window.leagueState?.meta?.phase);
+        
+        // Re-render UI
+        console.log('Calling render()...');
         render();
-        console.log('[START BUTTON] AFTER RENDER - league.phase:', window.league.phase);
-        console.log('[START BUTTON] AFTER RENDER - leagueState.meta.phase:', window.leagueState.meta.phase);
-        console.log('[START BUTTON] ✓ Render complete');
+        console.log('✅ Render complete');
         console.log('═══════════════════════════════════════');
         
-        alert('✅ Regular season started! Phase is now: ' + window.league.phase);
+        alert('✅ Regular season started!\n\nPhase is now: ' + window.league.phase);
       });
     }
   }
