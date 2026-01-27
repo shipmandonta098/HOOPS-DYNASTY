@@ -679,6 +679,7 @@ function persistSave(){
 }
 
 function renderLeagueManager(){
+  console.log("LeagueManager:", libLoad());
   const body = document.getElementById("leagueTableBody");
   if (!body) return;
   const lib = libLoad();
@@ -854,15 +855,30 @@ function simOneGame(){
  *  Rendering
  *  ========================================================= */
 function showScreen(name){
-  document.getElementById("splashScreen").classList.add("hide");
-  document.getElementById("frontOfficeScreen").classList.add("hide");
-  document.getElementById("createLeagueScreen").classList.add("hide");
-  document.getElementById("appScreen").classList.add("hide");
+  const ids = [
+    "splashScreen",
+    "frontOfficeScreen",
+    "createLeagueScreen",
+    "leagueManagerScreen",
+    "appScreen",
+  ];
 
-  if (name==="splash") document.getElementById("splashScreen").classList.remove("hide");
-  if (name==="frontOffice") document.getElementById("frontOfficeScreen").classList.remove("hide");
-  if (name==="createLeague") document.getElementById("createLeagueScreen").classList.remove("hide");
-  if (name==="app") document.getElementById("appScreen").classList.remove("hide");
+  for (const id of ids){
+    const el = document.getElementById(id);
+    if (el) el.classList.add("hide");
+  }
+
+  const map = {
+    splash: "splashScreen",
+    frontOffice: "frontOfficeScreen",
+    createLeague: "createLeagueScreen",
+    leagueManager: "leagueManagerScreen",
+    app: "appScreen",
+  };
+
+  const target = document.getElementById(map[name]);
+  if (target) target.classList.remove("hide");
+  else console.warn("Unknown screen:", name);
 }
 
 function renderTop(){
