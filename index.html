@@ -171,6 +171,11 @@
     .market-Medium{ color:#a78bfa; }
     .market-Small { color:#9ca3af; }
 
+    /* League manager table/actions */
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .actions .btn{ padding:8px 10px; font-size:12px; }
+    .table-scroll{ max-height:360px; overflow:auto; }
+
     .badge{
       display:inline-flex;align-items:center;gap:6px;
       padding:3px 8px;border-radius:999px;
@@ -229,6 +234,46 @@
       </div>
       <div class="muted" style="margin-top:10px;">
         Continue lights up when a saved league exists.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2.5) LEAGUE MANAGER / CONTINUE -->
+<div id="leagueManagerScreen" class="menu-wrap hide">
+  <div class="card">
+    <div class="hd">
+      <div class="title">Continue</div>
+      <div class="row">
+        <label class="btn" for="importFile" style="display:inline-flex; align-items:center; gap:8px;">
+          Import
+        </label>
+        <input id="importFile" type="file" accept="application/json" class="hide" />
+        <button class="btn" id="btnBackFO2">Back</button>
+      </div>
+    </div>
+
+    <div class="bd">
+      <div class="muted" style="margin-bottom:10px;">
+        Leagues saved on this device.
+      </div>
+
+      <div class="table-scroll">
+        <table id="leagueTable">
+          <thead>
+            <tr>
+              <th>League</th>
+              <th style="width:110px;">Season</th>
+              <th style="width:170px;">Last Played</th>
+              <th style="width:340px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="leagueTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="muted" style="margin-top:10px;">
+        Export = downloads a JSON file. Import = restores a league from JSON.
       </div>
     </div>
   </div>
@@ -547,6 +592,121 @@ function renderTeamPickTable(){
   label.textContent = `${picked.abbrev} — ${picked.city} ${picked.name}`;
 }
 
+// ===== Multi-League Save System =====
+const LIB_KEY = "hoopsDynasty_leagueLibrary_v1";
+
+function libLoad(){
+  const raw = localStorage.getItem(LIB_KEY);
+  if (!raw) return { leagues: [] };
+  try { return JSON.parse(raw); } catch { return { leagues: [] }; }
+}
+
+function libSave(lib){
+  localStorage.setItem(LIB_KEY, JSON.stringify(lib));
+}
+
+function makeLeagueRecordFromState(st){
+  const userTeam = st.teams?.find(t => t.id === st.userTeamId);
+  return {
+    id: crypto.randomUUID(),
+    name: st.leagueName || "HOOPS DYNASTY",
+    seasonYear: st.seasonYear || 2026,
+    seasonNumber: st.seasonNumber || 1,
+    userTeamAbbrev: userTeam?.abbrev || "—",
+    updatedAt: Date.now(),
+    state: st,
+  };
+}
+
+function libUpsertLeague(record){
+  const lib = libLoad();
+  const idx = lib.leagues.findIndex(l => l.id === record.id);
+  if (idx >= 0) lib.leagues[idx] = record;
+  else lib.leagues.unshift(record);
+  libSave(lib);
+}
+
+function libDeleteLeague(id){
+  const lib = libLoad();
+  lib.leagues = lib.leagues.filter(l => l.id !== id);
+  libSave(lib);
+}
+
+function libRenameLeague(id, newName){
+  const lib = libLoad();
+  const l = lib.leagues.find(x => x.id === id);
+  if (!l) return;
+  l.name = newName;
+  l.state.leagueName = newName;
+  l.updatedAt = Date.now();
+  libSave(lib);
+}
+
+function libGetLeague(id){
+  const lib = libLoad();
+  return lib.leagues.find(l => l.id === id) || null;
+}
+
+function fmtDate(ts){ const d = new Date(ts); return d.toLocaleString(); }
+
+let activeLeagueId = null;
+
+function saveActiveLeague(){
+  if (!activeLeagueId) return;
+  const lib = libLoad();
+  const l = lib.leagues.find(x => x.id === activeLeagueId);
+  if (!l) return;
+
+  l.state = state;
+  l.name = state.leagueName;
+  l.seasonYear = state.seasonYear;
+  l.seasonNumber = state.seasonNumber;
+  const userTeam = state.teams?.find(t => t.id === state.userTeamId);
+  l.userTeamAbbrev = userTeam?.abbrev || l.userTeamAbbrev;
+  l.updatedAt = Date.now();
+
+  libSave(lib);
+}
+
+function renderLeagueManager(){
+  const body = document.getElementById("leagueTableBody");
+  if (!body) return;
+  const lib = libLoad();
+  body.innerHTML = "";
+  if (!lib.leagues || lib.leagues.length === 0){
+    body.innerHTML = `<tr><td colspan="4" class="muted">No saved leagues yet.</td></tr>`;
+    return;
+  }
+  for (const l of lib.leagues){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <strong>${escapeHtml(l.name)}</strong>
+        <div class="muted">${l.userTeamAbbrev} • League ID: ${l.id.slice(0,8)}</div>
+      </td>
+      <td>${(l.seasonYear || "—")} (S${l.seasonNumber || 1})</td>
+      <td class="muted">${fmtDate(l.updatedAt)}</td>
+      <td>
+        <div class="actions">
+          <button class="btn primary" data-act="load" data-id="${l.id}">Load</button>
+          <button class="btn" data-act="rename" data-id="${l.id}">Rename</button>
+          <button class="btn" data-act="export" data-id="${l.id}">Export</button>
+          <button class="btn danger" data-act="delete" data-id="${l.id}">Delete</button>
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+function escapeHtml(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"','&quot;').replaceAll("'","&#039;"); }
+
+function downloadJSON(filename, dataObj){
+  const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
 /** =========================================================
  *  App state
  *  ========================================================= */
@@ -621,7 +781,16 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   state.schedule = generateSchedule(state.teams.map(t=>t.id), 360); // ~360 days/games (toy)
 
   logLine(`League created: ${state.leagueName} (${state.seasonYear})`);
-  saveLeague();
+  // Create a new league record and set active
+  const rec = makeLeagueRecordFromState(state);
+  rec.name = leagueName;
+  rec.seasonYear = seasonYear;
+  rec.state.leagueName = leagueName;
+  rec.state.seasonYear = seasonYear;
+
+  activeLeagueId = rec.id;
+  libUpsertLeague(rec);
+
   renderAll();
 }
 
@@ -658,7 +827,7 @@ function advanceDay(){
   if (!next) logLine("Season complete. (Prototype stops here.)");
   else state.day = Math.max(state.day + 1, next.day);
 
-  saveLeague();
+  saveActiveLeague();
   renderAll();
 }
 
@@ -667,7 +836,7 @@ function simOneGame(){
   if (!g){ logLine("No games left."); renderAll(); return; }
   state.day = Math.max(state.day, g.day);
   simSpecificGame(g);
-  saveLeague();
+  saveActiveLeague();
   renderAll();
 }
 
@@ -934,6 +1103,75 @@ document.getElementById("tabs").addEventListener("click", (e)=>{
   saveLeague();
   renderView();
 });
+
+// League Manager action handlers (load / rename / export / delete)
+const _leagueBody = document.getElementById("leagueTableBody");
+if (_leagueBody){
+  _leagueBody.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const id = btn.dataset.id;
+    if (!act || !id) return;
+
+    if (act === "load"){
+      const rec = libGetLeague(id);
+      if (!rec) return alert("League not found.");
+      state = rec.state;
+      activeLeagueId = id;
+      renderAll();
+      showScreen("app");
+      return;
+    }
+
+    if (act === "rename"){
+      const newName = prompt("New league name:", "" );
+      if (!newName) return;
+      libRenameLeague(id, newName.trim());
+      renderLeagueManager();
+      return;
+    }
+
+    if (act === "export"){
+      const rec = libGetLeague(id);
+      if (!rec) return alert("League not found.");
+      const filename = `${rec.name.replaceAll(/[^a-z0-9\-_ ]/gi, '') || 'league'}-${rec.id.slice(0,8)}.json`;
+      downloadJSON(filename, rec.state);
+      return;
+    }
+
+    if (act === "delete"){
+      if (!confirm("Delete this saved league? This cannot be undone.")) return;
+      libDeleteLeague(id);
+      if (activeLeagueId === id) activeLeagueId = null;
+      renderLeagueManager();
+      return;
+    }
+  });
+}
+
+// Import league JSON file handler
+const _importFile = document.getElementById("importFile");
+if (_importFile){
+  _importFile.addEventListener("change", async (e)=>{
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const txt = await f.text();
+      const parsed = JSON.parse(txt);
+      const rec = makeLeagueRecordFromState(parsed);
+      rec.state = parsed;
+      libUpsertLeague(rec);
+      activeLeagueId = rec.id;
+      renderLeagueManager();
+      alert("League imported and added to library.");
+    } catch (err){
+      alert("Import failed: " + (err && err.message ? err.message : err));
+    } finally {
+      _importFile.value = "";
+    }
+  });
+}
 
 // boot
 updateFOButtons();
