@@ -161,6 +161,11 @@
     tr:last-child td{border-bottom:0;}
     .right{text-align:right;}
 
+    /* Team picker table */
+    #teamPickTable tbody tr { cursor: pointer; }
+    #teamPickTable tbody tr:hover { background: rgba(255,255,255,.05); }
+    #teamPickTable tbody tr.selected { background: rgba(110,231,255,.08); }
+
     .badge{
       display:inline-flex;align-items:center;gap:6px;
       padding:3px 8px;border-radius:999px;
@@ -248,8 +253,27 @@
       <div style="height:12px"></div>
 
       <div class="muted">Select Your Team</div>
-      <div style="height:6px"></div>
-      <select id="selCreateTeam"></select>
+      <div style="height:10px"></div>
+
+      <div class="card" style="box-shadow:none; background: rgba(255,255,255,.03);">
+        <div class="bd" style="padding:0;">
+          <table id="teamPickTable">
+            <thead>
+              <tr>
+                <th style="width:70px;">#</th>
+                <th style="width:90px;">Abbrev</th>
+                <th>Team</th>
+                <th style="width:160px;">City</th>
+              </tr>
+            </thead>
+            <tbody id="teamPickBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="muted" style="margin-top:10px;">
+        Selected: <strong id="pickedTeamLabel">—</strong>
+      </div>
 
       <div style="height:14px"></div>
 
@@ -483,6 +507,37 @@ function updateFOButtons(){
   w.disabled = !ok;
 }
 
+function renderTeamPickTable(){
+  const body = document.getElementById("teamPickBody");
+  const label = document.getElementById("pickedTeamLabel");
+  if (!body || !label) return;
+
+  body.innerHTML = "";
+
+  TEAMS_30.forEach((t, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.abbrev = t.abbrev;
+    if (t.abbrev === selectedCreateTeamAbbrev) tr.classList.add("selected");
+
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td><strong>${t.abbrev}</strong></td>
+      <td><strong>${t.city} ${t.name}</strong></td>
+      <td class="muted">${t.city}</td>
+    `;
+
+    tr.addEventListener("click", () => {
+      selectedCreateTeamAbbrev = t.abbrev;
+      renderTeamPickTable();
+    });
+
+    body.appendChild(tr);
+  });
+
+  const picked = TEAMS_30.find(x => x.abbrev === selectedCreateTeamAbbrev) || TEAMS_30[0];
+  label.textContent = `${picked.abbrev} — ${picked.city} ${picked.name}`;
+}
+
 /** =========================================================
  *  App state
  *  ========================================================= */
@@ -497,6 +552,8 @@ let state = {
   schedule: [],
   log: [],
 };
+
+let selectedCreateTeamAbbrev = "POR";
 
 function logLine(msg){
   state.log.unshift(`[Day ${state.day}] ${msg}`);
@@ -810,8 +867,8 @@ document.getElementById("btnEnterFO").addEventListener("click", ()=>{
 });
 
 document.getElementById("btnGoCreate").addEventListener("click", ()=>{
-  populateCreateTeamSelect();
-  updateFOButtons();
+  selectedCreateTeamAbbrev = "POR";
+  renderTeamPickTable();
   showScreen("createLeague");
 });
 
@@ -823,7 +880,7 @@ document.getElementById("btnBackFO").addEventListener("click", ()=>{
 document.getElementById("btnCreateLeague").addEventListener("click", ()=>{
   const leagueName = (document.getElementById("inpLeagueName").value || "HOOPS DYNASTY").trim();
   const seasonYear = parseInt(document.getElementById("inpSeasonYear").value, 10) || 2026;
-  const userTeamAbbrev = document.getElementById("selCreateTeam").value;
+  const userTeamAbbrev = selectedCreateTeamAbbrev;
 
   createLeague({ leagueName, seasonYear, userTeamAbbrev });
   showScreen("app");
