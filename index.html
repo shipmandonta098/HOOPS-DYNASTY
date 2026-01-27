@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hoops Dynasty — Prototype</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.085);
+      --border:rgba(255,255,255,.12);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.68);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#34d399;
+      --bad:#fb7185;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1000px 600px at 10% 10%, rgba(110,231,255,.18), transparent 55%),
+        radial-gradient(900px 500px at 90% 20%, rgba(167,139,250,.18), transparent 55%),
+        radial-gradient(700px 600px at 40% 90%, rgba(52,211,153,.10), transparent 60%),
+        var(--bg);
+      min-height:100vh;
+    }
+    .topbar{
+      position:sticky; top:0; z-index:5;
+      backdrop-filter:blur(10px);
+      background:linear-gradient(to bottom, rgba(10,16,32,.82), rgba(10,16,32,.55));
+      border-bottom:1px solid var(--border);
+      display:none;
+    }
+    .topbar-inner{
+      max-width:1200px; margin:0 auto; padding:14px 16px;
+      display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    }
+    .brand{display:flex; gap:10px; align-items:center;}
+    .logo{
+      width:34px;height:34px;border-radius:12px;
+      background:conic-gradient(from 210deg, var(--accent), var(--accent2), var(--good), var(--accent));
+      box-shadow:var(--shadow);
+    }
+    h1{font-size:14px;margin:0;letter-spacing:.4px;}
+    .pills{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+    .pill{
+      font-size:12px;padding:6px 10px;border:1px solid var(--border);
+      border-radius:999px;background:rgba(255,255,255,.04);color:var(--muted);
+    }
+
+    .wrap{
+      max-width:1200px; margin:0 auto; padding:16px;
+      display:grid; grid-template-columns:320px 1fr; gap:14px;
+    }
+    @media (max-width:950px){ .wrap{grid-template-columns:1fr;} }
+
+    .card{
+      background:linear-gradient(to bottom, rgba(255,255,255,.07), rgba(255,255,255,.05));
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .hd{
+      padding:12px 12px 10px 12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .title{
+      font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
+    }
+    .bd{padding:12px;}
+    .muted{color:var(--muted);font-size:12px;}
+    .big{font-size:18px;font-weight:800;letter-spacing:.2px;}
+
+    .btn{
+      cursor:pointer;border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:10px 10px;border-radius:12px;
+      transition:transform .06s ease, border-color .15s ease, background .15s ease;
+      font-weight:650;font-size:12px;
+    }
+    .btn:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.06);}
+    .btn:active{transform:translateY(1px);}
+    .btn.primary{
+      border-color:rgba(110,231,255,.35);
+      background:rgba(110,231,255,.10);
+    }
+    .btn.danger{
+      border-color:rgba(251,113,133,.35);
+      background:rgba(251,113,133,.10);
+    }
+
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    select, input{
+      width:100%;
+      padding:10px 12px;border-radius:12px;border:1px solid var(--border);
+      background:rgba(0,0,0,.18);color:var(--text);outline:none;
+    }
+
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;}
+    .tab{
+      cursor:pointer;padding:9px 10px;border-radius:12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      font-size:12px;font-weight:650;color:var(--muted);user-select:none;
+    }
+    .tab.active{
+      color:var(--text);
+      border-color:rgba(110,231,255,.35);
+      background:rgba(110,231,255,.10);
+    }
+
+    .callout{
+      padding:12px;border-radius:14px;
+      border:1px solid rgba(110,231,255,.25);
+      background:linear-gradient(to right, rgba(110,231,255,.12), rgba(167,139,250,.08));
+    }
+
+    table{
+      width:100%;border-collapse:collapse;
+      overflow:hidden;border-radius:14px;border:1px solid rgba(255,255,255,.10);
+    }
+    th,td{
+      padding:10px;border-bottom:1px solid rgba(255,255,255,.08);
+      text-align:left;font-size:13px;
+    }
+    th{
+      font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
+      background:rgba(255,255,255,.03);
+    }
+    tr:last-child td{border-bottom:0;}
+    .right{text-align:right;}
+
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:3px 8px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.04);
+      font-size:11px;color:var(--muted);
+      margin-left:8px;
+    }
+    .dot{width:8px;height:8px;border-radius:99px;background:var(--accent);box-shadow:0 0 0 3px rgba(110,231,255,.12);}
+
+    .bar{
+      height:8px;border-radius:999px;background:rgba(255,255,255,.10);
+      overflow:hidden;border:1px solid rgba(255,255,255,.10);
+    }
+    .bar>i{
+      display:block;height:100%;width:50%;
+      background:linear-gradient(to right, var(--accent), var(--accent2));
+    }
+
+    .log{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:12px;line-height:1.35;white-space:pre-wrap;
+      color:rgba(255,255,255,.78);
+    }
+
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media (max-width:950px){ .split{grid-template-columns:1fr;} }
+
+    /* Home screen */
+    .home{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 36px 16px;
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width:950px){ .home{grid-template-columns:1fr;} }
+    .hero{
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,.12);
+      background:
+        radial-gradient(800px 300px at 20% 0%, rgba(110,231,255,.20), transparent 55%),
+        radial-gradient(600px 260px at 90% 30%, rgba(167,139,250,.20), transparent 55%),
+        rgba(255,255,255,.04);
+      box-shadow: var(--shadow);
+    }
+    .hero h2{
+      margin: 0 0 6px 0;
+      font-size: 26px;
+      letter-spacing: .3px;
+    }
+    .hero p{ margin: 0; color: var(--muted); line-height: 1.45; }
+    .hero .mini{
+      margin-top: 12px;
+      display:flex; gap:10px; flex-wrap:wrap;
+    }
+    .kpi{
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.03);
+      min-width: 180px;
+    }
+    .kpi .v{ font-weight: 900; font-size: 18px; }
+    .kpi .l{ color: var(--muted); font-size: 12px; }
+
+    .hide{display:none !important;}
+  </style>
+</head>
+<body>
+
+<!-- HOME SCREEN -->
+<div id="homeScreen" class="home">
+  <div class="hero">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h2>Hoops Dynasty</h2>
+        <p>Prototype v0.1 — now with a real home screen and name-set switching. Next stop: saving, stats, seasons, and chaos.</p>
+      </div>
+    </div>
+
+    <div class="mini">
+      <div class="kpi">
+        <div class="v">Single-file</div>
+        <div class="l">So it’s easy to edit</div>
+      </div>
+      <div class="kpi">
+        <div class="v">Names toggle</div>
+        <div class="l">Women / Men / Mixed</div>
+      </div>
+      <div class="kpi">
+        <div class="v">Expandable</div>
+        <div class="l">Draft, FA, trades later</div>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+
+    <div class="card">
+      <div class="hd"><div class="title">Start a new league</div></div>
+      <div class="bd">
+        <div class="row">
+          <div style="flex:1 1 260px;">
+            <div class="muted">League Name</div>
+            <div style="height:6px"></div>
+            <input id="inpLeagueName" placeholder="e.g., HOOPS DYNASTY" value="HOOPS DYNASTY" />
+          </div>
+          <div style="flex:1 1 200px;">
+            <div class="muted">Name Set</div>
+            <div style="height:6px"></div>
+            <select id="selNameSet">
+              <option value="women">Women</option>
+              <option value="men">Men</option>
+              <option value="mixed" selected>Mixed</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button class="btn primary" id="btnStartNew">Start New League</button>
+          <button class="btn" id="btnContinue" disabled>Continue</button>
+          <button class="btn danger" id="btnWipeSave" disabled>Wipe Save</button>
+        </div>
+
+        <div style="height:10px"></div>
+        <div class="muted">Continue/Wipe will light up after we add saving (next upgrade).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hd"><div class="title">Roadmap</div></div>
+    <div class="bd">
+      <div class="muted" style="line-height:1.5">
+        <div><strong>Step 1 (done):</strong> Home screen + name set switch.</div>
+        <div><strong>Step 2:</strong> Save/load league (localStorage) + season rollover.</div>
+        <div><strong>Step 3:</strong> Box scores + player stats tracking.</div>
+        <div><strong>Step 4:</strong> Contracts, cap, free agency.</div>
+        <div><strong>Step 5:</strong> Draft, prospects, scouting, chaos.</div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="callout">
+        <div class="muted">Design rule</div>
+        <div class="big">UI first, sim second</div>
+        <div class="muted">Because your eyes need to believe before your math does.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APP (GAME UI) -->
+<div id="appScreen" class="hide">
+  <div class="topbar" id="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1 id="topTitle">Hoops Dynasty — Prototype</h1>
+          <div class="muted" id="topSub">—</div>
+        </div>
+      </div>
+      <div class="pills">
+        <span class="pill" id="pillSeason"></span>
+        <span class="pill" id="pillDay"></span>
+        <span class="pill" id="pillGamesLeft"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- LEFT -->
+    <div class="col">
+      <div class="card">
+        <div class="hd"><div class="title">Controls</div></div>
+        <div class="bd">
+          <div class="row">
+            <button class="btn" id="btnHome">Home</button>
+            <button class="btn primary" id="btnNewLeague">New League</button>
+            <button class="btn" id="btnAdvanceDay">Advance Day</button>
+            <button class="btn" id="btnSimGame">Sim Game</button>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="muted">User Team</div>
+          <div style="height:6px"></div>
+          <select id="selUserTeam"></select>
+
+          <div style="height:12px"></div>
+
+          <div class="callout">
+            <div class="muted">Next game</div>
+            <div class="big" id="nextGameText">—</div>
+            <div class="muted" id="nextGameSub">—</div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="muted">View</div>
+          <div style="height:8px"></div>
+          <div class="tabs" id="tabs">
+            <div class="tab active" data-view="standings">Standings</div>
+            <div class="tab" data-view="roster">Roster</div>
+            <div class="tab" data-view="players">Players</div>
+            <div class="tab" data-view="schedule">Schedule</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+
+      <div class="card">
+        <div class="hd"><div class="title">Game Log</div></div>
+        <div class="bd"><div id="log" class="log"></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col">
+      <div class="card">
+        <div class="hd">
+          <div class="title" id="viewTitle">Standings</div>
+          <div class="muted" id="viewHint"></div>
+        </div>
+        <div class="bd" id="view"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/** =========================================
+ *  Names: women / men / mixed (toggleable)
+ *  ========================================= */
+const NAME_SETS = {
+  women: [
+    "Jasmine Marks","Angelina Flor","Rhonda Gordon","Sofia Kafkis","Myisha Lewis",
+    "Tiana Blake","Kira Monroe","Naomi Stone","Avery Knight","Layla Rivers",
+    "Brielle Ward","Camila Reyes","Zara Cole","Harper Quinn","Nia Brooks"
+  ],
+  men: [
+    "Marcus Reed","Darius Cole","Jalen Price","Trey Morgan","Andre Bishop",
+    "Caleb Knox","Malik Rivers","Devin Cross","Terrence Shaw","Isaiah Wynn",
+    "Jordan Hayes","Cameron Wells","Noah Carter","Miles Bennett","Xavier Brooks"
+  ],
+  mixed: [] // filled below
+};
+NAME_SETS.mixed = [...NAME_SETS.women, ...NAME_SETS.men];
+
+/** ================================
+ *  Helpers
+ *  ================================ */
+function rngInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+
+function calcOVR(p) {
+  return Math.round(
+    (p.ratings.shooting * 0.28) +
+    (p.ratings.finishing * 0.22) +
+    (p.ratings.playmaking * 0.18) +
+    (p.ratings.defense * 0.24) +
+    (p.ratings.rebounding * 0.08)
+  );
+}
+function makePlayer(name, pos) {
+  const base = rngInt(40, 75);
+  const spread = () => clamp(base + rngInt(-10, 10), 25, 99);
+  return {
+    id: crypto.randomUUID(),
+    name,
+    pos,
+    age: rngInt(19, 34),
+    ratings: {
+      shooting: spread(),
+      finishing: spread(),
+      playmaking: spread(),
+      defense: spread(),
+      rebounding: spread(),
+    },
+  };
+}
+function makeTeam(abbrev, name) {
+  return { id: crypto.randomUUID(), abbrev, name, wins: 0, losses: 0, players: [] };
+}
+function teamOVR(team) {
+  const top = [...team.players].map(calcOVR).sort((a,b)=>b-a).slice(0, 8);
+  const avg = top.reduce((s,n)=>s+n,0) / Math.max(1, top.length);
+  return Math.round(avg);
+}
+function gameScore(teamA, teamB) {
+  const ovrA = teamOVR(teamA);
+  const ovrB = teamOVR(teamB);
+  const base = 95;
+  const a = Math.round(base + (ovrA - 60) * 1.2 + rngInt(-18, 18));
+  const b = Math.round(base + (ovrB - 60) * 1.2 + rngInt(-18, 18));
+  return { a: Math.max(65, a), b: Math.max(65, b) };
+}
+function logLine(msg) {
+  state.log.unshift(`[Day ${state.day}] ${msg}`);
+  state.log = state.log.slice(0, 14);
+  document.getElementById("log").textContent = state.log.join("\n");
+}
+
+/** ================================
+ *  State
+ *  ================================ */
+let state = {
+  leagueName: "HOOPS DYNASTY",
+  nameSet: "mixed",
+  season: 1,
+  day: 1,
+  userTeamId: null,
+  teams: [],
+  schedule: [],
+  log: [],
+  view: "standings",
+};
+
+function setScreen(which){
+  const home = document.getElementById("homeScreen");
+  const app = document.getElementById("appScreen");
+  const top = document.getElementById("topbar");
+  if (which === "home"){
+    home.classList.remove("hide");
+    app.classList.add("hide");
+    top.style.display = "none";
+  } else {
+    home.classList.add("hide");
+    app.classList.remove("hide");
+    top.style.display = "block";
+  }
+}
+
+/** ================================
+ *  League creation (uses nameSet)
+ *  ================================ */
+function seedLeague(opts = {}) {
+  state.leagueName = opts.leagueName ?? state.leagueName;
+  state.nameSet = opts.nameSet ?? state.nameSet;
+
+  state.season = 1;
+  state.day = 1;
+  state.log = [];
+  state.view = "standings";
+
+  state.teams = [
+    makeTeam("POR", "Portland Pulse"),
+    makeTeam("IND", "Indiana Shock"),
+    makeTeam("DAL", "Dallas Stampede"),
+    makeTeam("NYC", "New York Empire"),
+    makeTeam("ATL", "Atlanta Heatwave"),
+    makeTeam("SEA", "Seattle Frost"),
+  ];
+
+  const names = NAME_SETS[state.nameSet] ?? NAME_SETS.mixed;
+  const positions = ["PG","SG","SF","PF","C"];
+
+  for (const team of state.teams) {
+    team.wins = 0; team.losses = 0; team.players = [];
+    for (let i=0;i<10;i++){
+      const baseName = names[rngInt(0, names.length - 1)];
+      const suffix = " " + String.fromCharCode(65 + rngInt(0, 25)) + ".";
+      const pos = positions[rngInt(0, positions.length - 1)];
+      team.players.push(makePlayer(baseName + suffix, pos));
+    }
+  }
+
+  state.userTeamId = state.teams[0].id;
+
+  // schedule: 36 games, one per day
+  state.schedule = [];
+  const ids = state.teams.map(t=>t.id);
+  let day = 1;
+  for (let i=0;i<36;i++){
+    const home = ids[rngInt(0, ids.length-1)];
+    let away = ids[rngInt(0, ids.length-1)];
+    while (away === home) away = ids[rngInt(0, ids.length-1)];
+    state.schedule.push({ day, homeId: home, awayId: away, played:false, homeScore:null, awayScore:null });
+    day++;
+  }
+
+  logLine(`New league created (${state.nameSet} names).`);
+  renderAll();
+}
+
+/** ================================
+ *  Sim actions
+ *  ================================ */
+function nextGameForUser() {
+  const uid = state.userTeamId;
+  return state.schedule.find(g => !g.played && (g.homeId===uid || g.awayId===uid));
+}
+function gamesLeft() {
+  return state.schedule.filter(g=>!g.played).length;
+}
+function simSpecificGame(game) {
+  const home = state.teams.find(t=>t.id===game.homeId);
+  const away = state.teams.find(t=>t.id===game.awayId);
+  const s = gameScore(home, away);
+
+  game.played = true;
+  game.homeScore = s.a;
+  game.awayScore = s.b;
+
+  if (s.a > s.b) { home.wins++; away.losses++; }
+  else { away.wins++; home.losses++; }
+
+  logLine(`${away.abbrev} ${s.b} @ ${home.abbrev} ${s.a}`);
+}
+function advanceDay() {
+  const todays = state.schedule.filter(g => g.day === state.day && !g.played);
+  for (const g of todays) simSpecificGame(g);
+
+  const next = state.schedule.find(g=>!g.played);
+  if (!next) logLine("Season complete. (Prototype stops here.)");
+  else state.day = Math.max(state.day + 1, next.day);
+
+  renderAll();
+}
+function simOneGame() {
+  const g = state.schedule.find(g=>!g.played);
+  if (!g) { logLine("No games left."); renderAll(); return; }
+  state.day = Math.max(state.day, g.day);
+  simSpecificGame(g);
+  renderAll();
+}
+
+/** ================================
+ *  Rendering
+ *  ================================ */
+function pct(t){ const g=t.wins+t.losses; return g? (t.wins/g):0; }
+
+function renderTop() {
+  document.getElementById("topTitle").textContent = state.leagueName + " — Prototype";
+  document.getElementById("topSub").textContent = `Name set: ${state.nameSet}`;
+  document.getElementById("pillSeason").textContent = `Season ${state.season}`;
+  document.getElementById("pillDay").textContent = `Day ${state.day}`;
+  document.getElementById("pillGamesLeft").textContent = `${gamesLeft()} games left`;
+}
+function renderTeamSelect() {
+  const sel = document.getElementById("selUserTeam");
+  sel.innerHTML = "";
+  for (const t of state.teams) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.abbrev} — ${t.name}`;
+    sel.appendChild(opt);
+  }
+  sel.value = state.userTeamId;
+}
+function renderNextGame() {
+  const g = nextGameForUser();
+  const big = document.getElementById("nextGameText");
+  const sub = document.getElementById("nextGameSub");
+  if (!g) {
+    big.textContent = "No remaining games";
+    sub.textContent = "Your team is either elite… or the schedule ran out.";
+    return;
+  }
+  const home = state.teams.find(t=>t.id===g.homeId);
+  const away = state.teams.find(t=>t.id===g.awayId);
+  big.textContent = `${away.abbrev} @ ${home.abbrev}`;
+  sub.textContent = `Day ${g.day} • ${away.name} vs ${home.name}`;
+}
+
+function barHTML(value, max=100){
+  const w = clamp(Math.round((value/max)*100), 0, 100);
+  return `<div class="bar" title="${value}">
+    <i style="width:${w}%"></i>
+  </div>`;
+}
+
+function renderStandings() {
+  const uid = state.userTeamId;
+  const teams = [...state.teams].sort((a,b)=>{
+    const da = (b.wins - b.losses) - (a.wins - a.losses);
+    return da !== 0 ? da : (teamOVR(b) - teamOVR(a));
+  });
+
+  const rows = teams.map(t => {
+    const isUser = t.id === uid;
+    const ovr = teamOVR(t);
+    const pctStr = (pct(t)*100).toFixed(1) + "%";
+    return `
+      <tr style="${isUser ? 'background: rgba(110,231,255,.06);' : ''}">
+        <td>
+          <strong>${t.abbrev}</strong>
+          <span class="muted">(${t.name})</span>
+          ${isUser ? `<span class="badge"><span class="dot"></span>YOUR TEAM</span>` : ``}
+        </td>
+        <td class="right">${t.wins}</td>
+        <td class="right">${t.losses}</td>
+        <td class="right">${pctStr}</td>
+        <td style="width:180px">${barHTML(ovr, 99)}</td>
+        <td class="right">${ovr}</td>
+      </tr>
+    `;
+  }).join("");
+
+  document.getElementById("viewHint").textContent = "Win% + team power bar (toy OVR)";
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Team</th><th class="right">W</th><th class="right">L</th><th class="right">Win%</th><th>Power</th><th class="right">OVR</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="muted" style="margin-top:10px;">
+      OVR is based on top 8 players. Fake for now — but good enough to build the UI and game loop.
+    </div>
+  `;
+}
+
+function renderRoster() {
+  const team = state.teams.find(t=>t.id===state.userTeamId);
+  const players = [...team.players].map(p=>({ ...p, ovr: calcOVR(p) })).sort((a,b)=>b.ovr-a.ovr);
+
+  document.getElementById("viewHint").textContent = "Rating bars = instant readability";
+  const rows = players.map(p => `
+    <tr>
+      <td>
+        <strong>${p.name}</strong>
+        <div class="muted">${p.pos} • Age ${p.age}</div>
+      </td>
+      <td class="right"><strong>${p.ovr}</strong></td>
+      <td style="width:130px">${barHTML(p.ratings.shooting)}</td>
+      <td style="width:130px">${barHTML(p.ratings.finishing)}</td>
+      <td style="width:130px">${barHTML(p.ratings.playmaking)}</td>
+      <td style="width:130px">${barHTML(p.ratings.defense)}</td>
+      <td style="width:130px">${barHTML(p.ratings.rebounding)}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <div class="split" style="margin-bottom:12px;">
+      <div class="callout">
+        <div class="muted">Team</div>
+        <div class="big">${team.abbrev} — ${team.name}</div>
+        <div class="muted">Record: ${team.wins}-${team.losses}</div>
+      </div>
+      <div class="callout">
+        <div class="muted">Team OVR</div>
+        <div class="big">${teamOVR(team)}</div>
+        <div class="muted">Top 8 avg (toy)</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Player</th><th class="right">OVR</th>
+          <th>SHO</th><th>FIN</th><th>PLY</th><th>DEF</th><th>REB</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderAllPlayers() {
+  const all = state.teams.flatMap(t => t.players.map(p => ({
+    team: t.abbrev,
+    name: p.name,
+    pos: p.pos,
+    age: p.age,
+    ovr: calcOVR(p)
+  }))).sort((a,b)=>b.ovr-a.ovr);
+
+  document.getElementById("viewHint").textContent = "Sorted by OVR";
+  const rows = all.map(p => `
+    <tr>
+      <td><strong>${p.name}</strong><div class="muted">${p.team} • ${p.pos} • Age ${p.age}</div></td>
+      <td class="right">${p.ovr}</td>
+      <td style="width:220px">${barHTML(p.ovr, 99)}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <table>
+      <thead><tr><th>Player</th><th class="right">OVR</th><th>Bar</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderSchedule() {
+  document.getElementById("viewHint").textContent = "Finals + upcoming (your games highlighted)";
+  const rows = state.schedule.map(g => {
+    const home = state.teams.find(t=>t.id===g.homeId);
+    const away = state.teams.find(t=>t.id===g.awayId);
+    const isUser = (g.homeId===state.userTeamId || g.awayId===state.userTeamId);
+    const score = g.played ? `${away.abbrev} ${g.awayScore} @ ${home.abbrev} ${g.homeScore}` : `${away.abbrev} @ ${home.abbrev}`;
+    return `
+      <tr style="${isUser ? 'background: rgba(110,231,255,.06);' : ''}">
+        <td>Day ${g.day}</td>
+        <td>${score} ${isUser ? `<span class="badge"><span class="dot"></span>YOUR GAME</span>` : ``}</td>
+        <td class="right">${g.played ? "Final" : "Scheduled"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <table>
+      <thead><tr><th>Day</th><th>Matchup</th><th class="right">Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderView() {
+  const title = document.getElementById("viewTitle");
+  const el = document.getElementById("view");
+  if (state.view === "standings") { title.textContent = "Standings"; el.innerHTML = renderStandings(); }
+  if (state.view === "roster") { title.textContent = "Roster"; el.innerHTML = renderRoster(); }
+  if (state.view === "players") { title.textContent = "All Players"; el.innerHTML = renderAllPlayers(); }
+  if (state.view === "schedule") { title.textContent = "Schedule"; el.innerHTML = renderSchedule(); }
+}
+
+function renderAll() {
+  renderTop();
+  renderTeamSelect();
+  renderNextGame();
+  renderView();
+}
+
+/** ================================
+ *  UI wiring
+ *  ================================ */
+document.getElementById("btnStartNew").addEventListener("click", ()=>{
+  const leagueName = document.getElementById("inpLeagueName").value.trim() || "HOOPS DYNASTY";
+  const nameSet = document.getElementById("selNameSet").value;
+  seedLeague({ leagueName, nameSet });
+  setScreen("app");
+});
+
+document.getElementById("btnHome").addEventListener("click", ()=> setScreen("home"));
+
+document.getElementById("btnNewLeague").addEventListener("click", ()=>{
+  // quick re-roll with same settings
+  seedLeague({ leagueName: state.leagueName, nameSet: state.nameSet });
+});
+
+document.getElementById("btnAdvanceDay").addEventListener("click", advanceDay);
+document.getElementById("btnSimGame").addEventListener("click", simOneGame);
+
+document.getElementById("selUserTeam").addEventListener("change", (e)=>{
+  state.userTeamId = e.target.value;
+  renderAll();
+});
+
+document.getElementById("tabs").addEventListener("click", (e)=>{
+  const tab = e.target.closest(".tab");
+  if (!tab) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  tab.classList.add("active");
+  state.view = tab.dataset.view;
+  renderView();
+});
+
+// Start at home screen
+setScreen("home");
+</script>
+
+</body>
+</html>
