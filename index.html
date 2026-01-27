@@ -166,6 +166,11 @@
     #teamPickTable tbody tr:hover { background: rgba(255,255,255,.05); }
     #teamPickTable tbody tr.selected { background: rgba(110,231,255,.08); }
 
+    /* Market size chips */
+    .market-Large { color:#6ee7ff; font-weight:600; }
+    .market-Medium{ color:#a78bfa; }
+    .market-Small { color:#9ca3af; }
+
     .badge{
       display:inline-flex;align-items:center;gap:6px;
       padding:3px 8px;border-radius:999px;
@@ -260,10 +265,12 @@
           <table id="teamPickTable">
             <thead>
               <tr>
-                <th style="width:70px;">#</th>
-                <th style="width:90px;">Abbrev</th>
+                <th style="width:50px;">#</th>
+                <th style="width:70px;">Abbrev</th>
                 <th>Team</th>
-                <th style="width:160px;">City</th>
+                <th style="width:90px;">Market</th>
+                <th style="width:90px;">Conf</th>
+                <th style="width:110px;">Division</th>
               </tr>
             </thead>
             <tbody id="teamPickBody"></tbody>
@@ -370,36 +377,36 @@
  *  30 fictional teams (real U.S. cities)
  *  ========================================================= */
 const TEAMS_30 = [
-  {abbrev:"NYC", city:"New York",       name:"Empire"},
-  {abbrev:"LAX", city:"Los Angeles",    name:"Stars"},
-  {abbrev:"CHI", city:"Chicago",        name:"Forge"},
-  {abbrev:"HOU", city:"Houston",        name:"Comets"},
-  {abbrev:"PHI", city:"Philadelphia",   name:"Liberty"},
-  {abbrev:"PHX", city:"Phoenix",        name:"Inferno"},
-  {abbrev:"SAS", city:"San Antonio",    name:"Outlaws"},
-  {abbrev:"SDG", city:"San Diego",      name:"Tide"},
-  {abbrev:"DAL", city:"Dallas",         name:"Stampede"},
-  {abbrev:"SJC", city:"San Jose",       name:"Quakes"},
-  {abbrev:"ATX", city:"Austin",         name:"Riders"},
-  {abbrev:"JAX", city:"Jacksonville",   name:"Duval"},
-  {abbrev:"SFW", city:"San Francisco",  name:"Gold"},
-  {abbrev:"CLB", city:"Columbus",       name:"Capitals"},
-  {abbrev:"CLT", city:"Charlotte",      name:"Crown"},
-  {abbrev:"IND", city:"Indianapolis",   name:"Shock"},
-  {abbrev:"SEA", city:"Seattle",        name:"Frost"},
-  {abbrev:"DEN", city:"Denver",         name:"Altitude"},
-  {abbrev:"WAS", city:"Washington",     name:"Sentinels"},
-  {abbrev:"BOS", city:"Boston",         name:"Harbor"},
-  {abbrev:"DET", city:"Detroit",        name:"Motors"},
-  {abbrev:"NSH", city:"Nashville",      name:"Sound"},
-  {abbrev:"POR", city:"Portland",       name:"Pulse"},
-  {abbrev:"OKC", city:"Oklahoma City",  name:"Storm"},
-  {abbrev:"LAS", city:"Las Vegas",      name:"Neon"},
-  {abbrev:"MIA", city:"Miami",          name:"Vice"},
-  {abbrev:"MSP", city:"Minneapolis",    name:"North"},
-  {abbrev:"BWI", city:"Baltimore",      name:"Brigade"},
-  {abbrev:"SLT", city:"Salt Lake City", name:"Summit"},
-  {abbrev:"ORL", city:"Orlando",        name:"Magicline"},
+  {abbrev:"NYC", city:"New York",       name:"Empire",   market:"Large", conference:"East", division:"Atlantic"},
+  {abbrev:"LAX", city:"Los Angeles",    name:"Stars",    market:"Large", conference:"West", division:"Pacific"},
+  {abbrev:"CHI", city:"Chicago",        name:"Forge",    market:"Large", conference:"East", division:"Central"},
+  {abbrev:"HOU", city:"Houston",        name:"Comets",   market:"Large", conference:"West", division:"Southwest"},
+  {abbrev:"PHI", city:"Philadelphia",   name:"Liberty",  market:"Large", conference:"East", division:"Atlantic"},
+  {abbrev:"PHX", city:"Phoenix",        name:"Inferno",  market:"Medium",conference:"West", division:"Pacific"},
+  {abbrev:"SAS", city:"San Antonio",    name:"Outlaws",  market:"Medium",conference:"West", division:"Southwest"},
+  {abbrev:"SDG", city:"San Diego",      name:"Tide",     market:"Medium",conference:"West", division:"Pacific"},
+  {abbrev:"DAL", city:"Dallas",         name:"Stampede", market:"Large", conference:"West", division:"Southwest"},
+  {abbrev:"SJC", city:"San Jose",       name:"Quakes",   market:"Medium",conference:"West", division:"Pacific"},
+  {abbrev:"ATX", city:"Austin",         name:"Riders",   market:"Small", conference:"West", division:"Southwest"},
+  {abbrev:"JAX", city:"Jacksonville",   name:"Duval",    market:"Small", conference:"East", division:"Southeast"},
+  {abbrev:"SFW", city:"San Francisco",  name:"Gold",     market:"Large", conference:"West", division:"Pacific"},
+  {abbrev:"CLB", city:"Columbus",       name:"Capitals", market:"Small", conference:"East", division:"Central"},
+  {abbrev:"CLT", city:"Charlotte",      name:"Crown",    market:"Medium",conference:"East", division:"Southeast"},
+  {abbrev:"IND", city:"Indianapolis",   name:"Shock",    market:"Small", conference:"East", division:"Central"},
+  {abbrev:"SEA", city:"Seattle",        name:"Frost",    market:"Medium",conference:"West", division:"Northwest"},
+  {abbrev:"DEN", city:"Denver",         name:"Altitude", market:"Medium",conference:"West", division:"Northwest"},
+  {abbrev:"WAS", city:"Washington",     name:"Sentinels",market:"Large", conference:"East", division:"Atlantic"},
+  {abbrev:"BOS", city:"Boston",         name:"Harbor",   market:"Large", conference:"East", division:"Atlantic"},
+  {abbrev:"DET", city:"Detroit",        name:"Motors",   market:"Medium",conference:"East", division:"Central"},
+  {abbrev:"NSH", city:"Nashville",      name:"Sound",    market:"Medium",conference:"West", division:"Southwest"},
+  {abbrev:"POR", city:"Portland",       name:"Pulse",    market:"Medium",conference:"West", division:"Northwest"},
+  {abbrev:"OKC", city:"Oklahoma City",  name:"Storm",    market:"Small", conference:"West", division:"Northwest"},
+  {abbrev:"LAS", city:"Las Vegas",      name:"Neon",     market:"Medium",conference:"West", division:"Pacific"},
+  {abbrev:"MIA", city:"Miami",          name:"Vice",     market:"Large", conference:"East", division:"Southeast"},
+  {abbrev:"MSP", city:"Minneapolis",    name:"North",    market:"Medium",conference:"West", division:"Northwest"},
+  {abbrev:"BWI", city:"Baltimore",      name:"Brigade",  market:"Small", conference:"East", division:"Atlantic"},
+  {abbrev:"SLT", city:"Salt Lake City", name:"Summit",   market:"Small", conference:"West", division:"Northwest"},
+  {abbrev:"ORL", city:"Orlando",        name:"Magicline",market:"Medium",conference:"East", division:"Southeast"},
 ];
 
 /** =========================================================
@@ -523,7 +530,9 @@ function renderTeamPickTable(){
       <td>${idx + 1}</td>
       <td><strong>${t.abbrev}</strong></td>
       <td><strong>${t.city} ${t.name}</strong></td>
-      <td class="muted">${t.city}</td>
+      <td class="market-${t.market}">${t.market}</td>
+      <td class="muted">${t.conference}</td>
+      <td class="muted">${t.division}</td>
     `;
 
     tr.addEventListener("click", () => {
