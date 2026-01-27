@@ -1036,6 +1036,7 @@ function renderAll(){
  *  ========================================================= */
 function populateCreateTeamSelect(){
   const sel = document.getElementById("selCreateTeam");
+  if (!sel) return; // select replaced by table picker in newer UI
   sel.innerHTML = "";
   for (const t of TEAMS_30){
     const opt = document.createElement("option");
@@ -1189,7 +1190,7 @@ if (_importFile){
 
 // boot
 updateFOButtons();
-populateCreateTeamSelect();
+renderTeamPickTable();
 showScreen("splash");
 </script>
 
