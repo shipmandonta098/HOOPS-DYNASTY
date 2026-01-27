@@ -785,6 +785,13 @@ function buildTeamsFromTemplate(){
     division: t.division,
     wins: 0,
     losses: 0,
+
+    homeW: 0, homeL: 0,
+    roadW: 0, roadL: 0,
+    confW: 0, confL: 0,
+    last10: [],
+    streak: 0,
+
     players: [],
   }));
 }
@@ -815,7 +822,13 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
 
   // Fill rosters
   for (const team of state.teams){
-    team.wins = 0; team.losses = 0; team.players = [];
+    team.wins = 0; team.losses = 0;
+    team.homeW = 0; team.homeL = 0;
+    team.roadW = 0; team.roadL = 0;
+    team.confW = 0; team.confL = 0;
+    team.last10 = [];
+    team.streak = 0;
+    team.players = [];
     for (let i=0;i<10;i++) team.players.push(makePlayer());
   }
 
@@ -850,6 +863,19 @@ function nextGameForUser(){
 }
 
 function simSpecificGame(game){
+  // helper for last10 and streak
+  function pushLast10(team, result){ // result: "W" or "L"
+    team.last10 = team.last10 || [];
+    team.last10.push(result);
+    if (team.last10.length > 10) team.last10.shift();
+  }
+
+  function updateStreak(team, result){
+    team.streak = team.streak || 0;
+    if (result === "W") team.streak = team.streak >= 0 ? team.streak + 1 : 1;
+    else team.streak = team.streak <= 0 ? team.streak - 1 : -1;
+  }
+
   const home = state.teams.find(t=>t.id===game.homeId);
   const away = state.teams.find(t=>t.id===game.awayId);
   const s = gameScore(home, away);
@@ -858,8 +884,28 @@ function simSpecificGame(game){
   game.homeScore = s.a;
   game.awayScore = s.b;
 
-  if (s.a > s.b){ home.wins++; away.losses++; }
+  const homeWon = s.a > s.b;
+
+  // overall record
+  if (homeWon){ home.wins++; away.losses++; }
   else { away.wins++; home.losses++; }
+
+  // home/road record
+  if (homeWon){ home.homeW++; away.roadL++; }
+  else { home.homeL++; away.roadW++; }
+
+  // conference record (only if same conference)
+  const sameConf = home.conference && away.conference && home.conference === away.conference;
+  if (sameConf){
+    if (homeWon){ home.confW++; away.confL++; }
+    else { away.confW++; home.confL++; }
+  }
+
+  // last 10 + streak
+  pushLast10(home, homeWon ? "W" : "L");
+  pushLast10(away, homeWon ? "L" : "W");
+  updateStreak(home, homeWon ? "W" : "L");
+  updateStreak(away, homeWon ? "L" : "W");
 
   logLine(`${away.abbrev} ${s.b} @ ${home.abbrev} ${s.a}`);
 }
@@ -946,37 +992,86 @@ function renderNextGame(){
   sub.textContent = `Day ${g.day} • ${away.name} vs ${home.name}`;
 }
 
+function formatPct(team){
+  const g = (team.wins || 0) + (team.losses || 0);
+  return g ? (team.wins / g) : 0;
+}
+
+function formatGB(leader, team){
+  const gb = ((leader.wins - team.wins) + (team.losses - leader.losses)) / 2;
+  return gb === 0 ? "—" : gb.toFixed(1);
+}
+
+function formatL10(team){
+  const arr = team.last10 || [];
+  const w = arr.filter(x=>x==="W").length;
+  const l = arr.filter(x=>x==="L").length;
+  return `${w}-${l}`;
+}
+
+function formatStreak(team){
+  if (!team.streak) return "—";
+  return team.streak > 0 ? `W${team.streak}` : `L${Math.abs(team.streak)}`;
+}
+
 function renderStandings(){
   const uid = state.userTeamId;
+
   const teams = [...state.teams].sort((a,b)=>{
-    const da = (b.wins - b.losses) - (a.wins - a.losses);
-    return da !== 0 ? da : (teamOVR(b) - teamOVR(a));
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const dp = formatPct(b) - formatPct(a);
+    if (dp !== 0) return dp;
+    return teamOVR(b) - teamOVR(a);
   });
 
+  const leader = teams[0] || { wins:0, losses:0 };
+
+  document.getElementById("viewHint").textContent =
+    "Record • Win% • GB • Conf • Home • Road • L10 • Streak";
+
   const rows = teams.map(t=>{
-    const isUser = t.id===uid;
-    const ovr = teamOVR(t);
-    const pctStr = (pct(t)*100).toFixed(1) + "%";
+    const isUser = t.id === uid;
+    const pct = (formatPct(t) * 100).toFixed(1) + "%";
+    const gb = formatGB(leader, t);
+    const conf = `${t.confW ?? 0}-${t.confL ?? 0}`;
+    const home = `${t.homeW ?? 0}-${t.homeL ?? 0}`;
+    const road = `${t.roadW ?? 0}-${t.roadL ?? 0}`;
+    const l10 = formatL10(t);
+    const streak = formatStreak(t);
+
     return `
       <tr style="${isUser ? 'background: rgba(110,231,255,.06);' : ''}">
         <td>
-          <strong>${t.abbrev}</strong> <span class="muted">(${t.name})</span>
-          ${isUser ? `<span class="badge"><span class="dot"></span>YOUR TEAM</span>` : ``}
+          <strong>${t.abbrev}</strong>
+          <span class="muted">(${t.name})</span>
+          ${isUser ? `<span class="badge"><span class="dot"></span>YOU</span>` : ``}
         </td>
-        <td class="right">${t.wins}</td>
-        <td class="right">${t.losses}</td>
-        <td class="right">${pctStr}</td>
-        <td style="width:180px">${barHTML(ovr, 99)}</td>
-        <td class="right">${ovr}</td>
+        <td class="right">${t.wins}-${t.losses}</td>
+        <td class="right">${pct}</td>
+        <td class="right">${gb}</td>
+        <td class="right">${conf}</td>
+        <td class="right">${home}</td>
+        <td class="right">${road}</td>
+        <td class="right">${l10}</td>
+        <td class="right">${streak}</td>
       </tr>
     `;
   }).join("");
 
-  document.getElementById("viewHint").textContent = "Win% + power bar (toy OVR)";
   return `
     <table>
       <thead>
-        <tr><th>Team</th><th class="right">W</th><th class="right">L</th><th class="right">Win%</th><th>Power</th><th class="right">OVR</th></tr>
+        <tr>
+          <th>Team</th>
+          <th class="right">Record</th>
+          <th class="right">Win%</th>
+          <th class="right">GB</th>
+          <th class="right">Conf</th>
+          <th class="right">Home</th>
+          <th class="right">Road</th>
+          <th class="right">L10</th>
+          <th class="right">Streak</th>
+        </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
