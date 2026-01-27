@@ -758,6 +758,7 @@ let state = {
   seasonNumber: 1,
   day: 1,
   view: "standings",
+  standingsScope: "league",
   userTeamId: null,
   teams: [],
   schedule: [],
@@ -794,6 +795,39 @@ function buildTeamsFromTemplate(){
 
     players: [],
   }));
+}
+
+// Standings helpers
+function winPct(t){
+  const g = (t.wins || 0) + (t.losses || 0);
+  return g ? (t.wins / g) : 0;
+}
+
+function sortTeamsForStandings(list){
+  return [...list].sort((a,b)=>{
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const dp = winPct(b) - winPct(a);
+    if (dp !== 0) return dp;
+    return teamOVR(b) - teamOVR(a);
+  });
+}
+
+function gamesBack(leader, team){
+  const gb = ((leader.wins - team.wins) + (team.losses - leader.losses)) / 2;
+  return gb === 0 ? "—" : gb.toFixed(1);
+}
+
+function l10Str(team){
+  const arr = team.last10 || [];
+  const w = arr.filter(x=>x==="W").length;
+  const l = arr.filter(x=>x==="L").length;
+  return `${w}-${l}`;
+}
+
+function streakStr(team){
+  const s = team.streak || 0;
+  if (!s) return "—";
+  return s > 0 ? `W${s}` : `L${Math.abs(s)}`;
 }
 
 function generateSchedule(teamIds, games = 300){
@@ -1017,27 +1051,47 @@ function formatStreak(team){
 function renderStandings(){
   const uid = state.userTeamId;
 
-  const teams = [...state.teams].sort((a,b)=>{
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    const dp = formatPct(b) - formatPct(a);
-    if (dp !== 0) return dp;
-    return teamOVR(b) - teamOVR(a);
-  });
+  // Scope: league, East, West
+  const scope = state.standingsScope || "league";
 
-  const leader = teams[0] || { wins:0, losses:0 };
+  let pool = state.teams;
+  if (scope === "East" || scope === "West"){
+    pool = state.teams.filter(t => t.conference === scope);
+  }
+
+  const teams = sortTeamsForStandings(pool);
+  const leader = teams[0] || null;
 
   document.getElementById("viewHint").textContent =
-    "Record • Win% • GB • Conf • Home • Road • L10 • Streak";
+    (scope === "league")
+      ? "League standings"
+      : `${scope} standings`;
+
+  const toggle = `
+    <div class="row" style="justify-content:flex-start; gap:10px; margin-bottom:12px;">
+      <button class="btn ${scope==="league" ? "primary" : ""}" data-scope="league">League</button>
+      <button class="btn ${scope==="East" ? "primary" : ""}" data-scope="East">East</button>
+      <button class="btn ${scope==="West" ? "primary" : ""}" data-scope="West">West</button>
+      <div class="muted" style="margin-left:auto;">
+        GB = ${scope==="league" ? "league leader" : "conference leader"}
+      </div>
+    </div>
+  `;
+
+  if (!leader){
+    return toggle + `<div class="muted">No teams found.</div>`;
+  }
 
   const rows = teams.map(t=>{
     const isUser = t.id === uid;
-    const pct = (formatPct(t) * 100).toFixed(1) + "%";
-    const gb = formatGB(leader, t);
-    const conf = `${t.confW ?? 0}-${t.confL ?? 0}`;
-    const home = `${t.homeW ?? 0}-${t.homeL ?? 0}`;
-    const road = `${t.roadW ?? 0}-${t.roadL ?? 0}`;
-    const l10 = formatL10(t);
-    const streak = formatStreak(t);
+    const pct = (winPct(t)*100).toFixed(1) + "%";
+
+    // GB is relative to leader of *current scope* (league or conference)
+    const gb = gamesBack(leader, t);
+
+    const confRec = `${t.confW ?? 0}-${t.confL ?? 0}`;
+    const homeRec = `${t.homeW ?? 0}-${t.homeL ?? 0}`;
+    const roadRec = `${t.roadW ?? 0}-${t.roadL ?? 0}`;
 
     return `
       <tr style="${isUser ? 'background: rgba(110,231,255,.06);' : ''}">
@@ -1049,16 +1103,17 @@ function renderStandings(){
         <td class="right">${t.wins}-${t.losses}</td>
         <td class="right">${pct}</td>
         <td class="right">${gb}</td>
-        <td class="right">${conf}</td>
-        <td class="right">${home}</td>
-        <td class="right">${road}</td>
-        <td class="right">${l10}</td>
-        <td class="right">${streak}</td>
+        <td class="right">${confRec}</td>
+        <td class="right">${homeRec}</td>
+        <td class="right">${roadRec}</td>
+        <td class="right">${l10Str(t)}</td>
+        <td class="right">${streakStr(t)}</td>
       </tr>
     `;
   }).join("");
 
   return `
+    ${toggle}
     <table>
       <thead>
         <tr>
@@ -1325,6 +1380,18 @@ if (_nav){
     btn.classList.add('active');
     state.view = btn.dataset.route;
     // prefer active-library save if present
+    if (typeof saveActiveLeague === 'function') saveActiveLeague();
+    renderView();
+  });
+}
+
+// Standings scope toggle (delegated on main view)
+const _viewEl = document.getElementById("view");
+if (_viewEl){
+  _viewEl.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-scope]");
+    if (!btn) return;
+    state.standingsScope = btn.dataset.scope;
     if (typeof saveActiveLeague === 'function') saveActiveLeague();
     renderView();
   });
