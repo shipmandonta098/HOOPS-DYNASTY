@@ -554,7 +554,8 @@ function updateFOButtons(){
   const c = document.getElementById("btnContinue");
   const w = document.getElementById("btnWipeSave");
   if (!c || !w) return;
-  const ok = hasSave();
+  const lib = libLoad();
+  const ok = hasSave() || (lib && lib.leagues && lib.leagues.length > 0);
   c.disabled = !ok;
   w.disabled = !ok;
 }
@@ -624,12 +625,14 @@ function libUpsertLeague(record){
   if (idx >= 0) lib.leagues[idx] = record;
   else lib.leagues.unshift(record);
   libSave(lib);
+  updateFOButtons();
 }
 
 function libDeleteLeague(id){
   const lib = libLoad();
   lib.leagues = lib.leagues.filter(l => l.id !== id);
   libSave(lib);
+  updateFOButtons();
 }
 
 function libRenameLeague(id, newName){
@@ -640,6 +643,7 @@ function libRenameLeague(id, newName){
   l.state.leagueName = newName;
   l.updatedAt = Date.now();
   libSave(lib);
+  updateFOButtons();
 }
 
 function libGetLeague(id){
@@ -666,6 +670,12 @@ function saveActiveLeague(){
   l.updatedAt = Date.now();
 
   libSave(lib);
+}
+
+// Persist save: use active library record when available, otherwise fall back
+function persistSave(){
+  if (activeLeagueId) return saveActiveLeague();
+  return saveLeague();
 }
 
 function renderLeagueManager(){
@@ -1065,10 +1075,14 @@ document.getElementById("btnCreateLeague").addEventListener("click", ()=>{
 });
 
 document.getElementById("btnContinue").addEventListener("click", ()=>{
-  if (loadLeague()){
-    renderAll();
-    showScreen("app");
-  }
+  // Open the League Manager (shows all saved leagues)
+  renderLeagueManager();
+  showScreen("leagueManager");
+});
+
+document.getElementById("btnBackFO2").addEventListener("click", ()=>{
+  updateFOButtons();
+  showScreen("frontOffice");
 });
 
 document.getElementById("btnWipeSave").addEventListener("click", wipeSave);
@@ -1090,7 +1104,7 @@ document.getElementById("btnSimGame").addEventListener("click", simOneGame);
 
 document.getElementById("selUserTeam").addEventListener("change", (e)=>{
   state.userTeamId = e.target.value;
-  saveLeague();
+  persistSave();
   renderAll();
 });
 
@@ -1100,7 +1114,7 @@ document.getElementById("tabs").addEventListener("click", (e)=>{
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   tab.classList.add("active");
   state.view = tab.dataset.view;
-  saveLeague();
+  persistSave();
   renderView();
 });
 
