@@ -1180,64 +1180,32 @@ function populateCreateTeamSelect(){
 /** =========================================================
  *  UI wiring
  *  ========================================================= */
-document.getElementById("btnEnterFO").addEventListener("click", ()=>{
-  updateFOButtons();
-  showScreen("frontOffice");
-});
+function attach(id, ev, handler){ const el = document.getElementById(id); if (el) el.addEventListener(ev, handler); }
 
-document.getElementById("btnGoCreate").addEventListener("click", ()=>{
-  selectedCreateTeamAbbrev = "POR";
-  renderTeamPickTable();
-  showScreen("createLeague");
-});
+attach("btnEnterFO", "click", ()=>{ updateFOButtons(); showScreen("frontOffice"); });
+attach("btnGoCreate", "click", ()=>{ selectedCreateTeamAbbrev = "POR"; renderTeamPickTable(); showScreen("createLeague"); });
+attach("btnBackFO", "click", ()=>{ updateFOButtons(); showScreen("frontOffice"); });
 
-document.getElementById("btnBackFO").addEventListener("click", ()=>{
-  updateFOButtons();
-  showScreen("frontOffice");
-});
-
-document.getElementById("btnCreateLeague").addEventListener("click", ()=>{
-  const leagueName = (document.getElementById("inpLeagueName").value || "HOOPS DYNASTY").trim();
-  const seasonYear = parseInt(document.getElementById("inpSeasonYear").value, 10) || 2026;
+attach("btnCreateLeague", "click", ()=>{
+  const leagueName = (document.getElementById("inpLeagueName")?.value || "HOOPS DYNASTY").trim();
+  const seasonYear = parseInt(document.getElementById("inpSeasonYear")?.value, 10) || 2026;
   const userTeamAbbrev = selectedCreateTeamAbbrev;
-
   createLeague({ leagueName, seasonYear, userTeamAbbrev });
   showScreen("app");
 });
 
-document.getElementById("btnContinue").addEventListener("click", ()=>{
-  // Open the League Manager (shows all saved leagues)
-  renderLeagueManager();
-  showScreen("leagueManager");
-});
+attach("btnContinue", "click", ()=>{ renderLeagueManager(); showScreen("leagueManager"); });
+attach("btnBackFO2", "click", ()=>{ updateFOButtons(); showScreen("frontOffice"); });
+attach("btnWipeSave", "click", wipeSave);
+attach("btnHome", "click", ()=>{ updateFOButtons(); showScreen("frontOffice"); });
 
-document.getElementById("btnBackFO2").addEventListener("click", ()=>{
-  updateFOButtons();
-  showScreen("frontOffice");
-});
+attach("btnNewLeagueQuick", "click", ()=>{ const userTeam = state.teams.find(t=>t.id===state.userTeamId); const abbrev = userTeam ? userTeam.abbrev : "POR"; createLeague({ leagueName: state.leagueName, seasonYear: state.seasonYear, userTeamAbbrev: abbrev }); });
 
-document.getElementById("btnWipeSave").addEventListener("click", wipeSave);
+attach("btnAdvanceDay", "click", advanceDay);
+attach("btnSimGame", "click", simOneGame);
 
-document.getElementById("btnHome").addEventListener("click", ()=>{
-  updateFOButtons();
-  showScreen("frontOffice");
-});
-
-document.getElementById("btnNewLeagueQuick").addEventListener("click", ()=>{
-  // reroll with same league name/year/user team abbrev (best effort)
-  const userTeam = state.teams.find(t=>t.id===state.userTeamId);
-  const abbrev = userTeam ? userTeam.abbrev : "POR";
-  createLeague({ leagueName: state.leagueName, seasonYear: state.seasonYear, userTeamAbbrev: abbrev });
-});
-
-document.getElementById("btnAdvanceDay").addEventListener("click", advanceDay);
-document.getElementById("btnSimGame").addEventListener("click", simOneGame);
-
-document.getElementById("selUserTeam").addEventListener("change", (e)=>{
-  state.userTeamId = e.target.value;
-  persistSave();
-  renderAll();
-});
+const _selUserTeam = document.getElementById("selUserTeam");
+if (_selUserTeam){ _selUserTeam.addEventListener("change", (e)=>{ state.userTeamId = e.target.value; persistSave(); renderAll(); }); }
 
 const _tabsEl = document.getElementById("tabs");
 if (_tabsEl){
