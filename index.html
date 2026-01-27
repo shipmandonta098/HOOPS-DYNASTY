@@ -208,6 +208,41 @@
     }
 
     .big{font-size:18px;font-weight:900;letter-spacing:.2px;}
+    /* Sidebar / app-shell styles */
+    .app-shell{
+      max-width:1200px;
+      margin:0 auto;
+      padding:16px;
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      gap:14px;
+    }
+
+    @media (max-width:950px){
+      .app-shell{ grid-template-columns:1fr; }
+      .sidebar{ order: 1; }
+      .main{ order: 2; }
+    }
+
+    .nav{ display:flex; flex-direction:column; gap:8px; }
+    .nav-item{
+      width:100%;
+      text-align:left;
+      cursor:pointer;
+      padding:11px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      font-weight:800;
+      font-size:12px;
+    }
+    .nav-item:hover{ border-color:rgba(255,255,255,.22); background:rgba(255,255,255,.06); }
+    .nav-item.active{
+      color:var(--text);
+      border-color:rgba(110,231,255,.35);
+      background:rgba(110,231,255,.10);
+    }
   </style>
 </head>
 <body>
@@ -356,64 +391,60 @@
     </div>
   </div>
 
-  <div class="wrap">
-    <!-- LEFT -->
-    <div>
-      <div class="card">
-        <div class="hd"><div class="title">Controls</div></div>
-        <div class="bd">
-          <div class="row">
-            <button class="btn" id="btnHome">Front Office</button>
-            <button class="btn primary" id="btnNewLeagueQuick">New League (reroll)</button>
-            <button class="btn" id="btnAdvanceDay">Advance Day</button>
-            <button class="btn" id="btnSimGame">Sim Game</button>
-          </div>
+  <div class="app-shell">
+    <!-- SIDEBAR -->
+    <aside class="sidebar card">
+      <div class="hd"><div class="title">Navigation</div></div>
+      <div class="bd">
+        <div class="nav">
+          <button class="nav-item active" data-route="dashboard">Team Dashboard</button>
+          <button class="nav-item" data-route="standings">Standings</button>
+          <button class="nav-item" data-route="roster">Roster</button>
+          <button class="nav-item" data-route="players">Players</button>
+          <button class="nav-item" data-route="schedule">Schedule</button>
+          <button class="nav-item" data-route="league">League</button>
+          <button class="nav-item" data-route="settings">Settings</button>
+        </div>
 
-          <div style="height:12px"></div>
+        <div style="height:12px"></div>
 
-          <div class="muted">User Team</div>
-          <div style="height:6px"></div>
-          <select id="selUserTeam"></select>
+        <div class="row">
+          <button class="btn" id="btnHome">Front Office</button>
+          <button class="btn primary" id="btnAdvanceDay">Advance Day</button>
+          <button class="btn" id="btnSimGame">Sim Game</button>
+        </div>
 
-          <div style="height:12px"></div>
+        <div style="height:12px"></div>
 
-          <div class="callout">
-            <div class="muted">Next game</div>
-            <div class="big" id="nextGameText">—</div>
-            <div class="muted" id="nextGameSub">—</div>
-          </div>
+        <div class="muted">User Team</div>
+        <div style="height:6px"></div>
+        <select id="selUserTeam"></select>
 
-          <div style="height:12px"></div>
+        <div style="height:12px"></div>
 
-          <div class="muted">View</div>
-          <div style="height:8px"></div>
-          <div class="tabs" id="tabs">
-            <div class="tab active" data-view="standings">Standings</div>
-            <div class="tab" data-view="roster">Roster</div>
-            <div class="tab" data-view="players">Players</div>
-            <div class="tab" data-view="schedule">Schedule</div>
-          </div>
+        <div class="callout">
+          <div class="muted">Next game</div>
+          <div class="big" id="nextGameText">—</div>
+          <div class="muted" id="nextGameSub">—</div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="card" style="box-shadow:none;">
+          <div class="hd"><div class="title">Game Log</div></div>
+          <div class="bd"><div id="log" class="log"></div></div>
         </div>
       </div>
+    </aside>
 
-      <div style="height:14px"></div>
-
-      <div class="card">
-        <div class="hd"><div class="title">Game Log</div></div>
-        <div class="bd"><div id="log" class="log"></div></div>
+    <!-- MAIN CONTENT -->
+    <main class="main card">
+      <div class="hd">
+        <div class="title" id="viewTitle">Team Dashboard</div>
+        <div class="muted" id="viewHint"></div>
       </div>
-    </div>
-
-    <!-- RIGHT -->
-    <div>
-      <div class="card">
-        <div class="hd">
-          <div class="title" id="viewTitle">Standings</div>
-          <div class="muted" id="viewHint"></div>
-        </div>
-        <div class="bd" id="view"></div>
-      </div>
-    </div>
+      <div class="bd" id="view"></div>
+    </main>
   </div>
 </div>
 
@@ -749,6 +780,9 @@ function buildTeamsFromTemplate(){
     city: t.city,
     nickname: t.name,
     name: `${t.city} ${t.name}`,
+    market: t.market,
+    conference: t.conference,
+    division: t.division,
     wins: 0,
     losses: 0,
     players: [],
@@ -774,7 +808,7 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   state.seasonYear = seasonYear;
   state.seasonNumber = 1;
   state.day = 1;
-  state.view = "standings";
+  state.view = "dashboard";
   state.log = [];
 
   state.teams = buildTeamsFromTemplate();
@@ -979,6 +1013,67 @@ function renderRoster(){
   `;
 }
 
+function renderDashboard(){
+  const team = state.teams.find(t=>t.id===state.userTeamId);
+  const ovr = teamOVR(team);
+
+  const top = [...team.players]
+    .map(p=>({ ...p, ovr: calcOVR(p) }))
+    .sort((a,b)=>b.ovr-a.ovr)
+    .slice(0,5);
+
+  const topRows = top.map(p=>`
+    <tr>
+      <td><strong>${p.name}</strong><div class="muted">${p.pos} • Age ${p.age}</div></td>
+      <td class="right"><strong>${p.ovr}</strong></td>
+      <td style="width:220px">${barHTML(p.ovr, 99)}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("viewHint").textContent = "Your franchise overview";
+
+  return `
+    <div class="callout" style="margin-bottom:12px;">
+      <div class="muted">Franchise</div>
+      <div class="big">${team.abbrev} — ${team.name}</div>
+      <div class="muted">Record: ${team.wins}-${team.losses} • Team OVR: ${ovr}</div>
+    </div>
+
+    <div class="row" style="margin-bottom:12px;">
+      <div class="card" style="flex:1; box-shadow:none;">
+        <div class="hd"><div class="title">Goals</div></div>
+        <div class="bd">
+          <div class="muted">Prototype goals (we’ll make these real later)</div>
+          <div style="height:8px"></div>
+          <div>• Build a playoff team</div>
+          <div>• Develop a star</div>
+          <div>• Don’t go broke (future)</div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1; box-shadow:none;">
+        <div class="hd"><div class="title">Team Identity</div></div>
+        <div class="bd">
+          <div class="muted">Market / Conf / Division</div>
+          <div style="height:8px"></div>
+          <div><strong>${team.market || "—"}</strong> market</div>
+          <div>${team.conference || "—"} • ${team.division || "—"}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="box-shadow:none;">
+      <div class="hd"><div class="title">Top Players</div></div>
+      <div class="bd" style="padding:0;">
+        <table>
+          <thead><tr><th>Player</th><th class="right">OVR</th><th>Bar</th></tr></thead>
+          <tbody>${topRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function renderPlayers(){
   const all = state.teams.flatMap(t=> t.players.map(p=>({
     team: t.abbrev,
@@ -1033,10 +1128,20 @@ function renderSchedule(){
 function renderView(){
   const title = document.getElementById("viewTitle");
   const el = document.getElementById("view");
-  if (state.view==="standings"){ title.textContent="Standings"; el.innerHTML = renderStandings(); }
-  if (state.view==="roster"){ title.textContent="Roster"; el.innerHTML = renderRoster(); }
-  if (state.view==="players"){ title.textContent="Players"; el.innerHTML = renderPlayers(); }
-  if (state.view==="schedule"){ title.textContent="Schedule"; el.innerHTML = renderSchedule(); }
+
+  if (state.view === "dashboard"){
+    title.textContent = "Team Dashboard";
+    el.innerHTML = renderDashboard();
+    return;
+  }
+
+  if (state.view==="standings"){ title.textContent="Standings"; el.innerHTML = renderStandings(); return; }
+  if (state.view==="roster"){ title.textContent="Roster"; el.innerHTML = renderRoster(); return; }
+  if (state.view==="players"){ title.textContent="Players"; el.innerHTML = renderPlayers(); return; }
+  if (state.view==="schedule"){ title.textContent="Schedule"; el.innerHTML = renderSchedule(); return; }
+
+  if (state.view==="league"){ title.textContent="League"; document.getElementById("viewHint").textContent=""; el.innerHTML = `<div class="muted">League hub coming next.</div>`; return; }
+  if (state.view==="settings"){ title.textContent="Settings"; document.getElementById("viewHint").textContent=""; el.innerHTML = `<div class="muted">Settings coming next.</div>`; return; }
 }
 
 function renderAll(){
@@ -1044,7 +1149,16 @@ function renderAll(){
   renderTeamSelectApp();
   renderNextGame();
   renderView();
+  syncSidebarActive();
   document.getElementById("log").textContent = state.log.join("\n");
+}
+
+function syncSidebarActive(){
+  const items = document.querySelectorAll('.nav-item');
+  if (!items) return;
+  items.forEach(x=>{
+    x.classList.toggle('active', x.dataset.route === state.view);
+  });
 }
 
 /** =========================================================
@@ -1135,6 +1249,21 @@ document.getElementById("tabs").addEventListener("click", (e)=>{
   renderView();
 });
 
+// Sidebar nav handler
+const _nav = document.querySelector('.sidebar .nav');
+if (_nav){
+  _nav.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.nav-item');
+    if (!btn) return;
+    document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    state.view = btn.dataset.route;
+    // prefer active-library save if present
+    if (typeof saveActiveLeague === 'function') saveActiveLeague();
+    renderView();
+  });
+}
+
 // League Manager action handlers (load / rename / export / delete)
 const _leagueBody = document.getElementById("leagueTableBody");
 if (_leagueBody){
@@ -1148,10 +1277,11 @@ if (_leagueBody){
     if (act === "load"){
       const rec = libGetLeague(id);
       if (!rec) return alert("League not found.");
-      state = rec.state;
-      activeLeagueId = id;
-      renderAll();
-      showScreen("app");
+        state = rec.state;
+        activeLeagueId = id;
+        state.view = state.view || "dashboard";
+        renderAll();
+        showScreen("app");
       return;
     }
 
