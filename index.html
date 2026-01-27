@@ -171,53 +171,43 @@
     .market-Medium{ color:#a78bfa; }
     .market-Small { color:#9ca3af; }
 
-    /* Horizontal scroll container */
     .table-scroll{
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
     }
 
-    /* Prevent ugly column squish */
-    #teamPickTable{ min-width: 720px; }
+    /* Desktop/tablet: allow full table width */
+    #teamPickTable{ width:100%; }
 
-    /* Sticky first 3 columns */
-    #teamPickTable th:nth-child(1),
-    #teamPickTable td:nth-child(1){
-      position: sticky; left: 0; background: rgba(10,16,32,.92); z-index: 2;
-    }
-    #teamPickTable th:nth-child(2),
-    #teamPickTable td:nth-child(2){
-      position: sticky; left: 50px; background: rgba(10,16,32,.92); z-index: 2;
-    }
-    #teamPickTable th:nth-child(3),
-    #teamPickTable td:nth-child(3){
-      position: sticky; left: 120px; background: rgba(10,16,32,.92); z-index: 2;
-    }
-
-    /* Make header sit above sticky cells */
-    #teamPickTable thead th{ position: sticky; top: 0; z-index: 3; }
-
-    /* Mobile: convert conf/division into a subline under team name */
+    /* Hide the mobile-only subline by default */
     .team-subline{ display:none; }
 
     @media (max-width: 640px){
-      /* Hide conf/div columns to reduce width */
+      /* On phones: collapse layout */
+      #teamPickTable{ min-width: 0 !important; }
+
+      /* Hide CONF + DIVISION columns (5 and 6) */
       #teamPickTable th:nth-child(5),
       #teamPickTable td:nth-child(5),
       #teamPickTable th:nth-child(6),
-      #teamPickTable td:nth-child(6){ display:none; }
+      #teamPickTable td:nth-child(6){
+        display:none !important;
+      }
 
-      /* Show compact conf/div info under team name */
-      .team-subline{ display:block; margin-top:4px; font-size:12px; color: rgba(255,255,255,.65); }
+      /* Show conf/div under team name */
+      .team-subline{
+        display:block !important;
+        margin-top:4px;
+        font-size:12px;
+        color: rgba(255,255,255,.65);
+        line-height: 1.2;
+      }
 
-      /* Reduce min-width since we hid columns */
-      #teamPickTable{ min-width: 520px; }
-
-      /* Sticky offsets adjust slightly for smaller screens */
-      #teamPickTable th:nth-child(2),
-      #teamPickTable td:nth-child(2){ left: 44px; }
-      #teamPickTable th:nth-child(3),
-      #teamPickTable td:nth-child(3){ left: 110px; }
+      /* Make columns readable */
+      #teamPickTable th, #teamPickTable td{ padding: 12px 10px; }
+      #teamPickTable th:nth-child(1), #teamPickTable td:nth-child(1){ width: 34px; }
+      #teamPickTable th:nth-child(2), #teamPickTable td:nth-child(2){ width: 64px; }
+      #teamPickTable th:nth-child(4), #teamPickTable td:nth-child(4){ width: 72px; }
     }
 
     .badge{
