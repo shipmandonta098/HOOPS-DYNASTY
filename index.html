@@ -483,6 +483,10 @@
             <span class="ico">🌐</span>
             <span class="lbl">League</span>
           </button>
+          <button class="nav-item" data-route="finances">
+            <span class="ico">💰</span>
+            <span class="lbl">Finances</span>
+          </button>
           <button class="nav-item" data-route="settings">
             <span class="ico">⚙️</span>
             <span class="lbl">Settings</span>
@@ -813,6 +817,15 @@ function ensureTeamStats(team){
     if (typeof s[k] !== 'number') s[k] = 0;
   }
 }
+
+function ensureTeamFin(team){
+  if (!team) return;
+  if (!team.fin) team.fin = {};
+  if (typeof team.fin.cash !== 'number') team.fin.cash = 50000000;
+  if (typeof team.fin.ticketPrice !== 'number') team.fin.ticketPrice = 60;
+  if (!team.fin.budgets) team.fin.budgets = { scouting:50, coaching:50, medical:50 };
+  if (typeof team.fin.ownerMood !== 'number') team.fin.ownerMood = 60;
+}
 function autoAllocateMinutes(team){
   ensureRosterMeta(team);
   for (const p of team.players) p.minutes = 0;
@@ -960,6 +973,96 @@ function teamEfficiency(team){
   return { efg, tovPct, ftFta, orbPct };
 }
 
+// Finance helpers
+function playerSalary(p){
+  const o = calcOVR(p);
+  if (o >= 85) return 35000000;
+  if (o >= 78) return 22000000;
+  if (o >= 70) return 12000000;
+  if (o >= 62) return 6000000;
+  return 1500000;
+}
+
+function teamPayroll(team){
+  return (team.players || []).reduce((s,p)=>s+playerSalary(p),0);
+}
+
+function fmtMoney(n){
+  const sign = n < 0 ? "-" : "";
+  n = Math.abs(Math.round(n));
+  return sign + "$" + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function ownerMoodLabel(x){
+  if (x >= 80) return "Happy";
+  if (x >= 60) return "Content";
+  if (x >= 40) return "Worried";
+  return "Angry";
+}
+
+function renderFinances(){
+  const team = state.teams.find(t=>t.id===state.userTeamId);
+  if (!team) return `<div class="muted">No team selected.</div>`;
+  ensureTeamFin(team);
+
+  const f = state.financials || { salaryCap:140000000, minPayroll:110000000, luxuryTaxLine:170000000 };
+  const payroll = teamPayroll(team);
+  const capSpace = f.salaryCap - payroll;
+  const taxOver = payroll - f.luxuryTaxLine;
+
+  document.getElementById("viewHint").textContent = "Budget, payroll, and owner mood";
+
+  return `
+    <div class="row" style="gap:12px; margin-bottom:12px;">
+      <div class="card" style="flex:1; box-shadow:none;">
+        <div class="hd"><div class="title">Payroll</div></div>
+        <div class="bd">
+          <div>Team Payroll: <strong>${fmtMoney(payroll)}</strong></div>
+          <div>Salary Cap: <strong>${fmtMoney(f.salaryCap)}</strong></div>
+          <div>Cap Space: <strong>${fmtMoney(capSpace)}</strong></div>
+          <div>Luxury Tax Line: <strong>${fmtMoney(f.luxuryTaxLine)}</strong></div>
+          <div>Over Tax: <strong>${taxOver>0 ? fmtMoney(taxOver) : "—"}</strong></div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1; box-shadow:none;">
+        <div class="hd"><div class="title">Owner</div></div>
+        <div class="bd">
+          <div>Cash: <strong>${fmtMoney(team.fin.cash)}</strong></div>
+          <div>Owner Mood: <strong>${team.fin.ownerMood}</strong> <span class="muted">(${ownerMoodLabel(team.fin.ownerMood)})</span></div>
+          <div style="margin-top:8px;">${barHTML(team.fin.ownerMood, 100)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="box-shadow:none; margin-bottom:12px;">
+      <div class="hd"><div class="title">Revenue Settings</div></div>
+      <div class="bd">
+        <div class="row" style="gap:12px; align-items:center;">
+          <div style="flex:1;">
+            <div class="muted">Ticket Price</div>
+            <div><strong>$</strong> <input id="ticketPriceInp" type="number" min="10" max="200" value="${team.fin.ticketPrice}" style="width:120px; padding:10px 10px;" /></div>
+          </div>
+          <div class="muted" style="flex:2;">
+            Higher price increases revenue but can reduce attendance later (we’ll model that next).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="box-shadow:none;">
+      <div class="hd"><div class="title">Budgets</div></div>
+      <div class="bd">
+        <div class="muted" style="margin-bottom:10px;">0–100 (higher = better, costs more later)</div>
+
+        ${budgetSlider("scouting","Scouting",team.fin.budgets.scouting)}
+        ${budgetSlider("coaching","Coaching/Training",team.fin.budgets.coaching)}
+        ${budgetSlider("medical","Medical",team.fin.budgets.medical)}
+      </div>
+    </div>
+  `;
+}
+
 function rankByMetric(metricKey, higherIsBetter=true){
   const arr = state.teams.map(t => {
     const m = teamEfficiency(t);
@@ -1032,6 +1135,9 @@ function barHTML(value, max=100){
 
 function pct(t){ const g=t.wins+t.losses; return g ? (t.wins/g) : 0; }
 
+// placeholder percent formatter used in dashboard
+function pctFmt(n){ return (n*100).toFixed(1) + "%"; }
+
 /** =========================================================
  *  Save/Load (localStorage)
  *  ========================================================= */
@@ -1049,9 +1155,9 @@ function loadLeague(){
   if (!raw) return false;
   try{
     state = JSON.parse(raw);
-    // ensure older saves get morale/traits and team stats
+    // ensure older saves get morale/traits, team stats, and finances
     ensureLeagueMorale();
-    for (const t of state.teams || []) ensureTeamStats(t);
+    for (const t of state.teams || []){ ensureTeamStats(t); ensureTeamFin(t); }
     return true;
   }catch(e){
     console.warn("Save corrupted", e);
@@ -1286,6 +1392,12 @@ function buildTeamsFromTemplate(){
       orb: 0,
       oppDrb: 0,
     },
+    fin: {
+      cash: 50000000,
+      ticketPrice: 60,
+      budgets: { scouting:50, coaching:50, medical:50 },
+      ownerMood: 60,
+    },
   }));
 }
 
@@ -1372,6 +1484,14 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   // ensure team stats + morale initialized
   for (const t of state.teams) ensureTeamStats(t);
   ensureLeagueMorale();
+  for (const t of state.teams) ensureTeamFin(t);
+
+  // league financial defaults
+  state.financials = state.financials || {
+    salaryCap: 140000000,
+    minPayroll: 110000000,
+    luxuryTaxLine: 170000000,
+  };
 
   state.schedule = generateSchedule(state.teams.map(t=>t.id), 360); // ~360 days/games (toy)
 
@@ -2032,6 +2152,8 @@ function renderView(){
     return;
   }
 
+  if (state.view === "finances"){ title.textContent = "Finances"; el.innerHTML = renderFinances(); return; }
+
   if (state.view==="standings"){ title.textContent="Standings"; el.innerHTML = renderStandings(); return; }
   if (state.view==="roster"){ title.textContent="Roster"; el.innerHTML = renderRoster(); return; }
   if (state.view==="players"){ title.textContent="Players"; el.innerHTML = renderPlayers(); return; }
@@ -2180,25 +2302,44 @@ if (_viewEl){
 
   // Minutes input handling
   _viewEl.addEventListener("input", (e)=>{
+    // minutes inputs
     const inp = e.target.closest("input[data-minutes]");
-    if (!inp) return;
+    if (inp){
+      const team = getTeam();
+      const id = inp.dataset.id;
+      const p = team.players.find(x=>x.id===id);
+      if (!p) return;
+      let v = parseInt(inp.value, 10);
+      if (Number.isNaN(v)) v = 0;
+      p.minutes = Math.max(0, Math.min(48, v));
+      const oldRole = p.role || "Rotation";
+      if (p.minutes >= 28) p.role = "Starter";
+      else if (p.minutes >= 12) p.role = "Rotation";
+      else if (p.minutes > 0) p.role = "Bench";
+      else p.role = "Rotation";
+      moraleOnRoleChange(p, oldRole, p.role);
+      saveActiveLeague?.();
+      return; // handled
+    }
 
-    const team = getTeam();
-    const id = inp.dataset.id;
-    const p = team.players.find(x=>x.id===id);
-    if (!p) return;
+    // finances inputs
+    const team = state.teams.find(t=>t.id===state.userTeamId);
+    if (!team) return;
+    ensureTeamFin(team);
 
-    let v = parseInt(inp.value, 10);
-    if (Number.isNaN(v)) v = 0;
-    p.minutes = Math.max(0, Math.min(48, v));
-    const oldRole = p.role || "Rotation";
-    if (p.minutes >= 28) p.role = "Starter";
-    else if (p.minutes >= 12) p.role = "Rotation";
-    else if (p.minutes > 0) p.role = "Bench";
-    else p.role = "Rotation";
+    if (e.target && e.target.id === "ticketPriceInp"){
+      team.fin.ticketPrice = Math.max(10, Math.min(200, parseInt(e.target.value||"60",10)));
+      saveActiveLeague?.();
+      return;
+    }
 
-    moraleOnRoleChange(p, oldRole, p.role);
-    saveActiveLeague?.();
+    const b = e.target.closest("input[data-budget]");
+    if (b){
+      const k = b.dataset.budget;
+      team.fin.budgets[k] = parseInt(b.value,10);
+      saveActiveLeague?.();
+      return;
+    }
     // no full re-render while typing to avoid jitter
   });
 }
