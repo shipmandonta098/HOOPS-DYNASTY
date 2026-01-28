@@ -574,18 +574,27 @@ const TEAMS_30 = [
 /** =========================================================
  *  Simple name generator (you can expand later)
  *  ========================================================= */
-const FIRST = ["Jasmine","Angelina","Myisha","Rhonda","Sofia","Tiana","Kira","Naomi","Avery","Layla","Marcus","Darius","Jalen","Trey","Andre","Caleb","Malik","Devin","Terrence","Isaiah","Jordan","Cameron","Noah","Miles","Xavier"];
-const LAST  = ["Marks","Flor","Lewis","Gordon","Kafkis","Blake","Monroe","Stone","Knight","Rivers","Reed","Cole","Price","Morgan","Bishop","Knox","Cross","Shaw","Wynn","Hayes","Wells","Carter","Bennett","Brooks"];
+// Controlled name lists (men/women/mixed)
+const FIRST_M = ["James","Michael","Chris","Darius","Jalen","Andre","Marcus","Devin","Trevor","Isaiah","Damian","Cameron","Jordan","Tariq","Malik"];
+const FIRST_F = ["Aaliyah","Brianna","Kayla","Jasmine","Maya","Ava","Nia","Sofia","Tiana","Kiara","Naomi","Riley","Zoe","Imani","Jordan"];
+const LAST = ["Carter","Johnson","Williams","Brown","Davis","Moore","Jackson","Taylor","Thomas","White","Harris","Martin","Thompson","Lee","Walker"];
 const POS   = ["PG","SG","SF","PF","C"];
 
 function rngInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
 function makeName(){
-  const f = FIRST[rngInt(0, FIRST.length-1)];
-  const l = LAST[rngInt(0, LAST.length-1)];
-  const mid = String.fromCharCode(65 + rngInt(0,25)) + ".";
-  return `${f} ${mid} ${l}`;
+  const set = state.nameSet || "Mixed";
+
+  let first;
+  if (set === "Men") first = pick(FIRST_M);
+  else if (set === "Women") first = pick(FIRST_F);
+  else { first = Math.random() < 0.5 ? pick(FIRST_M) : pick(FIRST_F); }
+
+  const last = pick(LAST);
+  return `${first} ${last}`;
 }
 
 function calcOVR(p){
@@ -1097,6 +1106,9 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   state.day = 1;
   state.view = "dashboard";
   state.log = [];
+
+  // default name set (Men|Women|Mixed)
+  state.nameSet = state.nameSet || "Mixed";
 
   state.teams = buildTeamsFromTemplate();
 
