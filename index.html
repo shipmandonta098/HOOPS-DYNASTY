@@ -245,6 +245,9 @@
       border-color:rgba(110,231,255,.35);
       background:rgba(110,231,255,.10);
     }
+    /* Icon-only sidebar when collapsed: hide labels and center icons */
+    .app-shell.is-collapsed .sidebar .nav-item .lbl{ display:none; }
+    .app-shell.is-collapsed .sidebar .nav-item{ justify-content:center; padding:12px 0; }
     /* Collapsible sidebar styles */
     .app-shell{ transition: 200ms ease; }
     .app-shell.is-collapsed{ grid-template-columns: 72px 1fr; }
@@ -552,22 +555,167 @@ function calcOVR(p){
   );
 }
 
-function makePlayer(){
-  const base = rngInt(40, 75);
-  const spread = () => clamp(base + rngInt(-10, 10), 25, 99);
-  return {
-    id: crypto.randomUUID(),
-    name: makeName(),
-    pos: POS[rngInt(0, POS.length-1)],
-    age: rngInt(19,34),
-    ratings: {
-      shooting: spread(),
-      finishing: spread(),
-      playmaking: spread(),
-      defense: spread(),
-      rebounding: spread(),
+function renderRoster(){
+  const team = getTeam();
+  ensureRosterMeta(team);
+
+  const totalMin = team.players.reduce((s,p)=>s+(p.minutes||0),0);
+
+  document.getElementById("viewHint").textContent =
+    `Depth chart • Total minutes: ${totalMin}/240`;
+
+  const controls = `
+    <div class="row" style="margin-bottom:12px;">
+      <button class="btn primary" id="btnAutoMinutes">Auto Minutes</button>
+      <button class="btn" id="btnZeroMinutes">Zero All</button>
+      <span class="muted" style="margin-left:auto;">Tip: Use arrows to set depth order within a position.</span>
+    </div>
+  `;
+
+  function groupHTML(pos){
+    const players = team.players
+      .filter(p=>p.pos===pos)
+      .map(p=>({ ...p, ovr: calcOVR(p) }));
+
+    if (players.length === 0){
+      return `
+        <div class="muted" style="margin:10px 0 16px;">No ${pos}s on roster.</div>
+      `;
     }
-  };
+
+    const rows = players.map((p, idx) => `
+      <tr>
+        <td style="width:70px;">
+          <strong>${pos}${idx===0 ? "1" : idx===1 ? "2" : idx===2 ? "3" : ""}</strong>
+        </td>
+        <td>
+          <strong>${p.name}</strong>
+          <div class="muted">${p.role} • Age ${p.age}</div>
+        </td>
+        <td class="right" style="width:60px;"><strong>${p.ovr}</strong></td>
+        <td style="width:140px;">${barHTML(p.ovr, 99)}</td>
+        <td class="right" style="width:90px;">
+          <input
+            data-minutes
+            data-id="${p.id}"
+            type="number"
+            min="0"
+            max="48"
+            value="${p.minutes ?? 0}"
+            style="text-align:right; padding:10px 10px;"
+          />
+        </td>
+        <td style="width:120px;">
+          <div class="row" style="gap:6px; justify-content:flex-end;">
+            <button class="btn" data-move data-pos="${pos}" data-id="${p.id}" data-dir="-1" title="Move up">▲</button>
+            <button class="btn" data-move data-pos="${pos}" data-id="${p.id}" data-dir="1"  title="Move down">▼</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    return `
+      <div class="card" style="box-shadow:none; margin-bottom:12px;">
+        <div class="hd"><div class="title">${pos} Depth</div></div>
+        <div class="bd" style="padding:0;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:70px;">Slot</th>
+                <th>Player</th>
+                <th class="right" style="width:60px;">OVR</th>
+                <th style="width:140px;">Bar</th>
+                <th class="right" style="width:90px;">Min</th>
+                <th style="width:120px;"></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  const sections = POS_ORDER.map(groupHTML).join("");
+
+  return `
+    ${controls}
+    <div class="callout" style="margin-bottom:12px;">
+      <div class="muted">Team</div>
+      <div class="big">${team.abbrev} — ${team.name}</div>
+      <div class="muted">Record: ${team.wins}-${team.losses} • Team OVR: ${teamOVR(team)}</div>
+    </div>
+    ${sections}
+  `;
+}
+function autoAllocateMinutes(team){
+  ensureRosterMeta(team);
+  for (const p of team.players) p.minutes = 0;
+
+  for (const pos of POS_ORDER){
+    const group = team.players.filter(p => p.pos === pos)
+      .map(p => ({...p, ovr: calcOVR(p)}))
+      .sort((a,b)=> b.ovr - a.ovr);
+
+    const ids = group.slice(0,3).map(x => x.id);
+    const starterId = ids[0];
+    const benchId = ids[1];
+    const reserveId = ids[2];
+
+    for (const p of team.players){
+      if (p.id === starterId) { p.minutes = 32; p.role = "Starter"; }
+      if (p.id === benchId)   { p.minutes = 12; p.role = "Rotation"; }
+      if (p.id === reserveId) { p.minutes = 4;  p.role = "Bench"; }
+    }
+  }
+
+  const total = () => team.players.reduce((s,p)=>s+(p.minutes||0),0);
+  let t = total();
+
+  const sorted = [...team.players].map(p=>({id:p.id, ovr: calcOVR(p)})).sort((a,b)=>b.ovr-a.ovr);
+
+  while (t < 240){
+    let changed = false;
+    for (const x of sorted){
+      const p = team.players.find(pp=>pp.id===x.id);
+      if (p.minutes < 36){
+        p.minutes += 1; t += 1; changed = true;
+        if (t >= 240) break;
+      }
+    }
+    if (!changed) break;
+  }
+
+  while (t > 240){
+    let changed = false;
+    for (const x of [...sorted].reverse()){
+      const p = team.players.find(pp=>pp.id===x.id);
+      if (p.minutes > 0){
+        p.minutes -= 1; t -= 1; changed = true;
+        if (t <= 240) break;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+function swapDepth(team, pos, playerId, dir){
+  const idxs = team.players
+    .map((p,i)=>({p,i}))
+    .filter(x => x.p.pos === pos);
+
+  const current = idxs.findIndex(x => x.p.id === playerId);
+  if (current < 0) return;
+
+  const target = current + dir;
+  if (target < 0 || target >= idxs.length) return;
+
+  const iA = idxs[current].i;
+  const iB = idxs[target].i;
+
+  const tmp = team.players[iA];
+  team.players[iA] = team.players[iB];
+  team.players[iB] = tmp;
 }
 
 function teamOVR(team){
@@ -1174,32 +1322,96 @@ function renderStandings(){
 }
 
 function renderRoster(){
-  const team = state.teams.find(t=>t.id===state.userTeamId);
-  const players = [...team.players].map(p=>({ ...p, ovr: calcOVR(p) })).sort((a,b)=>b.ovr-a.ovr);
-  document.getElementById("viewHint").textContent = "Your roster (ratings only for now)";
-  const rows = players.map(p=>`
-    <tr>
-      <td><strong>${p.name}</strong><div class="muted">${p.pos} • Age ${p.age}</div></td>
-      <td class="right"><strong>${p.ovr}</strong></td>
-      <td style="width:120px">${barHTML(p.ratings.shooting)}</td>
-      <td style="width:120px">${barHTML(p.ratings.finishing)}</td>
-      <td style="width:120px">${barHTML(p.ratings.playmaking)}</td>
-      <td style="width:120px">${barHTML(p.ratings.defense)}</td>
-      <td style="width:120px">${barHTML(p.ratings.rebounding)}</td>
-    </tr>
-  `).join("");
+  const team = getTeam();
+  ensureRosterMeta(team);
+
+  const totalMin = team.players.reduce((s,p)=>s+(p.minutes||0),0);
+
+  document.getElementById("viewHint").textContent =
+    `Depth chart • Total minutes: ${totalMin}/240`;
+
+  const controls = `
+    <div class="row" style="margin-bottom:12px;">
+      <button class="btn primary" id="btnAutoMinutes">Auto Minutes</button>
+      <button class="btn" id="btnZeroMinutes">Zero All</button>
+      <span class="muted" style="margin-left:auto;">Tip: Use arrows to set depth order within a position.</span>
+    </div>
+  `;
+
+  function groupHTML(pos){
+    const players = team.players
+      .filter(p=>p.pos===pos)
+      .map(p=>({ ...p, ovr: calcOVR(p) }));
+
+    if (players.length === 0){
+      return `
+        <div class="muted" style="margin:10px 0 16px;">No ${pos}s on roster.</div>
+      `;
+    }
+
+    const rows = players.map((p, idx) => `
+      <tr>
+        <td style="width:70px;">
+          <strong>${pos}${idx===0 ? "1" : idx===1 ? "2" : idx===2 ? "3" : ""}</strong>
+        </td>
+        <td>
+          <strong>${p.name}</strong>
+          <div class="muted">${p.role} • Age ${p.age}</div>
+        </td>
+        <td class="right" style="width:60px;"><strong>${p.ovr}</strong></td>
+        <td style="width:140px;">${barHTML(p.ovr, 99)}</td>
+        <td class="right" style="width:90px;">
+          <input
+            data-minutes
+            data-id="${p.id}"
+            type="number"
+            min="0"
+            max="48"
+            value="${p.minutes ?? 0}"
+            style="text-align:right; padding:10px 10px;"
+          />
+        </td>
+        <td style="width:120px;">
+          <div class="row" style="gap:6px; justify-content:flex-end;">
+            <button class="btn" data-move data-pos="${pos}" data-id="${p.id}" data-dir="-1" title="Move up">▲</button>
+            <button class="btn" data-move data-pos="${pos}" data-id="${p.id}" data-dir="1"  title="Move down">▼</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    return `
+      <div class="card" style="box-shadow:none; margin-bottom:12px;">
+        <div class="hd"><div class="title">${pos} Depth</div></div>
+        <div class="bd" style="padding:0;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:70px;">Slot</th>
+                <th>Player</th>
+                <th class="right" style="width:60px;">OVR</th>
+                <th style="width:140px;">Bar</th>
+                <th class="right" style="width:90px;">Min</th>
+                <th style="width:120px;"></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  const sections = POS_ORDER.map(groupHTML).join("");
 
   return `
+    ${controls}
     <div class="callout" style="margin-bottom:12px;">
       <div class="muted">Team</div>
       <div class="big">${team.abbrev} — ${team.name}</div>
       <div class="muted">Record: ${team.wins}-${team.losses} • Team OVR: ${teamOVR(team)}</div>
     </div>
-
-    <table>
-      <thead><tr><th>Player</th><th class="right">OVR</th><th>SHO</th><th>FIN</th><th>PLY</th><th>DEF</th><th>REB</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
+    ${sections}
   `;
 }
 
@@ -1425,15 +1637,73 @@ if (_nav){
   });
 }
 
-// Standings scope toggle (delegated on main view)
+// Delegated handlers on main view (standings toggle + roster controls)
 const _viewEl = document.getElementById("view");
 if (_viewEl){
   _viewEl.addEventListener("click", (e)=>{
-    const btn = e.target.closest("button[data-scope]");
-    if (!btn) return;
-    state.standingsScope = btn.dataset.scope;
-    if (typeof saveActiveLeague === 'function') saveActiveLeague();
-    renderView();
+    // Auto Minutes
+    if (e.target && e.target.id === "btnAutoMinutes"){
+      const team = getTeam();
+      autoAllocateMinutes(team);
+      saveActiveLeague?.();
+      renderView();
+      return;
+    }
+
+    // Zero All
+    if (e.target && e.target.id === "btnZeroMinutes"){
+      const team = getTeam();
+      ensureRosterMeta(team);
+      for (const p of team.players){ p.minutes = 0; p.role = "Rotation"; }
+      saveActiveLeague?.();
+      renderView();
+      return;
+    }
+
+    // Move up/down within position
+    const moveBtn = e.target.closest("button[data-move]");
+    if (moveBtn){
+      const team = getTeam();
+      const pos = moveBtn.dataset.pos;
+      const id = moveBtn.dataset.id;
+      const dir = parseInt(moveBtn.dataset.dir, 10);
+      swapDepth(team, pos, id, dir);
+      saveActiveLeague?.();
+      renderView();
+      return;
+    }
+
+    // Standings scope (original behavior)
+    const scopeBtn = e.target.closest("button[data-scope]");
+    if (scopeBtn){
+      state.standingsScope = scopeBtn.dataset.scope;
+      if (typeof saveActiveLeague === 'function') saveActiveLeague();
+      renderView();
+      return;
+    }
+  });
+
+  // Minutes input handling
+  _viewEl.addEventListener("input", (e)=>{
+    const inp = e.target.closest("input[data-minutes]");
+    if (!inp) return;
+
+    const team = getTeam();
+    const id = inp.dataset.id;
+    const p = team.players.find(x=>x.id===id);
+    if (!p) return;
+
+    let v = parseInt(inp.value, 10);
+    if (Number.isNaN(v)) v = 0;
+    p.minutes = Math.max(0, Math.min(48, v));
+
+    if (p.minutes >= 28) p.role = "Starter";
+    else if (p.minutes >= 12) p.role = "Rotation";
+    else if (p.minutes > 0) p.role = "Bench";
+    else p.role = "Rotation";
+
+    saveActiveLeague?.();
+    // no full re-render while typing to avoid jitter
   });
 }
 
