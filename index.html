@@ -2717,30 +2717,7 @@ showScreen("splash");
         <div class="muted" id="pmSub">—</div>
       </div>
  
-      <!-- WATCH MODAL -->
-      <div id="watchModal" class="modal hide" aria-hidden="true">
-        <div class="modal-backdrop" data-close="1"></div>
-        <div class="modal-card">
-          <div class="modal-hd">
-            <div>
-              <div class="modal-title" id="wmTitle">Watch Game</div>
-              <div class="muted" id="wmSub">—</div>
-            </div>
-            <button class="btn" id="wmClose">Close</button>
-          </div>
-          <div class="bd">
-            <div class="row" style="gap:8px; margin:10px 0;">
-              <button class="btn primary" id="wmPlayPause">Pause</button>
-              <button class="btn" id="wmFaster">Faster</button>
-              <button class="btn" id="wmFinish">Finish</button>
-              <div style="margin-left:auto; font-weight:800;" id="wmScore">0 - 0</div>
-            </div>
-
-            <div id="wmLog" style="max-height:55vh; overflow:auto; padding:12px; border-radius:14px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.08);">
-            </div>
-          </div>
-        </div>
-      </div>
+      
     </div>
     <div class="modal-bd" id="pmBody"></div>
   </div>
@@ -3050,6 +3027,9 @@ function openWatch(game){
   wmTitle.textContent = `${pbp.away.abbrev} @ ${pbp.home.abbrev}`;
   wmSub.textContent = `Play-by-play`;
 
+  const closeBtn = document.getElementById("wmClose");
+  if (closeBtn) closeBtn.onclick = closeWatch;
+
   watchState = { game, pbp, idx: 0, timer: null, speedMs: 350, paused: false };
 
   function renderLine(line){
@@ -3109,10 +3089,34 @@ function openWatch(game){
 
 function closeWatch(){ const wm = document.getElementById("watchModal"); if (!wm) return; wm.classList.add('hide'); wm.setAttribute('aria-hidden','true'); if (watchState?.timer) clearInterval(watchState.timer); watchState = null; }
 
-const _wmClose = document.getElementById("wmClose"); if (_wmClose) _wmClose.addEventListener("click", closeWatch);
-const _wmModal = document.getElementById("watchModal"); if (_wmModal){ _wmModal.addEventListener("click", (e)=>{ if (e.target && e.target.dataset && e.target.dataset.close) closeWatch(); }); }
+// watch modal close wiring is attached when opening the modal (elements exist then)
 </script>
 
 </body>
 </html>
+
+<!-- WATCH MODAL -->
+<div id="watchModal" class="modal hide" aria-hidden="true">
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-card">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="wmTitle">Watch Game</div>
+        <div class="muted" id="wmSub">—</div>
+      </div>
+      <button class="btn" id="wmClose">Close</button>
+    </div>
+    <div class="bd">
+      <div class="row" style="gap:8px; margin:10px 0;">
+        <button class="btn primary" id="wmPlayPause">Pause</button>
+        <button class="btn" id="wmFaster">Faster</button>
+        <button class="btn" id="wmFinish">Finish</button>
+        <div style="margin-left:auto; font-weight:800;" id="wmScore">0 - 0</div>
+      </div>
+
+      <div id="wmLog" style="max-height:55vh; overflow:auto; padding:12px; border-radius:14px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.08);">
+      </div>
+    </div>
+  </div>
+</div>
 
