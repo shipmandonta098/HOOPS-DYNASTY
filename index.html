@@ -647,29 +647,34 @@ function makePlayer(prefPos){
     minutes: 0,
     role: "Rotation",
     history: [],
+    morale: 60,
     ratings: makeAttributes(pos, age),
-    traits: makeTraits(pos, age),
+    traits: makeTraits(),
   };
   return player;
 }
 
-function makeTraits(pos, age){
-  // Personality traits: competitiveness, discipline, workEthic, ego, chemistry, mental
-  const base = 50;
-  const sd = 12;
-  const t = {
-    competitiveness: clamp(Math.round(base + randn()*sd), 10, 99),
-    discipline:      clamp(Math.round(base + randn()*sd), 10, 99),
-    workEthic:       clamp(Math.round(base + randn()*sd), 10, 99),
-    ego:             clamp(Math.round(base + randn()*sd), 10, 99),
-    chemistry:       clamp(Math.round(base + randn()*sd), 10, 99),
-    mental:          clamp(Math.round(base + randn()*sd), 10, 99),
+function makeTraits(){
+  return {
+    competitiveness: rngInt(30, 90),
+    discipline: rngInt(30, 90),
+    workEthic: rngInt(30, 90),
+    ego: rngInt(20, 85),
+    chemistry: rngInt(30, 90),
+    mental: rngInt(30, 90),
   };
+}
 
-  // small position/age tweaks (younger players slightly more competitive/work-ethic)
-  if (age <= 22) { t.workEthic = clamp(t.workEthic + 4, 10, 99); }
-  if (pos === 'C') { t.chemistry = clamp(t.chemistry + 3, 10, 99); }
-  return t;
+function ensureMorale(p){
+  if (typeof p.morale !== 'number') p.morale = 60;
+  if (!p.traits) p.traits = makeTraits();
+}
+
+function ensureLeagueMorale(){
+  if (!state || !state.teams) return;
+  for (const t of state.teams){
+    for (const p of (t.players||[])) ensureMorale(p);
+  }
 }
 
 function calcOVR(p){
@@ -796,7 +801,7 @@ function ensureRosterMeta(team){
   for (const p of team.players){
     if (typeof p.minutes !== "number") p.minutes = 0;
     if (!p.role) p.role = "Rotation";
-    if (!p.traits) p.traits = makeTraits(p.pos, p.age);
+    ensureMorale(p);
   }
 }
 function autoAllocateMinutes(team){
@@ -896,7 +901,11 @@ function swapDepth(team, pos, playerId, dir){
 }
 
 function teamOVR(team){
-  const top = [...team.players].map(calcOVR).sort((a,b)=>b-a).slice(0,8);
+  const top = [...team.players]
+    .map(p => calcOVR(p) * moraleMultiplier(p))
+    .sort((a,b)=>b-a)
+    .slice(0,8);
+  if (!top.length) return 50;
   const avg = top.reduce((s,n)=>s+n,0) / Math.max(1, top.length);
   return Math.round(avg);
 }
@@ -908,6 +917,60 @@ function gameScore(teamA, teamB){
   const a = Math.round(base + (ovrA - 60) * 1.2 + rngInt(-18, 18));
   const b = Math.round(base + (ovrB - 60) * 1.2 + rngInt(-18, 18));
   return { a: Math.max(65,a), b: Math.max(65,b) };
+}
+
+// Morale helpers
+function moraleLabel(m){
+  if (m >= 80) return "Happy";
+  if (m >= 60) return "Content";
+  if (m >= 40) return "Frustrated";
+  return "Unhappy";
+}
+
+function applyMoraleDelta(p, delta){
+  ensureMorale(p);
+  const damp = 0.7 + (p.traits.mental / 200); // 0.85..1.15
+  p.morale = clamp(Math.round(p.morale + delta / damp), 0, 100);
+}
+
+function expectedMinutes(p){
+  const ovr = calcOVR(p);
+  const role = p.role || "Rotation";
+  if (role === "Starter") return 30;
+  if (role === "Bench") return 10;
+  if (ovr >= 75) return 24;
+  if (ovr >= 65) return 18;
+  return 12;
+}
+
+function moraleAfterGame(team, didWin){
+  for (const p of team.players){
+    ensureMorale(p);
+    let d = didWin ? +1 : -1;
+    d *= (p.traits.competitiveness / 60);
+    const exp = expectedMinutes(p);
+    const mins = (p.minutes ?? 0);
+    const diff = mins - exp;
+    const ego = p.traits.ego;
+    if (diff < -8){ d += -2 * (ego / 80); }
+    else if (diff > 8){ d += +0.5 * (ego / 80); }
+    else { d += +0.2; }
+    d *= (0.85 + p.traits.chemistry / 200);
+    applyMoraleDelta(p, d);
+  }
+}
+
+function moraleOnRoleChange(p, oldRole, newRole){
+  ensureMorale(p);
+  if (oldRole === newRole) return;
+  const ego = p.traits.ego;
+  if (oldRole !== "Starter" && newRole === "Starter") applyMoraleDelta(p, +3);
+  if (oldRole === "Starter" && newRole !== "Starter") applyMoraleDelta(p, -3 * (ego / 60));
+}
+
+function moraleMultiplier(p){
+  ensureMorale(p);
+  return 1 + ((p.morale - 60) / 200);
 }
 
 function barHTML(value, max=100){
@@ -1312,6 +1375,10 @@ function simSpecificGame(game){
   pushLast10(away, homeWon ? "L" : "W");
   updateStreak(home, homeWon ? "W" : "L");
   updateStreak(away, homeWon ? "L" : "W");
+
+  // morale updates
+  moraleAfterGame(home, homeWon);
+  moraleAfterGame(away, !homeWon);
 
   logLine(`${away.abbrev} ${s.b} @ ${home.abbrev} ${s.a}`);
 }
@@ -1985,12 +2052,13 @@ if (_viewEl){
     let v = parseInt(inp.value, 10);
     if (Number.isNaN(v)) v = 0;
     p.minutes = Math.max(0, Math.min(48, v));
-
+    const oldRole = p.role || "Rotation";
     if (p.minutes >= 28) p.role = "Starter";
     else if (p.minutes >= 12) p.role = "Rotation";
     else if (p.minutes > 0) p.role = "Bench";
     else p.role = "Rotation";
 
+    moraleOnRoleChange(p, oldRole, p.role);
     saveActiveLeague?.();
     // no full re-render while typing to avoid jitter
   });
