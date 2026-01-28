@@ -1607,7 +1607,6 @@ function renderPlayers(){
     ovr: calcOVR(p),
   }))).sort((a,b)=>b.ovr-a.ovr);
 
-    history: [],
   document.getElementById("viewHint").textContent = "All players (sorted by OVR)";
   const rows = all.map(p=>`
     <tr>
@@ -1617,6 +1616,13 @@ function renderPlayers(){
     </tr>
   `).join("");
 
+  return `
+    <table>
+      <thead><tr><th>Player</th><th class="right">OVR</th><th>Bar</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
 
 function addHistoryEntry(player, patch){
   if (!player.history) player.history = [];
