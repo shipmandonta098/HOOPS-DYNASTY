@@ -680,9 +680,9 @@ function makeBio(age){
   };
 }
 
-function fmtHeight(in){
-  const ft = Math.floor(in / 12);
-  const inch = in % 12;
+function fmtHeight(inches){
+  const ft = Math.floor(inches / 12);
+  const inch = inches % 12;
   return `${ft}'${inch}\"`;
 }
 
