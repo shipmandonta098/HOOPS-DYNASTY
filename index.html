@@ -1121,7 +1121,11 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
     team.last10 = [];
     team.streak = 0;
     team.players = [];
-    for (let i=0;i<10;i++) team.players.push(makePlayer());
+    for (let i=0;i<10;i++){
+      const p = makePlayer();
+      team.players.push(p);
+      attachPlayerToTeam(p, team);
+    }
   }
 
   // Set user team by abbrev
@@ -1556,6 +1560,7 @@ function renderPlayers(){
     ovr: calcOVR(p),
   }))).sort((a,b)=>b.ovr-a.ovr);
 
+    history: [],
   document.getElementById("viewHint").textContent = "All players (sorted by OVR)";
   const rows = all.map(p=>`
     <tr>
@@ -1565,6 +1570,48 @@ function renderPlayers(){
     </tr>
   `).join("");
 
+
+function addHistoryEntry(player, patch){
+  if (!player.history) player.history = [];
+  player.history.push({
+    ts: Date.now(),
+    seasonYear: state.seasonYear,
+    teamId: state.userTeamId,
+    ...patch,
+  });
+}
+
+function attachPlayerToTeam(player, team){
+  player.teamId = team.id;
+  if (!player.history) player.history = [];
+  player.history.push({
+    ts: Date.now(),
+    seasonYear: state.seasonYear,
+    teamId: team.id,
+    type: "JOIN",
+    note: `Joined ${team.abbrev}`,
+    ovr: calcOVR(player),
+    age: player.age,
+  });
+}
+
+function snapshotRosterHistory(){
+  for (const team of state.teams){
+    for (const p of team.players){
+      if (!p.history) p.history = [];
+      p.history.push({
+        ts: Date.now(),
+        seasonYear: state.seasonYear,
+        teamId: team.id,
+        type: "SEASON_END",
+        note: `Season ${state.seasonNumber} complete`,
+        ovr: calcOVR(p),
+        age: p.age,
+        minutes: p.minutes || 0,
+      });
+    }
+  }
+}
   return `
     <table>
       <thead><tr><th>Player</th><th class="right">OVR</th><th>Bar</th></tr></thead>
@@ -1949,6 +1996,38 @@ function openPlayerModal(pid){
         </div>
       </div>
     </div>
+    `;
+
+    // History
+    function formatHistory(player){
+      const h = (player.history || []).slice().sort((a,b)=>a.ts-b.ts);
+      if (h.length === 0) return `<div class="muted">No history yet.</div>`;
+
+      const rows = h.map(e=>{
+        const team = state.teams.find(t=>t.id===e.teamId);
+        const tag = team ? team.abbrev : "—";
+        const yr = e.seasonYear ?? "—";
+        const ovr = (e.ovr ?? "—");
+        const mins = (e.minutes != null) ? ` • Min ${e.minutes}` : "";
+        return `
+        <div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08);">
+          <div><strong>${yr}</strong> <span class="muted">(${tag})</span> — ${e.note || e.type || "Event"}</div>
+          <div class="muted">OVR ${ovr}${mins}</div>
+        </div>
+      `;
+      }).join("");
+
+      return rows;
+    }
+
+    const historyHTML = formatHistory(player);
+
+    pmBody.innerHTML += `
+      <div class="card" style="box-shadow:none; margin-top:12px;">
+        <div class="hd"><div class="title">History</div></div>
+        <div class="bd">${historyHTML}</div>
+      </div>
+    `;
 
     <div class="card" style="box-shadow:none;">
       <div class="hd"><div class="title">Ratings</div></div>
