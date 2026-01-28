@@ -2291,6 +2291,8 @@ function renderSchedule(){
       ? `<button class="btn primary" data-sched-action="simGame" data-game="${g.id}">Sim</button>`
       : `<button class="btn" data-sched-action="box" data-game="${g.id}">Box</button>`;
 
+    const watchBtn = `<button class="btn" data-sched-action="watch" data-game="${g.id}">Watch</button>`;
+
     return `
       <tr style="${style}">
         <td style="white-space:nowrap;">
@@ -2304,7 +2306,7 @@ function renderSchedule(){
         </td>
         <td class="right" style="white-space:nowrap;">${formatResult(g)}</td>
         <td class="right" style="width:90px;">${g.played ? `<span class="muted">Final</span>` : `<span class="muted">Scheduled</span>`}</td>
-        <td class="right" style="width:110px;">${simBtn}</td>
+        <td class="right" style="width:170px; display:flex; gap:8px; justify-content:flex-end;">${watchBtn}${simBtn}</td>
       </tr>
     `;
   }).join("");
@@ -2512,6 +2514,13 @@ if (_viewEl){
         return;
       }
 
+      if (act === "watch" && gid){
+        const game = state.schedule.find(x=>x.id == gid);
+        if (!game) return;
+        openWatch(game);
+        return;
+      }
+
       if (act === "box" && gid){
         const game = state.schedule.find(x=>x.id == gid);
         if (game){
@@ -2706,7 +2715,31 @@ showScreen("splash");
         <div class="modal-title" id="pmName">Player</div>
         <div class="muted" id="pmSub">—</div>
       </div>
-      <button class="btn" id="pmClose">Close</button>
+ 
+      <!-- WATCH MODAL -->
+      <div id="watchModal" class="modal hide" aria-hidden="true">
+        <div class="modal-backdrop" data-close="1"></div>
+        <div class="modal-card">
+          <div class="modal-hd">
+            <div>
+              <div class="modal-title" id="wmTitle">Watch Game</div>
+              <div class="muted" id="wmSub">—</div>
+            </div>
+            <button class="btn" id="wmClose">Close</button>
+          </div>
+          <div class="bd">
+            <div class="row" style="gap:8px; margin:10px 0;">
+              <button class="btn primary" id="wmPlayPause">Pause</button>
+              <button class="btn" id="wmFaster">Faster</button>
+              <button class="btn" id="wmFinish">Finish</button>
+              <div style="margin-left:auto; font-weight:800;" id="wmScore">0 - 0</div>
+            </div>
+
+            <div id="wmLog" style="max-height:55vh; overflow:auto; padding:12px; border-radius:14px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.08);">
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-bd" id="pmBody"></div>
   </div>
@@ -2871,6 +2904,8 @@ function renderPlayerBio(p){
         ${b.born ? `in ${b.born.city}, ${b.born.state}` : ''}
       </div>
 
+      <div><strong>College:</strong> ${b.college ? `${b.college.name} (${b.college.years} yr)` : '—'}</div>
+
       <div>
         <strong>Draft:</strong>
         ${b.draft
@@ -2900,7 +2935,183 @@ const _pmClose = document.getElementById("pmClose");
 if (_pmClose) _pmClose.addEventListener("click", closePlayerModal);
 const _pmModal = document.getElementById("playerModal");
 if (_pmModal){ _pmModal.addEventListener("click", (e)=>{ if (e.target && e.target.dataset && e.target.dataset.close) closePlayerModal(); }); }
+
+// ---------------- Watch modal + play-by-play ----------------
+let watchState = null;
+
+function pickPlayerName(team){
+  const arr = team && team.players ? team.players : [];
+  if (!arr.length) return team ? team.abbrev : '—';
+  const p = arr[Math.floor(Math.random() * arr.length)];
+  return p ? p.name : (team ? team.abbrev : '—');
+}
+
+function formatClock(sec){
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+
+function teamStrength(team){
+  const vals = (team.players||[]).map(p=>calcOVR(p)).sort((a,b)=>b-a).slice(0,8);
+  const base = vals.length ? vals.reduce((s,x)=>s+x,0)/vals.length : 60;
+  return base;
+}
+
+function genPBP(game){
+  const home = state.teams.find(t=>t.id===game.homeId);
+  const away = state.teams.find(t=>t.id===game.awayId);
+
+  let h = 0, a = 0;
+  const log = [];
+
+  let clock = 48 * 60;
+
+  const hStr = teamStrength(home);
+  const aStr = teamStrength(away);
+
+  const events = 160 + Math.floor(Math.random()*40);
+
+  for (let i=0;i<events;i++){
+    clock -= 10 + Math.floor(Math.random()*15);
+    if (clock < 0) clock = 0;
+
+    const offenseHome = Math.random() < 0.5;
+    const offTeam = offenseHome ? home : away;
+    const defTeam = offenseHome ? away : home;
+
+    const offStr = offenseHome ? hStr : aStr;
+    const defStr = offenseHome ? aStr : hStr;
+    const baseMake = 0.42 + (offStr - defStr) / 400;
+    const makeRoll = Math.random();
+
+    if (Math.random() < 0.11){
+      const who = pickPlayerName(offTeam);
+      log.push({ t:clock, text:`${who} turns it over. ${defTeam.abbrev} ball.`, dh:0, da:0, h, a });
+      if (clock===0) break;
+      continue;
+    }
+
+    const isThree = Math.random() < 0.33;
+    const foul = Math.random() < 0.10;
+
+    let pts = 0;
+    let text = "";
+
+    if (foul){
+      const who = pickPlayerName(offTeam);
+      const made = (Math.random()<0.78?1:0) + (Math.random()<0.78?1:0);
+      pts = made;
+      text = `${who} fouled. Hits ${made}/2 FTs.`;
+    } else {
+      if (makeRoll < baseMake){
+        pts = isThree ? 3 : 2;
+        const who = pickPlayerName(offTeam);
+        text = `${who} knocks down a ${pts === 3 ? "three" : "jumper"}!`;
+      } else {
+        const who = pickPlayerName(offTeam);
+        if (Math.random() < 0.18){
+          const reb = pickPlayerName(offTeam);
+          const put = Math.random() < 0.55 ? 2 : 0;
+          pts = put;
+          text = put ? `${who} misses. ${reb} ORB, putback good.` : `${who} misses. ${reb} ORB, kick out.`;
+        } else {
+          text = `${who} misses.`;
+        }
+      }
+    }
+
+    if (pts){
+      if (offenseHome) h += pts; else a += pts;
+    }
+
+    log.push({ t: clock, text, dh: offenseHome ? pts : 0, da: offenseHome ? 0 : pts, h, a });
+
+    if (clock===0) break;
+  }
+
+  return { log, finalHome: h, finalAway: a, home, away };
+}
+
+function openWatch(game){
+  const wm = document.getElementById("watchModal");
+  const wmLog = document.getElementById("wmLog");
+  const wmTitle = document.getElementById("wmTitle");
+  const wmSub = document.getElementById("wmSub");
+  const wmScore = document.getElementById("wmScore");
+  if (!wm) return;
+
+  wm.classList.remove('hide'); wm.setAttribute('aria-hidden','false');
+  wmLog.innerHTML = "";
+
+  const pbp = genPBP(game);
+
+  wmTitle.textContent = `${pbp.away.abbrev} @ ${pbp.home.abbrev}`;
+  wmSub.textContent = `Play-by-play`;
+
+  watchState = { game, pbp, idx: 0, timer: null, speedMs: 350, paused: false };
+
+  function renderLine(line){
+    const div = document.createElement("div");
+    div.className = "pbpLine";
+    div.innerHTML = `<span class="pbpTime muted">${formatClock(line.t)}</span> ${line.text}`;
+    wmLog.appendChild(div);
+    wmLog.scrollTop = wmLog.scrollHeight;
+  }
+
+  function tick(){
+    if (!watchState || watchState.paused) return;
+    const { pbp } = watchState;
+    const burst = watchState.speedMs <= 180 ? 3 : watchState.speedMs <= 260 ? 2 : 1;
+    for (let b=0; b<burst; b++){
+      if (watchState.idx >= pbp.log.length){ finishWatch(false); return; }
+      const line = pbp.log[watchState.idx++];
+      renderLine(line);
+      wmScore.textContent = `${line.h} - ${line.a}`;
+    }
+  }
+
+  function start(){ stop(); watchState.timer = setInterval(tick, watchState.speedMs); }
+  function stop(){ if (watchState?.timer) clearInterval(watchState.timer); if (watchState) watchState.timer = null; }
+
+  function finishWatch(simulateInEngine){
+    stop();
+    const { finalHome, finalAway } = watchState.pbp;
+    game.played = true; game.homeScore = finalHome; game.awayScore = finalAway;
+    try {
+      const home = state.teams.find(t=>t.id===game.homeId);
+      const away = state.teams.find(t=>t.id===game.awayId);
+      if (home && away){
+        const homeWon = finalHome > finalAway;
+        if (homeWon){ home.wins = (home.wins||0) + 1; away.losses = (away.losses||0) + 1; }
+        else { away.wins = (away.wins||0) + 1; home.losses = (home.losses||0) + 1; }
+        if (typeof moraleAfterGame === "function"){ moraleAfterGame(home, homeWon); moraleAfterGame(away, !homeWon); }
+      }
+    } catch(err){}
+    saveActiveLeague?.(); renderAll?.(); renderView();
+    const wmLog = document.getElementById("wmLog");
+    const div = document.createElement("div"); div.className = "pbpLine";
+    div.innerHTML = `<strong>FINAL:</strong> ${finalHome}-${finalAway}`;
+    wmLog.appendChild(div); wmLog.scrollTop = wmLog.scrollHeight;
+  }
+
+  const playPause = document.getElementById("wmPlayPause");
+  const faster = document.getElementById("wmFaster");
+  const finish = document.getElementById("wmFinish");
+
+  playPause.textContent = "Pause"; watchState.paused = false;
+  playPause.onclick = ()=>{ if (!watchState) return; watchState.paused = !watchState.paused; playPause.textContent = watchState.paused ? "Resume" : "Pause"; };
+  faster.onclick = ()=>{ if (!watchState) return; const speeds = [350,260,180,120]; const i = speeds.indexOf(watchState.speedMs); watchState.speedMs = speeds[(i+1)%speeds.length]; start(); };
+  finish.onclick = ()=> finishWatch(false);
+  start();
+}
+
+function closeWatch(){ const wm = document.getElementById("watchModal"); if (!wm) return; wm.classList.add('hide'); wm.setAttribute('aria-hidden','true'); if (watchState?.timer) clearInterval(watchState.timer); watchState = null; }
+
+const _wmClose = document.getElementById("wmClose"); if (_wmClose) _wmClose.addEventListener("click", closeWatch);
+const _wmModal = document.getElementById("watchModal"); if (_wmModal){ _wmModal.addEventListener("click", (e)=>{ if (e.target && e.target.dataset && e.target.dataset.close) closeWatch(); }); }
 </script>
 
 </body>
 </html>
+
