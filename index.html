@@ -648,8 +648,28 @@ function makePlayer(prefPos){
     role: "Rotation",
     history: [],
     ratings: makeAttributes(pos, age),
+    traits: makeTraits(pos, age),
   };
   return player;
+}
+
+function makeTraits(pos, age){
+  // Personality traits: competitiveness, discipline, workEthic, ego, chemistry, mental
+  const base = 50;
+  const sd = 12;
+  const t = {
+    competitiveness: clamp(Math.round(base + randn()*sd), 10, 99),
+    discipline:      clamp(Math.round(base + randn()*sd), 10, 99),
+    workEthic:       clamp(Math.round(base + randn()*sd), 10, 99),
+    ego:             clamp(Math.round(base + randn()*sd), 10, 99),
+    chemistry:       clamp(Math.round(base + randn()*sd), 10, 99),
+    mental:          clamp(Math.round(base + randn()*sd), 10, 99),
+  };
+
+  // small position/age tweaks (younger players slightly more competitive/work-ethic)
+  if (age <= 22) { t.workEthic = clamp(t.workEthic + 4, 10, 99); }
+  if (pos === 'C') { t.chemistry = clamp(t.chemistry + 3, 10, 99); }
+  return t;
 }
 
 function calcOVR(p){
@@ -776,6 +796,7 @@ function ensureRosterMeta(team){
   for (const p of team.players){
     if (typeof p.minutes !== "number") p.minutes = 0;
     if (!p.role) p.role = "Rotation";
+    if (!p.traits) p.traits = makeTraits(p.pos, p.age);
   }
 }
 function autoAllocateMinutes(team){
@@ -804,24 +825,50 @@ function autoAllocateMinutes(team){
 
   const sorted = [...team.players].map(p=>({id:p.id, ovr: calcOVR(p)})).sort((a,b)=>b.ovr-a.ovr);
 
+  // Distribute remaining minutes with trait adjustments
   while (t < 240){
     let changed = false;
     for (const x of sorted){
       const p = team.players.find(pp=>pp.id===x.id);
+      if (!p) continue;
+
+      // trait influence
+      const tr = p.traits || {};
+      const egoAdj = Math.round(((tr.ego || 50) - 50) / 10); // ego adds desired minutes
+      const discipline = (tr.discipline || 50);
+      const chemistry = (tr.chemistry || 50);
+
+      // Determine max allowed increase for this player this loop
+      const maxInc = discipline >= 65 ? 1 : discipline >= 50 ? 2 : 3;
+
+      // Apply ego desire as small instant bump but bounded by maxInc
+      const want = Math.max(0, Math.min(maxInc, egoAdj));
       if (p.minutes < 36){
-        p.minutes += 1; t += 1; changed = true;
+        p.minutes += (1 + want);
+        // chemistry penalty: low chemistry slightly caps total minutes
+        if ((chemistry || 50) < 50){
+          const cap = Math.max(0, 36 - Math.round((50 - chemistry)/10));
+          if (p.minutes > cap) p.minutes = cap;
+        }
+        t = total(); changed = true;
         if (t >= 240) break;
       }
     }
     if (!changed) break;
   }
 
+  // If we overshot due to adjustments, trim from lowest ovr players, respecting discipline/ego
   while (t > 240){
     let changed = false;
     for (const x of [...sorted].reverse()){
       const p = team.players.find(pp=>pp.id===x.id);
+      if (!p) continue;
       if (p.minutes > 0){
-        p.minutes -= 1; t -= 1; changed = true;
+        // players with high discipline resist drops slightly
+        const disc = (p.traits?.discipline || 50);
+        const dec = disc >= 65 ? 1 : 2;
+        p.minutes = Math.max(0, p.minutes - dec);
+        t = total(); changed = true;
         if (t <= 240) break;
       }
     }
@@ -1274,11 +1321,72 @@ function advanceDay(){
   for (const g of todays) simSpecificGame(g);
 
   const next = state.schedule.find(g=>!g.played);
-  if (!next) logLine("Season complete. (Prototype stops here.)");
-  else state.day = Math.max(state.day + 1, next.day);
+  if (!next){
+    // run end-of-season processing
+    endSeason();
+  } else {
+    state.day = Math.max(state.day + 1, next.day);
+  }
 
   saveActiveLeague();
   renderAll();
+}
+
+function endSeason(){
+  logLine("Season complete. Running end-of-season development.");
+  // snapshot history
+  snapshotRosterHistory();
+
+  // Simple development tick: growth and decline influenced by traits
+  for (const team of state.teams){
+    for (const p of team.players){
+      if (!p.ratings) p.ratings = makeAttributes(p.pos, p.age);
+      if (!p.traits) p.traits = makeTraits(p.pos, p.age);
+
+      // base growth/decline by age
+      let growth = 0;
+      let decline = 0;
+      if (p.age <= 22) growth = 3;
+      else if (p.age <= 26) growth = 2;
+      else if (p.age <= 30) growth = 1;
+      else decline = 2;
+
+      // apply trait multipliers per request
+      const work = (p.traits.workEthic || 50);
+      const mental = (p.traits.mental || 50);
+      growth = growth * (work / 50);
+      decline = decline * (1 - (mental / 200));
+
+      // apply to ratings
+      const beforeOVR = calcOVR(p);
+      for (const k of Object.keys(p.ratings)){
+        const up = Math.round(growth * Math.random());
+        const down = Math.round(decline * Math.random());
+        p.ratings[k] = clamp((p.ratings[k] || 50) + up - down, 25, 99);
+      }
+
+      // age player
+      p.age = (p.age || 20) + 1;
+
+      // record history entry
+      if (!p.history) p.history = [];
+      p.history.push({
+        ts: Date.now(),
+        seasonYear: state.seasonYear,
+        teamId: team.id,
+        type: 'DEVELOP',
+        note: `Development tick: +${Math.round(growth)} / -${Math.round(decline)}`,
+        ovr: calcOVR(p),
+        age: p.age,
+      });
+    }
+  }
+
+  // advance season counters
+  state.seasonNumber = (state.seasonNumber || 1) + 1;
+  state.seasonYear = (state.seasonYear || (new Date()).getFullYear()) + 1;
+  state.day = 1;
+  logLine(`Season advanced to ${state.seasonYear} (S${state.seasonNumber})`);
 }
 
 function simOneGame(){
@@ -2050,6 +2158,18 @@ function openPlayerModal(pid){
   const mins = (typeof player.minutes === "number") ? player.minutes : 0;
   const role = player.role || "Rotation";
 
+  // Personality / Traits display
+  const traits = player.traits || {};
+  function traitRow(label, key){
+    const val = traits[key] ?? null;
+    return `
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <div style="width:150px">${label}</div>
+        <div style="flex:1">${val != null ? barHTML(val,99) : `<span class="muted">—</span>`}</div>
+      </div>
+    `;
+  }
+
   function formatHistory(player){
     const h = (player.history || []).slice().sort((a,b)=>a.ts-b.ts);
     if (h.length === 0) return `<div class="muted">No history yet.</div>`;
@@ -2089,6 +2209,18 @@ function openPlayerModal(pid){
           <div style="height:8px"></div>
           <div>${player.name} is a ${player.pos} for ${team.city}. (We’ll add real bios later.)</div>
         </div>
+      </div>
+    </div>
+
+    <div class="card" style="box-shadow:none; margin-bottom:12px;">
+      <div class="hd"><div class="title">Personality</div></div>
+      <div class="bd">
+        ${traitRow('Competitiveness','competitiveness')}
+        ${traitRow('Discipline','discipline')}
+        ${traitRow('Work Ethic','workEthic')}
+        ${traitRow('Ego','ego')}
+        ${traitRow('Chemistry','chemistry')}
+        ${traitRow('Mental Toughness','mental')}
       </div>
     </div>
 
