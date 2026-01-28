@@ -648,6 +648,21 @@ function renderRoster(){
     ${sections}
   `;
 }
+
+// Roster helpers (ensure these are defined before renderRoster)
+const POS_ORDER = ["PG","SG","SF","PF","C"]+[];
+
+function getTeam(){
+  return state.teams.find(t => t.id === state.userTeamId);
+}
+
+function ensureRosterMeta(team){
+  if (!team || !team.players) return;
+  for (const p of team.players){
+    if (typeof p.minutes !== "number") p.minutes = 0;
+    if (!p.role) p.role = "Rotation";
+  }
+}
 function autoAllocateMinutes(team){
   ensureRosterMeta(team);
   for (const p of team.players) p.minutes = 0;
