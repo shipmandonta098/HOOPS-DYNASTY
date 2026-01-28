@@ -1413,7 +1413,7 @@ function renderRoster(){
           <strong>${pos}${idx===0 ? "1" : idx===1 ? "2" : idx===2 ? "3" : ""}</strong>
         </td>
         <td>
-          <strong>${p.name}</strong>
+          <button class="linklike" data-player="${p.id}"><strong>${p.name}</strong></button>
           <div class="muted">${p.role} • Age ${p.age}</div>
         </td>
         <td class="right" style="width:60px;"><strong>${p.ovr}</strong></td>
@@ -1484,7 +1484,7 @@ function renderDashboard(){
 
   const topRows = top.map(p=>`
     <tr>
-      <td><strong>${p.name}</strong><div class="muted">${p.pos} • Age ${p.age}</div></td>
+      <td><button class="linklike" data-player="${p.id}"><strong>${p.name}</strong></button><div class="muted">${p.pos} • Age ${p.age}</div></td>
       <td class="right"><strong>${p.ovr}</strong></td>
       <td style="width:220px">${barHTML(p.ovr, 99)}</td>
     </tr>
