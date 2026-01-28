@@ -2506,6 +2506,7 @@ if (_viewEl){
     if (schedAct){
       const act = schedAct.dataset.schedAction || schedAct.getAttribute('data-sched-action');
       const gid = schedAct.dataset.game || schedAct.getAttribute('data-game');
+      console.debug("schedule action click:", act, gid);
       if (act === "simGame" && gid){
         const game = state.schedule.find(x=>x.id == gid);
         if (game && !game.played) simSpecificGame(game);
