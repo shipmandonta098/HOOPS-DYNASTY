@@ -583,6 +583,45 @@ const POS   = ["PG","SG","SF","PF","C"];
 function rngInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 
+// Attribute generation helpers
+function randn(){ // rough normal-ish distribution
+  let u=0,v=0;
+  while(u===0) u=Math.random();
+  while(v===0) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function around(mean, sd){
+  return clamp(Math.round(mean + randn()*sd), 25, 95);
+}
+
+function archetypeForPos(pos){
+  const A = {
+    PG: {ins:55, mid:60, tp:62, ft:70, pass:78, handle:80, reb:45, def:55, iq:62, ath:60},
+    SG: {ins:60, mid:66, tp:70, ft:75, pass:60, handle:65, reb:48, def:56, iq:60, ath:62},
+    SF: {ins:64, mid:62, tp:62, ft:70, pass:58, handle:58, reb:60, def:60, iq:62, ath:64},
+    PF: {ins:70, mid:58, tp:52, ft:65, pass:50, handle:45, reb:75, def:66, iq:62, ath:62},
+    C:  {ins:75, mid:50, tp:35, ft:58, pass:45, handle:35, reb:82, def:72, iq:62, ath:58},
+  };
+  return A[pos] || A.SF;
+}
+
+function makeAttributes(pos, age){
+  const base = archetypeForPos(pos);
+  const sd = 10;
+
+  const attr = {};
+  for (const k of Object.keys(base)){
+    attr[k] = around(base[k], sd);
+  }
+
+  const ageAdj = age <= 23 ? 2 : age >= 31 ? -2 : 0;
+  for (const k of Object.keys(attr)){
+    attr[k] = clamp(attr[k] + ageAdj, 25, 99);
+  }
+
+  return attr;
+}
+
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 function makeName(){
@@ -598,13 +637,21 @@ function makeName(){
 }
 
 function calcOVR(p){
-  return Math.round(
-    (p.ratings.shooting * 0.28) +
-    (p.ratings.finishing * 0.22) +
-    (p.ratings.playmaking * 0.18) +
-    (p.ratings.defense * 0.24) +
-    (p.ratings.rebounding * 0.08)
-  );
+  const r = p.ratings || {};
+  const w = {
+    ins:0.10, mid:0.08, tp:0.12, ft:0.04,
+    pass:0.10, handle:0.10,
+    reb:0.12, def:0.12, iq:0.12,
+    ath:0.10
+  };
+
+  let s = 0, wt = 0;
+  for (const k in w){
+    const val = (typeof r[k] === "number") ? r[k] : 50;
+    s += val * w[k];
+    wt += w[k];
+  }
+  return Math.round(s / wt);
 }
 
 function renderRoster(){
@@ -1923,7 +1970,6 @@ updateFOButtons();
 renderTeamPickTable();
 showScreen("splash");
 </script>
-</script>
 
 <!-- PLAYER MODAL -->
 <div id="playerModal" class="modal hide" aria-hidden="true">
@@ -1965,9 +2011,21 @@ function openPlayerModal(pid){
   pmSub.textContent = `${player.pos} • Age ${player.age} • OVR ${ovr} • ${team.abbrev} — ${team.name}`;
 
   const r = player.ratings || {};
+  const LABELS = {
+    ins:"Inside", mid:"Mid", tp:"3PT", ft:"FT",
+    pass:"Pass", handle:"Handle",
+    reb:"Reb", def:"Defense", iq:"IQ", ath:"Ath"
+  };
+
+  function topKeys(obj, n=2){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n).map(x=>x[0]); }
+  function bottomKeys(obj, n=2){ return Object.entries(obj).sort((a,b)=>a[1]-b[1]).slice(0,n).map(x=>x[0]); }
+
+  const strengths = topKeys(r,3).map(k=>LABELS[k]||k).join(", ");
+  const weaknesses = bottomKeys(r,3).map(k=>LABELS[k]||k).join(", ");
+
   const ratingRows = Object.keys(r).map(k => `
     <tr>
-      <td><strong>${k.toUpperCase()}</strong></td>
+      <td><strong>${LABELS[k] || k}</strong></td>
       <td class="right"><strong>${r[k]}</strong></td>
       <td style="width:240px">${barHTML(r[k], 99)}</td>
     </tr>
@@ -1975,6 +2033,27 @@ function openPlayerModal(pid){
 
   const mins = (typeof player.minutes === "number") ? player.minutes : 0;
   const role = player.role || "Rotation";
+
+  function formatHistory(player){
+    const h = (player.history || []).slice().sort((a,b)=>a.ts-b.ts);
+    if (h.length === 0) return `<div class="muted">No history yet.</div>`;
+
+    return h.map(e=>{
+      const team = state.teams.find(t=>t.id===e.teamId);
+      const tag = team ? team.abbrev : "—";
+      const yr = e.seasonYear ?? "—";
+      const ovr = (e.ovr ?? "—");
+      const mins = (e.minutes != null) ? ` • Min ${e.minutes}` : "";
+      return `
+        <div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08);">
+          <div><strong>${yr}</strong> <span class="muted">(${tag})</span> — ${e.note || e.type || "Event"}</div>
+          <div class="muted">OVR ${ovr}${mins}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  const historyHTML = formatHistory(player);
 
   pmBody.innerHTML = `
     <div class="row" style="gap:12px; margin-bottom:12px;">
@@ -1996,38 +2075,14 @@ function openPlayerModal(pid){
         </div>
       </div>
     </div>
-    `;
 
-    // History
-    function formatHistory(player){
-      const h = (player.history || []).slice().sort((a,b)=>a.ts-b.ts);
-      if (h.length === 0) return `<div class="muted">No history yet.</div>`;
-
-      const rows = h.map(e=>{
-        const team = state.teams.find(t=>t.id===e.teamId);
-        const tag = team ? team.abbrev : "—";
-        const yr = e.seasonYear ?? "—";
-        const ovr = (e.ovr ?? "—");
-        const mins = (e.minutes != null) ? ` • Min ${e.minutes}` : "";
-        return `
-        <div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,.08);">
-          <div><strong>${yr}</strong> <span class="muted">(${tag})</span> — ${e.note || e.type || "Event"}</div>
-          <div class="muted">OVR ${ovr}${mins}</div>
-        </div>
-      `;
-      }).join("");
-
-      return rows;
-    }
-
-    const historyHTML = formatHistory(player);
-
-    pmBody.innerHTML += `
-      <div class="card" style="box-shadow:none; margin-top:12px;">
-        <div class="hd"><div class="title">History</div></div>
-        <div class="bd">${historyHTML}</div>
+    <div class="card" style="box-shadow:none; margin-bottom:12px;">
+      <div class="hd"><div class="title">Scouting</div></div>
+      <div class="bd">
+        <div><strong>Strengths:</strong> ${strengths || '—'}</div>
+        <div><strong>Weaknesses:</strong> ${weaknesses || '—'}</div>
       </div>
-    `;
+    </div>
 
     <div class="card" style="box-shadow:none;">
       <div class="hd"><div class="title">Ratings</div></div>
@@ -2037,6 +2092,11 @@ function openPlayerModal(pid){
           <tbody>${ratingRows || `<tr><td colspan="3" class="muted">No ratings found.</td></tr>`}</tbody>
         </table>
       </div>
+    </div>
+
+    <div class="card" style="box-shadow:none; margin-top:12px;">
+      <div class="hd"><div class="title">History</div></div>
+      <div class="bd">${historyHTML}</div>
     </div>
   `;
 
