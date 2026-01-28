@@ -1170,6 +1170,9 @@ function loadLeague(){
     // ensure older saves get morale/traits, team stats, and finances
     ensureLeagueMorale();
     for (const t of state.teams || []){ ensureTeamStats(t); ensureTeamFin(t); }
+    // schedule UI defaults
+    state.scheduleFilter = state.scheduleFilter || "user";
+    state.scheduleShow = state.scheduleShow || "upcoming";
     return true;
   }catch(e){
     console.warn("Save corrupted", e);
@@ -1449,12 +1452,12 @@ function streakStr(team){
 function generateSchedule(teamIds, games = 300){
   // Simple: random games across season days. You can replace with proper NBA scheduling later.
   const sched = [];
-  let day = 1;
+  let day = 0;
   for (let i=0;i<games;i++){
     const home = teamIds[rngInt(0, teamIds.length-1)];
     let away = teamIds[rngInt(0, teamIds.length-1)];
     while (away === home) away = teamIds[rngInt(0, teamIds.length-1)];
-    sched.push({ day, homeId: home, awayId: away, played:false, homeScore:null, awayScore:null });
+    sched.push({ id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.floor(Math.random()*100000)}`, day, homeId: home, awayId: away, played:false, homeScore:null, awayScore:null });
     day++;
   }
   return sched;
@@ -1506,6 +1509,10 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   };
 
   state.schedule = generateSchedule(state.teams.map(t=>t.id), 360); // ~360 days/games (toy)
+
+  // schedule UI defaults
+  state.scheduleFilter = state.scheduleFilter || "user";
+  state.scheduleShow = state.scheduleShow || "upcoming";
 
   logLine(`League created: ${state.leagueName} (${state.seasonYear})`);
   // Create a new league record and set active
@@ -2129,26 +2136,128 @@ function snapshotRosterHistory(){
 }
 
 
+function dayLabel(day){
+  return `Day ${day + 1}`;
+}
+
+function gameIsUser(game){
+  return game.homeId === state.userTeamId || game.awayId === state.userTeamId;
+}
+
+function formatMatchup(game){
+  const home = state.teams.find(t=>t.id===game.homeId);
+  const away = state.teams.find(t=>t.id===game.awayId);
+  if (!home || !away) return "—";
+  return `${away.abbrev} @ ${home.abbrev}`;
+}
+
+function formatResult(game){
+  if (!game.played) return `<span class="muted">—</span>`;
+  const home = state.teams.find(t=>t.id===game.homeId);
+  const away = state.teams.find(t=>t.id===game.awayId);
+  const hs = game.homeScore, as = game.awayScore;
+  const homeWon = hs > as;
+  const winner = homeWon ? home?.abbrev : away?.abbrev;
+  return `<strong>${winner}</strong> ${as}-${hs}`;
+}
+
+function findNextUserGame(){
+  const startDay = state.day || 0;
+  const sched = state.schedule || [];
+  return sched
+    .filter(g => !g.played && g.day >= startDay && gameIsUser(g))
+    .sort((a,b)=>a.day-b.day)[0] || null;
+}
+
 function renderSchedule(){
-  document.getElementById("viewHint").textContent = "Schedule (your games highlighted)";
-  const rows = state.schedule.slice(0, 120).map(g=>{
+  document.getElementById("viewHint").textContent =
+    "Filter games, jump to your next game, and simulate straight from here.";
+
+  const filter = state.scheduleFilter || "user";
+  const show = state.scheduleShow || "upcoming";
+
+  const sched = (state.schedule || []).slice().sort((a,b)=>a.day-b.day);
+
+  let list = sched;
+  if (filter === "user") list = list.filter(gameIsUser);
+  if (show === "upcoming") list = list.filter(g => !g.played);
+  else if (show === "played") list = list.filter(g => g.played);
+
+  const nextUser = findNextUserGame();
+
+  const topControls = `
+    <div class="row" style="gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="btn ${filter==="user" ? "primary":""}" data-sched-filter="user">My Games</button>
+      <button class="btn ${filter==="all" ? "primary":""}" data-sched-filter="all">All Games</button>
+
+      <span class="muted" style="padding:0 6px;">|</span>
+
+      <button class="btn ${show==="upcoming" ? "primary":""}" data-sched-show="upcoming">Upcoming</button>
+      <button class="btn ${show==="played" ? "primary":""}" data-sched-show="played">Played</button>
+      <button class="btn ${show==="all" ? "primary":""}" data-sched-show="all">All</button>
+
+      <span class="muted" style="padding:0 6px;">|</span>
+
+      <button class="btn" data-sched-action="jumpNext" ${nextUser ? "" : "disabled"}>
+        Jump to Next User Game
+      </button>
+      <button class="btn primary" data-sched-action="simNext" ${nextUser ? "" : "disabled"}>
+        Sim to Next User Game
+      </button>
+
+      <span class="muted" style="margin-left:auto;">Season day: <strong>${(state.day||0)+1}</strong></span>
+    </div>
+  `;
+
+  if (list.length === 0) return topControls + `<div class="muted">No games match your filters.</div>`;
+
+  const rows = list.map(g=>{
+    const user = gameIsUser(g);
+    const isToday = (g.day === (state.day||0));
     const home = state.teams.find(t=>t.id===g.homeId);
     const away = state.teams.find(t=>t.id===g.awayId);
-    const isUser = (g.homeId===state.userTeamId || g.awayId===state.userTeamId);
-    const line = g.played ? `${away.abbrev} ${g.awayScore} @ ${home.abbrev} ${g.homeScore}` : `${away.abbrev} @ ${home.abbrev}`;
+
+    const userSide = user ? (g.homeId === state.userTeamId ? "HOME" : "AWAY") : "";
+
+    const style = [
+      user ? "background: rgba(110,231,255,.06);" : "",
+      isToday ? "outline: 1px solid rgba(255,255,255,.14);" : ""
+    ].filter(Boolean).join(" ");
+
+    const simBtn = (!g.played)
+      ? `<button class="btn primary" data-sched-action="simGame" data-game="${g.id}">Sim</button>`
+      : `<button class="btn" data-sched-action="box" data-game="${g.id}">Box</button>`;
+
     return `
-      <tr style="${isUser ? 'background: rgba(110,231,255,.06);' : ''}">
-        <td>Day ${g.day}</td>
-        <td>${line} ${isUser ? `<span class="badge"><span class="dot"></span>YOUR GAME</span>` : ``}</td>
-        <td class="right">${g.played ? "Final" : "Scheduled"}</td>
+      <tr style="${style}">
+        <td style="white-space:nowrap;">
+          <strong>${dayLabel(g.day)}</strong>
+          ${isToday ? ` <span class="badge"><span class="dot"></span>TODAY</span>` : ``}
+        </td>
+        <td>
+          <strong>${away?.abbrev || "—"}</strong> <span class="muted">@</span> <strong>${home?.abbrev || "—"}</strong>
+          ${user ? ` <span class="badge"><span class="dot"></span>YOU ${userSide}</span>` : ``}
+          <div class="muted">${away?.name || ""} @ ${home?.name || ""}</div>
+        </td>
+        <td class="right" style="white-space:nowrap;">${formatResult(g)}</td>
+        <td class="right" style="width:90px;">${g.played ? `<span class="muted">Final</span>` : `<span class="muted">Scheduled</span>`}</td>
+        <td class="right" style="width:110px;">${simBtn}</td>
       </tr>
     `;
   }).join("");
 
   return `
-    <div class="muted" style="margin-bottom:10px;">Showing first 120 games (we’ll add filters later).</div>
+    ${topControls}
     <table>
-      <thead><tr><th>Day</th><th>Matchup</th><th class="right">Status</th></tr></thead>
+      <thead>
+        <tr>
+          <th style="width:120px;">Day</th>
+          <th>Matchup</th>
+          <th class="right" style="width:140px;">Result</th>
+          <th class="right" style="width:90px;">Status</th>
+          <th class="right" style="width:110px;">Action</th>
+        </tr>
+      </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
@@ -2309,6 +2418,69 @@ if (_viewEl){
       if (typeof saveActiveLeague === 'function') saveActiveLeague();
       renderView();
       return;
+    }
+
+    // Schedule controls (filters / show / actions)
+    const schedFilter = e.target.closest("[data-sched-filter]");
+    if (schedFilter){
+      state.scheduleFilter = schedFilter.dataset.schedFilter || schedFilter.getAttribute('data-sched-filter');
+      if (typeof saveActiveLeague === 'function') saveActiveLeague();
+      renderView();
+      return;
+    }
+
+    const schedShow = e.target.closest("[data-sched-show]");
+    if (schedShow){
+      state.scheduleShow = schedShow.dataset.schedShow || schedShow.getAttribute('data-sched-show');
+      if (typeof saveActiveLeague === 'function') saveActiveLeague();
+      renderView();
+      return;
+    }
+
+    const schedAct = e.target.closest("[data-sched-action]");
+    if (schedAct){
+      const act = schedAct.dataset.schedAction || schedAct.getAttribute('data-sched-action');
+      const gid = schedAct.dataset.game || schedAct.getAttribute('data-game');
+      if (act === "simGame" && gid){
+        const game = state.schedule.find(x=>x.id == gid);
+        if (game && !game.played) simSpecificGame(game);
+        if (typeof saveActiveLeague === 'function') saveActiveLeague();
+        renderAll();
+        return;
+      }
+
+      if (act === "box" && gid){
+        const game = state.schedule.find(x=>x.id == gid);
+        if (game){
+          state.day = Math.max(state.day || 0, game.day);
+          renderAll();
+        }
+        return;
+      }
+
+      if (act === "jumpNext"){
+        const next = nextGameForUser();
+        if (!next) return alert("No upcoming user game.");
+        state.day = Math.max(state.day || 0, next.day);
+        renderAll();
+        return;
+      }
+
+      if (act === "simNext"){
+        const next = nextGameForUser();
+        if (!next) return alert("No upcoming user game.");
+        // simulate day-by-day until that game has been played
+        while (!next.played){
+          advanceDay();
+          // re-find in case structure mutated
+          const ref = state.schedule.find(x=>x.id===next.id);
+          if (!ref) break;
+          if (ref.played) break;
+          // safety: break if no unplayed games left
+          if (!state.schedule.some(g=>!g.played)) break;
+        }
+        return;
+      }
     }
   });
 
