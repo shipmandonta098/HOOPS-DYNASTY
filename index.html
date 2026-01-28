@@ -584,6 +584,15 @@ const FIRST_F = ["Aaliyah","Brianna","Kayla","Jasmine","Maya","Ava","Nia","Sofia
 const LAST = ["Carter","Johnson","Williams","Brown","Davis","Moore","Jackson","Taylor","Thomas","White","Harris","Martin","Thompson","Lee","Walker"];
 const POS   = ["PG","SG","SF","PF","C"];
 
+const COLLEGES = [
+  "Duke","North Carolina","Kentucky","Kansas","UCLA","Arizona","Michigan State",
+  "Villanova","Gonzaga","Baylor","Texas","Florida","UConn","Indiana","Louisville",
+  "Syracuse","Oregon","USC","Tennessee","Auburn","Miami","Virginia","Purdue",
+  "Illinois","Wisconsin","Iowa State","Houston","Alabama","Arkansas","Memphis",
+  "Marquette","Michigan","Ohio State","Georgetown","Notre Dame","Wake Forest",
+  "St. John's","Seton Hall","San Diego State","Creighton"
+];
+
 function rngInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 
@@ -678,6 +687,20 @@ function makeBio(age){
     draft: null,
     debutSeason: (state && state.seasonYear) ? state.seasonYear : (new Date()).getFullYear(),
   };
+}
+
+function genCollegeProfile(age){
+  let years;
+  if (age <= 20) years = 1;
+  else if (age === 21) years = Math.random() < 0.65 ? 2 : 1;
+  else if (age === 22) years = Math.random() < 0.6 ? 3 : 2;
+  else years = Math.random() < 0.65 ? 4 : 3;
+  return { name: pick(COLLEGES), years };
+}
+
+function ensurePlayerBio(p){
+  if (!p.bio) p.bio = makeBio(p.age || 22);
+  if (!p.bio.college) p.bio.college = genCollegeProfile(p.age || 22);
 }
 
 function fmtHeight(inches){
@@ -2605,6 +2628,10 @@ if (_leagueBody){
       const rec = libGetLeague(id);
       if (!rec) return alert("League not found.");
         state = rec.state;
+        // ensure older saves have player bio + college
+        for (const t of state.teams || []){
+          for (const p of t.players || []) ensurePlayerBio(p);
+        }
         activeLeagueId = id;
         state.view = state.view || "dashboard";
         renderAll();
@@ -2649,6 +2676,9 @@ if (_importFile){
       const parsed = JSON.parse(txt);
       const rec = makeLeagueRecordFromState(parsed);
       rec.state = parsed;
+      for (const t of rec.state.teams || []){
+        for (const p of t.players || []) ensurePlayerBio(p);
+      }
       libUpsertLeague(rec);
       activeLeagueId = rec.id;
       renderLeagueManager();
