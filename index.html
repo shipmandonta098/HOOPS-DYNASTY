@@ -636,6 +636,22 @@ function makeName(){
   return `${first} ${last}`;
 }
 
+function makePlayer(prefPos){
+  const pos = prefPos || pick(POS);
+  const age = rngInt(18, 34);
+  const player = {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.floor(Math.random()*100000)}`,
+    name: makeName(),
+    pos,
+    age,
+    minutes: 0,
+    role: "Rotation",
+    history: [],
+    ratings: makeAttributes(pos, age),
+  };
+  return player;
+}
+
 function calcOVR(p){
   const r = p.ratings || {};
   const w = {
