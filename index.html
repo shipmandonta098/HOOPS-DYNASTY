@@ -654,8 +654,48 @@ function makePlayer(prefPos){
     morale: 60,
     ratings: makeAttributes(pos, age),
     traits: makeTraits(),
+    bio: makeBio(age),
   };
   return player;
+}
+
+function makeBio(age){
+  const birthYear = (state && state.seasonYear) ? (state.seasonYear - age) : (new Date()).getFullYear() - age;
+  const US_CITIES = ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia","San Antonio","San Diego","Dallas","San Jose"];
+  const US_STATES = ["NY","CA","IL","TX","AZ","PA","TX","CA","TX","CA"];
+
+  return {
+    shoots: Math.random() < 0.75 ? "Right" : "Left",
+    heightIn: rngInt(71, 83),
+    weightLb: rngInt(175, 265),
+    born: {
+      year: birthYear,
+      month: rngInt(1,12),
+      day: rngInt(1,28),
+      city: pick(US_CITIES),
+      state: pick(US_STATES),
+    },
+    draft: null,
+    debutSeason: (state && state.seasonYear) ? state.seasonYear : (new Date()).getFullYear(),
+  };
+}
+
+function fmtHeight(in){
+  const ft = Math.floor(in / 12);
+  const inch = in % 12;
+  return `${ft}'${inch}\"`;
+}
+
+function careerLength(p){
+  if (!p) return 0;
+  if (p.bio && p.bio.debutSeason){
+    return Math.max(1, (state.seasonYear - p.bio.debutSeason + 1));
+  }
+  if (p.history && p.history.length){
+    const years = Array.from(new Set(p.history.map(h=>h.seasonYear).filter(Boolean)));
+    return Math.max(1, years.length);
+  }
+  return 1;
 }
 
 function makeTraits(){
@@ -2737,9 +2777,7 @@ function openPlayerModal(pid){
       <div class="card" style="flex:1; box-shadow:none;">
         <div class="hd"><div class="title">Bio</div></div>
         <div class="bd">
-          <div class="muted">Prototype bio</div>
-          <div style="height:8px"></div>
-          <div>${player.name} is a ${player.pos} for ${team.city}. (We’ll add real bios later.)</div>
+          ${renderPlayerBio(player)}
         </div>
       </div>
     </div>
@@ -2784,6 +2822,36 @@ function openPlayerModal(pid){
   if (!modal) return;
   modal.classList.remove("hide");
   modal.setAttribute("aria-hidden", "false");
+}
+
+function renderPlayerBio(p){
+  const b = p.bio || {};
+  const age = (state && state.seasonYear) ? (state.seasonYear - (b.born?.year || (new Date()).getFullYear())) : p.age;
+
+  return `
+    <div style="line-height:1.6;">
+      <div><strong>Position:</strong> ${p.pos}</div>
+      <div><strong>Shoots:</strong> ${b.shoots || '—'}</div>
+      <div><strong>Height / Weight:</strong> ${b.heightIn ? fmtHeight(b.heightIn) : '—'}, ${b.weightLb || '—'} lb</div>
+
+      <div style="margin-top:6px;">
+        <strong>Born:</strong>
+        ${b.born ? `${b.born.month}/${b.born.day}/${b.born.year}` : '—'}
+        (Age: ${age})
+        ${b.born ? `in ${b.born.city}, ${b.born.state}` : ''}
+      </div>
+
+      <div>
+        <strong>Draft:</strong>
+        ${b.draft
+          ? `${b.draft.team} • Round ${b.draft.round} (${b.draft.pick} overall)`
+          : "Undrafted"}
+      </div>
+
+      <div><strong>Pro Debut:</strong> ${b.debutSeason || '—'}</div>
+      <div><strong>Career Length:</strong> ${careerLength(p)} seasons</div>
+    </div>
+  `;
 }
 
 function closePlayerModal(){
