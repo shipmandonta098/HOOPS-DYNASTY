@@ -243,6 +243,20 @@
       border-color:rgba(110,231,255,.35);
       background:rgba(110,231,255,.10);
     }
+    /* Collapsible sidebar styles */
+    .app-shell{ transition: 200ms ease; }
+    .app-shell.is-collapsed{ grid-template-columns: 72px 1fr; }
+    .app-shell.is-collapsed .sidebar .title,
+    .app-shell.is-collapsed .sidebar .muted,
+    .app-shell.is-collapsed .sidebar .callout,
+    .app-shell.is-collapsed .sidebar select,
+    .app-shell.is-collapsed .sidebar .log,
+    .app-shell.is-collapsed .sidebar .row{ display:none !important; }
+    .app-shell.is-collapsed .nav-item{ text-align:center; padding:12px 0; font-size:12px; }
+    @media (max-width:950px){
+      .app-shell.is-collapsed{ grid-template-columns: 1fr; }
+      .app-shell.is-collapsed .sidebar{ display:none; }
+    }
   </style>
 </head>
 <body>
@@ -440,8 +454,11 @@
     <!-- MAIN CONTENT -->
     <main class="main card">
       <div class="hd">
-        <div class="title" id="viewTitle">Team Dashboard</div>
-        <div class="muted" id="viewHint"></div>
+        <button class="btn" id="btnToggleSidebar" title="Toggle sidebar" style="padding:8px 10px;">☰</button>
+        <div style="flex:1;">
+          <div class="title" id="viewTitle">Team Dashboard</div>
+          <div class="muted" id="viewHint"></div>
+        </div>
       </div>
       <div class="bd" id="view"></div>
     </main>
@@ -1396,6 +1413,29 @@ if (_viewEl){
     renderView();
   });
 }
+
+// Sidebar collapse toggle + persistence
+const SHELL_KEY = "hoopsDynasty_sidebarCollapsed_v1";
+function setSidebarCollapsed(collapsed){
+  const shell = document.querySelector('.app-shell');
+  if (!shell) return;
+  shell.classList.toggle('is-collapsed', !!collapsed);
+  localStorage.setItem(SHELL_KEY, collapsed ? '1' : '0');
+}
+
+// attach toggle button safely
+const _btnToggle = document.getElementById('btnToggleSidebar');
+if (_btnToggle){
+  _btnToggle.addEventListener('click', ()=>{
+    const shell = document.querySelector('.app-shell');
+    if (!shell) return;
+    const collapsed = !shell.classList.contains('is-collapsed');
+    setSidebarCollapsed(collapsed);
+  });
+}
+
+// Restore preference on load
+setSidebarCollapsed(localStorage.getItem(SHELL_KEY) === '1');
 
 // League Manager action handlers (load / rename / export / delete)
 const _leagueBody = document.getElementById("leagueTableBody");
