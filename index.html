@@ -1000,6 +1000,18 @@ function ownerMoodLabel(x){
   return "Angry";
 }
 
+function budgetSlider(key,label,val){
+  return `
+    <div style="margin-bottom:12px;">
+      <div class="row" style="justify-content:space-between;">
+        <strong>${label}</strong>
+        <span class="muted">${val}</span>
+      </div>
+      <input type="range" min="0" max="100" value="${val}" data-budget="${key}" style="width:100%;" />
+    </div>
+  `;
+}
+
 function renderFinances(){
   const team = state.teams.find(t=>t.id===state.userTeamId);
   if (!team) return `<div class="muted">No team selected.</div>`;
