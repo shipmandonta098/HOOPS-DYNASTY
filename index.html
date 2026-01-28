@@ -804,6 +804,15 @@ function ensureRosterMeta(team){
     ensureMorale(p);
   }
 }
+
+function ensureTeamStats(team){
+  if (!team) return;
+  if (!team.stats) team.stats = {};
+  const s = team.stats;
+  for (const k of ["gp","fgm","fga","tpm","fta","tov","orb","oppDrb"]) {
+    if (typeof s[k] !== 'number') s[k] = 0;
+  }
+}
 function autoAllocateMinutes(team){
   ensureRosterMeta(team);
   for (const p of team.players) p.minutes = 0;
@@ -919,6 +928,49 @@ function gameScore(teamA, teamB){
   return { a: Math.max(65,a), b: Math.max(65,b) };
 }
 
+function randBetween(a,b){ return a + Math.random()*(b-a); }
+function round(n){ return Math.round(n); }
+
+function genTeamGameStats(points){
+  const fga = round(randBetween(75, 95));
+  const tpRate = randBetween(0.28, 0.45);
+  const tpa = round(fga * tpRate);
+  const tpm = round(tpa * randBetween(0.32, 0.42));
+
+  const ftm = round(randBetween(12, 26));
+  const fgm = clamp(round((points - ftm) / 2), 25, fga);
+  const fta = clamp(round(ftm / randBetween(0.72, 0.90)), ftm, 40);
+
+  const tov = round(randBetween(9, 17));
+  const orb = round(randBetween(7, 14));
+
+  return { fgm, fga, tpm, fta, tov, orb };
+}
+
+function safeDiv(a,b){ return b ? (a/b) : 0; }
+function pctFmt(n){ return (n*100).toFixed(1) + "%"; }
+
+function teamEfficiency(team){
+  ensureTeamStats(team);
+  const s = team.stats;
+  const efg = safeDiv(s.fgm + 0.5*s.tpm, s.fga);
+  const tovPct = safeDiv(s.tov, (s.fga + 0.44*s.fta + s.tov));
+  const ftFta = safeDiv(s.fta, s.fga);
+  const orbPct = safeDiv(s.orb, (s.orb + s.oppDrb));
+  return { efg, tovPct, ftFta, orbPct };
+}
+
+function rankByMetric(metricKey, higherIsBetter=true){
+  const arr = state.teams.map(t => {
+    const m = teamEfficiency(t);
+    return { teamId: t.id, val: m[metricKey] };
+  });
+  arr.sort((a,b)=> higherIsBetter ? (b.val - a.val) : (a.val - b.val));
+  const rankMap = new Map();
+  arr.forEach((x, i) => rankMap.set(x.teamId, i+1));
+  return rankMap;
+}
+
 // Morale helpers
 function moraleLabel(m){
   if (m >= 80) return "Happy";
@@ -997,6 +1049,9 @@ function loadLeague(){
   if (!raw) return false;
   try{
     state = JSON.parse(raw);
+    // ensure older saves get morale/traits and team stats
+    ensureLeagueMorale();
+    for (const t of state.teams || []) ensureTeamStats(t);
     return true;
   }catch(e){
     console.warn("Save corrupted", e);
@@ -1222,6 +1277,15 @@ function buildTeamsFromTemplate(){
     streak: 0,
 
     players: [],
+    stats: {
+      gp: 0,
+      fgm: 0, fga: 0,
+      tpm: 0,
+      fta: 0,
+      tov: 0,
+      orb: 0,
+      oppDrb: 0,
+    },
   }));
 }
 
@@ -1305,6 +1369,10 @@ function createLeague({leagueName, seasonYear, userTeamAbbrev}){
   const userTeam = state.teams.find(t => t.abbrev === userTeamAbbrev) || state.teams[0];
   state.userTeamId = userTeam.id;
 
+  // ensure team stats + morale initialized
+  for (const t of state.teams) ensureTeamStats(t);
+  ensureLeagueMorale();
+
   state.schedule = generateSchedule(state.teams.map(t=>t.id), 360); // ~360 days/games (toy)
 
   logLine(`League created: ${state.leagueName} (${state.seasonYear})`);
@@ -1381,6 +1449,28 @@ function simSpecificGame(game){
   moraleAfterGame(away, !homeWon);
 
   logLine(`${away.abbrev} ${s.b} @ ${home.abbrev} ${s.a}`);
+
+  // team box stats
+  ensureTeamStats(home);
+  ensureTeamStats(away);
+  const hs = genTeamGameStats(game.homeScore);
+  const as = genTeamGameStats(game.awayScore);
+
+  const homeMiss = hs.fga - hs.fgm;
+  const awayMiss = as.fga - as.fgm;
+  const homeDrb = clamp(homeMiss - as.orb, 15, 50);
+  const awayDrb = clamp(awayMiss - hs.orb, 15, 50);
+
+  for (const [team, st, oppDrb] of [[home, hs, homeDrb],[away, as, awayDrb]]){
+    team.stats.gp += 1;
+    team.stats.fgm += st.fgm;
+    team.stats.fga += st.fga;
+    team.stats.tpm += st.tpm;
+    team.stats.fta += st.fta;
+    team.stats.tov += st.tov;
+    team.stats.orb += st.orb;
+    team.stats.oppDrb += oppDrb;
+  }
 }
 
 function advanceDay(){
@@ -1550,6 +1640,9 @@ function formatStreak(team){
 
 function renderStandings(){
   const uid = state.userTeamId;
+
+  // ensure stats are present for ranking/efficiency
+  for (const t of state.teams) ensureTeamStats(t);
 
   // Scope: league, East, West
   const scope = state.standingsScope || "league";
@@ -1729,6 +1822,7 @@ function renderRoster(){
 
 function renderDashboard(){
   const team = state.teams.find(t=>t.id===state.userTeamId);
+  ensureTeamStats(team);
   const ovr = teamOVR(team);
 
   const top = [...team.players]
@@ -1745,6 +1839,14 @@ function renderDashboard(){
   `).join("");
 
   document.getElementById("viewHint").textContent = "Your franchise overview";
+
+  // Efficiency metrics + ranks
+  const eff = teamEfficiency(team);
+  const rankEFG = rankByMetric("efg", true);
+  const rankTOV = rankByMetric("tovPct", false);
+  const rankFT  = rankByMetric("ftFta", true);
+  const rankORB = rankByMetric("orbPct", true);
+  function rk(map){ return `#${map.get(team.id)}/${state.teams.length}`; }
 
   return `
     <div class="callout" style="margin-bottom:12px;">
@@ -1782,6 +1884,43 @@ function renderDashboard(){
         <table>
           <thead><tr><th>Player</th><th class="right">OVR</th><th>Bar</th></tr></thead>
           <tbody>${topRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="box-shadow:none; margin-bottom:12px;">
+      <div class="hd"><div class="title">Efficiency</div></div>
+      <div class="bd" style="padding:0;">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th class="right">Value</th>
+              <th class="right">Rank</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>EFG%</strong></td>
+              <td class="right"><strong>${pctFmt(eff.efg)}</strong></td>
+              <td class="right muted">${rk(rankEFG)}</td>
+            </tr>
+            <tr>
+              <td><strong>TOV%</strong></td>
+              <td class="right"><strong>${pctFmt(eff.tovPct)}</strong></td>
+              <td class="right muted">${rk(rankTOV)}</td>
+            </tr>
+            <tr>
+              <td><strong>FT/FTA</strong></td>
+              <td class="right"><strong>${(eff.ftFta).toFixed(3)}</strong></td>
+              <td class="right muted">${rk(rankFT)}</td>
+            </tr>
+            <tr>
+              <td><strong>ORB%</strong></td>
+              <td class="right"><strong>${pctFmt(eff.orbPct)}</strong></td>
+              <td class="right muted">${rk(rankORB)}</td>
+            </tr>
+          </tbody>
         </table>
       </div>
     </div>
