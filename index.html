@@ -593,6 +593,20 @@ const COLLEGES = [
   "St. John's","Seton Hall","San Diego State","Creighton"
 ];
 
+const COUNTRIES = [
+  { code: "USA", name: "United States", flag: "🇺🇸", weight: 78 },
+  { code: "CAN", name: "Canada", flag: "🇨🇦", weight: 6 },
+  { code: "FRA", name: "France", flag: "🇫🇷", weight: 4 },
+  { code: "ESP", name: "Spain", flag: "🇪🇸", weight: 3 },
+  { code: "AUS", name: "Australia", flag: "🇦🇺", weight: 3 },
+  { code: "SRB", name: "Serbia", flag: "🇷🇸", weight: 2 },
+  { code: "GER", name: "Germany", flag: "🇩🇪", weight: 1 },
+  { code: "BRA", name: "Brazil", flag: "🇧🇷", weight: 1 },
+  { code: "ARG", name: "Argentina", flag: "🇦🇷", weight: 1 },
+  { code: "NGA", name: "Nigeria", flag: "🇳🇬", weight: 1 },
+  { code: "LTU", name: "Lithuania", flag: "🇱🇹", weight: 1 }
+];
+
 function rngInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 
@@ -672,17 +686,19 @@ function makeBio(age){
   const birthYear = (state && state.seasonYear) ? (state.seasonYear - age) : (new Date()).getFullYear() - age;
   const US_CITIES = ["New York","Los Angeles","Chicago","Houston","Phoenix","Philadelphia","San Antonio","San Diego","Dallas","San Jose"];
   const US_STATES = ["NY","CA","IL","TX","AZ","PA","TX","CA","TX","CA"];
+  const country = pickWeighted(COUNTRIES);
 
   return {
     shoots: Math.random() < 0.75 ? "Right" : "Left",
     heightIn: rngInt(71, 83),
     weightLb: rngInt(175, 265),
+    nationality: { code: country.code, name: country.name, flag: country.flag },
     born: {
       year: birthYear,
       month: rngInt(1,12),
       day: rngInt(1,28),
-      city: pick(US_CITIES),
-      state: pick(US_STATES),
+      city: country.code === "USA" ? pick(US_CITIES) : pick(US_CITIES),
+      state: country.code === "USA" ? pick(US_STATES) : null,
     },
     draft: null,
     debutSeason: (state && state.seasonYear) ? state.seasonYear : (new Date()).getFullYear(),
@@ -701,6 +717,17 @@ function genCollegeProfile(age){
 function ensurePlayerBio(p){
   if (!p.bio) p.bio = makeBio(p.age || 22);
   if (!p.bio.college) p.bio.college = genCollegeProfile(p.age || 22);
+  if (!p.bio.nationality) p.bio.nationality = pickWeighted(COUNTRIES);
+}
+
+function pickWeighted(arr){
+  const total = arr.reduce((s,x)=>s+(x.weight||0),0);
+  let r = Math.random() * total;
+  for (const o of arr){
+    r -= (o.weight||0);
+    if (r <= 0) return o;
+  }
+  return arr[0];
 }
 
 function fmtHeight(inches){
@@ -2879,7 +2906,13 @@ function renderPlayerBio(p){
         <strong>Born:</strong>
         ${b.born ? `${b.born.month}/${b.born.day}/${b.born.year}` : '—'}
         (Age: ${age})
-        ${b.born ? `in ${b.born.city}, ${b.born.state}` : ''}
+        ${b.born ? `in ${b.born.city}${b.born.state ? ', ' + b.born.state : ''}` : ''}
+      </div>
+
+      <div>
+        <strong>Nationality:</strong>
+        <span style="font-size:18px; margin-right:6px;">${b.nationality ? b.nationality.flag : ''}</span>
+        ${b.nationality ? b.nationality.name : '—'}
       </div>
 
       <div><strong>College:</strong> ${b.college ? `${b.college.name} (${b.college.years} yr)` : '—'}</div>
