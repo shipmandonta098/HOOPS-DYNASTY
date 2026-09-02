@@ -1,0 +1,314 @@
+/* ==========================================================================
+   Hoops Dynasty — Load Career screen
+   Static / GitHub-Pages compatible. Dark-arena look shared with the other
+   screens. No frameworks, no build step.
+
+   Section map:
+     1. Tokens
+     2. Base + arena background
+     3. Corner accent + faint court
+     4. Page shell (sticky-footer column)
+     5. Header (brand + title + Import)
+     6. Saves table (header row + rows + cells)
+     7. League badge + team crest + phase pill
+     8. Row menu popover
+     9. Empty state
+    10. Footer
+    11. Responsive (table -> stacked cards)
+    12. Reduced motion
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/anton-latin.woff2') format('woff2');
+}
+
+/* ------------------------------------------------------------------ 1. TOKENS */
+:root {
+  --navy-0: #081120;
+  --navy-1: #0d1e34;
+  --navy-2: #12283f;
+  --panel:  rgba(14, 30, 52, 0.66);
+  --panel-2:rgba(9, 20, 36, 0.9);
+  --row:    rgba(12, 26, 46, 0.55);
+  --stroke: rgba(120, 150, 190, 0.18);
+  --line:   rgba(150, 185, 230, 0.10);
+
+  --red:    #c1272d;
+  --red-hi: #e5393f;
+  --white:  #f2f5f8;
+  --muted:  #8ea3ba;
+  --silver: #cfd6df;
+
+  --green:  #3fb950;   /* regular season */
+  --blue:   #4a9eff;   /* offseason / draft / free agency */
+  --orange: #e3922b;   /* finals */
+
+  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ 2. BASE */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  font-family: var(--font-body);
+  color: var(--white);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 30%, var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+  overflow-x: hidden;
+}
+
+/* ------------------------------------------------- 3. CORNER + COURT */
+.court { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.6; }
+.court .paint { fill: none; stroke: var(--line); stroke-width: 2; }
+
+.corner-tl {
+  position: fixed;
+  top: 0; left: 0;
+  width: min(96px, 15vw);
+  height: min(96px, 15vw);
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--red) 0%, #7d1a1e 100%);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+/* ------------------------------------------------- 4. PAGE SHELL */
+.page { position: relative; z-index: 2; flex: 1 0 auto; display: flex; flex-direction: column;
+  padding: 2rem clamp(1.2rem, 3.5vw, 3.5rem) 1.5rem; }
+
+/* ------------------------------------------------- 5. HEADER */
+.head { display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 1.6rem; }
+.brand {
+  font-family: var(--font-display);
+  line-height: 0.82;
+  text-transform: uppercase;
+  font-size: 1.7rem;
+  flex: 0 0 auto;
+  padding-top: 0.3rem;
+}
+.brand .h { color: var(--white); display: block; }
+.brand .d { color: var(--red); display: block; }
+.brand .tr { display: block; width: 22px; height: 22px; color: var(--silver); margin-top: 0.35rem; }
+.brand .tr svg { display: block; width: 100%; height: 100%; }
+
+.titles { flex: 1 1 auto; }
+.titles h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5.5vw, 4rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.titles p {
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.import {
+  flex: 0 0 auto;
+  align-self: center;
+  display: flex; align-items: center; gap: 0.6rem;
+  background: var(--panel-2);
+  border: 1px solid var(--stroke);
+  color: var(--white);
+  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  font-size: 0.85rem;
+  padding: 0.85rem 1.4rem;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.import:hover { border-color: var(--red); background: rgba(193,39,45,0.12); }
+.import svg { width: 17px; height: 17px; }
+
+/* ------------------------------------------------- 6. SAVES TABLE */
+.table {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 0.4rem 0.9rem 0.9rem;
+}
+.table-head, .save-row {
+  display: grid;
+  grid-template-columns: 2.4fr 1.7fr 1.7fr 1.25fr 1.25fr 58px;
+  align-items: center;
+  gap: 0.8rem;
+}
+.table-head {
+  padding: 1rem 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--stroke);
+}
+.table-head span {
+  font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+
+.save-row {
+  padding: 0.9rem 0.6rem;
+  margin-top: 0.5rem;
+  background: var(--row);
+  border: 2px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.save-row:hover { background: rgba(20,40,66,0.7); }
+.save-row.is-selected { border-color: var(--red); box-shadow: 0 0 16px rgba(193,39,45,0.35); }
+
+.cell { min-width: 0; }
+.cell.league { display: flex; align-items: center; gap: 0.85rem; }
+.league-name { font-weight: 600; font-size: 1.02rem; line-height: 1.2; }
+
+.cell.team { display: flex; align-items: center; gap: 0.7rem; }
+.team-city { display: block; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+.team-name { display: block; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; font-size: 0.98rem; }
+
+.cell.phase .phase-label {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.9rem;
+}
+.cell.phase .phase-label svg { width: 16px; height: 16px; }
+.cell.phase .phase-sub { color: var(--muted); font-size: 0.78rem; margin-top: 0.2rem; }
+
+.cell.created, .cell.played { font-size: 0.9rem; }
+.cell.created .t, .cell.played .t { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }
+
+.cell.menu { display: flex; justify-content: flex-end; }
+.menu-btn {
+  width: 42px; height: 34px;
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--white);
+  font-size: 1.1rem; line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.menu-btn:hover { border-color: var(--red); background: rgba(193,39,45,0.12); }
+
+/* ------------------------------------------------- 7. BADGE / CREST / PILL */
+.league-badge {
+  flex: 0 0 auto;
+  width: 46px; height: 46px;
+  border-radius: 9px;
+  display: grid; place-items: center;
+  font-family: var(--font-display);
+  font-size: 0.9rem; letter-spacing: 0.02em;
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.crest {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 1.2rem;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset;
+}
+
+/* ------------------------------------------------- 8. ROW MENU POPOVER */
+.row-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 160px;
+  background: #0b1420;
+  border: 1px solid var(--stroke);
+  border-radius: 9px;
+  padding: 0.4rem;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+}
+.row-menu button {
+  display: flex; align-items: center; gap: 0.7rem;
+  width: 100%;
+  background: transparent; border: none;
+  color: var(--white);
+  font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.82rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.row-menu button:hover { background: rgba(255,255,255,0.06); }
+.row-menu button svg { width: 16px; height: 16px; }
+.row-menu button.danger { color: var(--red-hi); }
+
+/* ------------------------------------------------- 9. EMPTY STATE */
+.empty {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--muted);
+}
+.empty h2 { font-family: var(--font-display); color: var(--white); font-size: 1.6rem; text-transform: uppercase; margin-bottom: 0.6rem; }
+.empty a { color: var(--red-hi); text-decoration: none; font-weight: 700; }
+.empty a:hover { text-decoration: underline; }
+
+/* ------------------------------------------------- 10. FOOTER */
+.footer {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex; align-items: center;
+  padding: 1rem clamp(1.2rem, 3.5vw, 3.5rem);
+  border-top: 1px solid var(--stroke);
+  background: var(--navy-0);
+  gap: 1.6rem;
+}
+.footer .ghost {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: transparent; border: none;
+  color: var(--white);
+  font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.82rem;
+  cursor: pointer; opacity: 0.85;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.footer .ghost:hover { opacity: 1; color: var(--red-hi); }
+.footer .ghost:disabled { opacity: 0.3; cursor: not-allowed; }
+.footer .ghost.manage { margin-left: auto; }
+.footer .ghost .ic {
+  display: grid; place-items: center; width: 24px; height: 24px;
+  border: 1.5px solid currentColor; border-radius: 50%; font-size: 0.72rem;
+}
+
+/* ------------------------------------------------- 11. RESPONSIVE */
+@media (max-width: 860px) {
+  .head { flex-wrap: wrap; gap: 1rem; }
+  .import { order: 3; align-self: stretch; justify-content: center; width: 100%; }
+
+  /* Table -> stacked cards */
+  .table-head { display: none; }
+  .save-row {
+    grid-template-columns: 1fr auto;
+    grid-auto-rows: auto;
+    gap: 0.5rem 0.8rem;
+    padding: 1rem;
+  }
+  .cell { display: flex; align-items: center; gap: 0.6rem; }
+  .cell.league { grid-column: 1; grid-row: 1; }
+  .cell.menu  { grid-column: 2; grid-row: 1; }
+  .cell.team, .cell.phase, .cell.created, .cell.played { grid-column: 1 / -1; }
+  /* Label prefixes on mobile */
+  .cell.team::before, .cell.phase::before, .cell.created::before, .cell.played::before {
+    content: attr(data-label);
+    flex: 0 0 96px;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700;
+  }
+}
+@media (max-width: 480px) {
+  .brand { display: none; }
+  .footer { flex-wrap: wrap; gap: 1rem; }
+}
+
+/* ------------------------------------------------- 12. REDUCED MOTION */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; }
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — Load Career</title>
+  <link rel="stylesheet" href="./load-career.css" />
+</head>
+<body>
+
+  <!-- Faint court lines + red corner accent -->
+  <svg class="court" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <circle class="paint" cx="800" cy="900" r="150" />
+    <line class="paint" x1="0" y1="750" x2="1600" y2="750" />
+    <circle class="paint" cx="800" cy="120" r="90" />
+  </svg>
+  <div class="corner-tl" aria-hidden="true"></div>
+
+  <div class="page">
+
+    <!-- ================= HEADER ================= -->
+    <header class="head">
+      <div class="brand">
+        <span class="h">Hoops</span>
+        <span class="d">Dynasty</span>
+        <span class="tr" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg>
+        </span>
+      </div>
+      <div class="titles">
+        <h1>Load Career</h1>
+        <p>Continue your dynasty.</p>
+      </div>
+      <button class="import" id="importBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>
+        Import File
+      </button>
+      <input type="file" id="fileInput" accept="application/json,.json" hidden />
+    </header>
+
+    <!-- ================= SAVES TABLE ================= -->
+    <main class="content">
+      <div class="table">
+        <div class="table-head">
+          <span>League Name</span>
+          <span>Team</span>
+          <span>Phase</span>
+          <span>Date Created</span>
+          <span>Last Played</span>
+          <span></span>
+        </div>
+        <div id="rows"><!-- rows injected by loadCareer.js --></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="footer">
+    <button class="ghost" id="backBtn"><span class="ic">B</span>Back</button>
+    <button class="ghost" id="deleteBtn" disabled><span class="ic">X</span>Delete</button>
+    <button class="ghost manage" id="manageBtn"><span class="ic">?</span>Manage Saves</button>
+  </footer>
+
+  <!-- Row options popover (moved next to the clicked ⋯ button) -->
+  <div class="row-menu" id="rowMenu" hidden>
+    <button data-act="delete" class="danger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Delete
+    </button>
+    <button data-act="export">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0-12L8 7m4-4l4 4M4 21h16"/></svg>Export
+    </button>
+    <button data-act="rename">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4L18 10l-4-4L4 16v4zM14 6l4 4"/></svg>Rename
+    </button>
+  </div>
+
+  <script type="module" src="./loadCareer.js"></script>
+</body>
+</html>
