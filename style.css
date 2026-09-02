@@ -1,37 +1,42 @@
 /* ==========================================================================
-   Hoops Dynasty — Title Screen styles
+   Hoops Dynasty — Title Screen styles  (matched to reference art)
    Static / GitHub-Pages compatible. No frameworks, no build step.
 
    Section map:
-     1. Design tokens (colors, fonts) as CSS variables
+     1. Design tokens (colors, fonts)
      2. Base / reset
-     3. Court background (hardwood + faint half-court outlines)
-     4. Lighting: top-down spotlight + court reflection
+     3. Court background (cool light-gray planks + faint line paint)
+     4. Subtle edge vignette (depth only — the look stays bright & flat)
      5. Title stack layout (vertical centering)
-     6. Basketball logo + gold glow
-     7. Titles (H1 + tagline)
-     8. Trophy divider
-     9. Menu buttons + states (highlight / locked / hover glow)
-    10. Animations (@keyframes: pulse, fade-in, rise)
-    11. Responsive tweaks
+     6. Wordmark: HOOPS (black) + DYNASTY (gold)
+     7. Trophy divider flanked by gold rules
+     8. Menu (6 items; only Continue Dynasty is a filled block)
+     9. Menu states: highlight / locked / hover
+    10. Animations (gentle load fade)
+    11. Responsive
     12. Reduced-motion accessibility
    ========================================================================== */
 
+/* Athletic condensed display face for the wordmark (with safe fallbacks). */
+@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+
 /* ------------------------------------------------------------------
-   1. DESIGN TOKENS
-   One place to retune the whole look. Gold + black on light hardwood.
+   1. DESIGN TOKENS — retune the whole screen from here.
    ------------------------------------------------------------------ */
 :root {
-  --wood-light: #f3e2c0;   /* pale hardwood */
-  --wood-mid:   #e9d1a3;   /* slightly deeper hardwood for grain/edges */
-  --line:       #c9a86a;   /* faint court-line paint */
-  --gold:       #d4af37;   /* primary accent */
-  --gold-bright:#f2cf5b;   /* hover / glow highlight */
-  --ink:        #14110d;   /* near-black for text + highlight block */
-  --ink-soft:   #2a2620;   /* softer black for panels */
-  --paper:      #fffdf7;   /* light text on dark buttons */
+  --floor-1: #ececeb;   /* light cool-gray hardwood (light plank) */
+  --floor-2: #e3e3e2;   /* slightly darker plank for seams/grain */
+  --line:    #c2c3c3;   /* faint painted court lines */
+  --ink:     #141414;   /* near-black: HOOPS + menu text + highlight block */
+  --ink-2:   #2b2b2b;   /* softer black */
+  --paper:   #f7f7f5;   /* light text on the black highlight */
 
-  --font-display: 'Arial Black', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  /* Gold used only on DYNASTY, the trophy, and the flanking rules. */
+  --gold-hi: #dcbd6e;   /* lighter gold (top of the DYNASTY gradient) */
+  --gold-lo: #b28f45;   /* deeper gold (bottom of the gradient) */
+  --gold:    #c9a44f;   /* solid gold for the trophy + flanking rules */
+
+  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
   --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
@@ -39,266 +44,207 @@
    2. BASE / RESET
    ------------------------------------------------------------------ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 html, body { height: 100%; }
 
 body {
   font-family: var(--font-body);
   color: var(--ink);
-  /* Base hardwood gradient sits under the SVG court lines. */
-  background:
-    radial-gradient(ellipse at 50% 30%, var(--wood-light) 0%, var(--wood-mid) 90%);
-  overflow: hidden;                /* title screen is a fixed, single view */
+  overflow: hidden;                 /* single fixed view */
   position: relative;
+  background-color: var(--floor-1);
 }
 
 /* ------------------------------------------------------------------
    3. COURT BACKGROUND
-   The faint half-court outlines live in an inline <svg> (.court) in the
-   HTML. Here we just place and fade it so it reads as painted lines.
+   Two layers: (a) CSS plank texture on <body>-like .floor, and
+   (b) the faint vector court lines in an inline <svg class="court">.
    ------------------------------------------------------------------ */
+.floor {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  /* Vertical plank seams + a whisper of horizontal grain. Kept very subtle
+     so it reads as pale hardwood, not stripes. */
+  background-color: var(--floor-1);
+  background-image:
+    repeating-linear-gradient(90deg,
+      rgba(0,0,0,0.020) 0 1px, rgba(0,0,0,0) 1px 118px),
+    repeating-linear-gradient(0deg,
+      rgba(255,255,255,0.35) 0 2px, rgba(0,0,0,0.012) 2px 6px);
+  background-blend-mode: normal;
+}
+
 .court {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
-  opacity: 0.5;                    /* faint, not distracting */
+  z-index: 1;
+  opacity: 0.85;                    /* faint painted lines */
   pointer-events: none;
 }
 .court .paint {
   fill: none;
   stroke: var(--line);
-  stroke-width: 3;
+  stroke-width: 2.5;
+}
+/* The inner half of each free-throw circle is dashed, like a real court. */
+.court .dashed {
+  stroke-dasharray: 10 12;
 }
 
 /* ------------------------------------------------------------------
-   4. LIGHTING — top-down spotlight + court reflection
-   Two full-screen overlays that sit above the court but below content.
+   4. SUBTLE VIGNETTE — a touch of edge shadow for depth. Barely there.
    ------------------------------------------------------------------ */
-
-/* Top-down arena spotlight: bright pool at top-center fading to shadowed edges. */
-.spotlight {
+.vignette {
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 0%,
-      rgba(255, 250, 235, 0.85) 0%,
-      rgba(255, 250, 235, 0.25) 35%,
-      rgba(0, 0, 0, 0.0) 60%),
-    /* darkened corners (vignette) for contrast against gold/black */
-    radial-gradient(ellipse 120% 120% at 50% 45%,
-      rgba(0, 0, 0, 0) 55%,
-      rgba(40, 30, 10, 0.28) 100%);
-}
-
-/* Faint glossy reflection along the bottom, like a polished floor. */
-.reflection {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 38%;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(to bottom,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.10) 55%,
-    rgba(255, 255, 255, 0.22) 100%);
-  mix-blend-mode: screen;          /* brightens the floor rather than washing it */
+  background: radial-gradient(ellipse 95% 95% at 50% 45%,
+    rgba(0,0,0,0) 62%, rgba(0,0,0,0.10) 100%);
 }
 
 /* ------------------------------------------------------------------
-   5. TITLE STACK — vertical centering of everything
+   5. TITLE STACK — center everything vertically & horizontally.
    ------------------------------------------------------------------ */
 .stack {
   position: relative;
-  z-index: 2;                      /* above court + lighting */
+  z-index: 3;                       /* above court + vignette */
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
   text-align: center;
   padding: 2rem 1rem;
+  /* Gentle cinematic settle on load. */
+  animation: fadeUp 0.8s ease-out both;
 }
 
 /* ------------------------------------------------------------------
-   6. BASKETBALL LOGO + SOFT GOLD GLOW
-   The glow is a blurred radial behind the ball; the ball is inline SVG.
-   ------------------------------------------------------------------ */
-.logo {
-  position: relative;
-  width: 96px;
-  height: 96px;
-  display: grid;
-  place-items: center;
-  /* rise-in on load */
-  animation: rise 0.9s ease-out both;
-}
-.logo::before {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  border-radius: 50%;
-  background: radial-gradient(circle,
-    var(--gold-bright) 0%,
-    rgba(212, 175, 55, 0.45) 40%,
-    rgba(212, 175, 55, 0) 70%);
-  filter: blur(6px);
-  z-index: -1;                     /* sit behind the ball */
-}
-.logo svg { width: 100%; height: 100%; display: block; }
-
-/* ------------------------------------------------------------------
-   7. TITLES — big display H1 + fade-in tagline
+   6. WORDMARK — HOOPS (black) over DYNASTY (gold), condensed & stacked.
    ------------------------------------------------------------------ */
 .title {
   font-family: var(--font-display);
-  font-weight: 900;
-  font-size: clamp(2.6rem, 9vw, 6rem);
-  letter-spacing: 0.06em;
-  line-height: 0.95;
+  font-weight: 400;                 /* Anton is a single heavy weight */
+  line-height: 0.86;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+}
+.title .line1 {                     /* HOOPS */
+  display: block;
+  font-size: clamp(3.4rem, 13vw, 8.4rem);
   color: var(--ink);
-  /* gold edge-light + soft depth so it reads under the spotlight */
-  text-shadow:
-    0 1px 0 var(--gold),
-    0 2px 14px rgba(212, 175, 55, 0.35);
-  animation: rise 0.9s ease-out 0.1s both;
 }
-
-/* Tagline fades in LAST for the cinematic beat (long delay). */
-.tagline {
-  font-family: var(--font-body);
-  font-size: clamp(0.85rem, 2.2vw, 1.1rem);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  opacity: 0;                      /* starts hidden */
-  animation: fadeIn 1.4s ease-out 1.6s forwards;
+.title .line2 {                     /* DYNASTY — gold gradient via clipped text */
+  display: block;
+  font-size: clamp(2.5rem, 9.4vw, 6rem);
+  background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold-lo) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ------------------------------------------------------------------
-   8. TROPHY DIVIDER — small gold trophy between title and menu
+   7. TROPHY DIVIDER — small gold trophy flanked by two gold rules.
    ------------------------------------------------------------------ */
-.trophy {
-  width: 34px;
-  height: 34px;
-  color: var(--gold);
-  filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
-  animation: rise 0.9s ease-out 0.3s both;
+.divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin: 1.4rem 0 1.6rem;
+  width: min(320px, 70vw);
 }
-.trophy svg { width: 100%; height: 100%; display: block; }
+.divider .rule {
+  flex: 1;
+  height: 2px;
+  background: var(--gold);
+  opacity: 0.9;
+}
+.divider .trophy {
+  width: 30px;
+  height: 30px;
+  color: var(--gold);
+  flex: 0 0 auto;
+}
+.divider .trophy svg { width: 100%; height: 100%; display: block; }
 
 /* ------------------------------------------------------------------
-   9. MENU BUTTONS
-   Base button + three states: default, .is-highlight, .is-locked.
-   Hover changes color and adds a glow (see :hover blocks).
+   8. MENU — six stacked items. Plain text by default; the primary
+   "Continue Dynasty" is a filled black block.
    ------------------------------------------------------------------ */
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-  width: min(320px, 82vw);
-  animation: rise 0.9s ease-out 0.45s both;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .btn {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1rem;
-  letter-spacing: 0.12em;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink);
-  background: rgba(255, 253, 247, 0.72);
-  border: 2px solid var(--ink);
-  border-radius: 4px;
-  padding: 0.85rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  padding: 0.5rem 1.4rem;
   cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease,
-              color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: color 0.18s ease, background 0.18s ease,
+              text-shadow 0.18s ease, transform 0.18s ease;
 }
 
-/* Hover: flip to gold with a subtle glow and a small lift. */
+/* ------------------------------------------------------------------
+   9. MENU STATES
+   ------------------------------------------------------------------ */
+
+/* 9a. Hover on a plain item: shift to gold with a soft glow. */
 .btn:hover,
 .btn:focus-visible {
-  background: var(--gold);
-  border-color: var(--gold-bright);
-  color: var(--ink);
-  box-shadow: 0 0 18px rgba(212, 175, 55, 0.7),
-              0 0 4px rgba(212, 175, 55, 0.9);
-  transform: translateY(-2px);
+  color: var(--gold-lo);
+  text-shadow: 0 0 12px rgba(201, 164, 79, 0.55);
   outline: none;
 }
 
-/* 9a. Highlighted primary action — the black rectangle "CONTINUE DYNASTY". */
+/* 9b. Primary action — the filled black rectangle. */
 .btn.is-highlight {
   background: var(--ink);
   color: var(--paper);
-  border-color: var(--ink);
+  padding-left: 2.2rem;
+  padding-right: 2.2rem;
 }
 .btn.is-highlight:hover,
 .btn.is-highlight:focus-visible {
-  background: var(--ink-soft);
-  color: var(--gold-bright);
-  box-shadow: 0 0 22px rgba(212, 175, 55, 0.8);
+  background: var(--ink-2);
+  color: var(--gold-hi);
+  text-shadow: none;
+  box-shadow: 0 0 16px rgba(201, 164, 79, 0.35);
 }
 
-/* 9b. Slow pulsing "NEW DYNASTY" to draw the eye. */
-.btn.is-pulse {
-  animation: pulse 2.6s ease-in-out infinite;
-}
-
-/* 9c. Locked "Continue" — disabled until a league exists.
-   JS removes .is-locked (and the `disabled` attr) once a save is found. */
+/* 9c. Locked state — used on Continue Dynasty until a league is saved.
+   JS removes .is-locked (and `disabled`) once a save exists. */
 .btn.is-locked {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
-  filter: grayscale(0.5);
+  color: var(--paper);            /* stays on the black block, just dimmed */
 }
 .btn.is-locked:hover {
-  /* Kill the hover glow while locked. */
-  background: rgba(255, 253, 247, 0.72);
-  color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
   box-shadow: none;
-  transform: none;
-  border-color: var(--ink);
+  text-shadow: none;
 }
-.btn .lock {
-  font-size: 0.85em;
-  opacity: 0.8;
-  margin-left: 0.4em;
-}
+.btn .lock { font-size: 0.8em; opacity: 0.85; margin-left: 0.35em; }
 
 /* ------------------------------------------------------------------
    10. ANIMATIONS
    ------------------------------------------------------------------ */
-
-/* Slow, breathing pulse (scale + gold glow) for the New Dynasty button. */
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(212, 175, 55, 0);
-  }
-  50% {
-    transform: scale(1.03);
-    box-shadow: 0 0 20px rgba(212, 175, 55, 0.65);
-  }
-}
-
-/* Simple opacity fade for the cinematic tagline reveal. */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* Content rises + fades into place on load. */
-@keyframes rise {
-  from { opacity: 0; transform: translateY(16px); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -306,13 +252,12 @@ body {
    11. RESPONSIVE
    ------------------------------------------------------------------ */
 @media (max-width: 480px) {
-  .stack { gap: 0.85rem; }
-  .logo { width: 76px; height: 76px; }
+  .divider { margin: 1rem 0 1.2rem; }
+  .btn { font-size: 0.98rem; }
 }
 
 /* ------------------------------------------------------------------
-   12. REDUCED MOTION — respect users who opt out of animation.
-   Everything still ends in its final, visible state.
+   12. REDUCED MOTION
    ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -320,5 +265,4 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  .tagline { opacity: 1; }
 }
