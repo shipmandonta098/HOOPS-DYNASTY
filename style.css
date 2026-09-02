@@ -17,8 +17,18 @@
     12. Reduced-motion accessibility
    ========================================================================== */
 
-/* Athletic condensed display face for the wordmark (with safe fallbacks). */
-@import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
+/* Athletic display face for the wordmark — SELF-HOSTED (no CDN dependency).
+   The font file lives in ./fonts/ so it loads offline, over file://, and on
+   GitHub Pages with no external request. Anton is licensed under the SIL Open
+   Font License 1.1 (see fonts/OFL.txt). 'latin' subset only — it just needs
+   the wordmark + menu glyphs. Arial Narrow is a close condensed fallback. */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/anton-latin.woff2') format('woff2');
+}
 
 /* ------------------------------------------------------------------
    1. DESIGN TOKENS — retune the whole screen from here.
