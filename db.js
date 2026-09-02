@@ -25,8 +25,26 @@
  */
 
 const DB_NAME = 'BasketballGM';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'saves';
+
+/**
+ * Multi-store schema for the season-compression system (compressSeason.js).
+ * These stores use OUT-OF-LINE keys (no keyPath) — the caller passes an
+ * explicit key to saveData(store, key, value). That's why season records can
+ * be keyed by year and players/teams by their own id without the value needing
+ * to embed the key. To add another store later: add its name here and bump
+ * DB_VERSION so onupgradeneeded runs again.
+ */
+const DATA_STORES = [
+  'league_meta',
+  'teams',
+  'players',
+  'history_seasons',
+  'history_awards',
+  'draft_classes',
+  'transactions',
+];
 
 /**
  * Open (and if needed, create/upgrade) the database. The result is cached so we
@@ -51,8 +69,15 @@ function openDB() {
     // Runs on first creation or a version bump — the only place to define stores.
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      // The original single-store save slots (keyPath 'id').
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+      // The multi-store schema (out-of-line keys) used by the season system.
+      for (const name of DATA_STORES) {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name);
+        }
       }
     };
 
@@ -152,4 +177,94 @@ export async function listSavesDetailed() {
   return (records || [])
     .map((r) => ({ id: r.id, updatedAt: r.updatedAt }))
     .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+}
+
+/* ===========================================================================
+ * GENERIC MULTI-STORE API
+ * ---------------------------------------------------------------------------
+ * A small, uniform key/value interface over the DATA_STORES above. These power
+ * the multi-store architecture (league_meta, teams, players, history_seasons,
+ * history_awards, draft_classes, transactions) and the season-compression
+ * system in compressSeason.js. Keys are out-of-line — you pass them explicitly.
+ *
+ *   saveData(store, key, value) -> Promise<key>
+ *   loadData(store, key)        -> Promise<value|null>
+ *   deleteData(store, key)      -> Promise<void>
+ *   getAllData(store)           -> Promise<Array<{ key, value }>>
+ * ======================================================================== */
+
+/** Guard: make sure callers only touch stores that exist. */
+function assertStore(store) {
+  if (!DATA_STORES.includes(store)) {
+    throw new Error(
+      `Unknown store "${store}". Known data stores: ${DATA_STORES.join(', ')}.`
+    );
+  }
+}
+
+/**
+ * Run a single transaction against one data store and resolve with the result
+ * of `action(objectStore)`. Mirrors withStore() but for arbitrary stores.
+ */
+async function withDataStore(store, mode, action) {
+  assertStore(store);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    let request;
+    const tx = db.transaction(store, mode);
+    const os = tx.objectStore(store);
+    try {
+      request = action(os);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    tx.oncomplete = () => resolve(request ? request.result : undefined);
+    tx.onerror = () => reject(tx.error || new Error(`Transaction failed on "${store}".`));
+    tx.onabort = () => reject(tx.error || new Error(`Transaction aborted on "${store}".`));
+  });
+}
+
+/** Store (create or overwrite) `value` at `key` in `store`. */
+export async function saveData(store, key, value) {
+  if (key === undefined || key === null) {
+    throw new Error('saveData: key is required.');
+  }
+  await withDataStore(store, 'readwrite', (os) => os.put(value, key));
+  return key;
+}
+
+/** Retrieve the value at `key` in `store`, or null if absent. */
+export async function loadData(store, key) {
+  const result = await withDataStore(store, 'readonly', (os) => os.get(key));
+  return result === undefined ? null : result;
+}
+
+/** Remove `key` from `store`. Idempotent. */
+export async function deleteData(store, key) {
+  await withDataStore(store, 'readwrite', (os) => os.delete(key));
+}
+
+/**
+ * Return every record in `store` as { key, value } pairs. compressSeason.js
+ * relies on this shape so it can rewrite records back at their original key.
+ */
+export async function getAllData(store) {
+  assertStore(store);
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const os = db.transaction(store, 'readonly').objectStore(store);
+    const keysReq = os.getAllKeys();
+    const valsReq = os.getAll();
+    let keys = null;
+    let vals = null;
+    const done = () => {
+      if (keys === null || vals === null) return;
+      resolve(keys.map((k, i) => ({ key: k, value: vals[i] })));
+    };
+    keysReq.onsuccess = () => { keys = keysReq.result; done(); };
+    valsReq.onsuccess = () => { vals = valsReq.result; done(); };
+    keysReq.onerror = () => reject(keysReq.error);
+    valsReq.onerror = () => reject(valsReq.error);
+  });
 }
