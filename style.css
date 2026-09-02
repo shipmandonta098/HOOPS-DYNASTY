@@ -68,7 +68,8 @@ html, body { height: 100%; }
 body {
   font-family: var(--font-body);
   color: var(--white);
-  overflow: hidden;                 /* single fixed view */
+  overflow-x: hidden;               /* single fixed view */
+  overflow-y: auto;                 /* fallback: a very short viewport can still reach the menu */
   position: relative;
   background:
     radial-gradient(ellipse 90% 70% at 50% 42%,
@@ -149,7 +150,8 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   6. TITLE STACK — center everything vertically & horizontally.
+   6. TITLE STACK — branding in the upper section, menu in the lower;
+   spacing is vh-based so the composition spreads with the viewport.
    ------------------------------------------------------------------ */
 .stack {
   position: relative;
@@ -158,9 +160,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Top-anchored (not centred) so the elements can be distributed down the
+     screen instead of clustering around the middle. */
+  justify-content: flex-start;
   text-align: center;
-  padding: 2rem 1rem;
+  padding: clamp(2rem, 11vh, 8rem) 1rem clamp(2.5rem, 9vh, 6rem);
 }
 
 /* ------------------------------------------------------------------
@@ -177,7 +181,7 @@ body {
 }
 .title .line1 {                     /* HOOPS */
   display: block;
-  font-size: clamp(3.6rem, 14vw, 9rem);
+  font-size: clamp(5.2rem, 16vw, 10.5rem);
   color: var(--white);
   text-shadow:
     0 -1px 0 #ffffff,
@@ -188,7 +192,7 @@ body {
 }
 .title .line2 {                     /* DYNASTY — crimson */
   display: block;
-  font-size: clamp(2.7rem, 10.5vw, 6.6rem);
+  font-size: clamp(3.9rem, 12vw, 7.8rem);
   color: var(--red);
   text-shadow:
     0 2px 0 var(--red-dk),
@@ -200,9 +204,9 @@ body {
    8. TROPHY + SUBTITLE — silver trophy over spaced subtitle text.
    ------------------------------------------------------------------ */
 .trophy {
-  width: 34px;
-  height: 34px;
-  margin: 1rem 0 0.6rem;
+  width: clamp(38px, 3.4vw, 48px);
+  height: clamp(38px, 3.4vw, 48px);
+  margin: clamp(1.6rem, 4.5vh, 3.2rem) 0 clamp(0.9rem, 2vh, 1.4rem);
   color: var(--silver);
   animation:
     fadeIn 0.6s ease-out 0.95s both,
@@ -212,13 +216,13 @@ body {
 
 .subtitle {
   font-family: var(--font-body);
-  font-size: clamp(0.72rem, 2.2vw, 0.95rem);
+  font-size: clamp(0.78rem, 2.4vw, 1.1rem);
   font-weight: 600;
   letter-spacing: 0.34em;
   text-transform: uppercase;
   color: var(--white);
   opacity: 0.9;
-  margin-bottom: 1.8rem;
+  margin-bottom: 0;
   animation: fadeIn 0.8s ease-out 1.15s both;
 }
 
@@ -230,21 +234,26 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
+  /* `auto` absorbs the leftover height so the menu always settles into the
+     lower third; padding-top keeps a floor on the gap under the subtitle
+     when the viewport is too short for any free space. */
+  margin-top: auto;
+  padding-top: clamp(2rem, 6vh, 4rem);
+  gap: clamp(1rem, 3vh, 2.2rem);
   animation: fadeIn 0.7s ease-out 1.35s both;
 }
 
 .btn {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1rem;
+  font-size: clamp(1rem, 2.6vw, 1.25rem);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--white);
   background: transparent;
   border: none;
   border-radius: 2px;
-  padding: 0.6rem 2.4rem;
+  padding: clamp(0.7rem, 1.6vh, 1rem) clamp(2.4rem, 7vw, 3.6rem);
   cursor: pointer;
   transition: color 0.18s ease, background 0.18s ease,
               text-shadow 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
@@ -329,10 +338,22 @@ body {
    11. RESPONSIVE
    ------------------------------------------------------------------ */
 @media (max-width: 480px) {
-  .subtitle { margin-bottom: 1.3rem; letter-spacing: 0.26em; }
-  .btn { font-size: 0.95rem; padding: 0.55rem 1.8rem; }
+  .subtitle { letter-spacing: 0.26em; }
+  .btn { font-size: 0.98rem; padding: 0.7rem 2rem; }
   .corner-tl { width: 40vw; height: 40vw; }
   .corner-br { width: 34vw; height: 34vw; }
+}
+
+/* Short viewports (landscape phones): tighten the same rhythm so the whole
+   composition still fits on screen without changing its proportions. */
+@media (max-height: 600px) {
+  .stack { padding: clamp(1rem, 5vh, 2rem) 1rem clamp(1rem, 4vh, 1.75rem); }
+  .title .line1 { font-size: clamp(2.4rem, 8.5vw, 4.5rem); }
+  .title .line2 { font-size: clamp(1.8rem, 6.4vw, 3.4rem); }
+  .trophy { width: 28px; height: 28px; margin: 0.5rem 0 0.35rem; }
+  .subtitle { font-size: clamp(0.66rem, 1.9vw, 0.85rem); letter-spacing: 0.24em; }
+  .menu { padding-top: clamp(0.9rem, 3.5vh, 1.6rem); gap: clamp(0.45rem, 1.6vh, 0.8rem); }
+  .btn { padding: 0.45rem 2rem; font-size: clamp(0.9rem, 2.2vw, 1.05rem); }
 }
 
 /* ------------------------------------------------------------------
