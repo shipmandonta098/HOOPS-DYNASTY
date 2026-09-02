@@ -12,7 +12,8 @@
 import {
   loadDraft, saveDraft, newDraft, summaryLine, unassignedTeams,
   newConference, newDivision, newTeamId, autoAlign, teamLibrary,
-  EMOJI_CHOICES, COLOR_CHOICES, MARKETS, FANS,
+  EMOJI_CHOICES, FANS, crestHTML, teamColors, marketOf,
+  marketFromPopulation, populationFromMarket, readLogoFile,
 } from './leagueConfig.js';
 
 /* Working copy — Back leaves the stored draft untouched. */
@@ -46,7 +47,7 @@ function divisionOptions(selectedId) {
 
 function chipHTML(t, unassigned) {
   return `<div class="chip${unassigned ? ' is-unassigned' : ''}" data-team="${t.id}">
-    <span class="crest" style="background:${esc(t.color || '#33506e')}">${t.emoji || '🏀'}</span>
+    ${crestHTML(t, 28)}
     <span class="who"><span class="c">${esc(t.city || '')}</span><span class="n">${esc(t.name || '')}</span></span>
     <select class="move" aria-label="Move ${esc(t.name)}">${divisionOptions(t.divisionId)}</select>
     <span class="chip-actions">
@@ -147,18 +148,50 @@ function fillSelect(sel, values, current, render_) {
     `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${render_ ? render_(v) : esc(v)}</option>`).join('');
 }
 
+/* Logos being edited, held aside until the team is saved. */
+let draftLogos = { primary: null, secondary: null };
+
+/** Repaint the crest preview and the derived market label from the live form. */
+function refreshEditorPreview() {
+  const preview = {
+    emoji: el('fEmoji').value,
+    colors: {
+      primary: el('fPrimary').value,
+      secondary: el('fSecondary').value,
+      tertiary: el('fTertiary').value,
+    },
+    logoPrimary: draftLogos.primary,
+  };
+  el('crestPreview').innerHTML = crestHTML(preview, 76);
+  el('fMarket').value = marketFromPopulation(el('fPopulation').value);
+  const box = (slot, url) => {
+    const b = el(slot);
+    b.innerHTML = url ? `<img src="${url}" alt="">` : '<span class="ph">No logo</span>';
+  };
+  box('logoPrimaryBox', draftLogos.primary);
+  box('logoSecondaryBox', draftLogos.secondary);
+}
+
 function openTeamEditor(teamId) {
   editingTeamId = teamId;
   const t = teamId ? draft.teams.find((x) => x.id === teamId) : null;
+  const c = teamColors(t || {});
   el('teamModalTitle').textContent = t ? 'Edit Team' : 'Create Custom Team';
   el('fCity').value = t ? t.city : '';
   el('fName').value = t ? t.name : '';
   fillSelect(el('fEmoji'), EMOJI_CHOICES, t ? t.emoji : EMOJI_CHOICES[0]);
-  fillSelect(el('fColor'), COLOR_CHOICES, t ? t.color : COLOR_CHOICES[0]);
-  fillSelect(el('fMarket'), MARKETS, t ? t.marketSize : 'Medium');
   fillSelect(el('fFans'), FANS, t ? t.fanInterest : 'Medium');
+  el('fPrimary').value = c.primary;
+  el('fSecondary').value = c.secondary;
+  el('fTertiary').value = c.tertiary;
+  // Teams saved before population existed get a sensible value from their market.
+  el('fPopulation').value = t
+    ? (t.population != null ? t.population : populationFromMarket(marketOf(t)))
+    : 2.5;
   el('fBudget').value = t ? t.budget : 100;
   el('fDivision').innerHTML = divisionOptions(t ? t.divisionId : null);
+  draftLogos = { primary: (t && t.logoPrimary) || null, secondary: (t && t.logoSecondary) || null };
+  refreshEditorPreview();
   el('teamModal').hidden = false;
   el('fCity').focus();
 }
@@ -167,14 +200,24 @@ function saveTeamFromEditor() {
   const city = el('fCity').value.trim();
   const name = el('fName').value.trim();
   if (!city || !name) { alert('A team needs both a city and a name.'); return; }
+  const population = Math.max(0.1, Math.min(30, parseFloat(el('fPopulation').value) || 1));
+  const colors = {
+    primary: el('fPrimary').value,
+    secondary: el('fSecondary').value,
+    tertiary: el('fTertiary').value,
+  };
   const patch = {
     city, name,
     emoji: el('fEmoji').value,
-    color: el('fColor').value,
-    marketSize: el('fMarket').value,
+    colors,
+    color: colors.primary,          // legacy field other screens still read
+    population,
+    marketSize: marketFromPopulation(population),   // always follows population
     fanInterest: el('fFans').value,
     budget: Math.max(40, Math.min(200, parseFloat(el('fBudget').value) || 100)),
     divisionId: el('fDivision').value || null,
+    logoPrimary: draftLogos.primary || null,
+    logoSecondary: draftLogos.secondary || null,
   };
   if (editingTeamId) {
     Object.assign(draft.teams.find((t) => t.id === editingTeamId), patch);
@@ -191,7 +234,7 @@ function openLibrary() {
   const lib = teamLibrary(draft.teams);
   el('libList').innerHTML = lib.length
     ? lib.map((t) => `<div class="lib-item" data-lib='${esc(JSON.stringify(t))}'>
-        <span class="crest" style="background:${esc(t.color)};width:28px;height:28px;border-radius:50%;display:grid;place-items:center">${t.emoji}</span>
+        ${crestHTML(t, 28)}
         <span class="who"><span class="c">${esc(t.city)}</span><span class="n">${esc(t.name)}</span></span>
         <button class="icon-btn" data-act="lib-add">Add</button>
       </div>`).join('')
@@ -270,6 +313,30 @@ el('autoAlignBtn').addEventListener('click', () => {
 el('teamCancel').addEventListener('click', () => { el('teamModal').hidden = true; });
 el('teamSave').addEventListener('click', saveTeamFromEditor);
 
+// Colours, crest symbol and population all repaint the preview immediately.
+for (const id of ['fPrimary', 'fSecondary', 'fTertiary', 'fEmoji', 'fPopulation']) {
+  el(id).addEventListener('input', refreshEditorPreview);
+  el(id).addEventListener('change', refreshEditorPreview);
+}
+
+// Logo uploads are downscaled before being stored.
+async function handleLogo(inputId, slot) {
+  const input = el(inputId);
+  const file = input.files && input.files[0];
+  input.value = '';                       // allow re-picking the same file
+  if (!file) return;
+  try {
+    draftLogos[slot] = await readLogoFile(file);
+    refreshEditorPreview();
+  } catch (err) {
+    alert('Could not use that image: ' + err.message);
+  }
+}
+el('fLogoPrimary').addEventListener('change', () => handleLogo('fLogoPrimary', 'primary'));
+el('fLogoSecondary').addEventListener('change', () => handleLogo('fLogoSecondary', 'secondary'));
+el('clearLogoPrimary').addEventListener('click', () => { draftLogos.primary = null; refreshEditorPreview(); });
+el('clearLogoSecondary').addEventListener('click', () => { draftLogos.secondary = null; refreshEditorPreview(); });
+
 // Library
 el('libClose').addEventListener('click', () => { el('libModal').hidden = true; });
 el('libList').addEventListener('click', (e) => {
@@ -299,7 +366,11 @@ el('saveBtn').addEventListener('click', () => {
   if (!stored.teams.some((t) => t.id === stored.teamId)) {
     stored.teamId = stored.teams[0] ? stored.teams[0].id : null;
   }
-  saveDraft(stored);
+  if (!saveDraft(stored)) {
+    alert('Could not save the league structure — browser storage is full.\n' +
+          'Try clearing a logo or two (uploaded images take the most space).');
+    return;
+  }
   location.href = './new-career.html';
 });
 

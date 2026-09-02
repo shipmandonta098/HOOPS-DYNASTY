@@ -21,6 +21,7 @@ import { saveLeague, listSaves } from './db.js';
 import {
   makeRNG, hashString, loadDraft, saveDraft, summaryLine, unassignedTeams,
   listPresets, savePreset, getPreset, renamePreset, deletePreset, applyPreset,
+  crestHTML, marketOf, teamColors,
 } from './leagueConfig.js';
 
 /* ============================== player generation ============================== */
@@ -73,7 +74,8 @@ function generateLeague(cfg) {
   const players = [];
   let idNum = 1;
   for (const team of teams) {
-    const quality = team.marketSize === 'Large' ? 68 : team.marketSize === 'Medium' ? 64 : 61;
+    const market = marketOf(team);
+    const quality = market === 'Large' ? 68 : market === 'Medium' ? 64 : 61;
     for (const pos of POSITIONS) players.push(makePlayer(idNum++, team.id, pos, quality + rng.int(-2, 6), rng));
     for (let i = 0; i < 7; i++) players.push(makePlayer(idNum++, team.id, rng.pick(POSITIONS), quality + rng.int(-8, 2), rng));
   }
@@ -101,8 +103,13 @@ function generateLeague(cfg) {
     // League alignment travels with the save.
     structure: JSON.parse(JSON.stringify(cfg.structure)),
     teams: teams.map((t) => ({
-      id: t.id, city: t.city, name: t.name, emoji: t.emoji, color: t.color,
-      marketSize: t.marketSize, fanInterest: t.fanInterest, budget: t.budget,
+      id: t.id, city: t.city, name: t.name, emoji: t.emoji,
+      colors: teamColors(t),
+      color: teamColors(t).primary,          // legacy single colour
+      logoPrimary: t.logoPrimary || null,
+      logoSecondary: t.logoSecondary || null,
+      population: t.population != null ? t.population : null,
+      marketSize: marketOf(t), fanInterest: t.fanInterest, budget: t.budget,
       championships: t.championships || 0,
       divisionId: t.divisionId || null,
       conferenceId: t.divisionId && divById[t.divisionId] ? divById[t.divisionId].conferenceId : null,
@@ -224,10 +231,6 @@ function initStructure() {
 }
 
 /* --- 4. Select team --- */
-function crestHTML(team) {
-  return `<div style="width:100%;height:100%;border-radius:50%;display:grid;place-items:center;
-    background:${esc(team.color || '#33506e')};font-size:1.7rem;box-shadow:0 0 0 3px rgba(255,255,255,0.08) inset;">${team.emoji || '🏀'}</div>`;
-}
 function renderTeams() {
   const track = el('teamTrack');
   el('teamCount').textContent = `${draft.teams.length} TEAMS`;
@@ -237,11 +240,11 @@ function renderTeams() {
   track.innerHTML = draft.teams.map((t) => `
     <div class="team-card${t.id === draft.teamId ? ' is-selected' : ''}" data-team="${esc(t.id)}" role="button" tabindex="0">
       <span class="star" aria-hidden="true">★</span>
-      <div class="logo">${crestHTML(t)}</div>
+      <div class="logo">${crestHTML(t, 50)}</div>
       <div class="city">${esc(t.city)}</div>
       <div class="team">${esc(t.name)}</div>
       <div class="stats">
-        <div class="row"><span>Market Size</span><b>${esc(t.marketSize)}</b></div>
+        <div class="row"><span>Market Size</span><b>${esc(marketOf(t))}</b></div>
         <div class="row"><span>Fan Interest</span><b>${esc(t.fanInterest)}</b></div>
         <div class="row"><span>Budget</span><b>$${Number(t.budget).toFixed(1)}M</b></div>
       </div>

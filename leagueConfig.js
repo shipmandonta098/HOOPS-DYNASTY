@@ -53,12 +53,12 @@ export function makeRNG(seed) {
 export const TEAM_SEED = 1;
 
 const NAMED_TEAMS = [
-  { id: 'NYM', city: 'New York', name: 'Monarchs', emoji: '👑', color: '#c0392b', marketSize: 'Large', fanInterest: 'High', budget: 120.0, championships: 0 },
-  { id: 'LAS', city: 'Los Angeles', name: 'Sentinels', emoji: '🛡️', color: '#5b4b8a', marketSize: 'Large', fanInterest: 'High', budget: 118.0, championships: 2 },
-  { id: 'CHT', city: 'Chicago', name: 'Titans', emoji: '🐂', color: '#b03a2e', marketSize: 'Large', fanInterest: 'Medium', budget: 108.0, championships: 3 },
-  { id: 'MIW', city: 'Miami', name: 'Wave', emoji: '🌊', color: '#17a2a2', marketSize: 'Medium', fanInterest: 'High', budget: 104.0, championships: 1 },
-  { id: 'TOR', city: 'Toronto', name: 'North', emoji: '🍁', color: '#a02128', marketSize: 'Medium', fanInterest: 'Medium', budget: 99.0, championships: 1 },
-  { id: 'DAL', city: 'Dallas', name: 'Hurricanes', emoji: '🌀', color: '#2f6fb0', marketSize: 'Large', fanInterest: 'Medium', budget: 112.0, championships: 0 },
+  { id: 'NYM', city: 'New York', name: 'Monarchs', emoji: '👑', colors: { primary: '#c0392b', secondary: '#f0c419', tertiary: '#0d1e34' }, population: 8.5, fanInterest: 'High', budget: 120.0, championships: 0 },
+  { id: 'LAS', city: 'Los Angeles', name: 'Sentinels', emoji: '🛡️', colors: { primary: '#5b4b8a', secondary: '#d8c15e', tertiary: '#ffffff' }, population: 5.2, fanInterest: 'High', budget: 118.0, championships: 2 },
+  { id: 'CHT', city: 'Chicago', name: 'Titans', emoji: '🐂', colors: { primary: '#b03a2e', secondary: '#1a1a1a', tertiary: '#e8e8e8' }, population: 4.6, fanInterest: 'Medium', budget: 108.0, championships: 3 },
+  { id: 'MIW', city: 'Miami', name: 'Wave', emoji: '🌊', colors: { primary: '#17a2a2', secondary: '#ff7fbf', tertiary: '#0d2b3e' }, population: 2.8, fanInterest: 'High', budget: 104.0, championships: 1 },
+  { id: 'TOR', city: 'Toronto', name: 'North', emoji: '🍁', colors: { primary: '#a02128', secondary: '#ffffff', tertiary: '#2b2b2b' }, population: 3.1, fanInterest: 'Medium', budget: 99.0, championships: 1 },
+  { id: 'DAL', city: 'Dallas', name: 'Hurricanes', emoji: '🌀', colors: { primary: '#2f6fb0', secondary: '#8ec6f0', tertiary: '#10233b' }, population: 4.4, fanInterest: 'Medium', budget: 112.0, championships: 0 },
 ];
 
 const MORE_CITIES = ['Boston', 'Denver', 'Phoenix', 'Seattle', 'Atlanta', 'Houston',
@@ -74,6 +74,80 @@ export const EMOJI_CHOICES = ['🔥', '❄️', '🦏', '☄️', '🦅', '⚓',
 export const COLOR_CHOICES = ['#2e7d32', '#1565c0', '#ef6c00', '#6a1b9a', '#00838f',
   '#c62828', '#4527a0', '#00695c', '#37474f', '#ad1457', '#c0392b', '#2f6fb0'];
 export const MARKETS = ['Small', 'Medium', 'Large'];
+
+/* Market size is derived from metro population (millions) rather than being a
+   free-standing choice — bigger market, bigger draw. */
+export function marketFromPopulation(pop) {
+  const p = Number(pop) || 0;
+  if (p >= 4) return 'Large';
+  if (p >= 1.5) return 'Medium';
+  return 'Small';
+}
+/** Reverse guess, used to seed population for teams saved before this field. */
+export function populationFromMarket(market) {
+  return market === 'Large' ? 5.0 : market === 'Medium' ? 2.5 : 1.0;
+}
+
+/** Market size for a team: stored value if it has one, else from population. */
+export function marketOf(team) {
+  if (team && team.marketSize) return team.marketSize;
+  return marketFromPopulation(team && team.population);
+}
+
+/** A team's three-colour palette, tolerating older single-`color` records. */
+export function teamColors(team) {
+  const c = (team && team.colors) || {};
+  const legacy = (team && team.color) || '#33506e';
+  return {
+    primary: c.primary || legacy,
+    secondary: c.secondary || '#ffffff',
+    tertiary: c.tertiary || '#0d1e34',
+  };
+}
+
+/**
+ * One crest renderer shared by every screen, so a team looks the same in the
+ * carousel, the structure editor and the dashboard. Uses the uploaded primary
+ * logo when there is one, otherwise the crest emoji, and paints all three
+ * colours: primary fill, secondary inner ring, tertiary outer ring.
+ */
+export function crestHTML(team, size = 40) {
+  const c = teamColors(team);
+  const inner = team && team.logoPrimary
+    ? `<img src="${team.logoPrimary}" alt="" style="width:74%;height:74%;object-fit:contain;">`
+    : `<span style="font-size:${Math.round(size * 0.46)}px;line-height:1">${(team && team.emoji) || '🏀'}</span>`;
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;display:grid;place-items:center;
+    background:${c.primary};box-shadow:0 0 0 2px ${c.secondary} inset, 0 0 0 2px ${c.tertiary};
+    overflow:hidden;flex:0 0 auto;">${inner}</div>`;
+}
+
+/**
+ * Read an image file, downscale it and return a PNG data URL. Downscaling
+ * matters: logos are stored inside the league draft (localStorage) and the
+ * save itself, and full-size uploads would blow past the storage quota.
+ */
+export function readLogoFile(file, max = 128) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('No file selected.'));
+    if (!/^image\//.test(file.type)) return reject(new Error('That file is not an image.'));
+    if (file.size > 4 * 1024 * 1024) return reject(new Error('Image is too large (4 MB max).'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      try { resolve(cv.toDataURL('image/png')); }
+      catch (err) { reject(new Error('Could not process that image.')); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read that image.')); };
+    img.src = url;
+  });
+}
 export const FANS = ['Low', 'Medium', 'High'];
 
 /** Extra fictional franchises the user can add from the library. */
@@ -99,8 +173,12 @@ export function defaultTeams() {
       id: (city.slice(0, 2) + name.slice(0, 1)).toUpperCase() + teams.length,
       city, name,
       emoji: rng.pick(EMOJI_CHOICES.slice(0, 14)),
-      color: rng.pick(COLOR_CHOICES),
-      marketSize: rng.pick(MARKETS),
+      colors: {
+        primary: rng.pick(COLOR_CHOICES),
+        secondary: rng.pick(['#ffffff', '#f0c419', '#e8e8e8', '#1a1a1a', '#8ec6f0']),
+        tertiary: rng.pick(['#0d1e34', '#10233b', '#2b2b2b', '#ffffff']),
+      },
+      population: +(0.6 + rng.next() * 6.6).toFixed(1),
       fanInterest: rng.pick(FANS),
       budget: +(85 + rng.next() * 40).toFixed(1),
       championships: rng.int(0, 3),
@@ -120,8 +198,12 @@ export function teamLibrary(existingTeams) {
       id: 'lib_' + (city.slice(0, 2) + name.slice(0, 1)).toUpperCase(),
       city, name,
       emoji: rng.pick(EMOJI_CHOICES),
-      color: rng.pick(COLOR_CHOICES),
-      marketSize: rng.pick(MARKETS),
+      colors: {
+        primary: rng.pick(COLOR_CHOICES),
+        secondary: rng.pick(['#ffffff', '#f0c419', '#e8e8e8', '#1a1a1a']),
+        tertiary: rng.pick(['#0d1e34', '#2b2b2b', '#ffffff']),
+      },
+      population: +(0.6 + rng.next() * 6.6).toFixed(1),
       fanInterest: rng.pick(FANS),
       budget: +(85 + rng.next() * 40).toFixed(1),
       championships: 0,
@@ -207,8 +289,14 @@ export function loadDraft() {
 }
 
 export function saveDraft(draft) {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch (_) {}
-  return draft;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    return true;
+  } catch (err) {
+    // Almost always the storage quota — uploaded logos are the usual cause.
+    console.warn('Could not save the league draft:', err);
+    return false;
+  }
 }
 
 export function clearDraft() {

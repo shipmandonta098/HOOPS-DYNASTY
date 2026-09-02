@@ -20,6 +20,7 @@
  */
 
 import { loadLeague, listSavesDetailed } from './db.js';
+import { crestHTML, marketOf } from './leagueConfig.js';
 
 /* ------------------------------ ratings (real) ------------------------------
    Computed from each player's stored attributes — arithmetic on real data,
@@ -58,6 +59,16 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const initials = (n) => String(n || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const fmtM = (n) => `$${Number(n).toFixed(2)}M`;
+
+/** Paint a team crest into `node`, replacing the placeholder box styling. */
+function setCrest(node, team, size) {
+  if (!node) return;
+  node.textContent = '';
+  node.style.background = 'none';
+  node.style.boxShadow = 'none';
+  node.style.padding = '0';
+  node.innerHTML = crestHTML(team, size);
+}
 const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 const PHASE_LABEL = {
   regular_season: 'Regular Season', playoffs: 'Playoffs', offseason: 'Offseason',
@@ -138,19 +149,21 @@ function render(vm) {
   el('ctxSeason').textContent = vm.seasonLabel;
   el('ctxPhase').textContent = vm.phaseLabel;
   el('teamChipName').textContent = `${t.city || ''} ${t.name || ''}`.trim();
-  el('teamChipLogo').textContent = t.emoji || '🏀';
-  el('teamChipLogo').style.background = `linear-gradient(160deg, ${t.color || '#1b3c60'}, #0a1a2e)`;
+  // Crests use the team's own palette (primary/secondary/tertiary) and any
+  // uploaded primary logo — the same renderer the setup screens use, so what
+  // you picked in Edit Team is what you see here.
+  setCrest(el('teamChipLogo'), t, 30);
 
   // Identity
-  el('teamLogo').textContent = t.emoji || '🏀';
-  el('teamLogo').style.background = t.color || '#33506e';
+  setCrest(el('teamLogo'), t, 70);
   el('teamCity').textContent = t.city || '';
   el('teamName').textContent = t.name || 'Team';
   el('teamSub').textContent = `${vm.phaseLabel} · ${vm.meta.currentSeason || ''}`;
 
   // Header facts — stored on the team record, so these are real.
   const facts = [
-    ['Market Size', t.marketSize || '—'],
+    ['Market Size', marketOf(t) || '—'],
+    ['Population', typeof t.population === 'number' ? `${t.population}M` : '—'],
     ['Fan Interest', t.fanInterest || '—'],
     ['Team Budget', typeof t.budget === 'number' ? fmtM(t.budget) : '—'],
   ];

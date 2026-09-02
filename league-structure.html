@@ -78,13 +78,50 @@
   <div class="modal" id="teamModal" hidden>
     <div class="modal-card">
       <h2 id="teamModalTitle">Edit Team</h2>
+      <!-- Live crest preview — reflects the colours and logo below -->
+      <div class="crest-preview">
+        <div id="crestPreview"></div>
+        <div class="cp-note">Team logo preview</div>
+      </div>
+
       <div class="form-grid">
         <label>City<input type="text" id="fCity" maxlength="20" /></label>
         <label>Name<input type="text" id="fName" maxlength="20" /></label>
-        <label>Crest<select id="fEmoji"></select></label>
-        <label>Colour<select id="fColor"></select></label>
-        <label>Market Size<select id="fMarket"></select></label>
+        <label>Crest Symbol<select id="fEmoji"></select></label>
         <label>Fan Interest<select id="fFans"></select></label>
+      </div>
+
+      <div class="form-sub">Team Colours</div>
+      <div class="color-row">
+        <label>Primary<input type="color" id="fPrimary" /></label>
+        <label>Secondary<input type="color" id="fSecondary" /></label>
+        <label>Tertiary<input type="color" id="fTertiary" /></label>
+      </div>
+
+      <div class="form-sub">Logos</div>
+      <div class="logo-row">
+        <div class="logo-slot">
+          <div class="logo-box" id="logoPrimaryBox"><span class="ph">No logo</span></div>
+          <div class="logo-name">Primary Logo</div>
+          <div class="logo-btns">
+            <label class="mini as-label">Upload<input type="file" id="fLogoPrimary" accept="image/*" hidden /></label>
+            <button class="mini danger" id="clearLogoPrimary" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="logo-slot">
+          <div class="logo-box" id="logoSecondaryBox"><span class="ph">No logo</span></div>
+          <div class="logo-name">Secondary Logo</div>
+          <div class="logo-btns">
+            <label class="mini as-label">Upload<input type="file" id="fLogoSecondary" accept="image/*" hidden /></label>
+            <button class="mini danger" id="clearLogoSecondary" type="button">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-sub">Market</div>
+      <div class="form-grid">
+        <label>Population (millions)<input type="number" id="fPopulation" min="0.1" max="30" step="0.1" /></label>
+        <label>Market Size<input type="text" id="fMarket" readonly /><span class="field-note">Derived from population</span></label>
         <label>Budget ($M)<input type="number" id="fBudget" min="40" max="200" step="0.1" /></label>
         <label>Division<select id="fDivision"></select></label>
       </div>
