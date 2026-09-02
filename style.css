@@ -1,0 +1,324 @@
+/* ==========================================================================
+   Hoops Dynasty — Title Screen styles
+   Static / GitHub-Pages compatible. No frameworks, no build step.
+
+   Section map:
+     1. Design tokens (colors, fonts) as CSS variables
+     2. Base / reset
+     3. Court background (hardwood + faint half-court outlines)
+     4. Lighting: top-down spotlight + court reflection
+     5. Title stack layout (vertical centering)
+     6. Basketball logo + gold glow
+     7. Titles (H1 + tagline)
+     8. Trophy divider
+     9. Menu buttons + states (highlight / locked / hover glow)
+    10. Animations (@keyframes: pulse, fade-in, rise)
+    11. Responsive tweaks
+    12. Reduced-motion accessibility
+   ========================================================================== */
+
+/* ------------------------------------------------------------------
+   1. DESIGN TOKENS
+   One place to retune the whole look. Gold + black on light hardwood.
+   ------------------------------------------------------------------ */
+:root {
+  --wood-light: #f3e2c0;   /* pale hardwood */
+  --wood-mid:   #e9d1a3;   /* slightly deeper hardwood for grain/edges */
+  --line:       #c9a86a;   /* faint court-line paint */
+  --gold:       #d4af37;   /* primary accent */
+  --gold-bright:#f2cf5b;   /* hover / glow highlight */
+  --ink:        #14110d;   /* near-black for text + highlight block */
+  --ink-soft:   #2a2620;   /* softer black for panels */
+  --paper:      #fffdf7;   /* light text on dark buttons */
+
+  --font-display: 'Arial Black', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   2. BASE / RESET
+   ------------------------------------------------------------------ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  /* Base hardwood gradient sits under the SVG court lines. */
+  background:
+    radial-gradient(ellipse at 50% 30%, var(--wood-light) 0%, var(--wood-mid) 90%);
+  overflow: hidden;                /* title screen is a fixed, single view */
+  position: relative;
+}
+
+/* ------------------------------------------------------------------
+   3. COURT BACKGROUND
+   The faint half-court outlines live in an inline <svg> (.court) in the
+   HTML. Here we just place and fade it so it reads as painted lines.
+   ------------------------------------------------------------------ */
+.court {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.5;                    /* faint, not distracting */
+  pointer-events: none;
+}
+.court .paint {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+}
+
+/* ------------------------------------------------------------------
+   4. LIGHTING — top-down spotlight + court reflection
+   Two full-screen overlays that sit above the court but below content.
+   ------------------------------------------------------------------ */
+
+/* Top-down arena spotlight: bright pool at top-center fading to shadowed edges. */
+.spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%,
+      rgba(255, 250, 235, 0.85) 0%,
+      rgba(255, 250, 235, 0.25) 35%,
+      rgba(0, 0, 0, 0.0) 60%),
+    /* darkened corners (vignette) for contrast against gold/black */
+    radial-gradient(ellipse 120% 120% at 50% 45%,
+      rgba(0, 0, 0, 0) 55%,
+      rgba(40, 30, 10, 0.28) 100%);
+}
+
+/* Faint glossy reflection along the bottom, like a polished floor. */
+.reflection {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 38%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.10) 55%,
+    rgba(255, 255, 255, 0.22) 100%);
+  mix-blend-mode: screen;          /* brightens the floor rather than washing it */
+}
+
+/* ------------------------------------------------------------------
+   5. TITLE STACK — vertical centering of everything
+   ------------------------------------------------------------------ */
+.stack {
+  position: relative;
+  z-index: 2;                      /* above court + lighting */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+/* ------------------------------------------------------------------
+   6. BASKETBALL LOGO + SOFT GOLD GLOW
+   The glow is a blurred radial behind the ball; the ball is inline SVG.
+   ------------------------------------------------------------------ */
+.logo {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  /* rise-in on load */
+  animation: rise 0.9s ease-out both;
+}
+.logo::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    var(--gold-bright) 0%,
+    rgba(212, 175, 55, 0.45) 40%,
+    rgba(212, 175, 55, 0) 70%);
+  filter: blur(6px);
+  z-index: -1;                     /* sit behind the ball */
+}
+.logo svg { width: 100%; height: 100%; display: block; }
+
+/* ------------------------------------------------------------------
+   7. TITLES — big display H1 + fade-in tagline
+   ------------------------------------------------------------------ */
+.title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 9vw, 6rem);
+  letter-spacing: 0.06em;
+  line-height: 0.95;
+  color: var(--ink);
+  /* gold edge-light + soft depth so it reads under the spotlight */
+  text-shadow:
+    0 1px 0 var(--gold),
+    0 2px 14px rgba(212, 175, 55, 0.35);
+  animation: rise 0.9s ease-out 0.1s both;
+}
+
+/* Tagline fades in LAST for the cinematic beat (long delay). */
+.tagline {
+  font-family: var(--font-body);
+  font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  opacity: 0;                      /* starts hidden */
+  animation: fadeIn 1.4s ease-out 1.6s forwards;
+}
+
+/* ------------------------------------------------------------------
+   8. TROPHY DIVIDER — small gold trophy between title and menu
+   ------------------------------------------------------------------ */
+.trophy {
+  width: 34px;
+  height: 34px;
+  color: var(--gold);
+  filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
+  animation: rise 0.9s ease-out 0.3s both;
+}
+.trophy svg { width: 100%; height: 100%; display: block; }
+
+/* ------------------------------------------------------------------
+   9. MENU BUTTONS
+   Base button + three states: default, .is-highlight, .is-locked.
+   Hover changes color and adds a glow (see :hover blocks).
+   ------------------------------------------------------------------ */
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  width: min(320px, 82vw);
+  animation: rise 0.9s ease-out 0.45s both;
+}
+
+.btn {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: rgba(255, 253, 247, 0.72);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease,
+              color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+/* Hover: flip to gold with a subtle glow and a small lift. */
+.btn:hover,
+.btn:focus-visible {
+  background: var(--gold);
+  border-color: var(--gold-bright);
+  color: var(--ink);
+  box-shadow: 0 0 18px rgba(212, 175, 55, 0.7),
+              0 0 4px rgba(212, 175, 55, 0.9);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+/* 9a. Highlighted primary action — the black rectangle "CONTINUE DYNASTY". */
+.btn.is-highlight {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.btn.is-highlight:hover,
+.btn.is-highlight:focus-visible {
+  background: var(--ink-soft);
+  color: var(--gold-bright);
+  box-shadow: 0 0 22px rgba(212, 175, 55, 0.8);
+}
+
+/* 9b. Slow pulsing "NEW DYNASTY" to draw the eye. */
+.btn.is-pulse {
+  animation: pulse 2.6s ease-in-out infinite;
+}
+
+/* 9c. Locked "Continue" — disabled until a league exists.
+   JS removes .is-locked (and the `disabled` attr) once a save is found. */
+.btn.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.btn.is-locked:hover {
+  /* Kill the hover glow while locked. */
+  background: rgba(255, 253, 247, 0.72);
+  color: var(--ink);
+  box-shadow: none;
+  transform: none;
+  border-color: var(--ink);
+}
+.btn .lock {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-left: 0.4em;
+}
+
+/* ------------------------------------------------------------------
+   10. ANIMATIONS
+   ------------------------------------------------------------------ */
+
+/* Slow, breathing pulse (scale + gold glow) for the New Dynasty button. */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(212, 175, 55, 0);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.65);
+  }
+}
+
+/* Simple opacity fade for the cinematic tagline reveal. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Content rises + fades into place on load. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ------------------------------------------------------------------
+   11. RESPONSIVE
+   ------------------------------------------------------------------ */
+@media (max-width: 480px) {
+  .stack { gap: 0.85rem; }
+  .logo { width: 76px; height: 76px; }
+}
+
+/* ------------------------------------------------------------------
+   12. REDUCED MOTION — respect users who opt out of animation.
+   Everything still ends in its final, visible state.
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .tagline { opacity: 1; }
+}

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- =====================================================================
+       COURT BACKGROUND
+       Faint half-court outlines on each side, drawn as vector paint so they
+       stay crisp at any resolution. Uses a 1600x900 viewBox stretched to fill.
+       Left and right groups mirror each other (a half-court per side).
+       ===================================================================== -->
+  <svg class="court" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"
+       aria-hidden="true">
+    <!-- Center division line + tip-off circle -->
+    <line class="paint" x1="800" y1="0" x2="800" y2="900" />
+    <circle class="paint" cx="800" cy="450" r="90" />
+
+    <!-- LEFT half-court: key, free-throw circle, hoop, 3-point arc -->
+    <g>
+      <rect class="paint" x="0" y="330" width="230" height="240" />
+      <circle class="paint" cx="230" cy="450" r="70" />
+      <circle class="paint" cx="55" cy="450" r="14" />
+      <path class="paint" d="M 40 130 A 360 360 0 0 1 40 770" />
+    </g>
+
+    <!-- RIGHT half-court: mirror of the left -->
+    <g>
+      <rect class="paint" x="1370" y="330" width="230" height="240" />
+      <circle class="paint" cx="1370" cy="450" r="70" />
+      <circle class="paint" cx="1545" cy="450" r="14" />
+      <path class="paint" d="M 1560 130 A 360 360 0 0 0 1560 770" />
+    </g>
+  </svg>
+
+  <!-- =====================================================================
+       LIGHTING OVERLAYS
+       Purely decorative gradients (styled in CSS): a top-down arena
+       spotlight and a glossy floor reflection along the bottom.
+       ===================================================================== -->
+  <div class="spotlight" aria-hidden="true"></div>
+  <div class="reflection" aria-hidden="true"></div>
+
+  <!-- =====================================================================
+       TITLE STACK
+       Vertically + horizontally centered: logo, title, tagline, trophy, menu.
+       ===================================================================== -->
+  <main class="stack">
+
+    <!-- Basketball logo with a soft gold glow behind it (glow is CSS ::before). -->
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 100 100">
+        <!-- Ball -->
+        <circle cx="50" cy="50" r="46" fill="#e8863b" stroke="#7a3d12" stroke-width="3"/>
+        <!-- Seams -->
+        <g fill="none" stroke="#7a3d12" stroke-width="3">
+          <line x1="4" y1="50" x2="96" y2="50"/>
+          <line x1="50" y1="4" x2="50" y2="96"/>
+          <path d="M 20 8 Q 42 50 20 92"/>
+          <path d="M 80 8 Q 58 50 80 92"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Main title -->
+    <h1 class="title">HOOPS<br />DYNASTY</h1>
+
+    <!-- Tagline (fades in last for a cinematic beat) -->
+    <p class="tagline">A JSON-driven, multi-year basketball GM simulator</p>
+
+    <!-- Small gold trophy divider between the titles and the menu -->
+    <div class="trophy" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
+      </svg>
+    </div>
+
+    <!-- =================================================================
+         MENU
+         Four actions. CONTINUE DYNASTY is the highlighted (black) primary.
+         NEW DYNASTY slowly pulses. The bottom "Continue" starts LOCKED and
+         is unlocked by JS below once a saved league is found in IndexedDB.
+         ================================================================= -->
+    <nav class="menu">
+      <button class="btn is-highlight" data-action="continue-dynasty">Continue Dynasty</button>
+      <button class="btn is-pulse"     data-action="new-dynasty">New Dynasty</button>
+      <button class="btn"              data-action="load-dynasty">Load Dynasty</button>
+      <button class="btn is-locked"    data-action="continue" id="continueBtn" disabled>
+        Continue <span class="lock" aria-hidden="true">🔒</span>
+      </button>
+    </nav>
+  </main>
+
+  <!-- =====================================================================
+       BEHAVIOR
+       ES module. Wires the menu to your existing IndexedDB layer (db.js):
+       if any saved league exists, the locked "Continue" button unlocks.
+       Everything is static + GitHub-Pages friendly — db.js runs client-side.
+       Loaded over http(s) (Pages or a local server), not file://.
+       ===================================================================== -->
+  <script type="module">
+    // Pull the save-list helper from the storage layer already in the repo.
+    // Wrapped in try/catch so the title screen still works if IndexedDB is
+    // unavailable (e.g. opened directly as a file:// URL) — it just stays locked.
+    let listSaves = async () => [];
+    try {
+      ({ listSaves } = await import('./db.js'));
+    } catch (err) {
+      console.warn('Storage layer unavailable; Continue stays locked.', err);
+    }
+
+    // Unlock the "Continue" button only when at least one league is saved.
+    async function refreshContinueLock() {
+      const btn = document.getElementById('continueBtn');
+      try {
+        const saves = await listSaves();
+        const hasLeague = Array.isArray(saves) && saves.length > 0;
+        if (hasLeague) {
+          btn.classList.remove('is-locked');
+          btn.disabled = false;
+          const lock = btn.querySelector('.lock');
+          if (lock) lock.remove();
+        }
+      } catch (err) {
+        console.warn('Could not check saved leagues:', err);
+      }
+    }
+
+    // Route menu clicks. Replace these console logs with your real navigation
+    // (e.g. location.href = './game.html?mode=new') as you build the screens.
+    document.querySelector('.menu').addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn');
+      if (!btn || btn.disabled) return;
+      const action = btn.dataset.action;
+      switch (action) {
+        case 'new-dynasty':      console.log('→ New Dynasty (create a league)'); break;
+        case 'load-dynasty':     console.log('→ Load Dynasty (pick a save)');   break;
+        case 'continue-dynasty': // falls through — same intent as continue
+        case 'continue':         console.log('→ Continue most recent league');  break;
+      }
+    });
+
+    refreshContinueLock();
+  </script>
+</body>
+</html>
