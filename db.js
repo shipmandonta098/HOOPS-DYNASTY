@@ -25,16 +25,21 @@
  */
 
 const DB_NAME = 'BasketballGM';
-const DB_VERSION = 2;
 const STORE_NAME = 'saves';
+// NOTE: we deliberately do NOT hardcode a DB version. IndexedDB throws a
+// VersionError if you open with a version lower than the one already on the
+// user's machine — which bricked "Start Career" for anyone whose browser had
+// upgraded to a higher version. Instead openDB() discovers the current version
+// and only bumps it (+1) when it actually needs to add a missing store. This
+// is resilient to whatever version the browser happens to hold.
 
 /**
  * Multi-store schema for the season-compression system (compressSeason.js).
  * These stores use OUT-OF-LINE keys (no keyPath) — the caller passes an
  * explicit key to saveData(store, key, value). That's why season records can
  * be keyed by year and players/teams by their own id without the value needing
- * to embed the key. To add another store later: add its name here and bump
- * DB_VERSION so onupgradeneeded runs again.
+ * to embed the key. To add another store later: just add its name here —
+ * openDB() notices it's missing and creates it on the next load.
  */
 const DATA_STORES = [
   'league_meta',
@@ -46,13 +51,34 @@ const DATA_STORES = [
   'transactions',
 ];
 
+/** Every object store this build expects to exist. */
+const ALL_STORES = [STORE_NAME, ...DATA_STORES];
+
+/** Create any of our stores that don't already exist on `db`. */
+function ensureStores(db) {
+  if (!db.objectStoreNames.contains(STORE_NAME)) {
+    db.createObjectStore(STORE_NAME, { keyPath: 'id' }); // original save slots
+  }
+  for (const name of DATA_STORES) {
+    if (!db.objectStoreNames.contains(name)) {
+      db.createObjectStore(name); // out-of-line keys
+    }
+  }
+}
+
 /**
- * Open (and if needed, create/upgrade) the database. The result is cached so we
- * only open the connection once per page load. Returns Promise<IDBDatabase>.
+ * Open the database, creating/upgrading as needed — WITHOUT ever requesting a
+ * version lower than the one already stored (which throws VersionError and was
+ * bricking "Start Career" on browsers that had upgraded to a higher version).
  *
- * The object store + keyPath are created in `onupgradeneeded`, which fires on
- * first use or whenever DB_VERSION increases — that's where future schema
- * changes (new stores, indexes) would go.
+ * Strategy:
+ *   1. Open with NO version → matches whatever version currently exists (or
+ *      creates the DB at v1). This never triggers a version conflict.
+ *   2. If every store we need is already present, use that connection as-is.
+ *   3. Otherwise close and reopen at (currentVersion + 1) so onupgradeneeded
+ *      fires and we can add the missing stores.
+ *
+ * The result is cached so we only open once per page load.
  */
 let _dbPromise = null;
 function openDB() {
@@ -64,27 +90,31 @@ function openDB() {
       return;
     }
 
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    // Step 1: version-less open — matches the existing version, no conflict.
+    const probe = indexedDB.open(DB_NAME);
+    // A brand-new database still needs its stores created here.
+    probe.onupgradeneeded = (event) => ensureStores(event.target.result);
+    probe.onerror = () => reject(probe.error || new Error('Failed to open IndexedDB.'));
+    probe.onblocked = () =>
+      reject(new Error('IndexedDB open blocked — close other tabs using this app.'));
 
-    // Runs on first creation or a version bump — the only place to define stores.
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      // The original single-store save slots (keyPath 'id').
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+    probe.onsuccess = () => {
+      const db = probe.result;
+      const missing = ALL_STORES.some((n) => !db.objectStoreNames.contains(n));
+      if (!missing) {
+        resolve(db); // Step 2: everything present.
+        return;
       }
-      // The multi-store schema (out-of-line keys) used by the season system.
-      for (const name of DATA_STORES) {
-        if (!db.objectStoreNames.contains(name)) {
-          db.createObjectStore(name);
-        }
-      }
+      // Step 3: bump one version above the current to add the missing stores.
+      const nextVersion = db.version + 1;
+      db.close();
+      const upgrade = indexedDB.open(DB_NAME, nextVersion);
+      upgrade.onupgradeneeded = (event) => ensureStores(event.target.result);
+      upgrade.onsuccess = () => resolve(upgrade.result);
+      upgrade.onerror = () => reject(upgrade.error || new Error('Failed to upgrade IndexedDB.'));
+      upgrade.onblocked = () =>
+        reject(new Error('IndexedDB upgrade blocked — close other tabs using this app.'));
     };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error('Failed to open IndexedDB.'));
-    request.onblocked = () =>
-      reject(new Error('IndexedDB open blocked — close other tabs using this database.'));
   });
 
   return _dbPromise;
