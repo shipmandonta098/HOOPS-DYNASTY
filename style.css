@@ -273,9 +273,8 @@ body {
   transform: translateY(-1px);
 }
 
-/* 9c. Disabled (e.g. LOAD CAREER with no saves) — dimmed, inert.
-   JS removes .is-disabled once a save exists. No lock glyph, to keep the
-   reference's clean look; it just reads as unavailable. */
+/* 9c. Disabled (LOAD CAREER / CONTINUE with no saves) — dimmed, inert.
+   JS removes .is-disabled once a save exists. */
 .btn.is-disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -285,6 +284,14 @@ body {
   color: var(--white);
   text-shadow: none;
   transform: none;
+}
+
+/* 9d. Lock glyph on CONTINUE — small and muted; JS removes it on unlock. */
+.btn .lock {
+  font-size: 0.78em;
+  margin-left: 0.4em;
+  color: var(--silver);
+  vertical-align: baseline;
 }
 
 /* ------------------------------------------------------------------

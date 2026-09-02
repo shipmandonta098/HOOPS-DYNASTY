@@ -56,43 +56,53 @@
     <p class="subtitle">Basketball GM Simulator</p>
 
     <!-- =================================================================
-         MENU — five items. NEW CAREER is the filled red primary and is
-         always available. LOAD CAREER starts disabled and is enabled by the
-         script below once db.js reports at least one saved league.
+         MENU — three items. NEW CAREER is the filled red primary and is
+         always available. LOAD CAREER and CONTINUE both start disabled and
+         are enabled by the script below once db.js reports at least one
+         saved league (Continue also carries a small lock glyph until then).
          Replace the console logs with real navigation as screens are built.
          ================================================================= -->
     <nav class="menu">
       <button class="btn is-highlight" data-action="new-career">New Career</button>
       <button class="btn is-disabled" data-action="load-career" id="loadBtn" disabled>Load Career</button>
-      <button class="btn" data-action="options">Options</button>
-      <button class="btn" data-action="credits">Credits</button>
-      <button class="btn" data-action="exit">Exit</button>
+      <button class="btn is-disabled" data-action="continue" id="continueBtn" disabled>
+        Continue <span class="lock" aria-hidden="true">🔒</span>
+      </button>
     </nav>
   </main>
 
   <!-- =====================================================================
        BEHAVIOR — static & GitHub-Pages friendly (client-side only).
-       Uses the repo's IndexedDB layer (db.js): LOAD CAREER unlocks when a
-       saved league exists. Wrapped in try/catch so the screen still works
-       when storage is unavailable (e.g. file:// URLs). Serve over http(s)
-       — Pages or a local server — to exercise the unlock.
+       Uses the repo's IndexedDB layer (db.js): LOAD CAREER and CONTINUE
+       unlock once a saved league exists. Wrapped in try/catch so the screen
+       still works when storage is unavailable (e.g. file:// URLs). Serve over
+       http(s) — Pages or a local server — to exercise the unlock.
        ===================================================================== -->
   <script type="module">
     let listSaves = async () => [];
     try {
       ({ listSaves } = await import('./db.js'));
     } catch (err) {
-      console.warn('Storage layer unavailable; Load Career stays disabled.', err);
+      console.warn('Storage layer unavailable; Load Career and Continue stay locked.', err);
     }
 
-    // Enable LOAD CAREER only when at least one league is saved.
-    async function refreshLoadState() {
-      const btn = document.getElementById('loadBtn');
+    // Enable a disabled button and drop any lock glyph it carries.
+    function unlock(id) {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.classList.remove('is-disabled');
+      btn.disabled = false;
+      const lock = btn.querySelector('.lock');
+      if (lock) lock.remove();
+    }
+
+    // LOAD CAREER and CONTINUE both require at least one saved league.
+    async function refreshSaveState() {
       try {
         const saves = await listSaves();
         if (Array.isArray(saves) && saves.length > 0) {
-          btn.classList.remove('is-disabled');
-          btn.disabled = false;
+          unlock('loadBtn');
+          unlock('continueBtn');
         }
       } catch (err) {
         console.warn('Could not check saved leagues:', err);
@@ -104,17 +114,10 @@
     document.querySelector('.menu').addEventListener('click', (e) => {
       const btn = e.target.closest('.btn');
       if (!btn || btn.disabled) return;
-      const action = btn.dataset.action;
-      if (action === 'exit') {
-        // Browsers only allow closing script-opened windows; otherwise this
-        // is a no-op. Left here so the menu is complete.
-        window.close();
-        return;
-      }
-      console.log('→ menu action:', action);
+      console.log('→ menu action:', btn.dataset.action);
     });
 
-    refreshLoadState();
+    refreshSaveState();
   </script>
 </body>
 </html>
