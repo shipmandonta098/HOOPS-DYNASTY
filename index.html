@@ -9,122 +9,90 @@
 <body>
 
   <!-- =====================================================================
-       FLOOR — cool light-gray hardwood wood texture (CSS planks in style.css).
+       COURT — spotlit floor + faint court lines (a wide center-circle arc
+       reads as the court seen at a shallow angle). Dark navy arena base
+       comes from the <body> gradient in style.css.
        ===================================================================== -->
-  <div class="floor" aria-hidden="true"></div>
+  <div class="court" aria-hidden="true">
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice"
+         width="100%" height="100%">
+      <!-- Center circle low on the floor (wide ellipse = perspective look) -->
+      <ellipse class="paint" cx="800" cy="760" rx="230" ry="70" />
+      <!-- Half-court line running through it -->
+      <line class="paint" x1="360" y1="760" x2="1240" y2="760" />
+      <!-- Faint sideline sweeping toward the baseline -->
+      <path class="paint" d="M 120 900 L 470 690 M 1480 900 L 1130 690" />
+    </svg>
+  </div>
 
   <!-- =====================================================================
-       CROWD — blurred silhouette of distant stands, sitting BEHIND the court
-       lines. Pure CSS (blurred dot grid, masked to the top/bottom edges).
+       CORNER ACCENTS — red wedge (top-left), steel wedge (bottom-right).
        ===================================================================== -->
-  <div class="crowd" aria-hidden="true"></div>
+  <div class="corner corner-tl" aria-hidden="true"></div>
+  <div class="corner corner-br" aria-hidden="true"></div>
 
-  <!-- =====================================================================
-       COURT LINES
-       Faint vector paint: center line + tip-off circle, and a mirrored
-       half-court on each side (lane, free-throw circle with a DASHED inner
-       half, hoop, and a sweeping 3-point arc). 1600x900 viewBox, slice-fit.
-       ===================================================================== -->
-  <svg class="court" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"
-       aria-hidden="true">
-    <!-- Center division line + tip-off circle -->
-    <line class="paint" x1="800" y1="0" x2="800" y2="900" />
-    <circle class="paint" cx="800" cy="450" r="86" />
-
-    <!-- LEFT half-court -->
-    <g>
-      <!-- 3-point arc (bulges toward center) -->
-      <path class="paint" d="M 18 120 A 372 340 0 0 1 18 780" />
-      <!-- Lane / key -->
-      <rect class="paint" x="0" y="352" width="232" height="196" />
-      <!-- Hoop -->
-      <circle class="paint" cx="58" cy="450" r="13" />
-      <!-- Free-throw circle: solid outer (baseline) half + dashed inner half -->
-      <path class="paint"        d="M 232 380 A 70 70 0 0 0 232 520" />
-      <path class="paint dashed" d="M 232 380 A 70 70 0 0 1 232 520" />
-    </g>
-
-    <!-- RIGHT half-court (mirror) -->
-    <g>
-      <path class="paint" d="M 1582 120 A 372 340 0 0 0 1582 780" />
-      <rect class="paint" x="1368" y="352" width="232" height="196" />
-      <circle class="paint" cx="1542" cy="450" r="13" />
-      <path class="paint"        d="M 1368 380 A 70 70 0 0 1 1368 520" />
-      <path class="paint dashed" d="M 1368 380 A 70 70 0 0 0 1368 520" />
-    </g>
-  </svg>
-
-  <!-- Top-down arena lighting gradient (bright pool from the top-center) -->
-  <div class="lighting" aria-hidden="true"></div>
-
-  <!-- Barely-there edge shadow for depth -->
+  <!-- Edge vignette for the spotlit look -->
   <div class="vignette" aria-hidden="true"></div>
 
   <!-- =====================================================================
-       TITLE STACK — wordmark, trophy divider, menu (all centered).
+       TITLE STACK — wordmark, trophy, subtitle, menu (all centered).
        ===================================================================== -->
   <main class="stack">
 
-    <!-- Wordmark: HOOPS (black) stacked over DYNASTY (gold gradient) -->
+    <!-- Wordmark: HOOPS (white, beveled) over DYNASTY (crimson) -->
     <h1 class="title">
       <span class="line1">Hoops</span>
       <span class="line2">Dynasty</span>
     </h1>
 
-    <!-- Gold trophy flanked by two gold rules -->
-    <div class="divider" aria-hidden="true">
-      <span class="rule"></span>
-      <span class="trophy">
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
-        </svg>
-      </span>
-      <span class="rule"></span>
-    </div>
+    <!-- Silver trophy -->
+    <span class="trophy" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
+      </svg>
+    </span>
+
+    <!-- Subtitle -->
+    <p class="subtitle">Basketball GM Simulator</p>
 
     <!-- =================================================================
-         MENU — three items. Continue Dynasty is the filled black primary and
-         starts LOCKED; JS below unlocks it once a saved league exists.
+         MENU — five items. NEW CAREER is the filled red primary and is
+         always available. LOAD CAREER starts disabled and is enabled by the
+         script below once db.js reports at least one saved league.
          Replace the console logs with real navigation as screens are built.
          ================================================================= -->
     <nav class="menu">
-      <button class="btn is-highlight is-locked" data-action="continue-dynasty"
-              id="continueBtn" disabled>
-        Continue Dynasty <span class="lock" aria-hidden="true">🔒</span>
-      </button>
-      <button class="btn" data-action="new-dynasty">New Dynasty</button>
-      <button class="btn" data-action="load-dynasty">Load Dynasty</button>
+      <button class="btn is-highlight" data-action="new-career">New Career</button>
+      <button class="btn is-disabled" data-action="load-career" id="loadBtn" disabled>Load Career</button>
+      <button class="btn" data-action="options">Options</button>
+      <button class="btn" data-action="credits">Credits</button>
+      <button class="btn" data-action="exit">Exit</button>
     </nav>
-
-    <!-- Tagline — fades in last for a cinematic close. -->
-    <p class="tagline">Build a franchise. Leave a dynasty.</p>
   </main>
 
   <!-- =====================================================================
        BEHAVIOR — static & GitHub-Pages friendly (client-side only).
-       Uses the repo's IndexedDB layer (db.js): if any league is saved, the
-       locked "Continue Dynasty" button unlocks. Wrapped in try/catch so the
-       screen still works when storage is unavailable (e.g. file:// URLs).
-       Serve over http(s) — Pages or a local server — to exercise the unlock.
+       Uses the repo's IndexedDB layer (db.js): LOAD CAREER unlocks when a
+       saved league exists. Wrapped in try/catch so the screen still works
+       when storage is unavailable (e.g. file:// URLs). Serve over http(s)
+       — Pages or a local server — to exercise the unlock.
        ===================================================================== -->
   <script type="module">
     let listSaves = async () => [];
     try {
       ({ listSaves } = await import('./db.js'));
     } catch (err) {
-      console.warn('Storage layer unavailable; Continue Dynasty stays locked.', err);
+      console.warn('Storage layer unavailable; Load Career stays disabled.', err);
     }
 
-    // Unlock Continue Dynasty only when at least one league is saved.
-    async function refreshContinueLock() {
-      const btn = document.getElementById('continueBtn');
+    // Enable LOAD CAREER only when at least one league is saved.
+    async function refreshLoadState() {
+      const btn = document.getElementById('loadBtn');
       try {
         const saves = await listSaves();
         if (Array.isArray(saves) && saves.length > 0) {
-          btn.classList.remove('is-locked');
+          btn.classList.remove('is-disabled');
           btn.disabled = false;
-          const lock = btn.querySelector('.lock');
-          if (lock) lock.remove();
         }
       } catch (err) {
         console.warn('Could not check saved leagues:', err);
@@ -136,10 +104,17 @@
     document.querySelector('.menu').addEventListener('click', (e) => {
       const btn = e.target.closest('.btn');
       if (!btn || btn.disabled) return;
-      console.log('→ menu action:', btn.dataset.action);
+      const action = btn.dataset.action;
+      if (action === 'exit') {
+        // Browsers only allow closing script-opened windows; otherwise this
+        // is a no-op. Left here so the menu is complete.
+        window.close();
+        return;
+      }
+      console.log('→ menu action:', action);
     });
 
-    refreshContinueLock();
+    refreshLoadState();
   </script>
 </body>
 </html>

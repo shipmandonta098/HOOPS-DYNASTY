@@ -1,37 +1,32 @@
 /* ==========================================================================
-   Hoops Dynasty — Title Screen styles  (matched to reference art)
+   Hoops Dynasty — Title Screen styles  (dark arena reference)
    Static / GitHub-Pages compatible. No frameworks, no build step.
 
    Layer stack (back -> front), by z-index:
-     0  .floor      cool-gray hardwood wood texture
-     1  .crowd      blurred crowd silhouette (behind the court lines)
-     2  .court      faint vector court lines
-     3  .lighting   top-down arena lighting gradient
-     4  .vignette   subtle edge shadow
-     5  .stack      title / trophy / menu / tagline
+     0  body / .arena     dark navy arena gradient
+     1  .court            spotlit floor + faint court lines
+     2  .corner           angled corner accents (red TL, gray BR)
+     3  .vignette         edge shadow for depth
+     5  .stack            title / trophy / subtitle / menu
 
    Section map:
      1. Design tokens (colors, fonts)
-     2. Base / reset
-     3. Floor wood texture
-     4. Crowd silhouette
-     5. Court lines
-     6. Top-down lighting + vignette
-     7. Title stack layout
-     8. Wordmark: HOOPS (slides in) + DYNASTY (fades up)
-     9. Trophy divider (slow shimmer)
-    10. Menu + states (gold-active / gray-inactive hover glow, lock pulse)
-    11. Tagline (fades in last)
-    12. Animations (@keyframes)
-    13. Responsive
-    14. Reduced-motion accessibility
+     2. Base / reset + arena background
+     3. Court floor (spotlight + faint lines)
+     4. Corner accents
+     5. Vignette
+     6. Title stack layout
+     7. Wordmark: HOOPS (white, beveled) + DYNASTY (red)
+     8. Trophy + subtitle
+     9. Menu + states (red-active / dim-inactive hover)
+    10. Animations (@keyframes)
+    11. Responsive
+    12. Reduced-motion accessibility
    ========================================================================== */
 
 /* Athletic display face for the wordmark — SELF-HOSTED (no CDN dependency).
-   The font file lives in ./fonts/ so it loads offline, over file://, and on
-   GitHub Pages with no external request. Anton is licensed under the SIL Open
-   Font License 1.1 (see fonts/OFL.txt). 'latin' subset only — it just needs
-   the wordmark + menu glyphs. Arial Narrow is a close condensed fallback. */
+   Lives in ./fonts/ so it loads offline, over file://, and on GitHub Pages.
+   Anton is SIL Open Font License 1.1 (see fonts/OFL.txt). Arial Narrow fallback. */
 @font-face {
   font-family: 'Anton';
   font-style: normal;
@@ -44,139 +39,117 @@
    1. DESIGN TOKENS — retune the whole screen from here.
    ------------------------------------------------------------------ */
 :root {
-  --floor-1: #ececeb;   /* light cool-gray hardwood (light plank) */
-  --floor-2: #e3e3e2;   /* slightly darker plank for seams/grain */
-  --line:    #c2c3c3;   /* faint painted court lines */
-  --ink:     #141414;   /* near-black: HOOPS + menu text + highlight block */
-  --ink-2:   #2b2b2b;   /* softer black */
-  --paper:   #f7f7f5;   /* light text on the black highlight */
-  --gray:    #8a8a8a;   /* inactive/gray glow */
+  /* Dark navy arena palette */
+  --navy-0: #081120;   /* darkest — corners/top */
+  --navy-1: #0d1e34;   /* mid arena */
+  --navy-2: #1b3c60;   /* lit court pool */
+  --line:   rgba(150, 185, 230, 0.16);  /* faint court paint */
 
-  /* Gold used only on DYNASTY, the trophy, and the flanking rules. */
-  --gold-hi: #dcbd6e;   /* lighter gold (top of the DYNASTY gradient) */
-  --gold-lo: #b28f45;   /* deeper gold (bottom of the gradient) */
-  --gold:    #c9a44f;   /* solid gold for the trophy + flanking rules */
+  /* Red + white accents */
+  --red:    #c1272d;   /* DYNASTY + primary highlight */
+  --red-dk: #7d1a1e;   /* red extrude / shadow */
+  --red-hi: #e5393f;   /* hover / bright red */
+  --white:  #f2f5f8;   /* title + menu text */
+  --silver: #cfd6df;   /* trophy */
+  --steel:  #6f8296;   /* muted steel for bevel/edge */
 
   --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
   --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 /* ------------------------------------------------------------------
-   2. BASE / RESET
+   2. BASE / RESET + ARENA BACKGROUND
+   The arena is a layered radial+linear navy gradient: darkest at the
+   edges, a subtle lift through the middle where the court is lit.
    ------------------------------------------------------------------ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 
 body {
   font-family: var(--font-body);
-  color: var(--ink);
+  color: var(--white);
   overflow: hidden;                 /* single fixed view */
   position: relative;
-  background-color: var(--floor-1);
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 42%,
+      var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
 }
 
 /* ------------------------------------------------------------------
-   3. FLOOR — cool light-gray hardwood WOOD TEXTURE
-   Three faint layers combine into believable pale hardwood:
-     (a) vertical plank seams,
-     (b) per-plank tone variation (wide vertical bands),
-     (c) fine horizontal grain.
-   All low-contrast so it reads as wood, never as stripes.
-   ------------------------------------------------------------------ */
-.floor {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background-color: var(--floor-1);
-  background-image:
-    /* (a) plank seams every 118px */
-    repeating-linear-gradient(90deg,
-      rgba(0,0,0,0.05) 0 1px, rgba(0,0,0,0) 1px 118px),
-    /* (b) alternating plank tone so neighbouring boards differ slightly */
-    repeating-linear-gradient(90deg,
-      rgba(0,0,0,0.015) 0 118px, rgba(255,255,255,0.22) 118px 236px),
-    /* (c) fine horizontal grain */
-    repeating-linear-gradient(0deg,
-      rgba(255,255,255,0.30) 0 2px, rgba(0,0,0,0.012) 2px 5px);
-}
-
-/* ------------------------------------------------------------------
-   4. CROWD SILHOUETTE — blurred rows of "heads" behind the court lines.
-   A grid of soft dots, heavily blurred, masked so it only shows near the
-   top and bottom edges (distant stands) and stays clear of the title.
-   ------------------------------------------------------------------ */
-.crowd {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.22;
-  /* Grid of blurred dots = distant spectators. */
-  background-image:
-    radial-gradient(circle at center, rgba(18,18,26,0.55) 34%, transparent 36%);
-  background-size: 26px 26px;
-  filter: blur(5px);
-  /* Show the crowd only at the top and bottom; fade it out through the middle. */
-  -webkit-mask-image: linear-gradient(to bottom,
-    #000 0%, transparent 25%, transparent 75%, #000 100%);
-  mask-image: linear-gradient(to bottom,
-    #000 0%, transparent 25%, transparent 75%, #000 100%);
-}
-
-/* ------------------------------------------------------------------
-   5. COURT LINES — faint vector paint (SVG in the HTML).
+   3. COURT FLOOR — a spotlit pool + faint court lines low on screen.
+   No literal 3D perspective; a wide ellipse reads as the center circle
+   seen at a shallow angle, which is enough to sell "we're on a court".
    ------------------------------------------------------------------ */
 .court {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2;
-  opacity: 0.85;
+  z-index: 1;
   pointer-events: none;
+  /* Top-down spotlight pooling on the floor, plus faint wood plank hints
+     confined to the lower half via the gradient stops. */
+  background:
+    radial-gradient(ellipse 55% 40% at 50% 30%,
+      rgba(120, 165, 220, 0.10) 0%, rgba(120,165,220,0) 60%),
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.014) 0 1px, rgba(0,0,0,0) 1px 130px);
 }
+/* Faint vector court lines (SVG in the HTML). */
 .court .paint {
   fill: none;
   stroke: var(--line);
-  stroke-width: 2.5;
+  stroke-width: 2;
 }
-/* Inner half of each free-throw circle is dashed, like a real court. */
-.court .dashed { stroke-dasharray: 10 12; }
 
 /* ------------------------------------------------------------------
-   6. LIGHTING — top-down arena gradient + subtle edge vignette.
+   4. CORNER ACCENTS — angled banners: red top-left, steel bottom-right.
+   Built from clipped divs so they stay crisp at any size.
    ------------------------------------------------------------------ */
+.corner {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+}
+/* Top-left: a red wedge with a darker underlay for a layered look. */
+.corner-tl {
+  top: 0;
+  left: 0;
+  width: min(240px, 34vw);
+  height: min(240px, 34vw);
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-dk) 100%);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.corner-tl::after {          /* thin darker inner stripe for depth */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--navy-0);
+  clip-path: polygon(0 0, 62% 0, 0 62%);
+  opacity: 0.55;
+}
+/* Bottom-right: a muted steel wedge (lighter, catches the "light"). */
+.corner-br {
+  bottom: 0;
+  right: 0;
+  width: min(220px, 30vw);
+  height: min(220px, 30vw);
+  background: linear-gradient(315deg, rgba(150,170,195,0.55) 0%, rgba(110,130,150,0.15) 100%);
+  clip-path: polygon(100% 100%, 100% 0, 0 100%);
+}
 
-/* Bright pool spilling from the top-center, fading down the floor. */
-.lighting {
+/* ------------------------------------------------------------------
+   5. VIGNETTE — deepen the edges so the center reads as spotlit.
+   ------------------------------------------------------------------ */
+.vignette {
   position: fixed;
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 62% 48% at 50% -6%,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.14) 42%,
-      rgba(255,255,255,0) 70%),
-    linear-gradient(to bottom,
-      rgba(255,255,255,0.06) 0%,
-      rgba(255,255,255,0) 32%,
-      rgba(0,0,0,0.06) 100%);
-}
-
-/* A touch of edge shadow for depth. Barely there. */
-.vignette {
-  position: fixed;
-  inset: 0;
-  z-index: 4;
-  pointer-events: none;
-  background: radial-gradient(ellipse 95% 95% at 50% 45%,
-    rgba(0,0,0,0) 60%, rgba(0,0,0,0.12) 100%);
+  background: radial-gradient(ellipse 85% 85% at 50% 45%,
+    rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%);
 }
 
 /* ------------------------------------------------------------------
-   7. TITLE STACK — center everything vertically & horizontally.
-   (Children animate individually; the stack itself is static.)
+   6. TITLE STACK — center everything vertically & horizontally.
    ------------------------------------------------------------------ */
 .stack {
   position: relative;
@@ -191,151 +164,131 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   8. WORDMARK — HOOPS slides in from the left, DYNASTY fades up.
+   7. WORDMARK — HOOPS (white, beveled) slides in; DYNASTY (red) fades up.
+   The bevel is faked with stacked text-shadows: a light top edge, a
+   colored extrude below, then a soft drop shadow.
    ------------------------------------------------------------------ */
 .title {
   font-family: var(--font-display);
-  font-weight: 400;                 /* Anton is a single heavy weight */
-  line-height: 0.86;
-  letter-spacing: 0.005em;
+  font-weight: 400;
+  line-height: 0.84;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
 }
-.title .line1 {                     /* HOOPS — slides in from the left */
+.title .line1 {                     /* HOOPS */
   display: block;
-  font-size: clamp(3.4rem, 13vw, 8.4rem);
-  color: var(--ink);
+  font-size: clamp(3.6rem, 14vw, 9rem);
+  color: var(--white);
+  text-shadow:
+    0 -1px 0 #ffffff,
+    0 2px 0 var(--steel),
+    0 4px 0 #3a4a5c,
+    0 8px 14px rgba(0, 0, 0, 0.6);
   animation: slideInLeft 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
 }
-.title .line2 {                     /* DYNASTY — gold gradient, fades up */
+.title .line2 {                     /* DYNASTY — crimson */
   display: block;
-  font-size: clamp(2.5rem, 9.4vw, 6rem);
-  background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold-lo) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: clamp(2.7rem, 10.5vw, 6.6rem);
+  color: var(--red);
+  text-shadow:
+    0 2px 0 var(--red-dk),
+    0 4px 10px rgba(0, 0, 0, 0.55);
   animation: fadeUp 0.7s ease-out 0.55s both;
 }
 
 /* ------------------------------------------------------------------
-   9. TROPHY DIVIDER — gold trophy (slow shimmer) flanked by gold rules.
+   8. TROPHY + SUBTITLE — silver trophy over spaced subtitle text.
    ------------------------------------------------------------------ */
-.divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.85rem;
-  margin: 1.4rem 0 1.6rem;
-  width: min(320px, 70vw);
-  animation: fadeIn 0.6s ease-out 0.95s both;
+.trophy {
+  width: 34px;
+  height: 34px;
+  margin: 1rem 0 0.6rem;
+  color: var(--silver);
+  animation:
+    fadeIn 0.6s ease-out 0.95s both,
+    trophyShimmer 3.6s ease-in-out 1.4s infinite;
 }
-.divider .rule {
-  flex: 1;
-  height: 2px;
-  background: var(--gold);
+.trophy svg { width: 100%; height: 100%; display: block; }
+
+.subtitle {
+  font-family: var(--font-body);
+  font-size: clamp(0.72rem, 2.2vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--white);
   opacity: 0.9;
+  margin-bottom: 1.8rem;
+  animation: fadeIn 0.8s ease-out 1.15s both;
 }
-.divider .trophy {
-  width: 30px;
-  height: 30px;
-  color: var(--gold);
-  flex: 0 0 auto;
-  /* Slow gleam: brightness + glow ebb and flow. */
-  animation: trophyShimmer 3.6s ease-in-out 1.2s infinite;
-}
-.divider .trophy svg { width: 100%; height: 100%; display: block; }
 
 /* ------------------------------------------------------------------
-   10. MENU — three stacked items; Continue Dynasty is a filled block.
-   Hover glow: GOLD on active (enabled) items, GRAY on inactive (locked).
+   9. MENU — five items. NEW CAREER is the filled red primary.
+   Hover glow: RED on active (enabled), dim/no-glow on disabled.
    ------------------------------------------------------------------ */
 .menu {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.55rem;
-  animation: fadeIn 0.6s ease-out 1.15s both;
+  gap: 0.15rem;
+  animation: fadeIn 0.7s ease-out 1.35s both;
 }
 
 .btn {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.14em;
+  font-size: 1rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: var(--white);
   background: transparent;
   border: none;
-  border-radius: 3px;
-  padding: 0.5rem 1.4rem;
+  border-radius: 2px;
+  padding: 0.6rem 2.4rem;
   cursor: pointer;
   transition: color 0.18s ease, background 0.18s ease,
               text-shadow 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-/* 10a. Active hover — plain items shift to gold with a gold glow. */
+/* 9a. Active hover — plain items brighten to red with a red glow. */
 .btn:hover,
 .btn:focus-visible {
-  color: var(--gold-lo);
-  text-shadow: 0 0 12px rgba(201, 164, 79, 0.6);
-  transform: translateY(-1px);
+  color: var(--red-hi);
+  text-shadow: 0 0 14px rgba(229, 57, 63, 0.65);
   outline: none;
 }
 
-/* 10b. Primary action — the filled black rectangle (gold glow on hover). */
+/* 9b. Primary action — the filled red rectangle. */
 .btn.is-highlight {
-  background: var(--ink);
-  color: var(--paper);
-  padding-left: 2.2rem;
-  padding-right: 2.2rem;
+  background: var(--red);
+  color: var(--white);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset;
 }
 .btn.is-highlight:hover,
 .btn.is-highlight:focus-visible {
-  background: var(--ink-2);
-  color: var(--gold-hi);
+  background: var(--red-hi);
+  color: var(--white);
   text-shadow: none;
-  box-shadow: 0 0 18px rgba(201, 164, 79, 0.5);
+  box-shadow: 0 0 20px rgba(193, 39, 45, 0.65);
+  transform: translateY(-1px);
 }
 
-/* 10c. Locked/inactive — dimmed, GRAY glow on hover (not gold). */
-.btn.is-locked {
-  opacity: 0.4;
+/* 9c. Disabled (e.g. LOAD CAREER with no saves) — dimmed, inert.
+   JS removes .is-disabled once a save exists. No lock glyph, to keep the
+   reference's clean look; it just reads as unavailable. */
+.btn.is-disabled {
+  opacity: 0.35;
   cursor: not-allowed;
-  color: var(--paper);
 }
-.btn.is-locked:hover,
-.btn.is-locked:focus-visible {
-  background: var(--ink);
-  color: var(--paper);
+.btn.is-disabled:hover,
+.btn.is-disabled:focus-visible {
+  color: var(--white);
   text-shadow: none;
   transform: none;
-  box-shadow: 0 0 16px rgba(138, 138, 138, 0.55);   /* gray glow = inactive */
-}
-
-/* 10d. Lock icon — gentle pulse to signal "waiting to unlock". */
-.btn .lock {
-  display: inline-block;
-  font-size: 0.8em;
-  margin-left: 0.35em;
-  animation: lockPulse 1.9s ease-in-out infinite;
 }
 
 /* ------------------------------------------------------------------
-   11. TAGLINE — fades in LAST for the cinematic beat.
-   ------------------------------------------------------------------ */
-.tagline {
-  margin-top: 1.6rem;
-  font-family: var(--font-body);
-  font-size: clamp(0.8rem, 2.1vw, 1rem);
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-  opacity: 0;                        /* held hidden until its animation runs */
-  animation: fadeIn 1.3s ease-out 2s forwards;
-}
-
-/* ------------------------------------------------------------------
-   12. ANIMATIONS
+   10. ANIMATIONS
    ------------------------------------------------------------------ */
 
 /* HOOPS enters from the left. */
@@ -343,49 +296,40 @@ body {
   from { opacity: 0; transform: translateX(-70px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
-/* DYNASTY (and other stacked elements) rise + fade into place. */
+/* DYNASTY (and stacked elements) rise + fade. */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-/* Plain opacity fade (divider, menu, tagline). */
+/* Plain opacity fade. */
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
-/* Trophy gleam: gold -> bright gold + growing glow, then back. */
+/* Trophy gleam: silver -> white + growing glow, then back. */
 @keyframes trophyShimmer {
   0%, 100% {
-    color: var(--gold);
-    filter: drop-shadow(0 0 3px rgba(201, 164, 79, 0.45));
+    color: var(--silver);
+    filter: drop-shadow(0 0 3px rgba(207, 214, 223, 0.4));
   }
   50% {
-    color: var(--gold-hi);
-    filter: drop-shadow(0 0 11px rgba(220, 189, 110, 0.95));
+    color: #ffffff;
+    filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9));
   }
 }
 
-/* Lock icon breathes gently. */
-@keyframes lockPulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.15); }
-}
-
 /* ------------------------------------------------------------------
-   13. RESPONSIVE
+   11. RESPONSIVE
    ------------------------------------------------------------------ */
 @media (max-width: 480px) {
-  .divider { margin: 1rem 0 1.2rem; }
-  .btn { font-size: 0.98rem; }
-  .tagline { margin-top: 1.2rem; }
+  .subtitle { margin-bottom: 1.3rem; letter-spacing: 0.26em; }
+  .btn { font-size: 0.95rem; padding: 0.55rem 1.8rem; }
+  .corner-tl { width: 40vw; height: 40vw; }
+  .corner-br { width: 34vw; height: 34vw; }
 }
 
 /* ------------------------------------------------------------------
-   14. REDUCED MOTION — kill motion; leave everything in its final,
-   visible state (no elements stuck at opacity 0).
+   12. REDUCED MOTION — kill motion; land everything visible.
    ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -395,7 +339,7 @@ body {
   }
   .title .line1,
   .title .line2,
-  .divider,
-  .menu,
-  .tagline { opacity: 1 !important; }
+  .trophy,
+  .subtitle,
+  .menu { opacity: 1 !important; }
 }
