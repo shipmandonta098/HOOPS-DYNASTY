@@ -109,12 +109,14 @@
       }
     }
 
-    // Route menu clicks. Swap the logs for real navigation, e.g.
-    // location.href = './game.html?mode=new'.
+    // Route menu clicks. New Career navigates to the setup screen; the rest
+    // are placeholders until their screens exist.
     document.querySelector('.menu').addEventListener('click', (e) => {
       const btn = e.target.closest('.btn');
       if (!btn || btn.disabled) return;
-      console.log('→ menu action:', btn.dataset.action);
+      const action = btn.dataset.action;
+      if (action === 'new-career') { location.href = './new-career.html'; return; }
+      console.log('→ menu action:', action);
     });
 
     refreshSaveState();

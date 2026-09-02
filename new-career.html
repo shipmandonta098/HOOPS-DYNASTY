@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — New Career</title>
+  <link rel="stylesheet" href="./new-career.css" />
+</head>
+<body>
+
+  <!-- Faint hoop + backboard, top-right of the arena -->
+  <svg class="hoop" viewBox="0 0 520 300" aria-hidden="true">
+    <!-- string lights -->
+    <path class="stroke" d="M 40 40 Q 260 90 500 30" stroke-dasharray="1 26" stroke-width="6" />
+    <!-- backboard -->
+    <rect class="glow" x="300" y="70" width="150" height="100" rx="6" />
+    <rect class="stroke" x="300" y="70" width="150" height="100" rx="6" />
+    <rect class="stroke" x="345" y="95" width="60" height="45" />
+    <!-- rim + net -->
+    <ellipse class="stroke" cx="375" cy="180" rx="34" ry="9" />
+    <path class="stroke" d="M 343 182 L 352 220 M 375 184 L 375 226 M 407 182 L 398 220 M 358 183 L 366 223 M 392 183 L 384 223" stroke-width="2" />
+  </svg>
+
+  <div class="layout">
+
+    <!-- =================================================================
+         SIDEBAR — brand + faint crown watermark
+         ================================================================= -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="h">Hoops</span>
+        <span class="d">Dynasty</span>
+      </div>
+      <div class="brand-trophy" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
+        </svg>
+      </div>
+      <div class="watermark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="currentColor">
+          <path d="M6 22l12 10 14-20 14 20 12-10-6 30H12L6 22z"/>
+        </svg>
+      </div>
+    </aside>
+
+    <!-- =================================================================
+         MAIN
+         ================================================================= -->
+    <main class="main">
+      <h1 class="page-title">New Career</h1>
+      <p class="page-sub">Build your legacy.</p>
+
+      <!-- 1. LEAGUE NAME -->
+      <section class="section">
+        <div class="section-head">
+          <span class="badge">1</span>
+          <div>
+            <div class="label">League Name</div>
+            <div class="hint">Create the name of your league.</div>
+          </div>
+        </div>
+        <div class="name-field">
+          <input id="leagueName" type="text" maxlength="32" value="National Basketball League"
+                 aria-label="League name" />
+          <span class="counter" id="nameCounter">0 / 32</span>
+        </div>
+      </section>
+
+      <!-- 2. SEASON -->
+      <section class="section">
+        <div class="section-head">
+          <span class="badge">2</span>
+          <div>
+            <div class="label">Season</div>
+            <div class="hint">📅 Choose the starting season.</div>
+          </div>
+        </div>
+        <div class="stepper">
+          <button id="seasonPrev" aria-label="Previous season">‹</button>
+          <span class="value" id="seasonValue">2026</span>
+          <button id="seasonNext" aria-label="Next season">›</button>
+          <span class="chev" aria-hidden="true">▾</span>
+        </div>
+      </section>
+
+      <!-- 3. SELECT TEAM -->
+      <section class="section stacked">
+        <div class="section-head">
+          <span class="badge">3</span>
+          <div>
+            <div class="label">Select Team</div>
+            <div class="hint">Choose a team to manage.</div>
+          </div>
+          <span class="count" id="teamCount">30 TEAMS</span>
+        </div>
+        <div class="carousel">
+          <button class="arrow prev" id="teamPrev" aria-label="Scroll teams left">‹</button>
+          <div class="track" id="teamTrack"><!-- cards injected by newCareer.js --></div>
+          <button class="arrow next" id="teamNext" aria-label="Scroll teams right">›</button>
+        </div>
+        <div class="dots" id="teamDots"></div>
+      </section>
+
+      <!-- 4. DIFFICULTY -->
+      <section class="section stacked">
+        <div class="section-head">
+          <span class="badge">4</span>
+          <div><div class="label">Difficulty</div></div>
+          <span class="inline-hint">Choose the level of challenge.</span>
+        </div>
+        <div class="difficulties">
+          <div class="diff-card" data-diff="easy" role="button" tabindex="0">
+            <span class="diff-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h2v2h2V4h4v2h2V4h2v5l-2 2v6l1 3H5l1-3v-6l-2-2V4z"/></svg></span>
+            <div class="diff-name">Easy</div>
+            <div class="diff-desc">A relaxed experience. Focus on building your dynasty.</div>
+          </div>
+          <div class="diff-card is-selected" data-diff="normal" role="button" tabindex="0">
+            <span class="diff-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M6 5c3 3 3 11 0 14M18 5c-3 3-3 11 0 14"/></svg></span>
+            <div class="diff-name">Normal</div>
+            <div class="diff-desc">A balanced challenge. For aspiring GMs.</div>
+          </div>
+          <div class="diff-card" data-diff="hard" role="button" tabindex="0">
+            <span class="diff-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></span>
+            <div class="diff-name">Hard</div>
+            <div class="diff-desc">For experienced GMs who want a challenge.</div>
+          </div>
+          <div class="diff-card" data-diff="legend" role="button" tabindex="0">
+            <span class="diff-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 8l4 3 4-6 4 6 4-3-2 11H6L4 8z"/></svg></span>
+            <div class="diff-name">Legend</div>
+            <div class="diff-desc">The ultimate test. Only the best will win.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- =================================================================
+       FOOTER — back / start career / settings
+       ================================================================= -->
+  <div class="footer">
+    <button class="ghost back" id="backBtn">
+      <span class="ic">B</span><span class="txt">Back</span>
+    </button>
+    <button class="start-btn" id="startBtn">
+      <span class="tr" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg>
+      </span>
+      <span class="txt">Start Career</span>
+    </button>
+    <button class="ghost settings" id="settingsBtn">
+      <span class="ic">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4l-2-1 1-2-2-2-2 1-1-2h-2l-1 2-2-1-2 2 1 2-2 1v2l2 1-1 2 2 2 2-1 1 2h2l1-2 2 1 2-2-1-2 2-1v-2z"/></svg>
+      </span><span class="txt">Settings</span>
+    </button>
+  </div>
+
+  <!-- Setup logic + league generation + save (db.js) -->
+  <script type="module" src="./newCareer.js"></script>
+</body>
+</html>

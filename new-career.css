@@ -1,0 +1,536 @@
+/* ==========================================================================
+   Hoops Dynasty — New Career screen
+   Static / GitHub-Pages compatible. Shares the dark-arena look of the title
+   screen. No frameworks, no build step.
+
+   Section map:
+     1. Tokens (palette + fonts — mirrors style.css)
+     2. Base / arena background + hoop graphic
+     3. Layout grid (sidebar | main)
+     4. Sidebar (logo, trophy, crown watermark)
+     5. Main header
+     6. Setup section shell (numbered badge + labels)
+     7. League name input + counter
+     8. Season stepper
+     9. Team carousel (cards, selected state, arrows, dots)
+    10. Difficulty cards
+    11. Footer (back / start / settings)
+    12. Responsive
+    13. Reduced motion
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/anton-latin.woff2') format('woff2');
+}
+
+/* ------------------------------------------------------------------
+   1. TOKENS
+   ------------------------------------------------------------------ */
+:root {
+  --navy-0: #081120;
+  --navy-1: #0d1e34;
+  --navy-2: #12283f;
+  --panel:  rgba(14, 30, 52, 0.72);   /* section card fill */
+  --panel-2:rgba(9, 20, 36, 0.85);    /* inset controls */
+  --stroke: rgba(120, 150, 190, 0.18);/* hairline borders */
+  --line:   rgba(150, 185, 230, 0.14);/* faint court paint */
+
+  --red:    #c1272d;
+  --red-dk: #7d1a1e;
+  --red-hi: #e5393f;
+  --white:  #f2f5f8;
+  --muted:  #93a6bd;                  /* secondary text */
+  --silver: #cfd6df;
+  --blue:   #4a9eff;                  /* input focus + Normal */
+  --green:  #3fb950;                  /* Easy */
+  --orange: #e3922b;                  /* Hard */
+
+  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   2. BASE + ARENA
+   ------------------------------------------------------------------ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--white);
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 8%,
+      rgba(90, 130, 185, 0.18) 0%, rgba(90,130,185,0) 55%),
+    radial-gradient(ellipse 100% 80% at 40% 60%,
+      var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+  overflow-x: hidden;
+}
+
+/* Faint hoop + backboard graphic, top-right of the main area. */
+.hoop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(520px, 45vw);
+  height: auto;
+  z-index: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.hoop .stroke { fill: none; stroke: rgba(150, 185, 230, 0.35); stroke-width: 3; }
+.hoop .glow   { fill: rgba(150, 190, 240, 0.10); }
+
+/* ------------------------------------------------------------------
+   3. LAYOUT — fixed sidebar + scrollable main.
+   ------------------------------------------------------------------ */
+.layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  min-height: 100vh;
+}
+
+/* ------------------------------------------------------------------
+   4. SIDEBAR
+   ------------------------------------------------------------------ */
+.sidebar {
+  position: relative;
+  border-right: 1px solid var(--stroke);
+  padding: 2.4rem 1.5rem;
+  overflow: hidden;
+}
+.sidebar .brand {
+  font-family: var(--font-display);
+  line-height: 0.82;
+  text-transform: uppercase;
+  font-size: 2.1rem;
+}
+.sidebar .brand .h { color: var(--white); display: block; }
+.sidebar .brand .d { color: var(--red); display: block; }
+.sidebar .brand-trophy {
+  width: 26px;
+  height: 26px;
+  color: var(--silver);
+  margin-top: 0.6rem;
+}
+.sidebar .brand-trophy svg { width: 100%; height: 100%; }
+/* Big faint crown watermark behind the sidebar content. */
+.sidebar .watermark {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 190px;
+  transform: translateX(-50%);
+  opacity: 0.05;
+  color: var(--white);
+  pointer-events: none;
+}
+.sidebar .watermark svg { width: 100%; height: 100%; }
+
+/* ------------------------------------------------------------------
+   5. MAIN HEADER
+   ------------------------------------------------------------------ */
+.main {
+  padding: 2.4rem clamp(1.2rem, 3vw, 3rem) 7rem;
+  position: relative;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.page-sub {
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.5rem 0 1.8rem;
+}
+
+/* ------------------------------------------------------------------
+   6. SETUP SECTION SHELL
+   ------------------------------------------------------------------ */
+.section {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 1.15rem 1.3rem;
+  margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 1.2rem;
+  align-items: center;
+}
+.section.stacked { display: block; }   /* team + difficulty span full width */
+.section-head { display: flex; align-items: flex-start; gap: 0.7rem; }
+.badge {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: var(--red);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 0.95rem;
+  display: grid;
+  place-items: center;
+}
+.section-head .label {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 1.02rem;
+}
+.section-head .hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+.section-head .count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  margin-left: auto;
+}
+/* For stacked sections the head sits on its own row with an inline count. */
+.section.stacked .section-head { margin-bottom: 1rem; }
+.section.stacked .section-head .inline-hint {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-transform: none;
+  margin-left: 0.6rem;
+  align-self: center;
+}
+
+/* ------------------------------------------------------------------
+   7. LEAGUE NAME INPUT
+   ------------------------------------------------------------------ */
+.name-field { position: relative; }
+.name-field input {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  padding: 0.85rem 4rem 0.85rem 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.name-field input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.18);
+}
+.name-field .counter {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------
+   8. SEASON STEPPER
+   ------------------------------------------------------------------ */
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel-2);
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  padding: 0.5rem 0.8rem;
+  max-width: 460px;
+}
+.stepper button {
+  background: transparent;
+  border: none;
+  color: var(--white);
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0.2rem 0.7rem;
+  border-radius: 5px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.stepper button:hover { color: var(--red-hi); background: rgba(255,255,255,0.04); }
+.stepper .value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.stepper .chev { color: var(--muted); font-size: 0.9rem; }
+
+/* ------------------------------------------------------------------
+   9. TEAM CAROUSEL
+   ------------------------------------------------------------------ */
+.carousel { position: relative; }
+.track {
+  display: flex;
+  gap: 0.85rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 0.3rem 0.2rem 0.6rem;
+  scrollbar-width: none;             /* Firefox */
+}
+.track::-webkit-scrollbar { display: none; }  /* WebKit */
+
+.team-card {
+  flex: 0 0 auto;
+  width: 156px;
+  height: 232px;
+  background: linear-gradient(180deg, rgba(20,40,66,0.9), rgba(9,18,32,0.9));
+  border: 2px solid var(--stroke);
+  border-radius: 10px;
+  padding: 1rem 0.85rem;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.team-card:hover { transform: translateY(-2px); border-color: rgba(150,180,220,0.4); }
+.team-card .logo {
+  width: 62px;
+  height: 62px;
+  margin-top: 0.4rem;
+}
+.team-card .logo svg { width: 100%; height: 100%; display: block; }
+.team-card .city {
+  margin-top: 0.7rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.team-card .team {
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.05;
+}
+.team-card .star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  color: var(--white);
+  opacity: 0;
+  font-size: 0.9rem;
+}
+/* Stats live in every card but only show on the selected one. */
+.team-card .stats {
+  display: none;
+  width: 100%;
+  margin-top: 0.7rem;
+  font-size: 0.72rem;
+}
+.team-card .stats .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.12rem 0;
+  color: var(--muted);
+}
+.team-card .stats .row b { color: var(--white); font-weight: 700; }
+
+/* Selected team card — red border + glow, star shown, stats revealed. */
+.team-card.is-selected {
+  border-color: var(--red);
+  box-shadow: 0 0 20px rgba(193, 39, 45, 0.5);
+}
+.team-card.is-selected .star { opacity: 1; }
+.team-card.is-selected .stats { display: block; }
+.team-card.is-selected .city,
+.team-card.is-selected .team { margin-top: 0.5rem; }
+
+/* Carousel arrows */
+.arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--white);
+  font-size: 1.6rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+.arrow:hover { opacity: 1; }
+.arrow.prev { left: -8px; }
+.arrow.next { right: -8px; }
+
+/* Pagination dots */
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+.dots .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(150, 180, 220, 0.3);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.dots .dot.active { background: var(--red); }
+
+/* ------------------------------------------------------------------
+   10. DIFFICULTY CARDS
+   ------------------------------------------------------------------ */
+.difficulties {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+}
+.diff-card {
+  background: var(--panel-2);
+  border: 2px solid var(--stroke);
+  border-radius: 10px;
+  padding: 1rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.diff-card:hover { transform: translateY(-2px); }
+.diff-card .diff-icon { width: 30px; height: 30px; }
+.diff-card .diff-icon svg { width: 100%; height: 100%; }
+.diff-card .diff-name {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 1rem;
+}
+.diff-card .diff-desc { color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
+
+/* Accent colors per difficulty (icon + name). */
+.diff-card[data-diff="easy"]   { --accent: var(--green); }
+.diff-card[data-diff="normal"] { --accent: var(--blue); }
+.diff-card[data-diff="hard"]   { --accent: var(--orange); }
+.diff-card[data-diff="legend"] { --accent: var(--red-hi); }
+.diff-card .diff-name,
+.diff-card .diff-icon { color: var(--accent); }
+
+/* Selected difficulty glows in its accent color. */
+.diff-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ------------------------------------------------------------------
+   11. FOOTER BAR
+   ------------------------------------------------------------------ */
+.footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(to top, var(--navy-0) 30%, rgba(8,17,32,0));
+}
+.footer .ghost {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--white);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.footer .ghost:hover { opacity: 1; color: var(--red-hi); }
+.footer .ghost.back { left: 1.8rem; }
+.footer .ghost.settings { right: 1.8rem; }
+.footer .ghost .ic {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.75rem;
+}
+
+.start-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--red);
+  color: var(--white);
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 1.05rem;
+  padding: 0.95rem 3rem;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.start-btn:hover { background: var(--red-hi); box-shadow: 0 0 24px rgba(193,39,45,0.6); }
+.start-btn:active { transform: translateY(1px); }
+.start-btn .tr { width: 22px; height: 22px; }
+.start-btn .tr svg { width: 100%; height: 100%; }
+
+/* ------------------------------------------------------------------
+   12. RESPONSIVE
+   ------------------------------------------------------------------ */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+    border-right: none;
+    border-bottom: 1px solid var(--stroke);
+  }
+  .sidebar .brand { font-size: 1.5rem; }
+  .sidebar .brand-trophy, .sidebar .watermark { display: none; }
+  .section { grid-template-columns: 1fr; gap: 0.8rem; }
+  .difficulties { grid-template-columns: repeat(2, 1fr); }
+  .footer .ghost span.txt { display: none; }
+}
+@media (max-width: 520px) {
+  .difficulties { grid-template-columns: 1fr; }
+}
+
+/* ------------------------------------------------------------------
+   13. REDUCED MOTION
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
