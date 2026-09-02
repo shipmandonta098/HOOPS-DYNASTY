@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — League Structure</title>
+  <link rel="stylesheet" href="./new-career.css" />
+  <link rel="stylesheet" href="./league-structure.css" />
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Same sidebar language as New Career -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="h">Hoops</span>
+        <span class="d">Dynasty</span>
+      </div>
+      <div class="brand-trophy" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
+        </svg>
+      </div>
+      <div class="watermark" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="currentColor">
+          <path d="M6 22l12 10 14-20 14 20 12-10-6 30H12L6 22z"/>
+        </svg>
+      </div>
+    </aside>
+
+    <main class="main">
+      <h1 class="page-title">League Structure</h1>
+      <p class="page-sub">Conferences, divisions and alignment.</p>
+
+      <!-- Toolbar: live summary + league-wide actions -->
+      <section class="section ls-toolbar">
+        <div class="ls-summary" id="summary">— Teams • — Conferences • — Divisions</div>
+        <div class="ls-actions">
+          <button class="mini" id="addConf">+ Conference</button>
+          <button class="mini" id="addTeam">+ Custom Team</button>
+          <button class="mini" id="openLibrary">Team Library</button>
+          <button class="mini" id="autoAlignBtn">Auto-Align</button>
+        </div>
+      </section>
+
+      <!-- Teams not yet placed in a division -->
+      <section class="section stacked ls-unassigned" id="unassignedPanel" hidden>
+        <div class="section-head">
+          <span class="badge alt">!</span>
+          <div>
+            <div class="label">Unassigned Teams</div>
+            <div class="hint">These teams are not in a division yet.</div>
+          </div>
+          <span class="count" id="unassignedCount"></span>
+        </div>
+        <div class="team-chips" id="unassignedList"></div>
+      </section>
+
+      <!-- Conferences → divisions → teams -->
+      <div id="conferences"></div>
+
+      <p class="ls-empty" id="emptyNote" hidden>
+        No conferences yet. Add one to start aligning the league.
+      </p>
+    </main>
+  </div>
+
+  <!-- Footer: discard or commit -->
+  <footer class="footer">
+    <button class="ghost back" id="backBtn"><span class="ic">B</span><span class="txt">Back</span></button>
+    <button class="start-btn" id="saveBtn">
+      <span class="txt">Save Structure</span>
+    </button>
+    <button class="ghost settings" id="resetBtn"><span class="ic">↺</span><span class="txt">Reset</span></button>
+  </footer>
+
+  <!-- ============ Team editor (create / edit a fictional franchise) ============ -->
+  <div class="modal" id="teamModal" hidden>
+    <div class="modal-card">
+      <h2 id="teamModalTitle">Edit Team</h2>
+      <div class="form-grid">
+        <label>City<input type="text" id="fCity" maxlength="20" /></label>
+        <label>Name<input type="text" id="fName" maxlength="20" /></label>
+        <label>Crest<select id="fEmoji"></select></label>
+        <label>Colour<select id="fColor"></select></label>
+        <label>Market Size<select id="fMarket"></select></label>
+        <label>Fan Interest<select id="fFans"></select></label>
+        <label>Budget ($M)<input type="number" id="fBudget" min="40" max="200" step="0.1" /></label>
+        <label>Division<select id="fDivision"></select></label>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="teamCancel">Cancel</button>
+        <button class="mini primary" id="teamSave">Save Team</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Preset team library ============ -->
+  <div class="modal" id="libModal" hidden>
+    <div class="modal-card wide">
+      <h2>Team Library</h2>
+      <p class="modal-sub">Fictional franchises you can add to the league.</p>
+      <div class="lib-list" id="libList"></div>
+      <div class="modal-actions">
+        <button class="mini" id="libClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./leagueStructure.js"></script>
+</body>
+</html>

@@ -2,49 +2,28 @@
 
 /**
  * newCareer.js — drives the New Career setup screen and, on "Start Career",
- * generates a full league and saves it through the repo's IndexedDB layer
- * (db.js). Static / browser ES module; no build step.
+ * generates a full league and saves it through the repo's IndexedDB layer.
  *
- * Flow:
- *   1. Render the team carousel + difficulty cards.
- *   2. Track the user's choices (name, season, team, difficulty).
- *   3. On Start Career: build a schema-shaped league object, saveLeague(id,…),
- *      then return to the title screen where Continue/Load are now unlocked.
+ * Setup flow (numbered on screen):
+ *   1  League Name + League Preset
+ *   2  Season
+ *   3  League Structure  → league-structure.html (conferences / divisions / teams)
+ *   4  Select Team
+ *   5  Difficulty
  *
- * The league it produces matches saves/example_league.json's shape, so the
- * Node engine (engine/*.js) can read and simulate it later.
+ * The league being configured lives in the shared draft (leagueConfig.js) so the
+ * League Structure screen can edit the same thing. The team you manage and the
+ * difficulty stay OUT of presets — the same league can be replayed with a
+ * different franchise. All teams and leagues are fictional.
  */
 
 import { saveLeague, listSaves } from './db.js';
+import {
+  makeRNG, hashString, loadDraft, saveDraft, summaryLine, unassignedTeams,
+  listPresets, savePreset, getPreset, renamePreset, deletePreset, applyPreset,
+} from './leagueConfig.js';
 
-/* ============================ deterministic RNG ============================ */
-/* Mirrors engine/lib/rng.js so browser-created leagues are reproducible. */
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function hashString(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-function makeRNG(seed) {
-  const r = mulberry32(seed >>> 0);
-  return {
-    next: r,
-    int: (min, max) => min + Math.floor(r() * (max - min + 1)),
-    pick: (arr) => arr[Math.floor(r() * arr.length)],
-    gauss: (m, s) => { let u = 0, v = 0; while (!u) u = r(); while (!v) v = r();
-      return m + Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * s; },
-  };
-}
-
-/* ============================== league data =============================== */
+/* ============================== player generation ============================== */
 
 const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
 const ATTRIBUTES = [
@@ -58,64 +37,6 @@ const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah',
 const LAST = ['Carter', 'Robinson', 'Mitchell', 'Thompson', 'Edwards', 'Hayes', 'Foster',
   'Coleman', 'Reeves', 'Miller', 'Wallace', 'Walker', 'Vincent', 'Sharpe', 'Duren',
   'Sanders', 'Bryant', 'Ellison', 'Brooks', 'Freeman', 'Howard', 'Nowell', 'Prosper'];
-
-/* The six named teams from the reference, with their card stats. */
-const NAMED_TEAMS = [
-  { id: 'NYM', city: 'New York', name: 'Monarchs', emoji: '👑', color: '#c0392b', marketSize: 'Large', fanInterest: 'High', budget: 120.0, championships: 0 },
-  { id: 'LAS', city: 'Los Angeles', name: 'Sentinels', emoji: '🛡️', color: '#5b4b8a', marketSize: 'Large', fanInterest: 'High', budget: 118.0, championships: 2 },
-  { id: 'CHT', city: 'Chicago', name: 'Titans', emoji: '🐂', color: '#b03a2e', marketSize: 'Large', fanInterest: 'Medium', budget: 108.0, championships: 3 },
-  { id: 'MIW', city: 'Miami', name: 'Wave', emoji: '🌊', color: '#17a2a2', marketSize: 'Medium', fanInterest: 'High', budget: 104.0, championships: 1 },
-  { id: 'TOR', city: 'Toronto', name: 'North', emoji: '🍁', color: '#a02128', marketSize: 'Medium', fanInterest: 'Medium', budget: 99.0, championships: 1 },
-  { id: 'DAL', city: 'Dallas', name: 'Hurricanes', emoji: '🌀', color: '#2f6fb0', marketSize: 'Large', fanInterest: 'Medium', budget: 112.0, championships: 0 },
-];
-
-/* Pools to procedurally fill the league out to 30 teams. */
-const MORE_CITIES = ['Boston', 'Denver', 'Phoenix', 'Seattle', 'Atlanta', 'Houston',
-  'Portland', 'Orlando', 'Detroit', 'Memphis', 'Sacramento', 'Cleveland', 'Charlotte',
-  'Indiana', 'Minnesota', 'Brooklyn', 'Philadelphia', 'Vancouver', 'Austin', 'Vegas',
-  'San Diego', 'Kansas City', 'Nashville', 'Montreal'];
-const MORE_NAMES = ['Blaze', 'Frost', 'Rhinos', 'Comets', 'Griffins', 'Voyagers',
-  'Pioneers', 'Storm', 'Vipers', 'Raptors', 'Falcons', 'Dragons', 'Kings', 'Aviators',
-  'Miners', 'Breakers', 'Rovers', 'Sharks', 'Bandits', 'Legends', 'Coyotes', 'Anchors',
-  'Thunder', 'Wolves'];
-const MORE_EMOJI = ['🔥', '❄️', '🦏', '☄️', '🦅', '⚓', '⛏️', '⚡', '🐍', '🦖', '🐉', '🎯', '🐺', '🌪️'];
-const MORE_COLORS = ['#2e7d32', '#1565c0', '#ef6c00', '#6a1b9a', '#00838f', '#c62828',
-  '#4527a0', '#00695c', '#37474f', '#ad1457'];
-const MARKETS = ['Small', 'Medium', 'Large'];
-const FANS = ['Low', 'Medium', 'High'];
-
-/**
- * The team list is built from a FIXED seed so the league every career gets is
- * identical to the one shown in the Select Team carousel. It used to be seeded
- * from the league name/season/team, which meant a generated team's market size,
- * fan interest, budget, colour and crest silently changed between the card you
- * clicked and the league that was saved.
- */
-const TEAM_SEED = 1;
-
-/** Build the full 30-team list (named first, then generated), deterministic. */
-function buildTeams(rng) {
-  const teams = NAMED_TEAMS.map((t) => ({ ...t }));
-  const usedCity = new Set(teams.map((t) => t.city));
-  let ci = 0, ni = 0;
-  while (teams.length < 30) {
-    const city = MORE_CITIES[ci++ % MORE_CITIES.length];
-    const name = MORE_NAMES[ni++ % MORE_NAMES.length];
-    if (usedCity.has(city)) continue;
-    usedCity.add(city);
-    teams.push({
-      id: (city.slice(0, 2) + name.slice(0, 1)).toUpperCase() + teams.length,
-      city, name,
-      emoji: rng.pick(MORE_EMOJI),
-      color: rng.pick(MORE_COLORS),
-      marketSize: rng.pick(MARKETS),
-      fanInterest: rng.pick(FANS),
-      budget: +(85 + rng.next() * 40).toFixed(1),
-      championships: rng.int(0, 3),
-    });
-  }
-  return teams;
-}
 
 /** Generate one player with a full attribute block + cached overall. */
 function makePlayer(idNum, teamId, pos, target, rng) {
@@ -141,17 +62,14 @@ function makePlayer(idNum, teamId, pos, target, rng) {
 }
 
 /**
- * Assemble a complete league object from the user's setup choices.
- * @param {{leagueName, season, teamId, difficulty}} cfg
+ * Assemble a complete league from the draft. Teams and structure come straight
+ * from the draft, so every customisation the player made is preserved.
  */
 function generateLeague(cfg) {
   const seed = hashString(`${cfg.leagueName}|${cfg.season}|${cfg.teamId}`);
   const rng = makeRNG(seed);
-  // Teams: fixed seed, so they match the carousel exactly.
-  const teams = buildTeams(makeRNG(TEAM_SEED));
-  // Rosters below still use the league-specific rng, so each career differs.
+  const teams = cfg.teams;
 
-  // A roster per team: one starter per position + 7 bench.
   const players = [];
   let idNum = 1;
   for (const team of teams) {
@@ -159,6 +77,9 @@ function generateLeague(cfg) {
     for (const pos of POSITIONS) players.push(makePlayer(idNum++, team.id, pos, quality + rng.int(-2, 6), rng));
     for (let i = 0; i < 7; i++) players.push(makePlayer(idNum++, team.id, rng.pick(POSITIONS), quality + rng.int(-8, 2), rng));
   }
+
+  const divById = {};
+  for (const d of cfg.structure.divisions) divById[d.id] = d;
 
   return {
     schemaVersion: 1,
@@ -177,10 +98,14 @@ function generateLeague(cfg) {
       meetingsPerMatchup: 4, draftClassSize: 18, playoffTeams: 8,
       difficulty: cfg.difficulty,
     },
+    // League alignment travels with the save.
+    structure: JSON.parse(JSON.stringify(cfg.structure)),
     teams: teams.map((t) => ({
       id: t.id, city: t.city, name: t.name, emoji: t.emoji, color: t.color,
       marketSize: t.marketSize, fanInterest: t.fanInterest, budget: t.budget,
-      championships: t.championships,
+      championships: t.championships || 0,
+      divisionId: t.divisionId || null,
+      conferenceId: t.divisionId && divById[t.divisionId] ? divById[t.divisionId].conferenceId : null,
     })),
     players,
     freeAgents: [],
@@ -189,139 +114,211 @@ function generateLeague(cfg) {
   };
 }
 
-/* ============================= UI wiring ================================= */
+/* ================================ UI state ================================ */
 
-const state = {
-  season: 2026,
-  teamId: 'NYM',
-  difficulty: 'normal',
-  teams: buildTeams(makeRNG(TEAM_SEED)), // identical to the list generateLeague builds
-};
+let draft = loadDraft();
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const persist = () => saveDraft(draft);
 
-/* --- Section 1: league name + character counter --- */
+/* --- 1. League name --- */
 function initNameField() {
-  const input = document.getElementById('leagueName');
-  const counter = document.getElementById('nameCounter');
+  const input = el('leagueName');
+  input.value = draft.leagueName;
+  const counter = el('nameCounter');
   const update = () => { counter.textContent = `${input.value.length} / ${input.maxLength}`; };
-  input.addEventListener('input', update);
+  input.addEventListener('input', () => { draft.leagueName = input.value; persist(); update(); });
   update();
 }
 
-/* --- Section 2: season stepper --- */
+/* --- 1b. League preset --- */
+async function refreshPresets(selectId) {
+  const presets = await listPresets();
+  const sel = el('presetSelect');
+  sel.innerHTML = '<option value="">Custom League</option>' +
+    presets.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  sel.value = selectId != null ? selectId : (draft.presetId || '');
+  const chosen = Boolean(sel.value);
+  el('presetRename').disabled = !chosen;
+  el('presetDelete').disabled = !chosen;
+}
+
+function initPresets() {
+  const sel = el('presetSelect');
+
+  sel.addEventListener('change', async () => {
+    if (!sel.value) {                       // back to a plain custom league
+      draft.presetId = null; draft.presetName = 'Custom League'; persist();
+      await refreshPresets(''); return;
+    }
+    const preset = await getPreset(sel.value);
+    if (!preset) { await refreshPresets(''); return; }
+    applyPreset(draft, preset);             // league config only — team stays yours
+    persist();
+    el('leagueName').value = draft.leagueName;
+    el('nameCounter').textContent = `${draft.leagueName.length} / ${el('leagueName').maxLength}`;
+    el('seasonValue').textContent = draft.season;
+    renderTeams(); renderStructure();
+    await refreshPresets(preset.id);
+  });
+
+  el('presetSave').addEventListener('click', async () => {
+    const name = prompt('Save this league setup as a preset:\n(e.g. "Modern 30-Team League", "32-Team Expansion")',
+      draft.presetName && draft.presetName !== 'Custom League' ? draft.presetName : draft.leagueName);
+    if (name == null || !name.trim()) return;
+    try {
+      const rec = await savePreset(name.trim(), draft);
+      draft.presetId = rec.id; draft.presetName = rec.name; persist();
+      await refreshPresets(rec.id);
+    } catch (err) { alert('Could not save the preset: ' + err.message); }
+  });
+
+  el('presetRename').addEventListener('click', async () => {
+    const id = el('presetSelect').value; if (!id) return;
+    const current = await getPreset(id);
+    const name = prompt('Rename preset:', current ? current.name : '');
+    if (name == null || !name.trim()) return;
+    await renamePreset(id, name.trim());
+    draft.presetName = name.trim(); persist();
+    await refreshPresets(id);
+  });
+
+  el('presetDelete').addEventListener('click', async () => {
+    const id = el('presetSelect').value; if (!id) return;
+    if (!confirm('Delete this preset? The league setup itself is not affected.')) return;
+    await deletePreset(id);
+    if (draft.presetId === id) { draft.presetId = null; draft.presetName = 'Custom League'; persist(); }
+    await refreshPresets('');
+  });
+
+  refreshPresets();
+}
+
+/* --- 2. Season --- */
 function initSeason() {
-  const val = document.getElementById('seasonValue');
+  const val = el('seasonValue');
   const MIN = 2024, MAX = 2035;
-  const render = () => { val.textContent = state.season; };
-  document.getElementById('seasonPrev').addEventListener('click', () => {
-    state.season = Math.max(MIN, state.season - 1); render();
-  });
-  document.getElementById('seasonNext').addEventListener('click', () => {
-    state.season = Math.min(MAX, state.season + 1); render();
-  });
+  const render = () => { val.textContent = draft.season; };
+  el('seasonPrev').addEventListener('click', () => { draft.season = Math.max(MIN, draft.season - 1); persist(); render(); });
+  el('seasonNext').addEventListener('click', () => { draft.season = Math.min(MAX, draft.season + 1); persist(); render(); });
   render();
 }
 
-/* --- Section 3: team carousel --- */
+/* --- 3. League structure --- */
+function renderStructure() {
+  el('structureSummary').textContent = summaryLine(draft);
+  const orphans = unassignedTeams(draft);
+  const warn = el('structureWarn');
+  warn.hidden = orphans.length === 0;
+  warn.textContent = orphans.length
+    ? `${orphans.length} team${orphans.length === 1 ? ' is' : 's are'} not assigned to a division yet.`
+    : '';
+}
+function initStructure() {
+  el('structureBtn').addEventListener('click', () => {
+    persist();                                  // hand the draft to the editor
+    location.href = './league-structure.html';
+  });
+  renderStructure();
+}
+
+/* --- 4. Select team --- */
 function crestHTML(team) {
   return `<div style="width:100%;height:100%;border-radius:50%;display:grid;place-items:center;
-    background:${team.color};font-size:1.7rem;box-shadow:0 0 0 3px rgba(255,255,255,0.08) inset;">${team.emoji}</div>`;
+    background:${esc(team.color || '#33506e')};font-size:1.7rem;box-shadow:0 0 0 3px rgba(255,255,255,0.08) inset;">${team.emoji || '🏀'}</div>`;
 }
-function initTeams() {
-  const track = document.getElementById('teamTrack');
-  document.getElementById('teamCount').textContent = `${state.teams.length} TEAMS`;
-
-  track.innerHTML = state.teams.map((t) => `
-    <div class="team-card${t.id === state.teamId ? ' is-selected' : ''}" data-team="${t.id}" role="button" tabindex="0">
+function renderTeams() {
+  const track = el('teamTrack');
+  el('teamCount').textContent = `${draft.teams.length} TEAMS`;
+  if (!draft.teams.some((t) => t.id === draft.teamId)) {
+    draft.teamId = draft.teams[0] ? draft.teams[0].id : null;
+  }
+  track.innerHTML = draft.teams.map((t) => `
+    <div class="team-card${t.id === draft.teamId ? ' is-selected' : ''}" data-team="${esc(t.id)}" role="button" tabindex="0">
       <span class="star" aria-hidden="true">★</span>
       <div class="logo">${crestHTML(t)}</div>
-      <div class="city">${t.city}</div>
-      <div class="team">${t.name}</div>
+      <div class="city">${esc(t.city)}</div>
+      <div class="team">${esc(t.name)}</div>
       <div class="stats">
-        <div class="row"><span>Market Size</span><b>${t.marketSize}</b></div>
-        <div class="row"><span>Fan Interest</span><b>${t.fanInterest}</b></div>
-        <div class="row"><span>Budget</span><b>$${t.budget.toFixed(1)}M</b></div>
+        <div class="row"><span>Market Size</span><b>${esc(t.marketSize)}</b></div>
+        <div class="row"><span>Fan Interest</span><b>${esc(t.fanInterest)}</b></div>
+        <div class="row"><span>Budget</span><b>$${Number(t.budget).toFixed(1)}M</b></div>
       </div>
     </div>`).join('');
-
-  const select = (id) => {
-    state.teamId = id;
-    track.querySelectorAll('.team-card').forEach((c) =>
-      c.classList.toggle('is-selected', c.dataset.team === id));
-  };
+  renderDots();
+}
+function selectTeam(id) {
+  draft.teamId = id; persist();
+  document.querySelectorAll('.team-card').forEach((c) =>
+    c.classList.toggle('is-selected', c.dataset.team === id));
+}
+function initTeams() {
+  const track = el('teamTrack');
+  renderTeams();
   track.addEventListener('click', (e) => {
-    const card = e.target.closest('.team-card');
-    if (card) select(card.dataset.team);
+    const card = e.target.closest('.team-card'); if (card) selectTeam(card.dataset.team);
   });
   track.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const card = e.target.closest('.team-card');
-    if (card) { e.preventDefault(); select(card.dataset.team); }
+    if (card) { e.preventDefault(); selectTeam(card.dataset.team); }
   });
-
-  // Arrows scroll the track by ~2 cards.
   const step = 170 * 2;
-  document.getElementById('teamPrev').addEventListener('click', () => track.scrollBy({ left: -step }));
-  document.getElementById('teamNext').addEventListener('click', () => track.scrollBy({ left: step }));
-
-  initDots(track);
+  el('teamPrev').addEventListener('click', () => track.scrollBy({ left: -step }));
+  el('teamNext').addEventListener('click', () => track.scrollBy({ left: step }));
+  track.addEventListener('scroll', () => window.requestAnimationFrame(renderDots));
+  window.addEventListener('resize', renderDots);
 }
-function initDots(track) {
-  const dotsEl = document.getElementById('teamDots');
-  const pages = () => Math.max(1, Math.ceil(track.scrollWidth / track.clientWidth));
-  const render = () => {
-    const n = pages();
-    const active = Math.round(track.scrollLeft / track.clientWidth);
-    dotsEl.innerHTML = Array.from({ length: n }, (_, i) =>
-      `<span class="dot${i === active ? ' active' : ''}" data-page="${i}"></span>`).join('');
-  };
-  dotsEl.addEventListener('click', (e) => {
-    const dot = e.target.closest('.dot');
-    if (dot) track.scrollTo({ left: dot.dataset.page * track.clientWidth });
-  });
-  track.addEventListener('scroll', () => window.requestAnimationFrame(render));
-  window.addEventListener('resize', render);
-  render();
+function renderDots() {
+  const track = el('teamTrack'), dotsEl = el('teamDots');
+  const pages = Math.max(1, Math.ceil(track.scrollWidth / Math.max(1, track.clientWidth)));
+  const active = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  dotsEl.innerHTML = Array.from({ length: pages }, (_, i) =>
+    `<span class="dot${i === active ? ' active' : ''}" data-page="${i}"></span>`).join('');
 }
+el('teamDots').addEventListener('click', (e) => {
+  const dot = e.target.closest('.dot'); if (!dot) return;
+  const track = el('teamTrack');
+  track.scrollTo({ left: dot.dataset.page * track.clientWidth });
+});
 
-/* --- Section 4: difficulty --- */
+/* --- 5. Difficulty --- */
 function initDifficulty() {
   const cards = document.querySelectorAll('.diff-card');
+  cards.forEach((c) => c.classList.toggle('is-selected', c.dataset.diff === draft.difficulty));
   cards.forEach((card) => card.addEventListener('click', () => {
-    state.difficulty = card.dataset.diff;
+    draft.difficulty = card.dataset.diff; persist();
     cards.forEach((c) => c.classList.toggle('is-selected', c === card));
   }));
 }
 
-/* --- Footer: start / back --- */
+/* --- Footer --- */
 function initFooter() {
-  document.getElementById('backBtn').addEventListener('click', () => { location.href = './index.html'; });
-  document.getElementById('settingsBtn').addEventListener('click', () => console.log('→ settings (not built yet)'));
+  el('backBtn').addEventListener('click', () => { location.href = './index.html'; });
+  el('settingsBtn').addEventListener('click', () => console.log('→ settings (not built yet)'));
 
-  document.getElementById('startBtn').addEventListener('click', async () => {
-    const name = document.getElementById('leagueName').value.trim();
-    if (!name) { document.getElementById('leagueName').focus(); return; }
+  el('startBtn').addEventListener('click', async () => {
+    const name = el('leagueName').value.trim();
+    if (!name) { el('leagueName').focus(); return; }
+    if (draft.teams.length < 2) { alert('A league needs at least two teams. Add some in League Structure.'); return; }
+    if (!draft.teamId) { alert('Choose a team to manage first.'); return; }
 
-    const btn = document.getElementById('startBtn');
+    const btn = el('startBtn');
     btn.disabled = true;
     const label = btn.querySelector('.txt');
     const original = label.textContent;
     label.textContent = 'Creating…';
 
     try {
-      const league = generateLeague({
-        leagueName: name, season: state.season,
-        teamId: state.teamId, difficulty: state.difficulty,
-      });
-      // Every career gets its OWN save slot. The id is a slug of the league
-      // name, but if that slot is taken we suffix it (-2, -3, ...) instead of
-      // overwriting — creating a new career must never destroy an existing one.
+      draft.leagueName = name;
+      const league = generateLeague(draft);
+      // Every career gets its OWN save slot; suffix if the slug is taken.
       const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'career';
       const taken = new Set(await listSaves());
       let id = base;
       for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
       await saveLeague(id, league);
-      // Remember this as the active career so Continue resumes it, then drop
-      // the user straight into the GM dashboard for the league they just made.
       try { localStorage.setItem('activeLeagueId', id); } catch (_) {}
       location.href = './gm-dashboard.html?id=' + encodeURIComponent(id);
     } catch (err) {
@@ -333,9 +330,11 @@ function initFooter() {
   });
 }
 
-/* ============================== boot ==================================== */
+/* ================================ boot ================================ */
 initNameField();
+initPresets();
 initSeason();
+initStructure();
 initTeams();
 initDifficulty();
 initFooter();

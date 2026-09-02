@@ -49,6 +49,7 @@ const DATA_STORES = [
   'history_awards',
   'draft_classes',
   'transactions',
+  'presets',        // saved League Presets (leagueConfig.js)
 ];
 
 /** Every object store this build expects to exist. */

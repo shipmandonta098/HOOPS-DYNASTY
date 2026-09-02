@@ -66,6 +66,27 @@
         </div>
       </section>
 
+      <!-- 1b. LEAGUE PRESET — reuse a saved league configuration -->
+      <section class="section">
+        <div class="section-head">
+          <span class="badge alt">★</span>
+          <div>
+            <div class="label">League Preset</div>
+            <div class="hint">Reuse a saved league setup.</div>
+          </div>
+        </div>
+        <div class="preset-field">
+          <select id="presetSelect" aria-label="League preset">
+            <option value="">Custom League</option>
+          </select>
+          <div class="preset-actions">
+            <button class="mini" id="presetSave">Save as Preset</button>
+            <button class="mini" id="presetRename" disabled>Rename</button>
+            <button class="mini danger" id="presetDelete" disabled>Delete</button>
+          </div>
+        </div>
+      </section>
+
       <!-- 2. SEASON -->
       <section class="section">
         <div class="section-head">
@@ -83,10 +104,29 @@
         </div>
       </section>
 
-      <!-- 3. SELECT TEAM -->
-      <section class="section stacked">
+      <!-- 3. LEAGUE STRUCTURE — deep customisation lives on its own screen -->
+      <section class="section">
         <div class="section-head">
           <span class="badge">3</span>
+          <div>
+            <div class="label">League Structure</div>
+            <div class="hint">Conferences, divisions and alignment.</div>
+          </div>
+        </div>
+        <div class="structure-field">
+          <button class="structure-btn" id="structureBtn">
+            <span class="sb-main">Manage Conferences &amp; Divisions</span>
+            <span class="sb-sub">Customize teams, conferences, divisions, and league alignment.</span>
+            <span class="sb-summary" id="structureSummary">30 Teams • 2 Conferences • 6 Divisions</span>
+          </button>
+          <p class="structure-warn" id="structureWarn" hidden></p>
+        </div>
+      </section>
+
+      <!-- 4. SELECT TEAM -->
+      <section class="section stacked">
+        <div class="section-head">
+          <span class="badge">4</span>
           <div>
             <div class="label">Select Team</div>
             <div class="hint">Choose a team to manage.</div>
@@ -101,10 +141,10 @@
         <div class="dots" id="teamDots"></div>
       </section>
 
-      <!-- 4. DIFFICULTY -->
+      <!-- 5. DIFFICULTY -->
       <section class="section stacked">
         <div class="section-head">
-          <span class="badge">4</span>
+          <span class="badge">5</span>
           <div><div class="label">Difficulty</div></div>
           <span class="inline-hint">Choose the level of challenge.</span>
         </div>

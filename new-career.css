@@ -553,3 +553,107 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+/* ==========================================================================
+   LEAGUE PRESET + LEAGUE STRUCTURE
+   Same panel/inset/border language as the existing sections — no new palette.
+   ========================================================================== */
+
+/* The preset section uses a star instead of a number, but keeps the red chip. */
+.badge.alt { font-size: 0.85rem; line-height: 1; }
+
+/* ---- League Preset ------------------------------------------------------ */
+.preset-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.preset-field select {
+  flex: 1 1 220px;
+  min-width: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  color: var(--white);
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.preset-field select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.18);
+}
+.preset-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.mini {
+  background: var(--panel-2);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  color: var(--white);
+  font-family: var(--font-body);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.mini:hover:not(:disabled) { border-color: var(--red); background: rgba(193,39,45,0.12); }
+.mini.danger:hover:not(:disabled) { color: var(--red-hi); }
+.mini:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---- League Structure --------------------------------------------------- */
+.structure-field { min-width: 0; }
+.structure-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(20,40,66,0.85), rgba(9,18,32,0.85));
+  border: 1px solid var(--stroke);
+  border-radius: 9px;
+  padding: 0.95rem 1.1rem;
+  cursor: pointer;
+  color: var(--white);
+  font-family: var(--font-body);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+.structure-btn:hover {
+  border-color: var(--red);
+  box-shadow: 0 0 18px rgba(193, 39, 45, 0.28);
+  transform: translateY(-1px);
+}
+.structure-btn .sb-main {
+  display: block;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.98rem;
+}
+.structure-btn .sb-sub {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+.structure-btn .sb-summary {
+  display: inline-block;
+  margin-top: 0.6rem;
+  background: var(--inset, rgba(8,21,37,0.9));
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 0.28rem 0.8rem;
+  color: var(--white);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+.structure-warn {
+  margin-top: 0.6rem;
+  color: var(--orange);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 900px) {
+  .preset-field { flex-direction: column; align-items: stretch; }
+  .preset-actions { justify-content: space-between; }
+  .mini { flex: 1 1 auto; text-align: center; }
+}
