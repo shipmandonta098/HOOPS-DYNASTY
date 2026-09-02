@@ -15,7 +15,7 @@
  * Node engine (engine/*.js) can read and simulate it later.
  */
 
-import { saveLeague } from './db.js';
+import { saveLeague, listSaves } from './db.js';
 
 /* ============================ deterministic RNG ============================ */
 /* Mirrors engine/lib/rng.js so browser-created leagues are reproducible. */
@@ -84,6 +84,15 @@ const MORE_COLORS = ['#2e7d32', '#1565c0', '#ef6c00', '#6a1b9a', '#00838f', '#c6
 const MARKETS = ['Small', 'Medium', 'Large'];
 const FANS = ['Low', 'Medium', 'High'];
 
+/**
+ * The team list is built from a FIXED seed so the league every career gets is
+ * identical to the one shown in the Select Team carousel. It used to be seeded
+ * from the league name/season/team, which meant a generated team's market size,
+ * fan interest, budget, colour and crest silently changed between the card you
+ * clicked and the league that was saved.
+ */
+const TEAM_SEED = 1;
+
 /** Build the full 30-team list (named first, then generated), deterministic. */
 function buildTeams(rng) {
   const teams = NAMED_TEAMS.map((t) => ({ ...t }));
@@ -138,7 +147,9 @@ function makePlayer(idNum, teamId, pos, target, rng) {
 function generateLeague(cfg) {
   const seed = hashString(`${cfg.leagueName}|${cfg.season}|${cfg.teamId}`);
   const rng = makeRNG(seed);
-  const teams = buildTeams(rng);
+  // Teams: fixed seed, so they match the carousel exactly.
+  const teams = buildTeams(makeRNG(TEAM_SEED));
+  // Rosters below still use the league-specific rng, so each career differs.
 
   // A roster per team: one starter per position + 7 bench.
   const players = [];
@@ -184,7 +195,7 @@ const state = {
   season: 2026,
   teamId: 'NYM',
   difficulty: 'normal',
-  teams: buildTeams(makeRNG(1)),   // a stable preview list for the carousel
+  teams: buildTeams(makeRNG(TEAM_SEED)), // identical to the list generateLeague builds
 };
 
 /* --- Section 1: league name + character counter --- */
@@ -301,8 +312,13 @@ function initFooter() {
         leagueName: name, season: state.season,
         teamId: state.teamId, difficulty: state.difficulty,
       });
-      // Slug the name for a stable save id; a repeat name overwrites the slot.
-      const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'career';
+      // Every career gets its OWN save slot. The id is a slug of the league
+      // name, but if that slot is taken we suffix it (-2, -3, ...) instead of
+      // overwriting — creating a new career must never destroy an existing one.
+      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'career';
+      const taken = new Set(await listSaves());
+      let id = base;
+      for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
       await saveLeague(id, league);
       // Remember this as the active career so Continue resumes it, then drop
       // the user straight into the GM dashboard for the league they just made.
