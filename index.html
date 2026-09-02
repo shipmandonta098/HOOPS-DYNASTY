@@ -80,8 +80,9 @@
        ===================================================================== -->
   <script type="module">
     let listSaves = async () => [];
+    let listSavesDetailed = async () => [];
     try {
-      ({ listSaves } = await import('./db.js'));
+      ({ listSaves, listSavesDetailed } = await import('./db.js'));
     } catch (err) {
       console.warn('Storage layer unavailable; Load Career and Continue stay locked.', err);
     }
@@ -109,17 +110,22 @@
       }
     }
 
-    // Route menu clicks. New Career navigates to the setup screen; the rest
-    // are placeholders until their screens exist.
-    document.querySelector('.menu').addEventListener('click', (e) => {
+    // Route menu clicks. New Career -> setup. Load Career -> save browser.
+    // Continue -> jump straight into the most-recently-played save's dashboard.
+    document.querySelector('.menu').addEventListener('click', async (e) => {
       const btn = e.target.closest('.btn');
       if (!btn || btn.disabled) return;
       const action = btn.dataset.action;
       if (action === 'new-career') { location.href = './new-career.html'; return; }
-      // Continue + Load Career both go to the save browser (unlocked once a
-      // league exists). Continue will jump straight into the newest save once
-      // the in-game screen is built.
-      if (action === 'load-career' || action === 'continue') { location.href = './load-career.html'; return; }
+      if (action === 'load-career') { location.href = './load-career.html'; return; }
+      if (action === 'continue') {
+        try {
+          const list = await listSavesDetailed();
+          if (list.length) { location.href = './gm-dashboard.html?id=' + encodeURIComponent(list[0].id); return; }
+        } catch (_) {}
+        location.href = './load-career.html';
+        return;
+      }
       console.log('→ menu action:', action);
     });
 

@@ -155,11 +155,10 @@ function select(id) {
   document.getElementById('deleteBtn').disabled = !selectedId;
 }
 
-/** "Load" a save — no game screen yet, so remember the choice and inform. */
+/** "Load" a save — remember the choice and open the GM dashboard. */
 function loadSave(id) {
   try { localStorage.setItem('activeLeagueId', id); } catch (_) {}
-  const r = rows.find((x) => x.id === id);
-  alert(`Loading "${r ? r.leagueName : id}"…\n(The in-game screen isn't built yet — this is where it will open.)`);
+  location.href = './gm-dashboard.html?id=' + encodeURIComponent(id);
 }
 
 async function removeSave(id) {
