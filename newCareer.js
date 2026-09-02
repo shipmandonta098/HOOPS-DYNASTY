@@ -229,7 +229,6 @@ function initTeams() {
         <div class="row"><span>Market Size</span><b>${t.marketSize}</b></div>
         <div class="row"><span>Fan Interest</span><b>${t.fanInterest}</b></div>
         <div class="row"><span>Budget</span><b>$${t.budget.toFixed(1)}M</b></div>
-        <div class="row"><span>Championships</span><b>${t.championships}</b></div>
       </div>
     </div>`).join('');
 
