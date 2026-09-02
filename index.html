@@ -9,9 +9,15 @@
 <body>
 
   <!-- =====================================================================
-       FLOOR — cool light-gray hardwood texture (CSS planks in style.css).
+       FLOOR — cool light-gray hardwood wood texture (CSS planks in style.css).
        ===================================================================== -->
   <div class="floor" aria-hidden="true"></div>
+
+  <!-- =====================================================================
+       CROWD — blurred silhouette of distant stands, sitting BEHIND the court
+       lines. Pure CSS (blurred dot grid, masked to the top/bottom edges).
+       ===================================================================== -->
+  <div class="crowd" aria-hidden="true"></div>
 
   <!-- =====================================================================
        COURT LINES
@@ -47,6 +53,9 @@
       <path class="paint dashed" d="M 1368 380 A 70 70 0 0 0 1368 520" />
     </g>
   </svg>
+
+  <!-- Top-down arena lighting gradient (bright pool from the top-center) -->
+  <div class="lighting" aria-hidden="true"></div>
 
   <!-- Barely-there edge shadow for depth -->
   <div class="vignette" aria-hidden="true"></div>
@@ -86,6 +95,9 @@
       <button class="btn" data-action="new-dynasty">New Dynasty</button>
       <button class="btn" data-action="load-dynasty">Load Dynasty</button>
     </nav>
+
+    <!-- Tagline — fades in last for a cinematic close. -->
+    <p class="tagline">Build a franchise. Leave a dynasty.</p>
   </main>
 
   <!-- =====================================================================
