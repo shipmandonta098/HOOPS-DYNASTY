@@ -33,8 +33,8 @@
         <a href="#" data-nav="GM Office"><span class="ic">🏢</span>GM Office</a>
         <a href="#" data-nav="History"><span class="ic">📜</span>History</a>
         <div class="sep"></div>
-        <a href="#" data-nav="Messages"><span class="ic">✉️</span>Messages<span class="badge">3</span></a>
-        <a href="#" data-nav="Tasks"><span class="ic">✅</span>Tasks<span class="badge" id="taskBadge">5</span></a>
+        <a href="#" data-nav="Messages"><span class="ic">✉️</span>Messages</a>
+        <a href="#" data-nav="Tasks"><span class="ic">✅</span>Tasks</a>
         <a href="#" data-nav="Settings"><span class="ic">⚙️</span>Settings</a>
       </nav>
     </aside>
@@ -42,116 +42,79 @@
     <!-- ================= MAIN ================= -->
     <main class="main">
 
-      <!-- Top bar -->
+      <!-- Top bar — league / season / phase, all straight from the save. -->
       <div class="topbar">
         <h1>GM Dashboard</h1>
         <div class="ctx">
           <b id="ctxLeague">League</b><span class="divider">|</span>
           <b id="ctxSeason">Season</b><span class="divider">|</span>
-          <span class="date">📅 <span id="ctxDate">—</span></span>
+          <b id="ctxPhase">Phase</b>
         </div>
         <div class="gm">
-          <div class="avatar" id="gmAvatar">🏀</div>
-          <div class="who"><div class="n" id="gmName">GM</div><div class="t" id="gmTeam">Team</div></div>
-          <span class="chev">▾</span>
+          <div class="avatar" id="teamChipLogo">🏀</div>
+          <div class="who"><div class="n" id="teamChipName">Team</div><div class="t">General Manager</div></div>
         </div>
       </div>
 
-      <!-- Header strip: identity + gauges + goals -->
+      <!-- Identity + stored team facts -->
       <div class="grid strip card">
         <div class="identity">
           <div class="logo" id="teamLogo">🏀</div>
           <div>
             <div class="city" id="teamCity">City</div>
             <div class="name" id="teamName">Team</div>
-            <div class="rec" id="teamRec">0-0</div>
             <div class="sub" id="teamSub">—</div>
           </div>
         </div>
-        <div class="gauge"><div class="glabel">Team Morale</div><div id="gMorale"></div></div>
-        <div class="gauge"><div class="glabel">Fan Satisfaction</div><div id="gFan"></div></div>
-        <div class="gauge"><div class="glabel">Owner Satisfaction</div><div id="gOwner"></div></div>
-        <div class="goals">
-          <div class="card-head"><h2>Owner Goals</h2></div>
-          <div id="goals"></div>
-        </div>
+        <div class="facts" id="facts"></div>
       </div>
 
-      <!-- Row: next game / team overview / standings -->
+      <!-- Team rating (from attributes) / roster / payroll — all real -->
       <div class="grid row3">
-        <div class="card next">
-          <div class="card-head"><h2>Next Game</h2></div>
-          <div class="tag" id="nextTag">—</div>
-          <div class="matchup">
-            <div class="side"><div class="logo" id="ngHomeLogo">🏀</div><div class="city" id="ngHomeCity"></div><div class="name" id="ngHomeName"></div><div class="rec" id="ngHomeRec"></div></div>
-            <div class="vs">VS</div>
-            <div class="side"><div class="logo" id="ngAwayLogo">🏀</div><div class="city" id="ngAwayCity"></div><div class="name" id="ngAwayName"></div><div class="rec" id="ngAwayRec"></div></div>
-          </div>
-          <div class="meta"><span>📅 <span id="ngDate"></span></span><span>🕖 7:30 PM</span></div>
-          <div class="meta-arena">🏟️ <span id="ngArena"></span></div>
-          <button class="card-btn">View Schedule</button>
-        </div>
-
         <div class="card">
-          <div class="card-head"><h2>Team Overview</h2><span class="right">OVR <b id="ovOVR" style="color:var(--white)">—</b></span></div>
+          <div class="card-head"><h2>Team Rating</h2><span class="right">OVR <b id="ovOVR" style="color:var(--white)">—</b></span></div>
           <div class="ovr-grid">
             <div class="stat"><div class="k">Offense</div><div class="v" id="ovOffV">—</div><div class="r" id="ovOffR"></div></div>
             <div class="stat"><div class="k">Defense</div><div class="v" id="ovDefV">—</div><div class="r" id="ovDefR"></div></div>
             <div class="stat"><div class="k">Shooting</div><div class="v" id="ovShootV">—</div><div class="r" id="ovShootR"></div></div>
-            <div class="stat"><div class="k">Chemistry</div><div class="v" id="ovChemV">—</div><div class="r" id="ovChemR"></div></div>
           </div>
           <div class="sw-grid">
             <div class="good"><h3>Team Strengths</h3><ul id="strengths"></ul></div>
             <div class="bad"><h3>Team Weaknesses</h3><ul id="weaknesses"></ul></div>
           </div>
-          <button class="card-btn">Team Stats</button>
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>Standings</h2><span class="right" id="standDiv">Division</span></div>
-          <table class="stand-table">
-            <thead><tr><th class="tn">Team</th><th>W</th><th>L</th><th>GB</th></tr></thead>
-            <tbody id="standBody"></tbody>
-          </table>
-          <button class="card-btn">View Standings</button>
+          <div class="card-head"><h2>Roster</h2></div>
+          <div class="ovr-grid">
+            <div class="stat"><div class="k">Players</div><div class="v" id="rosterCount">—</div><div class="r">under contract</div></div>
+            <div class="stat"><div class="k">Avg Age</div><div class="v" id="rosterAge">—</div><div class="r">years</div></div>
+            <div class="stat"><div class="k">Avg OVR</div><div class="v" id="rosterOvr">—</div><div class="r">rating</div></div>
+          </div>
+          <div class="pos-line" id="rosterPos"></div>
+        </div>
+
+        <div class="card fin">
+          <div class="card-head"><h2>Payroll</h2></div>
+          <div class="fin-grid two">
+            <div class="f"><div class="k">Committed Payroll</div><div class="v" id="finPayroll">—</div><div class="s">active contracts</div></div>
+            <div class="f"><div class="k">Salary Cap</div><div class="v" id="finCap">—</div><div class="s">league setting</div></div>
+          </div>
+          <div class="fin-grid" style="margin-top:.9rem">
+            <div class="f"><div class="k" id="finSpaceLabel">Cap space</div><div class="v pos" id="finSpace">—</div></div>
+          </div>
         </div>
       </div>
 
-      <!-- Row: top players / news / tasks -->
-      <div class="grid row3b">
+      <!-- Top players by rating — identity + contract facts from the save -->
+      <div class="grid">
         <div class="card">
-          <div class="card-head"><h2>Top Players</h2><a class="link" href="#">View All</a></div>
+          <div class="card-head"><h2>Top Rated Players</h2></div>
           <div class="players" id="players"></div>
         </div>
-        <div class="card">
-          <div class="card-head"><h2>Recent News</h2><a class="link" href="#">View All</a></div>
-          <div class="news" id="news"></div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Tasks</h2><a class="link" href="#">View All</a></div>
-          <div class="tasks" id="tasks"></div>
-        </div>
       </div>
 
-      <!-- Row: finances / upcoming events -->
-      <div class="grid row4">
-        <div class="card fin">
-          <div class="card-head"><h2>Finances Overview</h2><a class="link" href="#">View Finances</a></div>
-          <div class="fin-grid">
-            <div class="f"><div class="k">Team Budget</div><div class="v" id="finBudget">—</div><div class="s" id="finPayroll"></div></div>
-            <div class="f"><div class="k">Team Profit</div><div class="v pos" id="finProfit">—</div><div class="s">This Season</div></div>
-            <div class="f"><div class="k">Cash Balance</div><div class="v" id="finCash">—</div><div class="s">Available</div></div>
-            <div class="f"><div class="k">Arena Revenue</div><div class="v" id="finArena">—</div><div class="s">This Season</div></div>
-          </div>
-        </div>
-        <div class="card events">
-          <div class="card-head"><h2>Upcoming Events</h2></div>
-          <div class="events-wrap">
-            <div class="cal">🗓️</div>
-            <div class="events-list" id="events"></div>
-          </div>
-        </div>
-      </div>
+      <p class="note" id="note"></p>
     </main>
   </div>
 

@@ -6,13 +6,13 @@
    Section map:
      1. Tokens
      2. Base + app shell (sidebar | main)
-     3. Sidebar (brand + nav + badges)
+     3. Sidebar (brand + nav)
      4. Top bar
      5. Card primitives
-     6. Header strip: team identity + gauges + owner goals
-     7. Row: next game / team overview / standings
-     8. Row: top players / recent news / tasks
-     9. Row: finances / upcoming events
+     6. Header strip: team identity + stored team facts
+     7. Row: team rating / roster / payroll
+     8. Top rated players
+     9. Status note
     10. Responsive
     11. Reduced motion
    ========================================================================== */
@@ -143,7 +143,7 @@ body {
 .grid { display: grid; gap: 0.9rem; margin-bottom: 0.9rem; }
 
 /* ------------------------------------------------------------- 6. HEADER STRIP */
-.strip { grid-template-columns: 1.35fr 0.8fr 0.8fr 0.8fr 1.35fr; align-items: center; }
+.strip { grid-template-columns: 1.4fr 2fr; align-items: center; }
 .identity { display: flex; align-items: center; gap: 1rem; }
 .identity .logo { width: 74px; height: 74px; border-radius: 12px; display: grid; place-items: center;
   font-size: 2.3rem; box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset; }
@@ -152,39 +152,13 @@ body {
 .identity .rec { font-size: 1.05rem; font-weight: 800; margin-top: 0.2rem; }
 .identity .sub { color: var(--muted); font-size: 0.78rem; margin-top: 0.15rem; }
 
-.gauge { text-align: center; padding: 0 0.3rem; }
-.gauge .glabel { font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-.gauge .ring { position: relative; width: 96px; height: 96px; margin: 0.4rem auto 0.3rem; }
-.gauge .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.gauge .ring .val { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.5rem; font-weight: 800; }
-.gauge .status { font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-.gauge .desc { color: var(--muted); font-size: 0.68rem; margin-top: 0.2rem; line-height: 1.25; }
-
-.goals .goal { display: flex; align-items: center; gap: 0.6rem; padding: 0.28rem 0; font-size: 0.84rem; }
-.goals .goal .gi { width: 18px; text-align: center; color: var(--gold); }
-.goals .goal .mark { margin-left: auto; width: 18px; height: 18px; }
-.goals .goal .mark.done { color: var(--green); }
-.goals .goal .mark.pending { color: var(--muted-2); }
-
 /* ------------------------------------------------------------- 7. ROW 2 */
-.row3 { grid-template-columns: 1fr 1.15fr 1fr; }
+.row3 { grid-template-columns: 1fr 1fr 1fr; }
 
 /* Next game */
-.next .matchup { display: flex; align-items: center; justify-content: space-around; gap: 0.5rem; }
-.next .side { text-align: center; }
-.next .side .logo { width: 66px; height: 66px; border-radius: 10px; display: grid; place-items: center; font-size: 2rem; margin: 0 auto 0.4rem;
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset; }
-.next .side .city { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.next .side .name { font-family: var(--font-display); font-size: 1.15rem; text-transform: uppercase; }
-.next .side .rec { color: var(--muted); font-size: 0.82rem; margin-top: 0.15rem; }
-.next .vs { font-family: var(--font-display); color: var(--muted); font-size: 1.1rem; }
-.next .tag { text-align: center; color: var(--muted); font-size: 0.8rem; margin-bottom: 0.7rem; }
-.next .meta { display: flex; justify-content: center; gap: 1.3rem; color: var(--muted); font-size: 0.82rem; margin-top: 0.7rem; }
-.next .meta .arena { text-align: center; color: var(--muted); font-size: 0.8rem; }
-.next .meta-arena { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 0.4rem; }
 
 /* Team overview */
-.ovr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; background: var(--inset);
+.ovr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; background: var(--inset);
   border: 1px solid var(--stroke); border-radius: 9px; padding: 0.7rem; }
 .ovr-grid .stat { text-align: center; }
 .ovr-grid .stat .k { font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
@@ -199,15 +173,6 @@ body {
 .sw-grid li::before { content: "• "; color: var(--muted); }
 
 /* Standings */
-.stand-table { width: 100%; border-collapse: collapse; }
-.stand-table th { text-align: right; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 0.3rem 0.35rem; }
-.stand-table th.tn, .stand-table td.tn { text-align: left; }
-.stand-table td { padding: 0.4rem 0.35rem; font-size: 0.86rem; border-top: 1px solid var(--stroke-2); }
-.stand-table .team-cell { display: flex; align-items: center; gap: 0.5rem; }
-.stand-table .rank { color: var(--muted); width: 1rem; display: inline-block; }
-.stand-table .mini { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; font-size: 0.8rem; }
-.stand-table tr.me td { background: rgba(193,39,45,0.10); }
-.stand-table tr.me td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 
 /* ------------------------------------------------------------- 8. ROW 3 */
 .row3b { grid-template-columns: 1.5fr 1.15fr 1.2fr; }
@@ -216,8 +181,7 @@ body {
 .players { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; }
 .pl { text-align: center; }
 .pl .av { position: relative; width: 64px; height: 64px; margin: 0 auto 0.4rem; }
-.pl .av .ring { width: 100%; height: 100%; transform: rotate(-90deg); }
-.pl .av .face { position: absolute; inset: 6px; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem;
+.pl .av .face { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(150,180,220,0.28); display: grid; place-items: center; font-size: 1.4rem;
   background: linear-gradient(160deg,#24405f,#0f2036); }
 .pl .av .ovr { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
   background: var(--navy-0); border: 1px solid var(--gold); color: var(--gold); font-weight: 800;
@@ -227,24 +191,8 @@ body {
 .pl .line { color: var(--muted); font-size: 0.68rem; line-height: 1.5; }
 
 /* Recent news */
-.news .item { display: flex; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--stroke-2); }
-.news .item:first-child { border-top: none; }
-.news .item .ni { width: 26px; height: 26px; flex: 0 0 auto; border-radius: 6px; display: grid; place-items: center;
-  background: var(--inset); font-size: 0.85rem; }
-.news .item .nb { flex: 1 1 auto; min-width: 0; }
-.news .item .nt { font-size: 0.82rem; line-height: 1.25; }
-.news .item .nd { color: var(--muted); font-size: 0.7rem; margin-top: 0.15rem; }
 
 /* Tasks */
-.tasks .t { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--stroke-2); }
-.tasks .t:first-child { border-top: none; }
-.tasks .t .box { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; flex: 0 0 auto; }
-.tasks .t .tt { flex: 1 1 auto; font-size: 0.82rem; }
-.tasks .t .left { color: var(--muted); font-size: 0.72rem; margin-right: 0.5rem; white-space: nowrap; }
-.tasks .t .pri { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; padding: 0.12rem 0.45rem; border-radius: 4px; }
-.pri.high { background: rgba(229,57,63,0.18); color: var(--red-hi); }
-.pri.medium { background: rgba(227,146,43,0.18); color: var(--orange); }
-.pri.low { background: rgba(74,158,255,0.16); color: var(--blue); }
 
 /* ------------------------------------------------------------- 9. ROW 4 */
 .row4 { grid-template-columns: 1.3fr 1fr; }
@@ -255,15 +203,6 @@ body {
 .fin .f .v.pos { color: var(--green); }
 .fin .f .s { color: var(--muted); font-size: 0.72rem; }
 
-.events .ev { display: flex; align-items: center; gap: 0.8rem; padding: 0.55rem 0; border-top: 1px solid var(--stroke-2); }
-.events .ev:first-child { border-top: none; }
-.events .ev .en { flex: 1 1 auto; font-size: 0.9rem; font-weight: 600; }
-.events .ev .ed { color: var(--muted); font-size: 0.82rem; }
-.events .cal { width: 54px; height: 54px; border-radius: 10px; background: var(--inset); border: 1px solid var(--stroke);
-  display: grid; place-items: center; font-size: 1.5rem; margin-right: 0.4rem; }
-.events-wrap { display: flex; gap: 0.9rem; align-items: flex-start; }
-.events-list { flex: 1 1 auto; }
-
 /* ------------------------------------------------------------- 10. RESPONSIVE */
 @media (max-width: 1180px) {
   .app { grid-template-columns: 66px 1fr; }
@@ -273,12 +212,11 @@ body {
   .nav a { justify-content: center; padding: 0.6rem 0; font-size: 0; letter-spacing: 0; gap: 0; }
   .nav a .ic { font-size: 1.1rem; }
   .nav a .badge { position: absolute; top: 3px; right: 6px; margin: 0; }
-  .strip { grid-template-columns: 1fr 1fr 1fr; }
+  .strip { grid-template-columns: 1fr; }
   .strip .identity { grid-column: 1 / -1; }
-  .strip .goals { grid-column: 1 / -1; }
 }
 @media (max-width: 980px) {
-  .row3, .row3b, .row4 { grid-template-columns: 1fr; }
+  .row3 { grid-template-columns: 1fr; }
   .topbar { flex-wrap: wrap; }
   .topbar .ctx { order: 3; width: 100%; }
 }
@@ -291,3 +229,25 @@ body {
 
 /* ------------------------------------------------------------- 11. REDUCED MOTION */
 @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.001ms !important; } }
+
+/* ------------------------------------------------------------- FACTS / ROSTER / NOTE
+   Small presentational blocks for values read straight from the save. */
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+.fact { text-align: center; padding: 0.2rem 0.3rem; }
+.fact .k { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.fact .v { font-family: var(--font-display); font-size: 1.6rem; margin-top: 0.25rem; }
+
+.pos-line { display: flex; flex-wrap: wrap; gap: 0.9rem; margin-top: 0.9rem;
+  padding-top: 0.8rem; border-top: 1px solid var(--stroke-2);
+  color: var(--muted); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.pos-line b { color: var(--white); font-weight: 800; margin-right: 0.15rem; }
+
+.fin-grid.two { grid-template-columns: repeat(2, 1fr); }
+.fin .f .v.neg { color: var(--red-hi); }
+
+.note { margin-top: 0.4rem; color: var(--muted); font-size: 0.82rem; line-height: 1.5;
+  padding: 0.9rem 1.1rem; border: 1px dashed var(--stroke); border-radius: 10px; }
+
+@media (max-width: 980px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px) { .facts { grid-template-columns: 1fr; gap: 0.5rem; }
+  .fin-grid.two { grid-template-columns: 1fr; } }
