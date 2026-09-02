@@ -14,14 +14,17 @@
        comes from the <body> gradient in style.css.
        ===================================================================== -->
   <div class="court" aria-hidden="true">
-    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice"
+    <!-- Mid-anchored so viewBox y maps ~1:1 to viewport height: the centre
+         circle at y=612 lands at ~68% down, sitting directly behind the
+         navigation and framing it. -->
+    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"
          width="100%" height="100%">
-      <!-- Center circle low on the floor (wide ellipse = perspective look) -->
-      <ellipse class="paint" cx="800" cy="760" rx="230" ry="70" />
+      <!-- Centre circle, enlarged and raised to frame the menu -->
+      <ellipse class="paint" cx="800" cy="612" rx="300" ry="132" />
       <!-- Half-court line running through it -->
-      <line class="paint" x1="360" y1="760" x2="1240" y2="760" />
-      <!-- Faint sideline sweeping toward the baseline -->
-      <path class="paint" d="M 120 900 L 470 690 M 1480 900 L 1130 690" />
+      <line class="paint" x1="120" y1="612" x2="1480" y2="612" />
+      <!-- Faint sidelines sweeping toward the baseline below -->
+      <path class="paint" d="M 60 900 L 430 748 M 1540 900 L 1170 748" />
     </svg>
   </div>
 

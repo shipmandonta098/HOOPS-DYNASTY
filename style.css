@@ -164,7 +164,7 @@ body {
      screen instead of clustering around the middle. */
   justify-content: flex-start;
   text-align: center;
-  padding: clamp(2rem, 11vh, 8rem) 1rem clamp(2.5rem, 9vh, 6rem);
+  padding: clamp(1.5rem, 6vh, 6rem) 1rem clamp(2rem, 7vh, 5.5rem);
 }
 
 /* ------------------------------------------------------------------
@@ -181,7 +181,7 @@ body {
 }
 .title .line1 {                     /* HOOPS */
   display: block;
-  font-size: clamp(5.2rem, 16vw, 10.5rem);
+  font-size: clamp(5.2rem, min(16vw, 20vh), 13rem);
   color: var(--white);
   text-shadow:
     0 -1px 0 #ffffff,
@@ -192,7 +192,7 @@ body {
 }
 .title .line2 {                     /* DYNASTY — crimson */
   display: block;
-  font-size: clamp(3.9rem, 12vw, 7.8rem);
+  font-size: clamp(3.9rem, min(12vw, 15vh), 9.6rem);
   color: var(--red);
   text-shadow:
     0 2px 0 var(--red-dk),
@@ -204,9 +204,9 @@ body {
    8. TROPHY + SUBTITLE — silver trophy over spaced subtitle text.
    ------------------------------------------------------------------ */
 .trophy {
-  width: clamp(38px, 3.4vw, 48px);
-  height: clamp(38px, 3.4vw, 48px);
-  margin: clamp(1.6rem, 4.5vh, 3.2rem) 0 clamp(0.9rem, 2vh, 1.4rem);
+  width: clamp(38px, 4.6vh, 60px);
+  height: clamp(38px, 4.6vh, 60px);
+  margin: clamp(1rem, 2.6vh, 1.8rem) 0 clamp(0.55rem, 1.5vh, 1rem);
   color: var(--silver);
   animation:
     fadeIn 0.6s ease-out 0.95s both,
@@ -233,27 +233,31 @@ body {
 .menu {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  /* `auto` absorbs the leftover height so the menu always settles into the
-     lower third; padding-top keeps a floor on the gap under the subtitle
-     when the viewport is too short for any free space. */
-  margin-top: auto;
-  padding-top: clamp(2rem, 6vh, 4rem);
-  gap: clamp(1rem, 3vh, 2.2rem);
+  /* Buttons stretch to a common width so the three options read as one
+     deliberate block rather than centred text of differing lengths. */
+  align-items: stretch;
+  width: min(430px, 86vw);
+  /* A measured gap under the subtitle — enough to separate branding from
+     navigation, not so much that the middle of the screen empties out. */
+  margin-top: clamp(2rem, 6.5vh, 6rem);
+  gap: clamp(1.1rem, 4.6vh, 3.4rem);
   animation: fadeIn 0.7s ease-out 1.35s both;
 }
 
 .btn {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: clamp(1rem, 2.6vw, 1.25rem);
+  font-size: clamp(1rem, min(2.6vw, 2.4vh), 1.4rem);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--white);
-  background: transparent;
-  border: none;
-  border-radius: 2px;
-  padding: clamp(0.7rem, 1.6vh, 1rem) clamp(2.4rem, 7vw, 3.6rem);
+  /* Understated dark-navy container with a thin border — gives the two
+     secondary options presence and ties all three together visually. */
+  background: rgba(13, 30, 52, 0.55);
+  border: 1px solid rgba(150, 185, 230, 0.22);
+  border-radius: 4px;
+  width: 100%;
+  padding: clamp(0.95rem, 2.6vh, 1.9rem) 1.5rem;
   cursor: pointer;
   transition: color 0.18s ease, background 0.18s ease,
               text-shadow 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
@@ -263,34 +267,42 @@ body {
 .btn:hover,
 .btn:focus-visible {
   color: var(--red-hi);
-  text-shadow: 0 0 14px rgba(229, 57, 63, 0.65);
+  background: rgba(20, 42, 70, 0.75);
+  border-color: rgba(229, 57, 63, 0.55);
+  text-shadow: 0 0 14px rgba(229, 57, 63, 0.5);
   outline: none;
 }
 
 /* 9b. Primary action — the filled red rectangle. */
 .btn.is-highlight {
   background: var(--red);
+  border-color: var(--red);
   color: var(--white);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset, 0 6px 18px rgba(0,0,0,0.35);
 }
 .btn.is-highlight:hover,
 .btn.is-highlight:focus-visible {
   background: var(--red-hi);
+  border-color: var(--red-hi);
   color: var(--white);
   text-shadow: none;
-  box-shadow: 0 0 20px rgba(193, 39, 45, 0.65);
+  box-shadow: 0 0 22px rgba(193, 39, 45, 0.6);
   transform: translateY(-1px);
 }
 
 /* 9c. Disabled (LOAD CAREER / CONTINUE with no saves) — dimmed, inert.
    JS removes .is-disabled once a save exists. */
+/* Dimmed, but the container + border stay legible so the three
+   options still read as one set before any save exists. */
 .btn.is-disabled {
-  opacity: 0.35;
+  opacity: 0.52;
   cursor: not-allowed;
 }
 .btn.is-disabled:hover,
 .btn.is-disabled:focus-visible {
   color: var(--white);
+  background: rgba(13, 30, 52, 0.55);
+  border-color: rgba(150, 185, 230, 0.22);
   text-shadow: none;
   transform: none;
 }
@@ -339,21 +351,28 @@ body {
    ------------------------------------------------------------------ */
 @media (max-width: 480px) {
   .subtitle { letter-spacing: 0.26em; }
-  .btn { font-size: 0.98rem; padding: 0.7rem 2rem; }
+  .btn { font-size: 0.98rem; padding: clamp(0.85rem, 2.4vh, 1.4rem) 1.2rem; }
   .corner-tl { width: 40vw; height: 40vw; }
   .corner-br { width: 34vw; height: 34vw; }
 }
 
 /* Short viewports (landscape phones): tighten the same rhythm so the whole
    composition still fits on screen without changing its proportions. */
+/* Tall, narrow screens (phones in portrait): the wordmark is width-limited,
+   so give the navigation a larger share of the height — otherwise the menu
+   floats high and the lower third empties out. */
+@media (max-width: 560px) and (min-height: 700px) {
+  .menu { margin-top: clamp(3rem, 13vh, 8rem); gap: clamp(1.6rem, 7.5vh, 4rem); }
+}
+
 @media (max-height: 600px) {
   .stack { padding: clamp(1rem, 5vh, 2rem) 1rem clamp(1rem, 4vh, 1.75rem); }
   .title .line1 { font-size: clamp(2.4rem, 8.5vw, 4.5rem); }
   .title .line2 { font-size: clamp(1.8rem, 6.4vw, 3.4rem); }
   .trophy { width: 28px; height: 28px; margin: 0.5rem 0 0.35rem; }
   .subtitle { font-size: clamp(0.66rem, 1.9vw, 0.85rem); letter-spacing: 0.24em; }
-  .menu { padding-top: clamp(0.9rem, 3.5vh, 1.6rem); gap: clamp(0.45rem, 1.6vh, 0.8rem); }
-  .btn { padding: 0.45rem 2rem; font-size: clamp(0.9rem, 2.2vw, 1.05rem); }
+  .menu { margin-top: clamp(0.9rem, 3.5vh, 1.6rem); gap: clamp(0.45rem, 1.8vh, 0.9rem); }
+  .btn { padding: 0.5rem 1.2rem; font-size: clamp(0.9rem, 2.2vw, 1.05rem); }
 }
 
 /* ------------------------------------------------------------------
