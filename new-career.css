@@ -63,6 +63,8 @@ body {
   font-family: var(--font-body);
   color: var(--white);
   min-height: 100vh;          /* grow with content so the page scrolls */
+  display: flex;             /* sticky-footer column: footer never overlaps content */
+  flex-direction: column;
   background:
     radial-gradient(ellipse 80% 60% at 70% 8%,
       rgba(90, 130, 185, 0.18) 0%, rgba(90,130,185,0) 55%),
@@ -93,7 +95,7 @@ body {
   z-index: 1;
   display: grid;
   grid-template-columns: 210px 1fr;
-  min-height: 100vh;
+  flex: 1 0 auto;             /* fill remaining height so the footer sits at the bottom */
 }
 /* Let grid children shrink below their content width. Without this, the wide
    team carousel (30 cards) forces the whole layout hundreds of px wide and
@@ -142,8 +144,7 @@ body {
    5. MAIN HEADER
    ------------------------------------------------------------------ */
 .main {
-  /* Big bottom padding so the last section always clears the fixed footer. */
-  padding: 2rem clamp(1.2rem, 3vw, 3rem) 8.5rem;
+  padding: 2rem clamp(1.2rem, 3vw, 3rem) 2rem;
   position: relative;
 }
 .page-title {
@@ -450,16 +451,18 @@ body {
    11. FOOTER BAR
    ------------------------------------------------------------------ */
 .footer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  /* In-flow bar (NOT fixed) so it can never cover the difficulty section.
+     The body flex-column + .layout flex:1 push this to the bottom of the
+     viewport when content is short, and below the content when it's tall. */
+  position: relative;
   z-index: 4;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.8rem 1.5rem;
-  background: linear-gradient(to top, var(--navy-0) 55%, rgba(8,17,32,0));
+  padding: 1rem 1.5rem;
+  background: var(--navy-0);
+  border-top: 1px solid var(--stroke);
 }
 .footer .ghost {
   position: absolute;
@@ -528,7 +531,7 @@ body {
   }
   .sidebar .brand { font-size: 1.4rem; }
   .sidebar .brand-trophy, .sidebar .watermark { display: none; }
-  .main { padding: 1.4rem 1rem 7.5rem; }
+  .main { padding: 1.4rem 1rem 1.6rem; }
   .section { grid-template-columns: 1fr; gap: 0.7rem; }
   .name-field input { font-size: 1.1rem; }
   .difficulties { grid-template-columns: repeat(2, 1fr); }
