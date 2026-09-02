@@ -304,8 +304,10 @@ function initFooter() {
       // Slug the name for a stable save id; a repeat name overwrites the slot.
       const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'career';
       await saveLeague(id, league);
-      // Back to the title screen — Continue / Load Career are now unlocked.
-      location.href = './index.html';
+      // Remember this as the active career so Continue resumes it, then drop
+      // the user straight into the GM dashboard for the league they just made.
+      try { localStorage.setItem('activeLeagueId', id); } catch (_) {}
+      location.href = './gm-dashboard.html?id=' + encodeURIComponent(id);
     } catch (err) {
       console.error('Failed to create league:', err);
       label.textContent = original;
