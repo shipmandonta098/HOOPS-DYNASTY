@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "player.schema.json",
+  "title": "Player",
+  "description": "A single basketball player or draft prospect. The same shape is used for rostered players, free agents, and undrafted prospects — the difference is just which fields are filled in (teamId null = free agent/prospect, contract null = unsigned).",
+  "schemaVersion": 1,
+  "type": "object",
+  "required": ["id", "name", "position", "age", "attributes"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "description": "Unique, stable player id (e.g. 'p_012' or 'prospect_2025_03'). Never reuse an id."
+    },
+    "name": { "type": "string" },
+    "position": {
+      "type": "string",
+      "enum": ["PG", "SG", "SF", "PF", "C"],
+      "description": "Primary position. Drives how attributes are weighted into overall."
+    },
+    "age": { "type": "integer", "minimum": 15, "maximum": 50 },
+    "teamId": {
+      "type": ["string", "null"],
+      "description": "Id of the team that rosters this player. null = free agent or undrafted prospect."
+    },
+    "college": { "type": "string" },
+    "overall": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "DERIVED from attributes by engine/lib/ratings.js. Cached here for readability; treat attributes as the source of truth and recompute after edits."
+    },
+    "potential": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "Soft ceiling a young player can develop toward. For veterans this is roughly equal to overall."
+    },
+    "attributes": {
+      "type": "object",
+      "description": "0..99-scale skills (basketball convention: ~25 floor, 99 elite). This is the SOURCE OF TRUTH for ability — overall is computed from it.",
+      "additionalProperties": false,
+      "required": [
+        "insideScoring", "midRange", "threePoint", "freeThrow",
+        "passing", "ballHandling", "offensiveRebound", "defensiveRebound",
+        "perimeterDefense", "interiorDefense", "block", "steal",
+        "athleticism", "basketballIQ"
+      ],
+      "properties": {
+        "insideScoring": { "$ref": "#/definitions/rating" },
+        "midRange": { "$ref": "#/definitions/rating" },
+        "threePoint": { "$ref": "#/definitions/rating" },
+        "freeThrow": { "$ref": "#/definitions/rating" },
+        "passing": { "$ref": "#/definitions/rating" },
+        "ballHandling": { "$ref": "#/definitions/rating" },
+        "offensiveRebound": { "$ref": "#/definitions/rating" },
+        "defensiveRebound": { "$ref": "#/definitions/rating" },
+        "perimeterDefense": { "$ref": "#/definitions/rating" },
+        "interiorDefense": { "$ref": "#/definitions/rating" },
+        "block": { "$ref": "#/definitions/rating" },
+        "steal": { "$ref": "#/definitions/rating" },
+        "athleticism": { "$ref": "#/definitions/rating" },
+        "basketballIQ": { "$ref": "#/definitions/rating" }
+      }
+    },
+    "contract": {
+      "type": ["object", "null"],
+      "description": "Current contract, or null if unsigned/free agent.",
+      "required": ["salary", "yearsRemaining"],
+      "additionalProperties": true,
+      "properties": {
+        "salary": { "type": "number", "minimum": 0, "description": "Annual salary in $M." },
+        "yearsRemaining": { "type": "integer", "minimum": 0 },
+        "type": {
+          "type": "string",
+          "enum": ["rookie", "standard", "max", "vet_min"],
+          "description": "Contract archetype. Advisory — expand as you add cap rules."
+        },
+        "playerOption": { "type": "boolean" },
+        "teamOption": { "type": "boolean" }
+      }
+    },
+    "statsHistory": {
+      "type": "array",
+      "description": "Per-season box-score lines, appended by simulateSeason.js.",
+      "items": {
+        "type": "object",
+        "required": ["season"],
+        "additionalProperties": true,
+        "properties": {
+          "season": { "type": "integer" },
+          "ppg": { "type": "number" },
+          "rpg": { "type": "number" },
+          "apg": { "type": "number" }
+        }
+      }
+    },
+    "draftClass": { "type": "integer", "description": "Prospects only: the year of the draft they belong to." },
+    "tier": { "type": "string", "description": "Prospects only: talent tier label (franchise/star/starter/rotation/fringe)." },
+    "projectedPick": { "type": "integer", "description": "Prospects only: scouting board position." }
+  },
+  "definitions": {
+    "rating": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "A single 0..99 skill rating."
+    }
+  }
+}

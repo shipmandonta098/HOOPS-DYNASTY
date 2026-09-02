@@ -1,0 +1,16 @@
+{
+  "name": "hoops-dynasty",
+  "version": "1.0.0",
+  "description": "Prompt-driven, multi-year basketball GM simulator built around a single JSON save file.",
+  "type": "commonjs",
+  "main": "engine/saveLoad.js",
+  "scripts": {
+    "sim": "node engine/simulateSeason.js saves/example_league.json",
+    "develop": "node engine/playerDevelopment.js saves/example_league.json",
+    "draft-class": "node engine/generateDraftClass.js saves/example_league.json",
+    "contracts": "node engine/updateContracts.js saves/example_league.json",
+    "trade": "node engine/tradeAI.js saves/example_league.json",
+    "new-league": "node scripts/buildExampleLeague.js"
+  },
+  "license": "MIT"
+}

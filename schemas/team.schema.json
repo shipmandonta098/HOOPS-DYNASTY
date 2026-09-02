@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "team.schema.json",
+  "title": "Team",
+  "description": "A franchise. Deliberately lightweight: a team owns very little data itself — its ROSTER is derived by filtering league.players for players whose teamId matches this team's id. This keeps player ownership in exactly one place and makes trades a one-field update.",
+  "schemaVersion": 1,
+  "type": "object",
+  "required": ["id", "city", "name"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "description": "Short, unique, stable team code (e.g. 'BAY'). Referenced by player.teamId, draft.order, history, and transactions."
+    },
+    "city": { "type": "string" },
+    "name": { "type": "string", "description": "Team nickname (e.g. 'Breakers')." },
+    "conference": {
+      "type": "string",
+      "description": "Optional grouping (e.g. 'East'/'West'). Not required by the engine.",
+      "enum": ["East", "West"]
+    },
+    "championships": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Running title count, incremented by simulateSeason.js when this team wins it all."
+    },
+    "abbreviation": { "type": "string", "description": "Optional display abbreviation." },
+    "colors": {
+      "type": "array",
+      "description": "Optional cosmetic hex colors for UIs.",
+      "items": { "type": "string" }
+    }
+  }
+}

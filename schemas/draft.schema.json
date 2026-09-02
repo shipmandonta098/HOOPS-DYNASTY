@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "draft.schema.json",
+  "title": "Draft",
+  "description": "The current draft class and its ordering. Prospects are just Player objects with teamId=null and no contract. Drafting a prospect = set its teamId, give it a rookie contract, move it out of draft.prospects and into league.players, then log the pick here.",
+  "schemaVersion": 1,
+  "type": "object",
+  "required": ["class", "prospects"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "class": { "type": "integer", "description": "The draft year (e.g. 2025)." },
+    "generatedForSeason": { "type": "integer" },
+    "completed": {
+      "type": "boolean",
+      "description": "true once every pick has been made for this class."
+    },
+    "prospects": {
+      "type": "array",
+      "description": "Undrafted players available in this class. Each item conforms to player.schema.json (teamId null, contract null).",
+      "items": { "$ref": "player.schema.json" }
+    },
+    "order": {
+      "type": "array",
+      "description": "Pick order, usually reverse standings. Fill teamId for each slot; set playerId once the pick is made.",
+      "items": {
+        "type": "object",
+        "required": ["pick", "teamId"],
+        "additionalProperties": true,
+        "properties": {
+          "pick": { "type": "integer", "minimum": 1, "description": "Overall pick number." },
+          "round": { "type": "integer", "minimum": 1 },
+          "teamId": { "type": "string", "description": "Team that owns this pick (may differ from natural order due to trades)." },
+          "playerId": {
+            "type": ["string", "null"],
+            "description": "Prospect selected with this pick, or null if not yet made."
+          }
+        }
+      }
+    }
+  }
+}

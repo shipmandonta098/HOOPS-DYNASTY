@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "history.schema.json",
+  "title": "History",
+  "description": "The league's permanent record: past seasons, champions, every transaction, and retirements. This is append-only in spirit — modules push new entries, they don't rewrite old ones. It's what makes a multi-year dynasty feel real.",
+  "schemaVersion": 1,
+  "type": "object",
+  "required": ["seasons", "champions"],
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "seasons": {
+      "type": "array",
+      "description": "One summary per completed season, appended by simulateSeason.js.",
+      "items": {
+        "type": "object",
+        "required": ["season", "champion"],
+        "additionalProperties": true,
+        "properties": {
+          "season": { "type": "integer" },
+          "champion": { "type": "string", "description": "Winning teamId." },
+          "championName": { "type": "string" },
+          "runnerUp": { "type": "string" },
+          "runnerUpName": { "type": "string" },
+          "standings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "teamId": { "type": "string" },
+                "teamName": { "type": "string" },
+                "wins": { "type": "integer" },
+                "losses": { "type": "integer" },
+                "diff": { "type": "integer" },
+                "seed": { "type": "integer" }
+              }
+            }
+          },
+          "playoffRounds": {
+            "type": "array",
+            "description": "Nested array: rounds -> series results.",
+            "items": { "type": "array", "items": { "type": "object" } }
+          },
+          "mvp": {
+            "type": ["object", "null"],
+            "additionalProperties": true,
+            "properties": {
+              "playerId": { "type": "string" },
+              "name": { "type": "string" },
+              "overall": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "champions": {
+      "type": "array",
+      "description": "Quick lookup of champion per season.",
+      "items": {
+        "type": "object",
+        "required": ["season", "teamId"],
+        "additionalProperties": true,
+        "properties": {
+          "season": { "type": "integer" },
+          "teamId": { "type": "string" },
+          "teamName": { "type": "string" }
+        }
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "description": "Trades, signings, and contract expirations, in chronological order.",
+      "items": {
+        "type": "object",
+        "required": ["type", "season"],
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["trade", "signing", "contract_expired", "draft_pick", "release"]
+          },
+          "season": { "type": "integer" }
+        }
+      }
+    },
+    "retirements": {
+      "type": "array",
+      "description": "Players who retired, recorded by playerDevelopment.js.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "playerId": { "type": "string" },
+          "name": { "type": "string" },
+          "age": { "type": "integer" },
+          "season": { "type": "integer" },
+          "finalOverall": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
