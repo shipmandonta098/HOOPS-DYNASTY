@@ -13,7 +13,7 @@ import {
   loadDraft, saveDraft, newDraft, summaryLine, unassignedTeams,
   newConference, newDivision, newTeamId, autoAlign, teamLibrary,
   EMOJI_CHOICES, FANS, crestHTML, teamColors, marketOf,
-  marketFromPopulation, populationFromMarket, readLogoFile,
+  lookupCity, readLogoFile,
 } from './leagueConfig.js';
 
 /* Working copy — Back leaves the stored draft untouched. */
@@ -152,6 +152,34 @@ function fillSelect(sel, values, current, render_) {
 let draftLogos = { primary: null, secondary: null };
 
 /** Repaint the crest preview and the derived market label from the live form. */
+/**
+ * Explain where the market size is coming from. Market size belongs to the
+ * city, so the note names the city's tier; an override says so plainly, and an
+ * invented city falls back to the population field.
+ */
+function refreshMarketNote() {
+  const city = el('fCity').value.trim();
+  const hit = lookupCity(city);
+  const override = el('fMarket').value;
+  const note = el('fMarketNote');
+  const pop = el('fPopulation');
+
+  if (override) {
+    note.textContent = hit
+      ? `Manual override. ${hit.city} is normally ${hit.tier}.`
+      : 'Manual override.';
+  } else if (hit) {
+    note.textContent = `${hit.city} is a ${hit.tier} market (${hit.population}M metro).`;
+  } else if (city) {
+    note.textContent = 'Unknown city — set the market manually, or give a metro population.';
+  } else {
+    note.textContent = 'Set by the city.';
+  }
+  // Population only matters where the city is not a real one we can look up.
+  pop.disabled = Boolean(hit);
+  if (hit) pop.value = hit.population;
+}
+
 function refreshEditorPreview() {
   const preview = {
     emoji: el('fEmoji').value,
@@ -163,7 +191,7 @@ function refreshEditorPreview() {
     logoPrimary: draftLogos.primary,
   };
   el('crestPreview').innerHTML = crestHTML(preview, 76);
-  el('fMarket').value = marketFromPopulation(el('fPopulation').value);
+  refreshMarketNote();
   const box = (slot, url) => {
     const b = el(slot);
     b.innerHTML = url ? `<img src="${url}" alt="">` : '<span class="ph">No logo</span>';
@@ -185,8 +213,9 @@ function openTeamEditor(teamId) {
   el('fSecondary').value = c.secondary;
   el('fTertiary').value = c.tertiary;
   // Teams saved before population existed get a sensible value from their market.
+  el('fMarket').value = (t && t.marketOverride) || '';
   el('fPopulation').value = t
-    ? (t.population != null ? t.population : populationFromMarket(marketOf(t)))
+    ? (t.population != null ? t.population : '')
     : 2.5;
   el('fBudget').value = t ? t.budget : 100;
   el('fDivision').innerHTML = divisionOptions(t ? t.divisionId : null);
@@ -200,7 +229,13 @@ function saveTeamFromEditor() {
   const city = el('fCity').value.trim();
   const name = el('fName').value.trim();
   if (!city || !name) { alert('A team needs both a city and a name.'); return; }
-  const population = Math.max(0.1, Math.min(30, parseFloat(el('fPopulation').value) || 1));
+  const hit = lookupCity(city);
+  const override = el('fMarket').value || null;
+  // A real city carries its own metro population; an invented one takes
+  // whatever the user typed.
+  const population = hit
+    ? hit.population
+    : Math.max(0.1, Math.min(30, parseFloat(el('fPopulation').value) || 1));
   const colors = {
     primary: el('fPrimary').value,
     secondary: el('fSecondary').value,
@@ -212,7 +247,10 @@ function saveTeamFromEditor() {
     colors,
     color: colors.primary,          // legacy field other screens still read
     population,
-    marketSize: marketFromPopulation(population),   // always follows population
+    // Stored for display, but marketOf() is the authority and recomputes from
+    // the city every time, so a later city change moves the market with it.
+    marketOverride: override,
+    marketSize: marketOf({ city, marketOverride: override, population }),
     fanInterest: el('fFans').value,
     budget: Math.max(40, Math.min(200, parseFloat(el('fBudget').value) || 100)),
     divisionId: el('fDivision').value || null,
@@ -314,7 +352,8 @@ el('teamCancel').addEventListener('click', () => { el('teamModal').hidden = true
 el('teamSave').addEventListener('click', saveTeamFromEditor);
 
 // Colours, crest symbol and population all repaint the preview immediately.
-for (const id of ['fPrimary', 'fSecondary', 'fTertiary', 'fEmoji', 'fPopulation']) {
+for (const id of ['fPrimary', 'fSecondary', 'fTertiary', 'fEmoji', 'fPopulation',
+                  'fCity', 'fMarket']) {
   el(id).addEventListener('input', refreshEditorPreview);
   el(id).addEventListener('change', refreshEditorPreview);
 }

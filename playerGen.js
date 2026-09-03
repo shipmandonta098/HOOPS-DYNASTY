@@ -90,7 +90,8 @@ function pickWeighted(rng, table) {
 export function pickTeamArchetype(rng, marketSize) {
   const table = {};
   for (const [k, a] of Object.entries(TEAM_ARCHETYPES)) table[k] = a.weight;
-  if (marketSize === 'Large') { table.contender += 5; table.veteran += 2; table.rebuilding -= 4; }
+  if (marketSize === 'Very Large') { table.contender += 7; table.veteran += 3; table.rebuilding -= 5; }
+  else if (marketSize === 'Large') { table.contender += 4; table.veteran += 2; table.rebuilding -= 3; }
   else if (marketSize === 'Small') { table.rebuilding += 5; table.young += 3; table.contender -= 5; }
   for (const k of Object.keys(table)) table[k] = Math.max(1, table[k]);
   return pickWeighted(rng, table);

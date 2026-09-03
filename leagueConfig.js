@@ -20,6 +20,11 @@
  * A team with divisionId === null is unassigned.
  */
 
+import {
+  MARKET_TIERS, marketForTeam, marketFromPopulation, populationFromMarket,
+  metroPopulation, lookupCity,
+} from './markets.js';
+
 import { saveData, loadData, deleteData, getAllData } from './db.js';
 
 /* ============================ deterministic RNG ============================ */
@@ -52,13 +57,16 @@ export function makeRNG(seed) {
 /* Fixed seed so the default league is identical everywhere it is built. */
 export const TEAM_SEED = 1;
 
+/* Fan interest is set INDEPENDENTLY of market size here, on purpose: Chicago
+   is a Very Large market with a Low-interest fanbase, which is the situation
+   the two-concept split exists to make possible. */
 const NAMED_TEAMS = [
-  { id: 'NYM', city: 'New York', name: 'Monarchs', emoji: '👑', colors: { primary: '#c0392b', secondary: '#f0c419', tertiary: '#0d1e34' }, population: 8.5, fanInterest: 'High', budget: 120.0, championships: 0 },
-  { id: 'LAS', city: 'Los Angeles', name: 'Sentinels', emoji: '🛡️', colors: { primary: '#5b4b8a', secondary: '#d8c15e', tertiary: '#ffffff' }, population: 5.2, fanInterest: 'High', budget: 118.0, championships: 2 },
-  { id: 'CHT', city: 'Chicago', name: 'Titans', emoji: '🐂', colors: { primary: '#b03a2e', secondary: '#1a1a1a', tertiary: '#e8e8e8' }, population: 4.6, fanInterest: 'Medium', budget: 108.0, championships: 3 },
-  { id: 'MIW', city: 'Miami', name: 'Wave', emoji: '🌊', colors: { primary: '#17a2a2', secondary: '#ff7fbf', tertiary: '#0d2b3e' }, population: 2.8, fanInterest: 'High', budget: 104.0, championships: 1 },
-  { id: 'TOR', city: 'Toronto', name: 'North', emoji: '🍁', colors: { primary: '#a02128', secondary: '#ffffff', tertiary: '#2b2b2b' }, population: 3.1, fanInterest: 'Medium', budget: 99.0, championships: 1 },
-  { id: 'DAL', city: 'Dallas', name: 'Hurricanes', emoji: '🌀', colors: { primary: '#2f6fb0', secondary: '#8ec6f0', tertiary: '#10233b' }, population: 4.4, fanInterest: 'Medium', budget: 112.0, championships: 0 },
+  { id: 'NYM', city: 'New York', name: 'Monarchs', emoji: '👑', colors: { primary: '#c0392b', secondary: '#f0c419', tertiary: '#0d1e34' }, fanInterest: 'High', budget: 120.0, championships: 0 },
+  { id: 'LAS', city: 'Los Angeles', name: 'Sentinels', emoji: '🛡️', colors: { primary: '#5b4b8a', secondary: '#d8c15e', tertiary: '#ffffff' }, fanInterest: 'Medium', budget: 118.0, championships: 2 },
+  { id: 'CHT', city: 'Chicago', name: 'Titans', emoji: '🐂', colors: { primary: '#b03a2e', secondary: '#1a1a1a', tertiary: '#e8e8e8' }, fanInterest: 'Low', budget: 108.0, championships: 3 },
+  { id: 'MIW', city: 'Miami', name: 'Wave', emoji: '🌊', colors: { primary: '#17a2a2', secondary: '#ff7fbf', tertiary: '#0d2b3e' }, fanInterest: 'High', budget: 104.0, championships: 1 },
+  { id: 'TOR', city: 'Toronto', name: 'North', emoji: '🍁', colors: { primary: '#a02128', secondary: '#ffffff', tertiary: '#2b2b2b' }, fanInterest: 'Medium', budget: 99.0, championships: 1 },
+  { id: 'DAL', city: 'Dallas', name: 'Hurricanes', emoji: '🌀', colors: { primary: '#2f6fb0', secondary: '#8ec6f0', tertiary: '#10233b' }, fanInterest: 'Medium', budget: 112.0, championships: 0 },
 ];
 
 const MORE_CITIES = ['Boston', 'Denver', 'Phoenix', 'Seattle', 'Atlanta', 'Houston',
@@ -73,25 +81,19 @@ export const EMOJI_CHOICES = ['🔥', '❄️', '🦏', '☄️', '🦅', '⚓',
   '🐉', '🎯', '🐺', '🌪️', '👑', '🛡️', '🐂', '🌊', '🍁', '🌀', '⭐', '🏔️', '🚀', '🦌'];
 export const COLOR_CHOICES = ['#2e7d32', '#1565c0', '#ef6c00', '#6a1b9a', '#00838f',
   '#c62828', '#4527a0', '#00695c', '#37474f', '#ad1457', '#c0392b', '#2f6fb0'];
-export const MARKETS = ['Small', 'Medium', 'Large'];
+export const MARKETS = MARKET_TIERS;
 
-/* Market size is derived from metro population (millions) rather than being a
-   free-standing choice — bigger market, bigger draw. */
-export function marketFromPopulation(pop) {
-  const p = Number(pop) || 0;
-  if (p >= 4) return 'Large';
-  if (p >= 1.5) return 'Medium';
-  return 'Small';
-}
-/** Reverse guess, used to seed population for teams saved before this field. */
-export function populationFromMarket(market) {
-  return market === 'Large' ? 5.0 : market === 'Medium' ? 2.5 : 1.0;
-}
+/* Market size questions all go through markets.js, which looks the city up
+   rather than deriving anything from the team. Re-exported here so existing
+   callers keep working and there is still one import for league config. */
+export { marketFromPopulation, populationFromMarket, metroPopulation, lookupCity };
 
-/** Market size for a team: stored value if it has one, else from population. */
+/**
+ * The market tier for a team: a manual override if the user set one, else the
+ * city. Never random, and never a function of how good the team is.
+ */
 export function marketOf(team) {
-  if (team && team.marketSize) return team.marketSize;
-  return marketFromPopulation(team && team.population);
+  return marketForTeam(team);
 }
 
 /** A team's three-colour palette, tolerating older single-`color` records. */
@@ -178,8 +180,15 @@ export function defaultTeams() {
         secondary: rng.pick(['#ffffff', '#f0c419', '#e8e8e8', '#1a1a1a', '#8ec6f0']),
         tertiary: rng.pick(['#0d1e34', '#10233b', '#2b2b2b', '#ffffff']),
       },
-      population: +(0.6 + rng.next() * 6.6).toFixed(1),
+      // Metro population comes from the city itself. Market size is then
+      // looked up from the city too, so a team in Atlanta is a Large market
+      // whatever else is true about it.
+      population: (lookupCity(city) || {}).population ?? null,
+      // Fan interest is separate and free to be anything: a Very Large market
+      // with an indifferent fanbase is a perfectly normal situation.
       fanInterest: rng.pick(FANS),
+      // Budget is an OWNERSHIP decision, not a market one. Deliberately drawn
+      // independently so a small-market owner can outspend a big-market one.
       budget: +(85 + rng.next() * 40).toFixed(1),
       championships: rng.int(0, 3),
     });
@@ -203,7 +212,7 @@ export function teamLibrary(existingTeams) {
         secondary: rng.pick(['#ffffff', '#f0c419', '#e8e8e8', '#1a1a1a']),
         tertiary: rng.pick(['#0d1e34', '#2b2b2b', '#ffffff']),
       },
-      population: +(0.6 + rng.next() * 6.6).toFixed(1),
+      population: (lookupCity(city) || {}).population ?? null,
       fanInterest: rng.pick(FANS),
       budget: +(85 + rng.next() * 40).toFixed(1),
       championships: 0,

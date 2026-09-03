@@ -18,6 +18,7 @@ import { computeOverall } from './playerRatings.js';
 import { makeMental, MENTAL_KEYS } from './playerMental.js';
 import { makeTraits, derivePriorities } from './playerPersonality.js';
 import { ovr } from './playerRatings.js';
+import { marketForTeam, lookupCity } from './markets.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -158,6 +159,28 @@ function backfillPersonality(p) {
 }
 
 /**
+ * Bring a team's market size onto the geography-based system.
+ *
+ * Market size used to be derived from a per-team random "population", so a
+ * franchise in Atlanta could be Small and one in Boise could be Large. It is a
+ * property of the CITY, so it is recomputed from the city here. Nothing else
+ * about the team is touched: names, colours, logos, budget, fan interest and
+ * championships all survive — fan interest especially, since it is a separate
+ * concept and a big market with an indifferent fanbase is a real situation.
+ *
+ * A manual override the user set is respected and never overwritten.
+ */
+function migrateTeamMarket(t) {
+  if (!t || !t.city) return false;
+  const hit = lookupCity(t.city);
+  const before = t.marketSize;
+  // A real city carries its real metro population; the old random one goes.
+  if (hit) t.population = hit.population;
+  t.marketSize = marketForTeam(t);
+  return t.marketSize !== before;
+}
+
+/**
  * Migrate a whole league. Mutates and returns it; safe to call repeatedly.
  * @returns {{ league: object, changed: number }}
  */
@@ -171,6 +194,12 @@ export function migrateLeague(league) {
     if (backfillMental(p)) mentals++;
     if (backfillPersonality(p)) persons++;
   }
+  let markets = 0;
+  for (const t of league.teams || []) if (migrateTeamMarket(t)) markets++;
+  if (markets) {
+    console.info(`Save upgraded: ${markets} team(s) re-classified by city market size.`);
+  }
+
   // Fields added after the first saves shipped, defaulted rather than assumed.
   if (!Array.isArray(league.freeAgents)) league.freeAgents = [];
   if (!Array.isArray(league.transactions)) league.transactions = [];
