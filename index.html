@@ -9,61 +9,70 @@
 <body>
 
   <!-- =====================================================================
-       COURT — spotlit floor + faint court lines (a wide center-circle arc
-       reads as the court seen at a shallow angle). Dark navy arena base
-       comes from the <body> gradient in style.css.
+       ARENA RINGS — enormous, barely-there circles bleeding off the left and
+       right edges, plus one behind the wordmark. Pure CSS (see .rings), they
+       give the black field some depth without reading as decoration.
        ===================================================================== -->
-  <div class="court" aria-hidden="true">
-    <!-- Mid-anchored so viewBox y maps ~1:1 to viewport height: the centre
-         circle at y=612 lands at ~68% down, sitting directly behind the
-         navigation and framing it. -->
-    <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice"
+  <div class="rings" aria-hidden="true"></div>
+
+  <!-- =====================================================================
+       FLOOR — dark hardwood along the bottom, seen at a shallow angle:
+       plank grain + a warm gradient, with court paint drawn on top. The
+       centre circle sits half off the bottom edge; the sidelines converge
+       toward the far baseline so the boards read as receding.
+       ===================================================================== -->
+  <div class="floor" aria-hidden="true">
+    <svg viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice"
          width="100%" height="100%">
-      <!-- Centre circle, enlarged and raised to frame the menu -->
-      <ellipse class="paint" cx="800" cy="612" rx="300" ry="132" />
-      <!-- Half-court line running through it -->
-      <line class="paint" x1="120" y1="612" x2="1480" y2="612" />
-      <!-- Faint sidelines sweeping toward the baseline below -->
-      <path class="paint" d="M 60 900 L 430 748 M 1540 900 L 1170 748" />
+      <!-- far baseline -->
+      <line class="paint" x1="0" y1="104" x2="1600" y2="104" />
+      <!-- sidelines receding toward it -->
+      <path class="paint" d="M -80 430 L 470 112 M 1680 430 L 1130 112" />
+      <!-- three-point arc -->
+      <path class="paint" d="M 300 430 Q 800 214 1300 430" />
+      <!-- centre circle, half below the screen edge -->
+      <ellipse class="paint" cx="800" cy="452" rx="300" ry="92" />
     </svg>
   </div>
 
-  <!-- =====================================================================
-       CORNER ACCENTS — red wedge (top-left), steel wedge (bottom-right).
-       ===================================================================== -->
-  <div class="corner corner-tl" aria-hidden="true"></div>
-  <div class="corner corner-br" aria-hidden="true"></div>
-
-  <!-- Edge vignette for the spotlit look -->
+  <!-- Edge vignette — darkens the corners so the middle reads as lit. -->
   <div class="vignette" aria-hidden="true"></div>
 
   <!-- =====================================================================
-       TITLE STACK — wordmark, trophy, subtitle, menu (all centered).
+       TITLE STACK — crest, wordmark, subtitle, menu (all centered).
        ===================================================================== -->
   <main class="stack">
 
-    <!-- Wordmark: HOOPS (white, beveled) over DYNASTY (crimson) -->
+    <!-- Basketball crest between two thin rules. -->
+    <div class="crest" aria-hidden="true">
+      <span class="rule left"></span>
+      <span class="ball">
+        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor"
+             stroke-width="4.5" stroke-linecap="round">
+          <circle cx="50" cy="50" r="45" />
+          <path d="M50 5 V95 M5 50 H95" />
+          <path d="M17 15 C37 34 37 66 17 85" />
+          <path d="M83 15 C63 34 63 66 83 85" />
+        </svg>
+      </span>
+      <span class="rule right"></span>
+    </div>
+
+    <!-- Wordmark: HOOPS (white) over DYNASTY (orange) -->
     <h1 class="title">
       <span class="line1">Hoops</span>
       <span class="line2">Dynasty</span>
     </h1>
 
-    <!-- Silver trophy -->
-    <span class="trophy" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/>
-      </svg>
-    </span>
-
     <!-- Subtitle -->
     <p class="subtitle">Basketball GM Simulator</p>
 
     <!-- =================================================================
-         MENU — three items. NEW CAREER is the filled red primary and is
-         always available. LOAD CAREER and CONTINUE both start disabled and
-         are enabled by the script below once db.js reports at least one
-         saved league (Continue also carries a small lock glyph until then).
-         Replace the console logs with real navigation as screens are built.
+         MENU — three items in one compact block. NEW CAREER is the filled
+         orange primary and is always available. LOAD CAREER and CONTINUE
+         start disabled and are enabled by the script below once db.js
+         reports at least one saved league (Continue also carries a small
+         lock glyph until then).
          ================================================================= -->
     <nav class="menu">
       <button class="btn is-highlight" data-action="new-career">New Career</button>

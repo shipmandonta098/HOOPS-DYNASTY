@@ -1,27 +1,28 @@
 /* ==========================================================================
-   Hoops Dynasty — Title Screen styles  (dark arena reference)
+   Hoops Dynasty — Title Screen styles  (black arena / hardwood reference)
    Static / GitHub-Pages compatible. No frameworks, no build step.
 
    Layer stack (back -> front), by z-index:
-     0  body / .arena     dark navy arena gradient
-     1  .court            spotlit floor + faint court lines
-     2  .corner           angled corner accents (red TL, gray BR)
-     3  .vignette         edge shadow for depth
-     5  .stack            title / trophy / subtitle / menu
+     0  body            near-black field with a soft centre lift
+     1  .rings          huge faint arena circles bleeding off the edges
+     2  .floor          dark hardwood + court paint along the bottom
+     3  .vignette       edge shadow for depth
+     5  .stack          crest / wordmark / subtitle / menu
 
    Section map:
      1. Design tokens (colors, fonts)
      2. Base / reset + arena background
-     3. Court floor (spotlight + faint lines)
-     4. Corner accents
+     3. Arena rings
+     4. Hardwood floor + court paint
      5. Vignette
      6. Title stack layout
-     7. Wordmark: HOOPS (white, beveled) + DYNASTY (red)
-     8. Trophy + subtitle
-     9. Menu + states (red-active / dim-inactive hover)
-    10. Animations (@keyframes)
-    11. Responsive
-    12. Reduced-motion accessibility
+     7. Crest: basketball between two rules
+     8. Wordmark: HOOPS (white) + DYNASTY (orange)
+     9. Subtitle
+    10. Menu + states
+    11. Animations (@keyframes)
+    12. Responsive
+    13. Reduced-motion accessibility
    ========================================================================== */
 
 /* Athletic display face for the wordmark — SELF-HOSTED (no CDN dependency).
@@ -39,19 +40,24 @@
    1. DESIGN TOKENS — retune the whole screen from here.
    ------------------------------------------------------------------ */
 :root {
-  /* Dark navy arena palette */
-  --navy-0: #081120;   /* darkest — corners/top */
-  --navy-1: #0d1e34;   /* mid arena */
-  --navy-2: #1b3c60;   /* lit court pool */
-  --line:   rgba(150, 185, 230, 0.16);  /* faint court paint */
+  /* Near-black arena */
+  --ink-0: #060708;   /* darkest — edges */
+  --ink-1: #0e1012;   /* mid field */
+  --ink-2: #17191c;   /* faint centre lift */
 
-  /* Red + white accents */
-  --red:    #c1272d;   /* DYNASTY + primary highlight */
-  --red-dk: #7d1a1e;   /* red extrude / shadow */
-  --red-hi: #e5393f;   /* hover / bright red */
-  --white:  #f2f5f8;   /* title + menu text */
-  --silver: #cfd6df;   /* trophy */
-  --steel:  #6f8296;   /* muted steel for bevel/edge */
+  /* Leather orange — the single accent */
+  --orange:    #cf6127;
+  --orange-hi: #e8813f;   /* hover / bright */
+  --orange-dk: #8a3c13;   /* pressed / shadow */
+
+  /* Hardwood */
+  --wood-near: #6a4523;
+  --wood-mid:  #40280f;
+  --wood-far:  #150d06;
+
+  --white:  #f4f4f3;
+  --paint:  rgba(255, 255, 255, 0.16);   /* court lines */
+  --hair:   rgba(255, 255, 255, 0.13);   /* menu dividers + rules */
 
   --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
   --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -59,8 +65,8 @@
 
 /* ------------------------------------------------------------------
    2. BASE / RESET + ARENA BACKGROUND
-   The arena is a layered radial+linear navy gradient: darkest at the
-   edges, a subtle lift through the middle where the court is lit.
+   Near-black everywhere, with one soft lift behind the wordmark so the
+   title doesn't sit on dead flat black.
    ------------------------------------------------------------------ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -72,86 +78,75 @@ body {
   overflow-y: auto;                 /* fallback: a very short viewport can still reach the menu */
   position: relative;
   background:
-    radial-gradient(ellipse 90% 70% at 50% 42%,
-      var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+    radial-gradient(ellipse 70% 55% at 50% 34%,
+      var(--ink-2) 0%, var(--ink-1) 46%, var(--ink-0) 100%);
 }
 
 /* ------------------------------------------------------------------
-   3. COURT FLOOR — a spotlit pool + faint court lines low on screen.
-   No literal 3D perspective; a wide ellipse reads as the center circle
-   seen at a shallow angle, which is enough to sell "we're on a court".
+   3. ARENA RINGS — three enormous, barely-visible circles: one off each
+   side edge and one behind the wordmark. Each is a radial-gradient with
+   a hard 1.5%-wide colour band, which draws a ring outline without any
+   extra markup.
    ------------------------------------------------------------------ */
-.court {
+.rings {
   position: fixed;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  /* Top-down spotlight pooling on the floor, plus faint wood plank hints
-     confined to the lower half via the gradient stops. */
   background:
-    radial-gradient(ellipse 55% 40% at 50% 30%,
-      rgba(120, 165, 220, 0.10) 0%, rgba(120,165,220,0) 60%),
-    repeating-linear-gradient(90deg,
-      rgba(255,255,255,0.014) 0 1px, rgba(0,0,0,0) 1px 130px);
-}
-/* Faint vector court lines (SVG in the HTML). */
-.court .paint {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 2;
+    radial-gradient(circle min(520px, 46vw) at -4% 44%,
+      transparent 0 61%, rgba(255,255,255,0.035) 61% 62.4%, transparent 63%),
+    radial-gradient(circle min(560px, 48vw) at 104% 38%,
+      transparent 0 61%, rgba(255,255,255,0.035) 61% 62.4%, transparent 63%),
+    radial-gradient(circle min(360px, 34vw) at 50% 30%,
+      transparent 0 76%, rgba(255,255,255,0.026) 76% 77.4%, transparent 78%);
 }
 
 /* ------------------------------------------------------------------
-   4. CORNER ACCENTS — angled banners: red top-left, steel bottom-right.
-   Built from clipped divs so they stay crisp at any size.
+   4. HARDWOOD FLOOR — the bottom band. Three stacked backgrounds:
+   a top-down darkening wash (so the boards fade into the black rather
+   than ending on a hard line), the plank grain, then the warm wood.
    ------------------------------------------------------------------ */
-.corner {
+.floor {
   position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: clamp(120px, 26vh, 300px);
   z-index: 2;
   pointer-events: none;
+  background:
+    linear-gradient(to top,
+      rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.72) 45%,
+      rgba(6,7,8,0.94) 82%, var(--ink-0) 100%),
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.030) 0 1px, rgba(0,0,0,0) 1px 78px),
+    linear-gradient(to top, var(--wood-near) 0%, var(--wood-mid) 52%, var(--wood-far) 100%);
 }
-/* Top-left: a red wedge with a darker underlay for a layered look. */
-.corner-tl {
-  top: 0;
-  left: 0;
-  width: min(240px, 34vw);
-  height: min(240px, 34vw);
-  background: linear-gradient(135deg, var(--red) 0%, var(--red-dk) 100%);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-}
-.corner-tl::after {          /* thin darker inner stripe for depth */
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--navy-0);
-  clip-path: polygon(0 0, 62% 0, 0 62%);
-  opacity: 0.55;
-}
-/* Bottom-right: a muted steel wedge (lighter, catches the "light"). */
-.corner-br {
-  bottom: 0;
-  right: 0;
-  width: min(220px, 30vw);
-  height: min(220px, 30vw);
-  background: linear-gradient(315deg, rgba(150,170,195,0.55) 0%, rgba(110,130,150,0.15) 100%);
-  clip-path: polygon(100% 100%, 100% 0, 0 100%);
+/* Court paint drawn over the boards (SVG lives in the HTML). */
+.floor svg { display: block; position: absolute; inset: 0; }
+.floor .paint {
+  fill: none;
+  stroke: var(--paint);
+  stroke-width: 2.5;
 }
 
 /* ------------------------------------------------------------------
-   5. VIGNETTE — deepen the edges so the center reads as spotlit.
+   5. VIGNETTE — deepen the edges so the centre reads as spotlit.
    ------------------------------------------------------------------ */
 .vignette {
   position: fixed;
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  background: radial-gradient(ellipse 85% 85% at 50% 45%,
-    rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%);
+  background: radial-gradient(ellipse 78% 80% at 50% 42%,
+    rgba(0,0,0,0) 52%, rgba(0,0,0,0.62) 100%);
 }
 
 /* ------------------------------------------------------------------
-   6. TITLE STACK — branding in the upper section, menu in the lower;
-   spacing is vh-based so the composition spreads with the viewport.
+   6. TITLE STACK — crest and wordmark fill the upper half, the menu
+   sits in the lower third. Spacing is vh-based so the composition
+   spreads with the viewport instead of clustering.
    ------------------------------------------------------------------ */
 .stack {
   position: relative;
@@ -160,163 +155,176 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Top-anchored (not centred) so the elements can be distributed down the
-     screen instead of clustering around the middle. */
   justify-content: flex-start;
   text-align: center;
-  padding: clamp(1.5rem, 6vh, 6rem) 1rem clamp(2rem, 7vh, 5.5rem);
+  padding: clamp(2rem, 8vh, 6.5rem) 1rem clamp(1.75rem, 6vh, 4rem);
 }
 
 /* ------------------------------------------------------------------
-   7. WORDMARK — HOOPS (white, beveled) slides in; DYNASTY (red) fades up.
-   The bevel is faked with stacked text-shadows: a light top edge, a
-   colored extrude below, then a soft drop shadow.
+   7. CREST — a basketball flanked by two thin rules that fade outward.
+   ------------------------------------------------------------------ */
+.crest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.9rem, 2.4vw, 1.6rem);
+  width: min(560px, 78vw);
+  animation: fadeIn 0.7s ease-out 0.15s both;
+}
+.crest .rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--hair) 45%, var(--hair));
+}
+.crest .rule.right {
+  background: linear-gradient(to left, transparent, var(--hair) 45%, var(--hair));
+}
+.crest .ball {
+  flex: 0 0 auto;
+  width: clamp(46px, 7.5vh, 86px);
+  height: clamp(46px, 7.5vh, 86px);
+  color: var(--orange);
+  filter: drop-shadow(0 0 16px rgba(207, 97, 39, 0.30));
+}
+.crest .ball svg { width: 100%; height: 100%; display: block; }
+
+/* ------------------------------------------------------------------
+   8. WORDMARK — HOOPS (white) slides in, DYNASTY (orange) rises after.
+   Sizes are capped against BOTH vw and vh so the stack never outgrows a
+   short viewport.
    ------------------------------------------------------------------ */
 .title {
   font-family: var(--font-display);
   font-weight: 400;
-  line-height: 0.84;
-  letter-spacing: 0.01em;
+  line-height: 1.0;
+  letter-spacing: 0.005em;
   text-transform: uppercase;
+  margin-top: clamp(1.1rem, 3.4vh, 2.4rem);
 }
 .title .line1 {                     /* HOOPS */
   display: block;
-  font-size: clamp(5.2rem, min(16vw, 20vh), 13rem);
+  font-size: clamp(4.6rem, min(17vw, 19vh), 13rem);
   color: var(--white);
-  text-shadow:
-    0 -1px 0 #ffffff,
-    0 2px 0 var(--steel),
-    0 4px 0 #3a4a5c,
-    0 8px 14px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 6px 30px rgba(0, 0, 0, 0.75);
   animation: slideInLeft 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
 }
-.title .line2 {                     /* DYNASTY — crimson */
+.title .line2 {                     /* DYNASTY — orange */
   display: block;
-  font-size: clamp(3.9rem, min(12vw, 15vh), 9.6rem);
-  color: var(--red);
-  text-shadow:
-    0 2px 0 var(--red-dk),
-    0 4px 10px rgba(0, 0, 0, 0.55);
+  font-size: clamp(2.9rem, min(10.6vw, 12vh), 8.1rem);
+  color: var(--orange);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.65);
   animation: fadeUp 0.7s ease-out 0.55s both;
 }
 
 /* ------------------------------------------------------------------
-   8. TROPHY + SUBTITLE — silver trophy over spaced subtitle text.
+   9. SUBTITLE — small, widely tracked, sits under the wordmark.
    ------------------------------------------------------------------ */
-.trophy {
-  width: clamp(38px, 4.6vh, 60px);
-  height: clamp(38px, 4.6vh, 60px);
-  margin: clamp(1rem, 2.6vh, 1.8rem) 0 clamp(0.55rem, 1.5vh, 1rem);
-  color: var(--silver);
-  animation:
-    fadeIn 0.6s ease-out 0.95s both,
-    trophyShimmer 3.6s ease-in-out 1.4s infinite;
-}
-.trophy svg { width: 100%; height: 100%; display: block; }
-
 .subtitle {
   font-family: var(--font-body);
-  font-size: clamp(0.78rem, 2.4vw, 1.1rem);
+  font-size: clamp(0.62rem, min(1.9vw, 1.6vh), 0.92rem);
   font-weight: 600;
-  letter-spacing: 0.34em;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;              /* balance the trailing letter-space */
   text-transform: uppercase;
-  color: var(--white);
-  opacity: 0.9;
-  margin-bottom: 0;
-  animation: fadeIn 0.8s ease-out 1.15s both;
+  color: rgba(244, 244, 243, 0.55);
+  margin-top: clamp(0.9rem, 2.4vh, 1.6rem);
+  animation: fadeIn 0.8s ease-out 1.0s both;
 }
 
 /* ------------------------------------------------------------------
-   9. MENU — five items. NEW CAREER is the filled red primary.
-   Hover glow: RED on active (enabled), dim/no-glow on disabled.
+   10. MENU — one compact block: a filled orange primary on top, then
+   plain items separated by hairline dividers. A single vertical rule
+   runs down the left edge of the block.
    ------------------------------------------------------------------ */
 .menu {
+  position: relative;
   display: flex;
   flex-direction: column;
-  /* Buttons stretch to a common width so the three options read as one
-     deliberate block rather than centred text of differing lengths. */
   align-items: stretch;
-  width: min(430px, 86vw);
-  /* A measured gap under the subtitle — enough to separate branding from
-     navigation, not so much that the middle of the screen empties out. */
-  margin-top: clamp(2rem, 6.5vh, 6rem);
-  gap: clamp(1.1rem, 4.6vh, 3.4rem);
-  animation: fadeIn 0.7s ease-out 1.35s both;
+  width: min(340px, 78vw);
+  margin-top: clamp(1.9rem, 6.5vh, 4.5rem);
+  animation: fadeIn 0.7s ease-out 1.2s both;
+}
+/* The vertical accent rule down the left of the whole block. */
+.menu::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * clamp(0.9rem, 2.4vw, 1.7rem));
+  top: 6%;
+  bottom: 6%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--hair) 18%, var(--hair) 82%, transparent);
 }
 
 .btn {
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: clamp(1rem, min(2.6vw, 2.4vh), 1.4rem);
-  letter-spacing: 0.22em;
+  font-size: clamp(0.85rem, min(2.1vw, 2.0vh), 1.02rem);
+  letter-spacing: 0.19em;
   text-transform: uppercase;
   color: var(--white);
-  /* Understated dark-navy container with a thin border — gives the two
-     secondary options presence and ties all three together visually. */
-  background: rgba(13, 30, 52, 0.55);
-  border: 1px solid rgba(150, 185, 230, 0.22);
-  border-radius: 4px;
+  background: none;
+  border: 0;
+  border-radius: 3px;
   width: 100%;
-  padding: clamp(0.95rem, 2.6vh, 1.9rem) 1.5rem;
+  padding: clamp(0.72rem, 2.1vh, 1.15rem) 1rem;
   cursor: pointer;
   transition: color 0.18s ease, background 0.18s ease,
-              text-shadow 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+              text-shadow 0.18s ease, box-shadow 0.18s ease;
 }
+/* Hairline divider between consecutive plain items. */
+.btn + .btn { border-top: 1px solid var(--hair); }
 
-/* 9a. Active hover — plain items brighten to red with a red glow. */
+/* 10a. Plain items brighten to orange on hover. */
 .btn:hover,
 .btn:focus-visible {
-  color: var(--red-hi);
-  background: rgba(20, 42, 70, 0.75);
-  border-color: rgba(229, 57, 63, 0.55);
-  text-shadow: 0 0 14px rgba(229, 57, 63, 0.5);
+  color: var(--orange-hi);
+  background: rgba(255, 255, 255, 0.035);
+  text-shadow: 0 0 16px rgba(232, 129, 63, 0.45);
   outline: none;
 }
 
-/* 9b. Primary action — the filled red rectangle. */
+/* 10b. Primary action — the filled orange block. */
 .btn.is-highlight {
-  background: var(--red);
-  border-color: var(--red);
+  background: var(--orange);
   color: var(--white);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.25) inset, 0 6px 18px rgba(0,0,0,0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45),
+              0 0 0 1px rgba(0, 0, 0, 0.2) inset;
 }
 .btn.is-highlight:hover,
 .btn.is-highlight:focus-visible {
-  background: var(--red-hi);
-  border-color: var(--red-hi);
+  background: var(--orange-hi);
   color: var(--white);
   text-shadow: none;
-  box-shadow: 0 0 22px rgba(193, 39, 45, 0.6);
-  transform: translateY(-1px);
+  box-shadow: 0 0 26px rgba(207, 97, 39, 0.55),
+              0 8px 24px rgba(0, 0, 0, 0.45);
 }
+/* The primary keeps a small gap AND the divider, as in the reference. */
+.btn.is-highlight { margin-bottom: clamp(0.3rem, 0.9vh, 0.6rem); }
 
-/* 9c. Disabled (LOAD CAREER / CONTINUE with no saves) — dimmed, inert.
+/* 10c. Disabled (LOAD CAREER / CONTINUE with no saves) — dimmed, inert.
    JS removes .is-disabled once a save exists. */
-/* Dimmed, but the container + border stay legible so the three
-   options still read as one set before any save exists. */
 .btn.is-disabled {
-  opacity: 0.52;
+  opacity: 0.42;
   cursor: not-allowed;
 }
 .btn.is-disabled:hover,
 .btn.is-disabled:focus-visible {
   color: var(--white);
-  background: rgba(13, 30, 52, 0.55);
-  border-color: rgba(150, 185, 230, 0.22);
+  background: none;
   text-shadow: none;
-  transform: none;
 }
 
-/* 9d. Lock glyph on CONTINUE — small and muted; JS removes it on unlock. */
+/* 10d. Lock glyph on CONTINUE — small and muted; JS removes it on unlock. */
 .btn .lock {
-  font-size: 0.78em;
+  font-size: 0.76em;
   margin-left: 0.4em;
-  color: var(--silver);
+  opacity: 0.8;
   vertical-align: baseline;
 }
 
 /* ------------------------------------------------------------------
-   10. ANIMATIONS
+   11. ANIMATIONS
    ------------------------------------------------------------------ */
 
 /* HOOPS enters from the left. */
@@ -334,49 +342,42 @@ body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-/* Trophy gleam: silver -> white + growing glow, then back. */
-@keyframes trophyShimmer {
-  0%, 100% {
-    color: var(--silver);
-    filter: drop-shadow(0 0 3px rgba(207, 214, 223, 0.4));
-  }
-  50% {
-    color: #ffffff;
-    filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9));
-  }
-}
 
 /* ------------------------------------------------------------------
-   11. RESPONSIVE
+   12. RESPONSIVE
    ------------------------------------------------------------------ */
 @media (max-width: 480px) {
-  .subtitle { letter-spacing: 0.26em; }
-  .btn { font-size: 0.98rem; padding: clamp(0.85rem, 2.4vh, 1.4rem) 1.2rem; }
-  .corner-tl { width: 40vw; height: 40vw; }
-  .corner-br { width: 34vw; height: 34vw; }
+  .subtitle { letter-spacing: 0.3em; text-indent: 0.3em; }
+  .menu::before { left: -0.75rem; }
 }
 
-/* Short viewports (landscape phones): tighten the same rhythm so the whole
-   composition still fits on screen without changing its proportions. */
-/* Tall, narrow screens (phones in portrait): the wordmark is width-limited,
-   so give the navigation a larger share of the height — otherwise the menu
-   floats high and the lower third empties out. */
+/* Phones in portrait: the wordmark is limited by WIDTH, so on a tall screen
+   the whole stack would finish around 60% and leave the lower third empty.
+   Open up the vertical rhythm to use the height we actually have. */
 @media (max-width: 560px) and (min-height: 700px) {
-  .menu { margin-top: clamp(3rem, 13vh, 8rem); gap: clamp(1.6rem, 7.5vh, 4rem); }
+  .stack { padding-top: clamp(3rem, 11vh, 7rem); }
+  .title { margin-top: clamp(1.6rem, 5vh, 3rem); }
+  .subtitle { margin-top: clamp(1.2rem, 3.4vh, 2rem); }
+  .menu { margin-top: clamp(2.6rem, 10vh, 6rem); width: min(340px, 84vw); }
+  .btn { padding: clamp(1rem, 2.9vh, 1.6rem) 1rem; }
 }
 
-@media (max-height: 600px) {
-  .stack { padding: clamp(1rem, 5vh, 2rem) 1rem clamp(1rem, 4vh, 1.75rem); }
-  .title .line1 { font-size: clamp(2.4rem, 8.5vw, 4.5rem); }
-  .title .line2 { font-size: clamp(1.8rem, 6.4vw, 3.4rem); }
-  .trophy { width: 28px; height: 28px; margin: 0.5rem 0 0.35rem; }
-  .subtitle { font-size: clamp(0.66rem, 1.9vw, 0.85rem); letter-spacing: 0.24em; }
-  .menu { margin-top: clamp(0.9rem, 3.5vh, 1.6rem); gap: clamp(0.45rem, 1.8vh, 0.9rem); }
-  .btn { padding: 0.5rem 1.2rem; font-size: clamp(0.9rem, 2.2vw, 1.05rem); }
+/* Short viewports (landscape phones): tighten the rhythm so the whole
+   composition still fits without changing its proportions. */
+@media (max-height: 620px) {
+  .stack { padding: clamp(1rem, 4vh, 1.8rem) 1rem clamp(0.9rem, 3vh, 1.5rem); }
+  .crest .ball { width: clamp(34px, 6vh, 48px); height: clamp(34px, 6vh, 48px); }
+  .title { margin-top: clamp(0.6rem, 2vh, 1rem); }
+  .title .line1 { font-size: clamp(2.5rem, min(9vw, 15vh), 5rem); }
+  .title .line2 { font-size: clamp(1.7rem, min(5.6vw, 9.5vh), 3.3rem); }
+  .subtitle { margin-top: 0.5rem; letter-spacing: 0.3em; text-indent: 0.3em; }
+  .menu { margin-top: clamp(0.8rem, 3vh, 1.4rem); }
+  .btn { padding: 0.5rem 1rem; }
+  .floor { height: clamp(90px, 22vh, 150px); }
 }
 
 /* ------------------------------------------------------------------
-   12. REDUCED MOTION — kill motion; land everything visible.
+   13. REDUCED MOTION — kill motion; land everything visible.
    ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -384,9 +385,9 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+  .crest,
   .title .line1,
   .title .line2,
-  .trophy,
   .subtitle,
   .menu { opacity: 1 !important; }
 }
