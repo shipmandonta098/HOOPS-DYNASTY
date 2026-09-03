@@ -27,9 +27,39 @@
     },
     "abbreviation": { "type": "string", "description": "Optional display abbreviation." },
     "colors": {
-      "type": "array",
-      "description": "Optional cosmetic hex colors for UIs.",
-      "items": { "type": "string" }
+      "type": "object",
+      "description": "Team palette. Drawn into the crest wherever the team appears.",
+      "additionalProperties": false,
+      "properties": {
+        "primary":   { "type": "string" },
+        "secondary": { "type": "string" },
+        "tertiary":  { "type": "string" }
+      }
+    },
+    "color": { "type": "string", "description": "Legacy single colour, kept so pre-palette saves still render." },
+    "emoji": { "type": "string", "description": "Crest glyph, used when no logo has been uploaded." },
+    "logoPrimary":   { "type": ["string", "null"], "description": "Uploaded logo as a downscaled PNG data URL, or null." },
+    "logoSecondary": { "type": ["string", "null"] },
+    "population": { "type": ["number", "null"], "description": "Metro population in millions. Market size is derived from it." },
+    "marketSize": { "type": "string", "enum": ["Small", "Medium", "Large"] },
+    "fanInterest": { "type": "string" },
+    "budget": { "type": "number", "description": "Annual operating budget in $M." },
+    "divisionId":   { "type": ["string", "null"] },
+    "conferenceId": { "type": ["string", "null"] },
+    "depthChart": {
+      "type": "object",
+      "description": "Ordered player ids per position, starters first. Reconciled against the roster on read: ids no longer on the team are dropped and unlisted players are appended at their primary position, so it self-heals after waives and trades.",
+      "additionalProperties": false,
+      "properties": {
+        "PG": { "$ref": "#/definitions/slot" },
+        "SG": { "$ref": "#/definitions/slot" },
+        "SF": { "$ref": "#/definitions/slot" },
+        "PF": { "$ref": "#/definitions/slot" },
+        "C":  { "$ref": "#/definitions/slot" }
+      }
     }
+  },
+  "definitions": {
+    "slot": { "type": "array", "items": { "type": "string" } }
   }
 }

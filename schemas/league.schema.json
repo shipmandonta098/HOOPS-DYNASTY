@@ -63,6 +63,28 @@
       "description": "Ids of players with no team, awaiting a contract. These ids also appear in `players` with teamId=null.",
       "items": { "type": "string" }
     },
+    "transactions": {
+      "type": "array",
+      "description": "Append-only log of roster moves, newest last. Written by the UI and by the engine as moves actually happen — it is a record, never a projection.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "season", "at"],
+        "additionalProperties": true,
+        "properties": {
+          "id":     { "type": "string", "description": "Unique id for this entry." },
+          "type":   { "type": "string", "enum": ["waive", "sign", "trade", "draft", "release", "extension"] },
+          "season": { "type": "integer" },
+          "at":     { "type": "string", "description": "ISO timestamp of when the move was made." },
+          "teamId": { "type": ["string", "null"] },
+          "playerId":   { "type": ["string", "null"] },
+          "playerName": { "type": "string", "description": "Denormalised so the log still reads correctly if the player record is later removed." },
+          "position": { "type": "string" },
+          "salary": { "type": ["number", "null"], "description": "Salary involved in the move, in $M." },
+          "years":  { "type": ["integer", "null"] },
+          "detail": { "type": "string", "description": "Short human-readable summary." }
+        }
+      }
+    },
     "draft": {
       "description": "Current draft class + order. See draft.schema.json.",
       "$ref": "draft.schema.json"

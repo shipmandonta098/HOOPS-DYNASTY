@@ -19,6 +19,7 @@
 
 import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
+import { autoChart } from './depthChart.js';
 import {
   makeRNG, hashString, loadDraft, saveDraft, summaryLine, unassignedTeams,
   listPresets, savePreset, getPreset, renamePreset, deletePreset, applyPreset,
@@ -139,6 +140,8 @@ function generateLeague(cfg) {
     structure: JSON.parse(JSON.stringify(cfg.structure)),
     teams: teams.map((t) => ({
       id: t.id, city: t.city, name: t.name, emoji: t.emoji,
+      // Seeded best-first; the Depth Chart tab reorders it from here.
+      depthChart: autoChart(players.filter((p) => p.teamId === t.id)),
       colors: teamColors(t),
       color: teamColors(t).primary,          // legacy single colour
       logoPrimary: t.logoPrimary || null,
@@ -151,6 +154,9 @@ function generateLeague(cfg) {
     })),
     players,
     freeAgents: [],
+    // Append-only record of roster moves. Empty until something actually
+    // happens — the Roster Moves tab reports it, it never invents entries.
+    transactions: [],
     draft: { schemaVersion: 1, class: cfg.season, prospects: [], order: [], completed: false },
     history: { schemaVersion: 1, seasons: [], champions: [], transactions: [], retirements: [] },
   };

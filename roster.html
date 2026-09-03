@@ -34,9 +34,9 @@
           <h1>Roster</h1>
           <div class="tabs" id="tabs">
             <button class="tab is-active" data-tab="players">Players</button>
-            <button class="tab is-todo" data-tab="depth"    title="Not built yet">Depth Chart</button>
-            <button class="tab is-todo" data-tab="moves"    title="Not built yet">Roster Moves</button>
-            <button class="tab is-todo" data-tab="fa"       title="Not built yet">Free Agents</button>
+            <button class="tab" data-tab="depth">Depth Chart</button>
+            <button class="tab" data-tab="moves">Roster Moves</button>
+            <button class="tab" data-tab="fa">Free Agents</button>
           </div>
         </div>
         <!-- Team switcher — browse any roster in the league, not just your own.
@@ -51,6 +51,9 @@
           </div>
         </div>
       </div>
+
+      <!-- ================= PLAYERS ================= -->
+      <section class="panel" data-panel="players">
 
       <!-- Summary strip — every figure counted from the roster itself -->
       <div class="card strip-card">
@@ -120,6 +123,69 @@
         <summary>How the category grades are calculated</summary>
         <div class="legend-body" id="legend"><!-- roster.js --></div>
       </details>
+      </section>
+
+      <!-- ================= DEPTH CHART =================
+           Stored on the team as ordered ids per position and reconciled
+           against the live roster on every read (depthChart.js), so it
+           survives waives and signings instead of drifting. -->
+      <section class="panel" data-panel="depth" hidden>
+        <div class="card dc-top">
+          <div class="dc-five" id="dcFive"><!-- roster.js --></div>
+          <div class="dc-actions">
+            <button class="mini" id="dcAuto">Auto-Sort by Overall</button>
+            <span class="dc-hint" id="dcHint"></span>
+          </div>
+        </div>
+        <div class="dc-cols" id="dcCols"><!-- roster.js --></div>
+      </section>
+
+      <!-- ================= ROSTER MOVES =================
+           A record, not a projection: entries are appended when a move
+           actually happens. Empty until then, and it says so. -->
+      <section class="panel" data-panel="moves" hidden>
+        <div class="card">
+          <div class="mv-head">
+            <h2>Transaction Log</h2>
+            <label class="ctl inline">
+              <span>Show</span>
+              <select id="mvScope">
+                <option value="team">This Team</option>
+                <option value="league">Whole League</option>
+              </select>
+            </label>
+          </div>
+          <div id="mvList"><!-- roster.js --></div>
+        </div>
+      </section>
+
+      <!-- ================= FREE AGENTS ================= -->
+      <section class="panel" data-panel="fa" hidden>
+        <div class="card strip-card">
+          <div class="strip" id="faStrip"><!-- roster.js --></div>
+          <div class="controls">
+            <label class="ctl">
+              <span>Sort</span>
+              <select id="faSort">
+                <option value="ovr">OVR</option>
+                <option value="pot">POT</option>
+                <option value="age">Age</option>
+                <option value="pos">Position</option>
+                <option value="name">Name</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="card table-card">
+          <div class="tbl-scroll">
+            <table class="tbl">
+              <thead><tr id="faHead"></tr></thead>
+              <tbody id="faBody"></tbody>
+            </table>
+          </div>
+          <p class="empty-note" id="faEmpty" hidden></p>
+        </div>
+      </section>
 
     </main>
   </div>

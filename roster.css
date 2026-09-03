@@ -296,3 +296,125 @@
   .roster-top { align-items: flex-start; }
   .rt-left { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }
+
+/* ==========================================================================
+   DEPTH CHART / ROSTER MOVES / FREE AGENTS panels
+   ========================================================================== */
+
+/* Small button. Mirrors new-career.css's .mini, which this page doesn't load. */
+.mini {
+  background: var(--panel-2); border: 1px solid var(--stroke); border-radius: 6px;
+  color: var(--white); cursor: pointer;
+  font-family: var(--font-body); font-weight: 700; font-size: 0.7rem;
+  letter-spacing: 0.09em; text-transform: uppercase; padding: 0.5rem 0.8rem;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mini:hover:not(:disabled) { border-color: var(--brand); background: rgba(207, 97, 39, 0.14); }
+.mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.mini:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91, 141, 214, 0.22); }
+
+.panel[hidden] { display: none; }
+
+/* ------------------------------------------- depth chart */
+.dc-top { margin-bottom: 0.9rem; }
+.dc-five {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  border-bottom: 1px solid var(--stroke-2); padding-bottom: 0.9rem;
+}
+.dc-slot { text-align: center; border-left: 1px solid var(--stroke-2); padding: 0 0.4rem; min-width: 0; }
+.dc-slot:first-child { border-left: 0; }
+.dc-slot .dp {
+  color: var(--muted); font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase;
+}
+.dc-slot .dn {
+  font-weight: 700; font-size: 0.86rem; margin-top: 0.3rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dc-slot .do { font-size: 1.3rem; font-weight: 800; }
+.dc-slot .dim { color: var(--muted-2); font-weight: 600; }
+.dc-slot.is-empty .dp { color: var(--gold); }
+.dc-rating { background: rgba(255, 255, 255, 0.03); border-radius: 8px; }
+
+.dc-actions { display: flex; align-items: center; gap: 0.9rem; padding-top: 0.9rem; flex-wrap: wrap; }
+.dc-hint { color: var(--muted); font-size: 0.78rem; }
+
+.dc-cols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.7rem; }
+.dc-cols > * { min-width: 0; }
+.dc-col { padding: 0.8rem; }
+.dc-col h3 {
+  font-size: 0.66rem; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--white); margin-bottom: 0.7rem;
+}
+.dc-col h3 span { color: var(--muted-2); }
+.dc-none { color: var(--muted-2); font-size: 0.76rem; }
+
+.dc-row {
+  display: grid; grid-template-columns: 30px 1fr auto auto;
+  align-items: center; gap: 0.35rem;
+  padding: 0.45rem 0; border-top: 1px solid var(--stroke-2);
+}
+.dc-col .dc-row:first-of-type { border-top: 0; }
+.dc-row.is-starter { background: rgba(207, 97, 39, 0.07); border-radius: 6px; padding-inline: 0.3rem; }
+.dc-row .ds {
+  color: var(--muted-2); font-size: 0.54rem; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.dc-row.is-starter .ds { color: var(--brand); }
+.dc-row .dnm {
+  font-size: 0.79rem; font-weight: 700; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dc-row .dov { font-size: 0.82rem; font-weight: 800; }
+.dbtns { display: flex; gap: 0.1rem; }
+.icon-mini {
+  background: none; border: 1px solid transparent; border-radius: 4px;
+  color: var(--muted); cursor: pointer; font-size: 0.5rem; line-height: 1; padding: 0.25rem 0.3rem;
+}
+.icon-mini:hover:not(:disabled) { color: var(--brand-hi); border-color: var(--stroke); }
+.icon-mini:disabled { opacity: 0.25; cursor: not-allowed; }
+
+/* ------------------------------------------- roster moves */
+.mv-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+.mv-head h2 {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--muted);
+}
+.ctl.inline { flex-direction: row; align-items: center; gap: 0.5rem; }
+
+.mv-row {
+  display: grid; grid-template-columns: 30px 1fr auto auto;
+  align-items: center; gap: 0.8rem;
+  padding: 0.7rem 0; border-top: 1px solid var(--stroke-2);
+}
+.mv-rows > .mv-row:first-child { border-top: 0; }
+.mv-ic {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--inset); border: 1px solid var(--stroke); font-size: 0.72rem;
+}
+.mv-ic.t-waive { color: var(--danger); border-color: rgba(208, 69, 60, 0.45); }
+.mv-ic.t-sign  { color: var(--green); border-color: rgba(76, 174, 79, 0.45); }
+.mv-ic.t-trade { color: var(--blue); border-color: rgba(91, 141, 214, 0.45); }
+.mv-ic.t-draft { color: var(--gold); border-color: rgba(212, 175, 55, 0.45); }
+.mv-main { min-width: 0; }
+.mv-main b { display: block; font-size: 0.88rem; }
+.mv-main em { display: block; font-style: normal; color: var(--muted); font-size: 0.76rem; margin-top: 0.1rem; }
+.mv-team { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+.mv-when { color: var(--muted-2); font-size: 0.72rem; white-space: nowrap; }
+
+/* ------------------------------------------- free agents */
+.sign-btn { white-space: nowrap; }
+
+/* ------------------------------------------- responsive */
+@media (max-width: 1100px) {
+  .dc-cols { grid-template-columns: repeat(2, 1fr); }
+  .dc-five { grid-template-columns: repeat(3, 1fr); row-gap: 0.8rem; }
+  .dc-slot:nth-child(3n+1) { border-left: 0; }
+}
+@media (max-width: 700px) {
+  .dc-cols { grid-template-columns: 1fr; }
+  .dc-five { grid-template-columns: repeat(2, 1fr); }
+  .dc-slot { border-left: 0; text-align: left; }
+  .mv-row { grid-template-columns: 30px 1fr; row-gap: 0.2rem; }
+  .mv-team, .mv-when { grid-column: 2; font-size: 0.7rem; }
+}
