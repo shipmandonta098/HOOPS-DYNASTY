@@ -240,3 +240,42 @@ body.pm-open { overflow: hidden; }
   margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--stroke-2);
   color: var(--muted); font-size: 0.8rem;
 }
+
+/* ------------------------------------------------------ personality
+   Layer three. Styled apart from ability and mental because it answers a
+   different question — how is this player to manage, not how good is he. */
+.pp-block { margin-top: 1.4rem; }
+.pp-block:first-of-type { margin-top: 0; }
+.pp-h {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  color: var(--muted); font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.8rem;
+}
+.pp-h span { font-size: 0.58rem; letter-spacing: 0.08em; color: var(--muted-2); text-transform: none; }
+
+.pp-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.7rem; }
+.pp-trait {
+  background: var(--panel-2); border: 1px solid var(--stroke);
+  border-left: 2px solid var(--brand); border-radius: 8px; padding: 0.6rem 0.75rem;
+}
+.pt-name { display: block; font-size: 0.86rem; font-weight: 800; }
+.pt-blurb { display: block; color: var(--muted); font-size: 0.72rem; line-height: 1.45; margin-top: 0.2rem; }
+
+.pp-priorities, .pp-sat { display: grid; gap: 0.35rem; }
+.pp-row { display: grid; grid-template-columns: 1fr 120px 84px; align-items: center; gap: 0.7rem; }
+.pp-label { font-size: 0.8rem; }
+.pp-track { height: 7px; border-radius: 4px; background: var(--inset); overflow: hidden; }
+.pp-fill { display: block; height: 100%; border-radius: 4px; background: currentColor; }
+.pp-level { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; text-align: right; }
+
+/* Priority levels are an emphasis ramp, not the rating scale — a Very Low
+   priority is not "bad", it just is not what this player is chasing. */
+.lv-very_high { color: var(--brand-hi); }
+.lv-high      { color: var(--white); }
+.lv-medium    { color: var(--muted); }
+.lv-low       { color: var(--muted-2); }
+.lv-very_low  { color: var(--muted-2); opacity: 0.65; }
+
+.pp-pending, .pp-none {
+  margin-top: 0.8rem; color: var(--muted-2); font-size: 0.7rem; line-height: 1.5;
+}

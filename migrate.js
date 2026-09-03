@@ -16,6 +16,8 @@
 
 import { computeOverall } from './playerRatings.js';
 import { makeMental, MENTAL_KEYS } from './playerMental.js';
+import { makeTraits, derivePriorities } from './playerPersonality.js';
+import { ovr } from './playerRatings.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -117,6 +119,45 @@ function backfillMental(p) {
 }
 
 /**
+ * The old single personality label maps onto the trait it most obviously
+ * describes. That is a real carry-over rather than a re-roll: a player who was
+ * "Headstrong" keeps that character, and the rest of his trait set is drawn
+ * around it.
+ */
+const LEGACY_PERSONALITY = {
+  'Team-First': 'team_first',
+  'Competitor': 'competitive',
+  'Vocal Leader': 'vocal_leader',
+  'Quiet Professional': 'professional',
+  'Coachable': 'team_first',
+  'Streaky': 'restless',
+  'Headstrong': 'independent',
+  'Workhorse': 'professional',
+  'Free Spirit': 'independent',
+};
+
+/** Give a pre-personality-system player traits and priorities. */
+function backfillPersonality(p) {
+  if (!p || !p.id) return false;
+  const per = p.personality;
+  if (per && Array.isArray(per.traits) && per.priorities) return false;
+
+  const rng = rngForPlayer(p.id + ':personality');
+  const traits = makeTraits(rng, { age: p.age });
+  // Seed from the old label so the upgrade preserves character rather than
+  // replacing it. `personality` was a string on these saves.
+  const seed = typeof per === 'string' ? LEGACY_PERSONALITY[per] : null;
+  if (seed && !traits.includes(seed)) traits[traits.length - 1] = seed;
+
+  p.personality = {
+    traits,
+    priorities: derivePriorities(traits, { age: p.age, overall: ovr(p), rng }),
+  };
+  if (!Array.isArray(p.relationships)) p.relationships = [];
+  return true;
+}
+
+/**
  * Migrate a whole league. Mutates and returns it; safe to call repeatedly.
  * @returns {{ league: object, changed: number }}
  */
@@ -124,9 +165,11 @@ export function migrateLeague(league) {
   if (!league || !Array.isArray(league.players)) return { league, changed: 0 };
   let changed = 0;
   let mentals = 0;
+  let persons = 0;
   for (const p of league.players) {
     if (migratePlayer(p)) changed++;
     if (backfillMental(p)) mentals++;
+    if (backfillPersonality(p)) persons++;
   }
   // Fields added after the first saves shipped, defaulted rather than assumed.
   if (!Array.isArray(league.freeAgents)) league.freeAgents = [];
@@ -137,5 +180,8 @@ export function migrateLeague(league) {
   if (mentals) {
     console.info(`Save upgraded: mental attributes assigned to ${mentals} player(s).`);
   }
-  return { league, changed, mentals };
+  if (persons) {
+    console.info(`Save upgraded: personality traits and priorities assigned to ${persons} player(s).`);
+  }
+  return { league, changed, mentals, persons };
 }

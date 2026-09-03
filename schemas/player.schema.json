@@ -142,10 +142,6 @@
         }
       }
     },
-    "personality": {
-      "type": "string",
-      "description": "Locker-room archetype, e.g. 'Team-First'."
-    },
     "archetype": {
       "type": "string",
       "description": "Playing-style archetype id the ratings were shaped around (e.g. 'rim_protector'). See playerGen.js ARCHETYPES."
@@ -316,6 +312,65 @@
         "coachability": {
           "$ref": "#/definitions/mentalRating",
           "description": "Receptiveness to feedback, systems and role changes."
+        }
+      }
+    },
+    "personality": {
+      "type": "object",
+      "description": "Layer three: what kind of person the player is to manage. Like `mental`, this sits OUTSIDE `attributes` so it can never feed `overall` — a difficult 91-overall star is still a 91. Traits describe who he is and barely change; priorities describe what currently matters and are derived from his traits, age and standing, so they evolve as his career does.",
+      "required": [
+        "traits",
+        "priorities"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "traits": {
+          "type": "array",
+          "description": "Usually 2-5 trait ids from playerPersonality.js TRAITS. Mutually exclusive axes (stability, ego, tolerance, expression, leadership) never both appear.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "priorities": {
+          "type": "object",
+          "description": "0-100 weights per career priority. Inputs to decisions, never the decision itself; the five display levels are derived from the number.",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "description": "Relationships with teammates, coaches, GMs and organisations. Empty until events exist to build them — relationships are meant to grow through what actually happens, not to be assigned at generation from personality.",
+      "items": {
+        "type": "object",
+        "required": [
+          "withId",
+          "kind",
+          "standing"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "withId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "teammate",
+              "coach",
+              "gm",
+              "organization"
+            ]
+          },
+          "standing": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
         }
       }
     },

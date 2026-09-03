@@ -17,6 +17,11 @@
  * Colleges and birthplaces are fictional-safe: invented schools, and real
  * cities only (a city is not a league or a team, so it carries no sports
  * branding).
+ *
+ * Personality used to live here as a single label. It is now its own layer
+ * (playerPersonality.js) with multiple traits and derived career priorities,
+ * because "what kind of person is this to manage" is not a biographical fact
+ * like a birthplace.
  */
 
 /* ------------------------------------------------------------------ pools */
@@ -46,11 +51,6 @@ const BIRTHPLACES = [
   ['Paris', null, 'France'], ['Barcelona', null, 'Spain'],
   ['Athens', null, 'Greece'], ['Munich', null, 'Germany'],
   ['São Paulo', null, 'Brazil'], ['Buenos Aires', null, 'Argentina'],
-];
-
-const PERSONALITIES = [
-  'Team-First', 'Competitor', 'Vocal Leader', 'Quiet Professional',
-  'Coachable', 'Streaky', 'Headstrong', 'Workhorse', 'Free Spirit',
 ];
 
 /**
@@ -111,7 +111,6 @@ export function makeBio(rng, { position, age, startSeason }) {
       round: rng.int(1, 100) <= 62 ? 1 : 2,
       pick: rng.int(1, 30),
     },
-    personality: rng.pick(PERSONALITIES),
     // Starting values. The season simulator is free to move these later.
     morale: Math.max(20, Math.min(99, Math.round(rng.gauss(70, 12)))),
     fatigue: rng.int(0, 10),

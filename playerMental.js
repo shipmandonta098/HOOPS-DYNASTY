@@ -41,22 +41,31 @@ export const MENTAL_KEYS = MENTAL_ATTRS.map((m) => m.key);
 const clamp = (v) => Math.max(1, Math.min(99, Math.round(v)));
 
 /**
- * Personality nudges one or two mental ratings — a Headstrong player really is
- * likelier to resist coaching. It is a TILT, not a derivation: personality
- * remains its own system, the shift is small next to the spread of the draws,
- * and every combination stays reachable (a Headstrong player can still roll
- * high Coachability).
+ * Personality TRAITS nudge one or two mental ratings — a Headstrong player
+ * really is likelier to resist coaching. This is a tilt, not a derivation:
+ * personality stays its own layer, each shift is small next to the spread of
+ * the draws, and every combination stays reachable, so an Independent player
+ * can still roll high Coachability.
+ *
+ * Traits a player does not have contribute nothing, and a player with several
+ * relevant traits accumulates their shifts.
  */
-const PERSONALITY_TILT = {
-  'Team-First':          { coachability: +8, confidence: -4 },
-  'Competitor':          { resilience: +7, composure: -5 },
-  'Vocal Leader':        { confidence: +9, coachability: -3 },
-  'Quiet Professional':  { concentration: +8, composure: +6, confidence: -5 },
-  'Coachable':           { coachability: +12 },
-  'Streaky':             { resilience: -9, confidence: +6 },
-  'Headstrong':          { coachability: -13, confidence: +7 },
-  'Workhorse':           { concentration: +7, coachability: +5 },
-  'Free Spirit':         { composure: -7, coachability: -6, confidence: +5 },
+const TRAIT_TILT = {
+  professional:        { concentration: +8, coachability: +7 },
+  lead_by_example:     { concentration: +6, composure: +5 },
+  competitive:         { resilience: +8, composure: -4 },
+  demanding:           { composure: -6, confidence: +4 },
+  independent:         { coachability: -12, confidence: +5 },
+  ego_driven:          { confidence: +10, coachability: -7 },
+  team_first:          { coachability: +9, confidence: -4 },
+  vocal_leader:        { confidence: +9, composure: +4 },
+  reserved:            { composure: +6, confidence: -4 },
+  outspoken:           { composure: -7, confidence: +6 },
+  easygoing:           { composure: +8, resilience: +5 },
+  restless:            { resilience: -7 },
+  mentor:              { coachability: +6, composure: +5 },
+  legacy_minded:       { resilience: +6 },
+  opportunity_seeking: { confidence: +5 },
 };
 
 /**
@@ -73,11 +82,14 @@ const PERSONALITY_TILT = {
  * Resilience / 38 Coachability player has to be reachable.
  *
  * @param {object} rng     the league's seeded RNG
- * @param {object} o       { age, personality }
+ * @param {object} o       { age, traits }
  */
-export function makeMental(rng, { age = 25, personality = null } = {}) {
+export function makeMental(rng, { age = 25, traits = [] } = {}) {
   const makeup = rng.gauss(0, 9);        // shared temperament, small on purpose
-  const tilt = PERSONALITY_TILT[personality] || {};
+  const tilt = {};
+  for (const id of traits || []) {
+    for (const [k, v] of Object.entries(TRAIT_TILT[id] || {})) tilt[k] = (tilt[k] || 0) + v;
+  }
 
   // Steadiness is partly learned. Composure and concentration drift up with
   // experience; confidence and coachability do not track age in any reliable

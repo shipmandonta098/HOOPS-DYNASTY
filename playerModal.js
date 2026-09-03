@@ -34,6 +34,9 @@ import {
 import { crestHTML } from './leagueConfig.js';
 import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import {
+  TRAIT_BY_ID, PRIORITIES, priorityLevel, satisfaction, satisfactionLabel,
+} from './playerPersonality.js';
+import {
   formatHeight, formatBirthDate, formatBirthplace, formatDraft,
   moraleLabel, fatigueLabel,
 } from './playerBio.js';
@@ -179,6 +182,7 @@ function render() {
         <div class="pm-tabs">
           ${tab('attributes', 'Attributes', true)}
           ${tab('mental', 'Mental', true)}
+          ${tab('personality', 'Personality', true)}
           ${tab('career', 'Career Stats', true)}
           ${tab('gamelog', 'Game Log', false)}
           ${tab('contracts', 'Contract History', false)}
@@ -186,6 +190,7 @@ function render() {
         <div class="pm-pane">${
           activeTab === 'career' ? careerPane(p)
           : activeTab === 'mental' ? mentalPane(p)
+          : activeTab === 'personality' ? personalityPane(p)
           : attrPane(p)}</div>
       </div>
 
@@ -291,6 +296,111 @@ function mentalPane(p) {
 }
 
 /**
+ * Personality — layer three. Traits are who the player is; priorities are what
+ * currently matters to him and are derived from those traits plus his age and
+ * standing, so they move as his career does.
+ *
+ * No trait is marked good or bad. Ambitious is an asset on a contender and a
+ * problem during a rebuild, and that judgement belongs to the situation.
+ */
+function personalityPane(p) {
+  const per = p.personality;
+  if (!per || !Array.isArray(per.traits)) {
+    return `<p class="pm-empty">This save predates the personality system.
+      Start a new career to see it.</p>`;
+  }
+  const pr = per.priorities || {};
+  const ranked = PRIORITIES
+    .map((d) => ({ ...d, v: pr[d.key] }))
+    .filter((d) => typeof d.v === 'number')
+    .sort((a, b) => b.v - a.v);
+
+  const sat = satisfaction(p, playerContext(p));
+
+  return `<div class="pm-person">
+    <p class="pm-mental-note">Personality governs how this player is to
+      <b>manage</b> — contracts, roles, loyalty, the media, the locker room. It
+      does <b>not</b> affect his Overall, his Potential or how he plays.</p>
+
+    <div class="pp-block">
+      <div class="pp-h">Traits</div>
+      <div class="pp-traits">${per.traits.map((id) => {
+        const t = TRAIT_BY_ID[id];
+        if (!t) return '';
+        return `<div class="pp-trait">
+          <span class="pt-name">${esc(t.label)}</span>
+          <span class="pt-blurb">${esc(t.blurb)}</span>
+        </div>`;
+      }).join('')}</div>
+    </div>
+
+    <div class="pp-block">
+      <div class="pp-h">Career Priorities <span>what he wants right now</span></div>
+      <div class="pp-priorities">${ranked.map((d) => {
+        const lv = priorityLevel(d.v);
+        return `<div class="pp-row">
+          <span class="pp-label">${esc(d.label)}</span>
+          <span class="pp-track"><span class="pp-fill lv-${lv.key}" style="width:${d.v}%"></span></span>
+          <span class="pp-level lv-${lv.key}">${esc(lv.label)}</span>
+        </div>`;
+      }).join('')}</div>
+    </div>
+
+    ${satisfactionBlock(sat)}
+  </div>`;
+}
+
+/** What the save can actually tell us about this player's situation. */
+function playerContext(p) {
+  if (!league || !p.teamId) return {};
+  const roster = (league.players || []).filter((x) => x.teamId === p.teamId);
+  const team = (league.teams || []).find((t) => t.id === p.teamId);
+  const chart = team && team.depthChart;
+  let depthSlot;
+  if (chart) {
+    const list = chart[p.position] || [];
+    const i = list.indexOf(p.id);
+    if (i >= 0) depthSlot = i;
+  }
+  const salary = (x) => (x.contract ? Number(x.contract.salary) || 0 : 0);
+  const byPay = [...roster].sort((a, b) => salary(b) - salary(a));
+  const byAbility = [...roster].sort((a, b) => ovr(b) - ovr(a));
+  return {
+    depthSlot,
+    rosterCount: roster.length,
+    salaryRank: byPay.findIndex((x) => x.id === p.id),
+    abilityRank: byAbility.findIndex((x) => x.id === p.id),
+  };
+}
+
+/**
+ * Satisfaction, scored only where the save has an answer. Minutes, team
+ * success and coaching need a simulated season, so they are listed as pending
+ * rather than filled with a plausible-looking number.
+ */
+function satisfactionBlock(sat) {
+  if (!sat.scored.length) {
+    return `<div class="pp-block"><div class="pp-h">Satisfaction</div>
+      <p class="pp-none">Nothing measurable yet — this player is not on a roster.</p></div>`;
+  }
+  const overall = satisfactionLabel(sat.overall);
+  return `<div class="pp-block">
+    <div class="pp-h">Satisfaction
+      <span class="g-${overall.band}">${esc(overall.text)}</span></div>
+    <div class="pp-sat">${sat.scored.map((d) => {
+      const l = satisfactionLabel(d.score);
+      return `<div class="pp-row">
+        <span class="pp-label">${esc(d.label)}</span>
+        <span class="pp-track"><span class="pp-fill g-${l.band}" style="width:${d.score}%"></span></span>
+        <span class="pp-level g-${l.band}">${esc(l.text)}</span>
+      </div>`;
+    }).join('')}</div>
+    <p class="pp-pending">Not yet measurable: ${esc(sat.unavailable.join(', '))} —
+      these need a simulated season.</p>
+  </div>`;
+}
+
+/**
  * Career stat lines. `statsHistory` is written by the season simulator, so it
  * is empty in a fresh league — that gets said plainly instead of being filled
  * with plausible-looking numbers. Columns are whatever the sim actually wrote.
@@ -347,7 +457,6 @@ function bioPane(p) {
       ? (p.experience === 0 ? 'Rookie' : `${p.experience} ${p.experience === 1 ? 'season' : 'seasons'}`)
       : null],
     ['Drafted', p.draft !== undefined ? formatDraft(p.draft) : null],
-    ['Personality', p.personality || null],
     ['Durability', typeof p.durability === 'number' ? durabilityLabel(p.durability).text : null,
       null, typeof p.durability === 'number' ? durabilityLabel(p.durability).band : null],
     ['Morale', typeof p.morale === 'number' ? mor.text : null, null, mor.band],

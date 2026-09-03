@@ -20,6 +20,7 @@
 import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
 import { makeMental } from './playerMental.js';
+import { makePersonality } from './playerPersonality.js';
 import { autoChart } from './depthChart.js';
 import { makeRoster, pickTeamArchetype } from './playerGen.js';
 import {
@@ -82,6 +83,9 @@ function uniqueName(rng, used) {
  */
 function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
   const bio = makeBio(rng, { position: rated.position, age: rated.age, startSeason });
+  // Personality first: it feeds the mental tilt, and priorities are derived
+  // from the traits plus his age and standing.
+  const personality = makePersonality(rng, { age: rated.age, overall: rated.overall });
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
     name: uniqueName(rng, usedNames),
@@ -95,7 +99,11 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
     // Mental ratings live in their own field, NOT in `attributes`. That is
     // what keeps them out of overall: computeOverall iterates the ability
     // categories over `attributes` and cannot reach here.
-    mental: makeMental(rng, { age: rated.age, personality: bio.personality }),
+    mental: makeMental(rng, { age: rated.age, traits: personality.traits }),
+    // Layer three, in its own field for the same reason as `mental`:
+    // computeOverall() cannot see it. Traits are who he is; priorities are
+    // what currently matters to him, derived rather than frozen.
+    personality,
     overall: rated.overall,
     potential: rated.potential,
     // Archetype travels with the player: it is what the ratings were shaped
