@@ -9,7 +9,7 @@
  *
  * Each row is derived from a saved league object (see saves/example_league.json
  * / newCareer.js): meta.leagueName, the user's team (meta.userTeamId), the
- * current phase, meta.createdAt, and the save's updatedAt ("last played").
+ * current phase, when the career was created, and when it was last played.
  */
 
 import { listSavesDetailed, loadLeague, deleteSave, saveLeague } from './db.js';
@@ -24,6 +24,37 @@ function fmt(iso) {
   return {
     date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+  };
+}
+
+/**
+ * "Last played" as recency rather than as a date stamp.
+ *
+ * An absolute date answers the wrong question here: a career created and
+ * played within the same minute renders two identical "Sep 3, 2026 9:40 AM"
+ * cells, which is exactly what made the column look broken even once the
+ * underlying timestamps were right. What a player wants from this column is
+ * how recently they touched the save.
+ */
+function fmtPlayed(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d.getTime())) return { date: '—', time: '' };
+
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return { date: 'Just now', time: '' };
+  if (mins < 60) return { date: `${mins} min ago`, time };
+
+  // Compare calendar days, not elapsed hours: something at 11pm yesterday is
+  // "Yesterday" even though it was three hours ago.
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const days = Math.floor((midnight - d.getTime()) / 86400000) + 1;
+  if (days <= 0) return { date: 'Today', time };
+  if (days === 1) return { date: 'Yesterday', time };
+  if (days < 7) return { date: d.toLocaleDateString('en-US', { weekday: 'long' }), time };
+  return {
+    date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    time,
   };
 }
 
@@ -62,7 +93,7 @@ function phaseInfo(phase, season) {
 }
 
 /** Build a view-model row from a saved league. */
-function toRow(id, league, updatedAt) {
+function toRow(id, league, meta_) {
   const meta = league.meta || {};
   const teams = league.teams || [];
   const team = teams.find((t) => t.id === meta.userTeamId) || teams[0] || {};
@@ -73,18 +104,20 @@ function toRow(id, league, updatedAt) {
     team,
     phase: meta.currentPhase || 'regular_season',
     season: meta.currentSeason,
-    createdAt: meta.createdAt,
-    lastPlayed: updatedAt,
+    // The league's own createdAt is the truth — an imported save keeps the
+    // date the career actually began, not the date it landed on this machine.
+    createdAt: meta.createdAt || meta_.createdAt,
+    lastPlayed: meta_.lastPlayedAt,
   };
 }
 
 /** Read every save and turn it into a row VM, newest-played first. */
 async function fetchRows() {
-  const metas = await listSavesDetailed(); // [{ id, updatedAt }]
+  const metas = await listSavesDetailed(); // [{ id, createdAt, updatedAt, lastPlayedAt }]
   const rows = [];
   for (const m of metas) {
     const league = await loadLeague(m.id);
-    if (league) rows.push(toRow(m.id, league, m.updatedAt));
+    if (league) rows.push(toRow(m.id, league, m));
   }
   rows.sort((a, b) => String(b.lastPlayed || '').localeCompare(String(a.lastPlayed || '')));
   return rows;
@@ -97,7 +130,7 @@ let selectedId = null;
 
 function rowHTML(r) {
   const created = fmt(r.createdAt);
-  const played = fmt(r.lastPlayed);
+  const played = fmtPlayed(r.lastPlayed);
   const p = phaseInfo(r.phase, r.season);
   const badgeHue = hue(r.leagueName);
   const badgeBg = `linear-gradient(160deg, hsl(${badgeHue} 45% 32%), hsl(${badgeHue} 55% 18%))`;

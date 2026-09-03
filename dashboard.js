@@ -19,9 +19,9 @@
  * once games are actually simulated.
  */
 
-import { loadLeague, listSavesDetailed } from './db.js';
+import { loadLeague, listSavesDetailed, touchLastPlayed } from './db.js';
 import { crestHTML, marketOf } from './leagueConfig.js';
-import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
+import { mountNav, activeLeagueId, renderNoCareer, markPlayed } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
 import { ovr, byOvr, initials } from './playerRatings.js';
 
@@ -227,6 +227,7 @@ async function boot() {
 
   mountNav('dashboard', id);
   if (!league) { renderNoCareer(); return; }
+  markPlayed(touchLastPlayed, id);
   initPlayerModal(league);
   render(computeVM(league));
 }

@@ -74,6 +74,20 @@ export async function activeLeagueId(listSavesDetailed) {
   return list.length ? list[0].id : null;
 }
 
+/**
+ * Mark the career as played, now. Every in-career screen calls this on boot:
+ * having the career open IS playing it, and without this "last played" only
+ * moved when a roster move happened to write the save.
+ *
+ * Fire-and-forget — a failure here must never stop a screen rendering.
+ */
+export function markPlayed(touchLastPlayed, id) {
+  if (!id) return;
+  Promise.resolve()
+    .then(() => touchLastPlayed(id))
+    .catch((err) => console.warn('Could not record last-played time:', err));
+}
+
 /** Shared "you have no career loaded" screen. */
 export function renderNoCareer() {
   const main = document.querySelector('.main');

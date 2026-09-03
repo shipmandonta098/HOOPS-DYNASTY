@@ -15,9 +15,9 @@
  * two panels built from real contract data stand in for chemistry.
  */
 
-import { loadLeague, listSavesDetailed, saveLeague } from './db.js';
+import { loadLeague, listSavesDetailed, touchLastPlayed, saveLeague } from './db.js';
 import { crestHTML } from './leagueConfig.js';
-import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
+import { mountNav, activeLeagueId, renderNoCareer, markPlayed } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
 import {
   ATTR_GROUPS, groupScore, letterGrade, gradeBand,
@@ -709,6 +709,7 @@ async function boot() {
 
   mountNav('roster', id);
   if (!league) { renderNoCareer(); return; }
+  markPlayed(touchLastPlayed, id);
 
   leagueRef = league;
   leagueId = id;

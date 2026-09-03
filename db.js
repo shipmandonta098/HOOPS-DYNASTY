@@ -16,9 +16,15 @@
  *
  * DESIGN NOTES (kept simple so it's easy to modify later):
  *   - One database ("BasketballGM"), one object store ("saves"), keyPath "id".
- *   - Each record is a small wrapper: { id, data, updatedAt }.
- *       `data`      = the full league JSON you passed to saveLeague().
- *       `updatedAt` = ISO timestamp, handy for a "most recent" list.
+ *   - Each record is a small wrapper: { id, data, createdAt, updatedAt, lastPlayedAt }.
+ *       `data`         = the full league JSON you passed to saveLeague().
+ *       `createdAt`    = first write. Preserved across every later write.
+ *       `updatedAt`    = last write of league DATA.
+ *       `lastPlayedAt` = last time the career was actually opened, set by
+ *                        touchLastPlayed(). This is separate from `updatedAt`
+ *                        on purpose: browsing your roster is playing, but it
+ *                        writes nothing, so `updatedAt` alone would leave
+ *                        "last played" frozen at the moment of creation.
  *     We wrap rather than storing the league directly so the league object never
  *     needs its own `id` field — the store's key is separate from league content.
  *   - Every function returns a Promise and rejects with a real Error on failure.
@@ -160,9 +166,61 @@ export async function saveLeague(id, data) {
   if (data === null || typeof data !== 'object') {
     throw new Error('saveLeague: data must be a league object.');
   }
-  const record = { id, data, updatedAt: new Date().toISOString() };
-  await withStore('readwrite', (store) => store.put(record));
+  const now = new Date().toISOString();
+  // Read before writing so `createdAt` survives. The previous version built a
+  // fresh record each time, which would have reset it on every save.
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const get = store.get(id);
+    get.onsuccess = () => {
+      const prev = get.result || {};
+      store.put({
+        id,
+        data,
+        createdAt: prev.createdAt || now,
+        updatedAt: now,
+        // A write means the player did something, so it counts as playing.
+        lastPlayedAt: now,
+      });
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed.'));
+    tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted.'));
+  });
   return id;
+}
+
+/**
+ * Mark a save as played right now, without rewriting the league.
+ *
+ * Called when a career screen opens. "Last played" should mean the last time
+ * you had the career open, not the last time you happened to make a roster
+ * move — those are different questions, and only the second one leaves a
+ * trace in the data.
+ *
+ * Resolves silently if the save no longer exists.
+ * @param {string} id
+ * @returns {Promise<void>}
+ */
+export async function touchLastPlayed(id) {
+  if (typeof id !== 'string' || id.length === 0) return;
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const get = store.get(id);
+    get.onsuccess = () => {
+      const rec = get.result;
+      if (!rec) return;                       // nothing to touch
+      rec.lastPlayedAt = new Date().toISOString();
+      store.put(rec);                          // `data` and `updatedAt` untouched
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('Could not update last-played.'));
+    tx.onabort = () => reject(tx.error || new Error('Could not update last-played.'));
+  });
 }
 
 /**
@@ -210,8 +268,14 @@ export async function deleteSave(id) {
 export async function listSavesDetailed() {
   const records = await withStore('readonly', (store) => store.getAll());
   return (records || [])
-    .map((r) => ({ id: r.id, updatedAt: r.updatedAt }))
-    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    .map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt || null,
+      updatedAt: r.updatedAt || null,
+      // Saves written before lastPlayedAt existed fall back to updatedAt.
+      lastPlayedAt: r.lastPlayedAt || r.updatedAt || null,
+    }))
+    .sort((a, b) => (b.lastPlayedAt || '').localeCompare(a.lastPlayedAt || ''));
 }
 
 /* ===========================================================================
