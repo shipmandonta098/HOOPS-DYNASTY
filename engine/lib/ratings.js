@@ -21,20 +21,16 @@ const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
  * it trivial to add a new skill later (add it here + give it a weight below).
  */
 const ATTRIBUTES = [
-  'insideScoring',
-  'midRange',
-  'threePoint',
-  'freeThrow',
-  'passing',
-  'ballHandling',
-  'offensiveRebound',
-  'defensiveRebound',
-  'perimeterDefense',
-  'interiorDefense',
-  'block',
-  'steal',
-  'athleticism',
-  'basketballIQ',
+  // Physical
+  'strength', 'speed', 'vertical', 'agility', 'stamina', 'endurance',
+  // Shooting (the whole scoring game, finishing and post play included)
+  'layup', 'dunk', 'threePoint', 'midRange', 'freeThrow', 'postControl', 'shotIQ',
+  // Playmaking
+  'passing', 'passingIQ', 'ballHandling',
+  // Defense
+  'perimeterDefense', 'interiorDefense', 'steal', 'block', 'defensiveIQ',
+  // Rebounding
+  'offensiveRebound', 'defensiveRebound',
 ];
 
 /**
@@ -54,19 +50,22 @@ const ATTRIBUTES = [
  * position, so overalls stay comparable across positions.
  */
 const CATEGORIES = {
-  phy: [['athleticism', 1], ['insideScoring', 0.8]],
-  sho: [['threePoint', 1], ['midRange', 0.9], ['freeThrow', 0.5]],
-  ply: [['passing', 1], ['ballHandling', 0.9], ['basketballIQ', 0.7]],
-  def: [['perimeterDefense', 1], ['interiorDefense', 1], ['block', 0.6], ['steal', 0.6]],
+  phy: [['strength', 1], ['speed', 1], ['agility', 0.9], ['vertical', 0.8],
+        ['stamina', 0.6], ['endurance', 0.6]],
+  sho: [['threePoint', 1], ['midRange', 0.95], ['layup', 0.85], ['shotIQ', 0.8],
+        ['dunk', 0.6], ['postControl', 0.55], ['freeThrow', 0.5]],
+  ply: [['passing', 1], ['ballHandling', 0.95], ['passingIQ', 0.8]],
+  def: [['perimeterDefense', 1], ['interiorDefense', 1], ['defensiveIQ', 0.8],
+        ['steal', 0.6], ['block', 0.6]],
   reb: [['defensiveRebound', 1], ['offensiveRebound', 0.8]],
 };
 
 const POSITION_WEIGHTS = {
-  PG: { phy: 0.13, sho: 0.25, ply: 0.35, def: 0.19, reb: 0.08 },
-  SG: { phy: 0.15, sho: 0.33, ply: 0.20, def: 0.23, reb: 0.09 },
-  SF: { phy: 0.19, sho: 0.27, ply: 0.16, def: 0.24, reb: 0.14 },
-  PF: { phy: 0.22, sho: 0.18, ply: 0.11, def: 0.27, reb: 0.22 },
-  C: { phy: 0.24, sho: 0.11, ply: 0.09, def: 0.30, reb: 0.26 },
+  PG: { phy: 0.14, sho: 0.28, ply: 0.32, def: 0.19, reb: 0.07 },
+  SG: { phy: 0.16, sho: 0.34, ply: 0.19, def: 0.22, reb: 0.09 },
+  SF: { phy: 0.19, sho: 0.30, ply: 0.15, def: 0.23, reb: 0.13 },
+  PF: { phy: 0.21, sho: 0.24, ply: 0.10, def: 0.25, reb: 0.20 },
+  C: { phy: 0.22, sho: 0.21, ply: 0.08, def: 0.27, reb: 0.22 },
 };
 
 /** Weighted 0..99 score for one category, or null when the data is absent. */
@@ -101,13 +100,15 @@ function computeOverall(player) {
 
 /**
  * A player's contribution to winning. Overall is the base; we give a small
- * nudge for elite basketball IQ (spacing, decisions) and athleticism (motor).
+ * nudge for elite basketball IQ (spacing, decisions) and speed (motor). IQ is
+ * now three separate ratings, so it is averaged across them.
  * Used by the season simulator to build team strength.
  */
 function playerImpact(player) {
   const overall = computeOverall(player);
-  const iq = (player.attributes && player.attributes.basketballIQ) || 50;
-  const ath = (player.attributes && player.attributes.athleticism) || 50;
+  const a = player.attributes || {};
+  const iq = ((a.shotIQ || 50) + (a.passingIQ || 50) + (a.defensiveIQ || 50)) / 3;
+  const ath = ((a.speed || 50) + (a.agility || 50) + (a.vertical || 50)) / 3;
   return overall + (iq - 50) * 0.05 + (ath - 50) * 0.03;
 }
 

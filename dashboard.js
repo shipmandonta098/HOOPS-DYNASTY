@@ -28,9 +28,9 @@ import { ovr, byOvr, initials } from './playerRatings.js';
 /* ------------------------------ ratings (real) ------------------------------
    Computed from each player's stored attributes — arithmetic on real data,
    not fabrication. */
-const ATTRS_OFF = ['insideScoring', 'midRange', 'threePoint', 'passing', 'ballHandling'];
-const ATTRS_DEF = ['perimeterDefense', 'interiorDefense', 'block', 'steal', 'defensiveRebound'];
-const ATTRS_SHOOT = ['threePoint', 'midRange', 'freeThrow'];
+const ATTRS_OFF = ['layup', 'dunk', 'midRange', 'threePoint', 'postControl', 'passing', 'ballHandling'];
+const ATTRS_DEF = ['perimeterDefense', 'interiorDefense', 'block', 'steal', 'defensiveIQ', 'defensiveRebound'];
+const ATTRS_SHOOT = ['threePoint', 'midRange', 'freeThrow', 'shotIQ'];
 
 
 /** Minutes-weighted rating of the top 8 — the team's real on-paper strength. */
@@ -92,12 +92,15 @@ function computeVM(league) {
 
   // Strengths / weaknesses straight from attribute averages.
   const dims = [
-    ['Interior Scoring', avgAttrs(roster, ['insideScoring'])],
-    ['Perimeter Shooting', avgAttrs(roster, ['threePoint'])],
+    ['Rim Finishing', avgAttrs(roster, ['layup', 'dunk'])],
+    ['Post Scoring', avgAttrs(roster, ['postControl'])],
+    ['Perimeter Shooting', avgAttrs(roster, ['threePoint', 'midRange'])],
     ['Rebounding', avgAttrs(roster, ['offensiveRebound', 'defensiveRebound'])],
-    ['Perimeter Defense', avgAttrs(roster, ['perimeterDefense'])],
-    ['Playmaking', avgAttrs(roster, ['passing', 'ballHandling'])],
+    ['Perimeter Defense', avgAttrs(roster, ['perimeterDefense', 'steal'])],
+    ['Playmaking', avgAttrs(roster, ['passing', 'ballHandling', 'passingIQ'])],
     ['Rim Protection', avgAttrs(roster, ['block', 'interiorDefense'])],
+    ['Athleticism', avgAttrs(roster, ['speed', 'vertical', 'agility'])],
+    ['Basketball IQ', avgAttrs(roster, ['shotIQ', 'passingIQ', 'defensiveIQ'])],
     ['Free Throw Shooting', avgAttrs(roster, ['freeThrow'])],
   ].sort((a, b) => b[1] - a[1]);
 

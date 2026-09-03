@@ -175,7 +175,11 @@ export async function loadLeague(id) {
     throw new Error('loadLeague: id must be a non-empty string.');
   }
   const record = await withStore('readonly', (store) => store.get(id));
-  return record ? record.data : null;
+  if (!record) return null;
+  // One choke point for save upgrades: every screen reads current-shape data
+  // and none of them needs to know older shapes ever existed.
+  const { migrateLeague } = await import('./migrate.js');
+  return migrateLeague(record.data).league;
 }
 
 /**

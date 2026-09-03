@@ -5,80 +5,173 @@
   "description": "A single basketball player or draft prospect. The same shape is used for rostered players, free agents, and undrafted prospects — the difference is just which fields are filled in (teamId null = free agent/prospect, contract null = unsigned).",
   "schemaVersion": 1,
   "type": "object",
-  "required": ["id", "name", "position", "age", "attributes"],
+  "required": [
+    "id",
+    "name",
+    "position",
+    "age",
+    "attributes"
+  ],
   "additionalProperties": true,
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
     "id": {
       "type": "string",
       "description": "Unique, stable player id (e.g. 'p_012' or 'prospect_2025_03'). Never reuse an id."
     },
-    "name": { "type": "string" },
+    "name": {
+      "type": "string"
+    },
     "position": {
       "type": "string",
-      "enum": ["PG", "SG", "SF", "PF", "C"],
+      "enum": [
+        "PG",
+        "SG",
+        "SF",
+        "PF",
+        "C"
+      ],
       "description": "Primary position. Drives how attributes are weighted into overall."
     },
-    "age": { "type": "integer", "minimum": 15, "maximum": 50 },
+    "age": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 50
+    },
     "teamId": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Id of the team that rosters this player. null = free agent or undrafted prospect."
     },
-    "college": { "type": "string", "description": "Fictional school, or 'Overseas Professional' / 'Developmental League'." },
-
-    "heightIn": { "type": "integer", "minimum": 60, "maximum": 96, "description": "Height in inches." },
-    "weightLb": { "type": "integer", "minimum": 120, "maximum": 400, "description": "Weight in pounds." },
+    "college": {
+      "type": "string",
+      "description": "Fictional school, or 'Overseas Professional' / 'Developmental League'."
+    },
+    "heightIn": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 96,
+      "description": "Height in inches."
+    },
+    "weightLb": {
+      "type": "integer",
+      "minimum": 120,
+      "maximum": 400,
+      "description": "Weight in pounds."
+    },
     "birthDate": {
       "type": "object",
       "description": "Generated at league creation; year is derived from age and the starting season, so the two can never disagree.",
-      "required": ["year", "month", "day"],
+      "required": [
+        "year",
+        "month",
+        "day"
+      ],
       "additionalProperties": false,
       "properties": {
-        "year":  { "type": "integer" },
-        "month": { "type": "integer", "minimum": 1, "maximum": 12 },
-        "day":   { "type": "integer", "minimum": 1, "maximum": 31 }
+        "year": {
+          "type": "integer"
+        },
+        "month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "day": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 31
+        }
       }
     },
     "birthplace": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "city":    { "type": "string" },
-        "region":  { "type": ["string", "null"], "description": "State/province, where one applies." },
-        "country": { "type": "string" }
+        "city": {
+          "type": "string"
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "State/province, where one applies."
+        },
+        "country": {
+          "type": "string"
+        }
       }
     },
-    "nationality": { "type": "string" },
+    "nationality": {
+      "type": "string"
+    },
     "experience": {
       "type": "integer",
       "minimum": 0,
       "description": "Completed seasons of service. Always age minus entry age, so it stays consistent with draft.year."
     },
     "draft": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "description": "Where the player was taken, or null if undrafted.",
-      "required": ["year", "round", "pick"],
+      "required": [
+        "year",
+        "round",
+        "pick"
+      ],
       "additionalProperties": false,
       "properties": {
-        "year":  { "type": "integer" },
-        "round": { "type": "integer", "minimum": 1 },
-        "pick":  { "type": "integer", "minimum": 1 }
+        "year": {
+          "type": "integer"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pick": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
-    "personality": { "type": "string", "description": "Locker-room archetype, e.g. 'Team-First'." },
+    "personality": {
+      "type": "string",
+      "description": "Locker-room archetype, e.g. 'Team-First'."
+    },
     "archetype": {
       "type": "string",
       "description": "Playing-style archetype id the ratings were shaped around (e.g. 'rim_protector'). See playerGen.js ARCHETYPES."
     },
-    "archetypeLabel": { "type": "string", "description": "Display name for `archetype`, denormalised so screens need no lookup table." },
+    "archetypeLabel": {
+      "type": "string",
+      "description": "Display name for `archetype`, denormalised so screens need no lookup table."
+    },
     "durability": {
       "type": "integer",
       "minimum": 0,
       "maximum": 99,
       "description": "Injury resistance, high is durable. Stored for the season simulator; no injury model consumes it yet, so it is shown as a trait rather than a risk percentage."
     },
-    "morale":  { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99. Set at generation; the season simulator may move it." },
-    "fatigue": { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99, low is fresh. Set at generation; the simulator may move it." },
+    "morale": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "0..99. Set at generation; the season simulator may move it."
+    },
+    "fatigue": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "0..99, low is fresh. Set at generation; the simulator may move it."
+    },
     "overall": {
       "type": "integer",
       "minimum": 0,
@@ -93,46 +186,142 @@
     },
     "attributes": {
       "type": "object",
-      "description": "0..99-scale skills (basketball convention: ~25 floor, 99 elite). This is the SOURCE OF TRUTH for ability — overall is computed from it.",
+      "description": "0..99-scale skills, grouped into the five categories the game rates players on: Physical (strength, speed, vertical, agility, stamina, endurance), Shooting — the whole scoring game (layup, dunk, threePoint, midRange, freeThrow, postControl, shotIQ), Playmaking (passing, passingIQ, ballHandling), Defense (perimeterDefense, interiorDefense, steal, block, defensiveIQ) and Rebounding (offensiveRebound, defensiveRebound). This is the SOURCE OF TRUTH for ability — overall is computed from it.",
       "additionalProperties": false,
       "required": [
-        "insideScoring", "midRange", "threePoint", "freeThrow",
-        "passing", "ballHandling", "offensiveRebound", "defensiveRebound",
-        "perimeterDefense", "interiorDefense", "block", "steal",
-        "athleticism", "basketballIQ"
+        "strength",
+        "speed",
+        "vertical",
+        "agility",
+        "stamina",
+        "endurance",
+        "layup",
+        "dunk",
+        "threePoint",
+        "midRange",
+        "freeThrow",
+        "postControl",
+        "shotIQ",
+        "passing",
+        "passingIQ",
+        "ballHandling",
+        "perimeterDefense",
+        "interiorDefense",
+        "steal",
+        "block",
+        "defensiveIQ",
+        "offensiveRebound",
+        "defensiveRebound"
       ],
       "properties": {
-        "insideScoring": { "$ref": "#/definitions/rating" },
-        "midRange": { "$ref": "#/definitions/rating" },
-        "threePoint": { "$ref": "#/definitions/rating" },
-        "freeThrow": { "$ref": "#/definitions/rating" },
-        "passing": { "$ref": "#/definitions/rating" },
-        "ballHandling": { "$ref": "#/definitions/rating" },
-        "offensiveRebound": { "$ref": "#/definitions/rating" },
-        "defensiveRebound": { "$ref": "#/definitions/rating" },
-        "perimeterDefense": { "$ref": "#/definitions/rating" },
-        "interiorDefense": { "$ref": "#/definitions/rating" },
-        "block": { "$ref": "#/definitions/rating" },
-        "steal": { "$ref": "#/definitions/rating" },
-        "athleticism": { "$ref": "#/definitions/rating" },
-        "basketballIQ": { "$ref": "#/definitions/rating" }
+        "strength": {
+          "$ref": "#/definitions/rating"
+        },
+        "speed": {
+          "$ref": "#/definitions/rating"
+        },
+        "vertical": {
+          "$ref": "#/definitions/rating"
+        },
+        "agility": {
+          "$ref": "#/definitions/rating"
+        },
+        "stamina": {
+          "$ref": "#/definitions/rating"
+        },
+        "endurance": {
+          "$ref": "#/definitions/rating"
+        },
+        "layup": {
+          "$ref": "#/definitions/rating"
+        },
+        "dunk": {
+          "$ref": "#/definitions/rating"
+        },
+        "threePoint": {
+          "$ref": "#/definitions/rating"
+        },
+        "midRange": {
+          "$ref": "#/definitions/rating"
+        },
+        "freeThrow": {
+          "$ref": "#/definitions/rating"
+        },
+        "postControl": {
+          "$ref": "#/definitions/rating"
+        },
+        "shotIQ": {
+          "$ref": "#/definitions/rating"
+        },
+        "passing": {
+          "$ref": "#/definitions/rating"
+        },
+        "passingIQ": {
+          "$ref": "#/definitions/rating"
+        },
+        "ballHandling": {
+          "$ref": "#/definitions/rating"
+        },
+        "perimeterDefense": {
+          "$ref": "#/definitions/rating"
+        },
+        "interiorDefense": {
+          "$ref": "#/definitions/rating"
+        },
+        "steal": {
+          "$ref": "#/definitions/rating"
+        },
+        "block": {
+          "$ref": "#/definitions/rating"
+        },
+        "defensiveIQ": {
+          "$ref": "#/definitions/rating"
+        },
+        "offensiveRebound": {
+          "$ref": "#/definitions/rating"
+        },
+        "defensiveRebound": {
+          "$ref": "#/definitions/rating"
+        }
       }
     },
     "contract": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "description": "Current contract, or null if unsigned/free agent.",
-      "required": ["salary", "yearsRemaining"],
+      "required": [
+        "salary",
+        "yearsRemaining"
+      ],
       "additionalProperties": true,
       "properties": {
-        "salary": { "type": "number", "minimum": 0, "description": "Annual salary in $M." },
-        "yearsRemaining": { "type": "integer", "minimum": 0 },
+        "salary": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Annual salary in $M."
+        },
+        "yearsRemaining": {
+          "type": "integer",
+          "minimum": 0
+        },
         "type": {
           "type": "string",
-          "enum": ["rookie", "standard", "max", "vet_min"],
+          "enum": [
+            "rookie",
+            "standard",
+            "max",
+            "vet_min"
+          ],
           "description": "Contract archetype. Advisory — expand as you add cap rules."
         },
-        "playerOption": { "type": "boolean" },
-        "teamOption": { "type": "boolean" }
+        "playerOption": {
+          "type": "boolean"
+        },
+        "teamOption": {
+          "type": "boolean"
+        }
       }
     },
     "statsHistory": {
@@ -140,19 +329,38 @@
       "description": "Per-season box-score lines, appended by simulateSeason.js.",
       "items": {
         "type": "object",
-        "required": ["season"],
+        "required": [
+          "season"
+        ],
         "additionalProperties": true,
         "properties": {
-          "season": { "type": "integer" },
-          "ppg": { "type": "number" },
-          "rpg": { "type": "number" },
-          "apg": { "type": "number" }
+          "season": {
+            "type": "integer"
+          },
+          "ppg": {
+            "type": "number"
+          },
+          "rpg": {
+            "type": "number"
+          },
+          "apg": {
+            "type": "number"
+          }
         }
       }
     },
-    "draftClass": { "type": "integer", "description": "Prospects only: the year of the draft they belong to." },
-    "tier": { "type": "string", "description": "Prospects only: talent tier label (franchise/star/starter/rotation/fringe)." },
-    "projectedPick": { "type": "integer", "description": "Prospects only: scouting board position." }
+    "draftClass": {
+      "type": "integer",
+      "description": "Prospects only: the year of the draft they belong to."
+    },
+    "tier": {
+      "type": "string",
+      "description": "Prospects only: talent tier label (franchise/star/starter/rotation/fringe)."
+    },
+    "projectedPick": {
+      "type": "integer",
+      "description": "Prospects only: scouting board position."
+    }
   },
   "definitions": {
     "rating": {

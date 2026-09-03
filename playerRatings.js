@@ -27,16 +27,27 @@
  * relative within a category only.
  */
 export const ATTR_GROUPS = [
-  { key: 'phy', label: 'Physical',   short: 'PHY',
-    parts: [['athleticism', 1], ['insideScoring', 0.8]] },
-  { key: 'sho', label: 'Shooting',   short: 'SHO',
-    parts: [['threePoint', 1], ['midRange', 0.9], ['freeThrow', 0.5]] },
-  { key: 'ply', label: 'Playmaking', short: 'PLY',
-    parts: [['passing', 1], ['ballHandling', 0.9], ['basketballIQ', 0.7]] },
-  { key: 'def', label: 'Defense',    short: 'DEF',
-    parts: [['perimeterDefense', 1], ['interiorDefense', 1], ['block', 0.6], ['steal', 0.6]] },
-  { key: 'reb', label: 'Rebounding', short: 'REB',
-    parts: [['defensiveRebound', 1], ['offensiveRebound', 0.8]] },
+  { key: 'phy', label: 'Physical',   short: 'PHY', parts: [
+    ['strength', 1], ['speed', 1], ['agility', 0.9], ['vertical', 0.8],
+    ['stamina', 0.6], ['endurance', 0.6],
+  ] },
+  // NOTE: Shooting carries the whole scoring game, finishing and post play
+  // included — not just jump shooting. Position weights below are set against
+  // that meaning, which is why a centre's Shooting weight is not tiny.
+  { key: 'sho', label: 'Shooting',   short: 'SHO', parts: [
+    ['threePoint', 1], ['midRange', 0.95], ['layup', 0.85], ['shotIQ', 0.8],
+    ['dunk', 0.6], ['postControl', 0.55], ['freeThrow', 0.5],
+  ] },
+  { key: 'ply', label: 'Playmaking', short: 'PLY', parts: [
+    ['passing', 1], ['ballHandling', 0.95], ['passingIQ', 0.8],
+  ] },
+  { key: 'def', label: 'Defense',    short: 'DEF', parts: [
+    ['perimeterDefense', 1], ['interiorDefense', 1], ['defensiveIQ', 0.8],
+    ['steal', 0.6], ['block', 0.6],
+  ] },
+  { key: 'reb', label: 'Rebounding', short: 'REB', parts: [
+    ['defensiveRebound', 1], ['offensiveRebound', 0.8],
+  ] },
 ];
 
 /** Weighted 0-99 score for one category, or null if the save has none of it. */
@@ -71,11 +82,11 @@ export function groupScores(player) {
  * who cannot shoot is still rated on rim protection.
  */
 export const POSITION_WEIGHTS = {
-  PG: { phy: 0.13, sho: 0.25, ply: 0.35, def: 0.19, reb: 0.08 },
-  SG: { phy: 0.15, sho: 0.33, ply: 0.20, def: 0.23, reb: 0.09 },
-  SF: { phy: 0.19, sho: 0.27, ply: 0.16, def: 0.24, reb: 0.14 },
-  PF: { phy: 0.22, sho: 0.18, ply: 0.11, def: 0.27, reb: 0.22 },
-  C:  { phy: 0.24, sho: 0.11, ply: 0.09, def: 0.30, reb: 0.26 },
+  PG: { phy: 0.14, sho: 0.28, ply: 0.32, def: 0.19, reb: 0.07 },
+  SG: { phy: 0.16, sho: 0.34, ply: 0.19, def: 0.22, reb: 0.09 },
+  SF: { phy: 0.19, sho: 0.30, ply: 0.15, def: 0.23, reb: 0.13 },
+  PF: { phy: 0.21, sho: 0.24, ply: 0.10, def: 0.25, reb: 0.20 },
+  C:  { phy: 0.22, sho: 0.21, ply: 0.08, def: 0.27, reb: 0.22 },
 };
 
 /**
@@ -142,12 +153,14 @@ export const POSITION_NAME = {
 
 /** Every attribute the schema defines, in the order the categories list them. */
 export const ATTR_LABELS = {
-  athleticism: 'Athleticism', insideScoring: 'Inside Scoring',
-  threePoint: 'Three Point', midRange: 'Mid Range', freeThrow: 'Free Throw',
-  passing: 'Passing', ballHandling: 'Ball Handling', basketballIQ: 'Basketball IQ',
+  strength: 'Strength', speed: 'Speed', vertical: 'Vertical', agility: 'Agility',
+  stamina: 'Stamina', endurance: 'Endurance',
+  layup: 'Layups', dunk: 'Dunk', threePoint: 'Three Point', midRange: 'Midrange',
+  freeThrow: 'Free Throw', postControl: 'Post Control', shotIQ: 'Shot IQ',
+  passing: 'Passing', passingIQ: 'Passing IQ', ballHandling: 'Ball Handling',
   perimeterDefense: 'Perimeter Defense', interiorDefense: 'Interior Defense',
-  block: 'Block', steal: 'Steal',
-  defensiveRebound: 'Defensive Rebound', offensiveRebound: 'Offensive Rebound',
+  steal: 'Steals', block: 'Blocks', defensiveIQ: 'Defensive IQ',
+  offensiveRebound: 'Offensive Rebounding', defensiveRebound: 'Defensive Rebounding',
 };
 
 /** Which colour band a grade sits in: 'hi' | 'mid' | 'lo' (or '' if absent). */

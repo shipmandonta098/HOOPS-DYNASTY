@@ -22,22 +22,39 @@ const { computeOverall, ATTRIBUTES } = require('./lib/ratings');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 // Which attributes fade with age, and how fast (relative multiplier).
-// Athletic tools go first; skill and IQ are "old-man game" — they persist.
+// Athletic tools go first; skill and IQ are "old-man game" — they persist, and
+// a 34-year-old shooter is still a shooter. Now that athleticism is six
+// separate ratings, the fast-twitch ones (speed, vertical, agility) decline
+// hardest while strength holds and IQ barely moves at all.
 const DECLINE_SENSITIVITY = {
-  athleticism: 1.5,
-  insideScoring: 1.1,
-  perimeterDefense: 1.1,
-  interiorDefense: 1.0,
-  offensiveRebound: 1.0,
-  defensiveRebound: 0.9,
-  block: 1.1,
-  steal: 1.0,
-  ballHandling: 0.7,
+  // Physical
+  speed: 1.7,
+  vertical: 1.7,
+  agility: 1.5,
+  stamina: 1.2,
+  endurance: 1.1,
+  strength: 0.6,          // veterans keep, and often add, strength
+  // Shooting / scoring
+  dunk: 1.6,              // the first thing to go
+  layup: 1.0,
+  postControl: 0.6,
   midRange: 0.6,
   threePoint: 0.5,
   freeThrow: 0.3,
+  shotIQ: 0.1,
+  // Playmaking
+  ballHandling: 0.7,
   passing: 0.3,
-  basketballIQ: 0.1, // barely declines — vets keep their brains
+  passingIQ: 0.1,
+  // Defense
+  perimeterDefense: 1.2,
+  block: 1.1,
+  interiorDefense: 1.0,
+  steal: 1.0,
+  defensiveIQ: 0.1,       // reads and positioning survive the legs
+  // Rebounding
+  offensiveRebound: 1.0,
+  defensiveRebound: 0.9,
 };
 
 function clampAttr(v) {

@@ -58,11 +58,11 @@ function buildAttributes(position, targetOverall, rng) {
   }
   // Give position-defining skills a boost so archetypes read true.
   const boosts = {
-    PG: ['passing', 'ballHandling', 'threePoint'],
-    SG: ['threePoint', 'midRange', 'perimeterDefense'],
-    SF: ['athleticism', 'perimeterDefense', 'insideScoring'],
-    PF: ['insideScoring', 'defensiveRebound', 'interiorDefense'],
-    C: ['interiorDefense', 'block', 'defensiveRebound', 'insideScoring'],
+    PG: ['passing', 'passingIQ', 'ballHandling', 'threePoint'],
+    SG: ['threePoint', 'midRange', 'perimeterDefense', 'shotIQ'],
+    SF: ['speed', 'agility', 'perimeterDefense', 'layup'],
+    PF: ['strength', 'dunk', 'defensiveRebound', 'interiorDefense'],
+    C: ['interiorDefense', 'block', 'defensiveRebound', 'postControl', 'strength'],
   }[position] || [];
   for (const b of boosts) {
     attrs[b] = Math.min(99, attrs[b] + rng.int(4, 10));
