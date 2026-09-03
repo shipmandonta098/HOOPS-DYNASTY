@@ -22,6 +22,7 @@
 import { loadLeague, listSavesDetailed } from './db.js';
 import { crestHTML, marketOf } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
+import { initPlayerModal } from './playerModal.js';
 import { ovr, byOvr, initials } from './playerRatings.js';
 
 /* ------------------------------ ratings (real) ------------------------------
@@ -201,7 +202,7 @@ function render(vm) {
     return `<div class="pl">
       <div class="av"><div class="face">${esc(initials(p.name))}</div><div class="ovr">${ovr(p)}</div></div>
       <div class="pos">${esc(p.position)}</div>
-      <div class="pn">${esc(p.name)}</div>
+      <div class="pn" data-player="${esc(p.id)}" role="button" tabindex="0">${esc(p.name)}</div>
       <div class="line">${line}</div>
     </div>`;
   }).join('');
@@ -223,6 +224,7 @@ async function boot() {
 
   mountNav('dashboard', id);
   if (!league) { renderNoCareer(); return; }
+  initPlayerModal(league);
   render(computeVM(league));
 }
 

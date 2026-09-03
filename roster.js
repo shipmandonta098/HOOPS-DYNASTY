@@ -18,6 +18,7 @@
 import { loadLeague, listSavesDetailed } from './db.js';
 import { crestHTML } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
+import { initPlayerModal } from './playerModal.js';
 import {
   ATTR_GROUPS, groupScore, letterGrade, gradeBand,
   ovr, initials, contractStatus,
@@ -148,7 +149,7 @@ function renderTable() {
       <td class="c-num">${i + 1}</td>
       <td class="c-player">
         <span class="av">${esc(initials(p.name))}</span>
-        <span class="pn">${esc(p.name)}</span>
+        <span class="pn" data-player="${esc(p.id)}" role="button" tabindex="0">${esc(p.name)}</span>
         ${o === best ? '<span class="star" title="Highest overall on the roster">★</span>' : ''}
       </td>
       <td class="c-pos">${esc(p.position || '—')}</td>
@@ -288,6 +289,8 @@ async function boot() {
 
   mountNav('roster', id);
   if (!league) { renderNoCareer(); return; }
+
+  initPlayerModal(league);
 
   vm = computeVM(league);
   renderHeader();

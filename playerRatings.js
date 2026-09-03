@@ -79,6 +79,35 @@ export function letterGrade(v) {
   return 'F';
 }
 
+/**
+ * Word for a 0-99 rating. Deliberately shares gradeBand's thresholds so the
+ * label and the colour never disagree — "GOOD" is always green, "AVERAGE"
+ * always amber.
+ */
+export function ratingLabel(v) {
+  if (typeof v !== 'number') return '—';
+  if (v >= 82) return 'Elite';
+  if (v >= 67) return 'Good';
+  if (v >= 52) return 'Average';
+  return 'Poor';
+}
+
+/** Full name for a position code, for headers that have room for it. */
+export const POSITION_NAME = {
+  PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward',
+  PF: 'Power Forward', C: 'Center',
+};
+
+/** Every attribute the schema defines, in the order the categories list them. */
+export const ATTR_LABELS = {
+  athleticism: 'Athleticism', insideScoring: 'Inside Scoring',
+  threePoint: 'Three Point', midRange: 'Mid Range', freeThrow: 'Free Throw',
+  passing: 'Passing', ballHandling: 'Ball Handling', basketballIQ: 'Basketball IQ',
+  perimeterDefense: 'Perimeter Defense', interiorDefense: 'Interior Defense',
+  block: 'Block', steal: 'Steal',
+  defensiveRebound: 'Defensive Rebound', offensiveRebound: 'Offensive Rebound',
+};
+
 /** Which colour band a grade sits in: 'hi' | 'mid' | 'lo' (or '' if absent). */
 export function gradeBand(v) {
   if (typeof v !== 'number') return '';
