@@ -19,6 +19,7 @@ import { loadLeague, listSavesDetailed, touchLastPlayed, saveLeague } from './db
 import { crestHTML } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer, markPlayed } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
+import { formatPotential } from './gameSettings.js';
 import {
   ATTR_GROUPS, groupScore, letterGrade, gradeBand,
   ovr, initials, contractStatus, POSITION_NAME,
@@ -238,7 +239,7 @@ function renderTable() {
       <td class="c-pos">${esc(p.position || '—')}</td>
       <td class="c-age">${p.age ?? '—'}</td>
       <td class="c-ovr ${band(o)}">${o || '—'}</td>
-      <td class="c-pot ${band(p.potential)}">${p.potential ?? '—'}</td>
+      <td class="c-pot ${band(p.potential)}" title="${esc(potFmt(p).title)}">${esc(potFmt(p).text)}</td>
       <td class="c-con"><span class="pill t-${c.tone}">${esc(c.label)}</span>
         <span class="sub">${esc(c.sub)}</span></td>
       <td class="c-sal">${p.contract ? fmtM(p.contract.salary) : '—'}</td>
@@ -257,6 +258,10 @@ function renderTable() {
       : 'This team has no players on its roster.';
   }
 }
+
+/** Potential as the league's Potential Visibility setting asks for it. */
+const potFmt = (p) => formatPotential(p.potential, ovr(p), potMode);
+let potMode = 'Range';
 
 /** Overall/potential colour band — same thresholds as the category grades. */
 const band = (v) => (typeof v === 'number' ? 'g-' + gradeBand(v) : '');
@@ -537,7 +542,7 @@ function renderFreeAgents() {
       <td class="c-pos">${esc(p.position || '—')}</td>
       <td class="c-age">${p.age ?? '—'}</td>
       <td class="c-ovr ${band(o)}">${o || '—'}</td>
-      <td class="c-pot ${band(p.potential)}">${p.potential ?? '—'}</td>
+      <td class="c-pot ${band(p.potential)}" title="${esc(potFmt(p).title)}">${esc(potFmt(p).text)}</td>
       <td class="c-sal">${p.contract ? fmtM(p.contract.salary) : '—'}</td>
       ${grades}
       <td class="c-menu"><button class="mini sign-btn" data-sign="${esc(p.id)}"
@@ -713,6 +718,7 @@ async function boot() {
 
   leagueRef = league;
   leagueId = id;
+  potMode = (league.settings && league.settings.potentialVisibility) || 'Range';
   initPlayerModal(league);
 
   const params = new URLSearchParams(location.search);

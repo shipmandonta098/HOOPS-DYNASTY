@@ -21,6 +21,7 @@ import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
 import { makeMental } from './playerMental.js';
 import { makePersonality } from './playerPersonality.js';
+import { loadSettings, generationTuning } from './gameSettings.js';
 import { autoChart } from './depthChart.js';
 import { makeRoster, pickTeamArchetype } from './playerGen.js';
 import {
@@ -32,12 +33,10 @@ import {
 /* ============================== player generation ============================== */
 
 
-/* League economics. settings.salaryCap below reads from these, so the numbers
-   the contracts were built against are the numbers the league is played with. */
-const SALARY_CAP = 140;      // $M
-const MIN_SALARY = 1.1;      // $M
-const MAX_SALARY = 50;       // $M — what a 99-overall commands
-const ROSTER_SIZE = 14;      // of maxRosterSize 15, leaving a spot open
+/* Minimum salary, maximum salary, contract length and roster size all come
+   from the Settings screen now (gameSettings.js). The cap stays here because
+   it is a league rule, and league rules are a separate settings pass. */
+const SALARY_CAP = 140;      // $M — a league rule, not a Players & Rosters one
 const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah', 'Malik',
   'Trey', 'Devin', 'Zion', 'Jaylen', 'Brandon', 'Darius', 'Keegan', 'Obi', 'Xavier',
   'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi',
@@ -81,11 +80,16 @@ function uniqueName(rng, used) {
  * potential, age, archetype, durability — come from the talent system, which
  * owns the distribution and the archetype shaping.
  */
-function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
+function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
   const bio = makeBio(rng, { position: rated.position, age: rated.age, startSeason });
   // Personality first: it feeds the mental tilt, and priorities are derived
   // from the traits plus his age and standing.
-  const personality = makePersonality(rng, { age: rated.age, overall: rated.overall });
+  const personality = cfg.personalityTraits
+    ? makePersonality(rng, { age: rated.age, overall: rated.overall })
+    : null;
+  // A layer switched off is ABSENT, not zeroed — and switching one off cannot
+  // change anybody's rating, because overall never reads these fields.
+  if (personality && !cfg.dynamicPriorities) delete personality.priorities;
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
     name: uniqueName(rng, usedNames),
@@ -95,11 +99,14 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
     // Bio is generated HERE and stored in the save, so the profile screen
     // reads real saved fields instead of inventing anything at render time.
     ...bio,
+    ...(cfg.playerMorale ? {} : { morale: undefined }),
     attributes: rated.attributes,
     // Mental ratings live in their own field, NOT in `attributes`. That is
     // what keeps them out of overall: computeOverall iterates the ability
     // categories over `attributes` and cannot reach here.
-    mental: makeMental(rng, { age: rated.age, traits: personality.traits }),
+    mental: cfg.mentalAttributes
+      ? makeMental(rng, { age: rated.age, traits: (personality && personality.traits) || [] })
+      : null,
     // Layer three, in its own field for the same reason as `mental`:
     // computeOverall() cannot see it. Traits are who he is; priorities are
     // what currently matters to him, derived rather than frozen.
@@ -121,9 +128,9 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
  * not linear in ability — the difference between 85 and 90 costs far more than
  * the difference between 65 and 70.
  */
-function rawValue(overall) {
+function rawValue(overall, maxSalary) {
   const t = Math.max(0, (overall - 55) / 40);
-  return Math.pow(Math.min(1, t), 2.2) * MAX_SALARY;
+  return Math.pow(Math.min(1, t), 2.2) * maxSalary;
 }
 
 /**
@@ -137,28 +144,35 @@ function rawValue(overall) {
  * room, a few are pressed right up against it, and the odd contender is a
  * little over.
  */
-function assignContracts(players, teams, rng, cap) {
+function assignContracts(players, teams, rng, cap, rules) {
+  const minSalary = rules.minSalary;
+  const maxSalary = rules.maxSalary;
+  const maxYears = rules.maxContractLength;
+
   for (const team of teams) {
     const roster = players.filter((p) => p.teamId === team.id);
     if (!roster.length) continue;
 
-    const raw = roster.map((p) => rawValue(p.overall));
+    const raw = roster.map((p) => rawValue(p.overall, maxSalary));
     const rawTotal = raw.reduce((a, b) => a + b, 0) || 1;
     // Most teams sit under the cap; a few go over, as real clubs do.
     const targetShare = Math.max(0.62, Math.min(1.05, rng.gauss(0.88, 0.10)));
     const scale = (cap * targetShare) / rawTotal;
 
     roster.forEach((p, i) => {
-      const salary = Math.max(MIN_SALARY, Math.round(raw[i] * scale * 10) / 10);
+      const salary = Math.min(maxSalary,
+        Math.max(minSalary, Math.round(raw[i] * scale * 10) / 10));
       // Better players and prime-age players get longer deals; nobody old or
-      // marginal is signed long.
+      // marginal is signed long. One season is always the floor, which is why
+      // there is no minimum-length setting.
+      const cap2 = (n) => Math.max(1, Math.min(maxYears, n));
       const long = p.overall >= 80 && p.age <= 31;
-      const years = p.age >= 34 ? rng.int(1, 2)
-        : long ? rng.int(2, 5)
-        : p.overall >= 70 ? rng.int(1, 4)
-        : rng.int(1, 3);
-      const type = salary >= MAX_SALARY * 0.6 ? 'max'
-        : salary <= MIN_SALARY * 1.4 ? 'vet_min'
+      const years = p.age >= 34 ? rng.int(1, cap2(2))
+        : long ? rng.int(2, cap2(5))
+        : p.overall >= 70 ? rng.int(1, cap2(4))
+        : rng.int(1, cap2(3));
+      const type = salary >= maxSalary * 0.6 ? 'max'
+        : salary <= minSalary * 1.4 ? 'vet_min'
         : (p.age <= 22 && years >= 2) ? 'rookie'
         : 'standard';
       p.contract = {
@@ -179,6 +193,12 @@ function generateLeague(cfg) {
   const rng = makeRNG(seed);
   const teams = cfg.teams;
 
+  // Every rule the player set on the Settings screen enters generation here.
+  const rules = loadSettings();
+  const tuning = generationTuning(rules);
+  // Fill to one below the maximum so a roster spot stays open for signings.
+  const rosterSize = Math.max(rules.minRosterSize, rules.maxRosterSize - 1);
+
   const players = [];
   const usedNames = new Set();
   const teamArchetypes = {};
@@ -189,11 +209,11 @@ function generateLeague(cfg) {
     // the odds without deciding them.
     const key = pickTeamArchetype(rng, marketOf(team));
     teamArchetypes[team.id] = key;
-    for (const rated of makeRoster(rng, key, ROSTER_SIZE)) {
-      players.push(makePlayer(idNum++, team.id, rated, rng, cfg.season, usedNames));
+    for (const rated of makeRoster(rng, key, rosterSize, tuning)) {
+      players.push(makePlayer(idNum++, team.id, rated, rng, cfg.season, usedNames, rules));
     }
   }
-  assignContracts(players, teams, rng, SALARY_CAP);
+  assignContracts(players, teams, rng, SALARY_CAP, rules);
 
   const divById = {};
   for (const d of cfg.structure.divisions) divById[d.id] = d;
@@ -211,7 +231,10 @@ function generateLeague(cfg) {
       lastSimulatedSeason: null,
     },
     settings: {
-      salaryCap: SALARY_CAP, minSalary: MIN_SALARY, maxRosterSize: 15,
+      salaryCap: SALARY_CAP,
+      // The rules this league was generated under travel with the save, so a
+      // career keeps playing by the settings it was created with.
+      ...loadSettings(),
       meetingsPerMatchup: 4, draftClassSize: 18, playoffTeams: 8,
       difficulty: cfg.difficulty,
     },
@@ -419,7 +442,7 @@ function initDifficulty() {
 /* --- Footer --- */
 function initFooter() {
   el('backBtn').addEventListener('click', () => { location.href = './index.html'; });
-  el('settingsBtn').addEventListener('click', () => console.log('→ settings (not built yet)'));
+  el('settingsBtn').addEventListener('click', () => { location.href = './settings.html'; });
 
   el('startBtn').addEventListener('click', async () => {
     const name = el('leagueName').value.trim();

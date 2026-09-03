@@ -377,9 +377,25 @@ function rosterPositions(rng) {
  * comes off that curve, capped just under the star so a top-heavy roster
  * really is top-heavy.
  */
-export function rosterTargets(rng, archetypeKey, size) {
+export function rosterTargets(rng, archetypeKey, size, tuning = {}) {
   const a = TEAM_ARCHETYPES[archetypeKey] || TEAM_ARCHETYPES.balanced;
-  const tier = STAR_TIERS[pickWeighted(rng, a.stars)];
+  const {
+    meanShift = 0,            // Player Talent Level
+    spreadScale = 1,          // Talent Variance
+    generationalScale = 1,    // Generational Talent Frequency
+  } = tuning;
+
+  // Generational odds scale, and the weight comes off "no star at all" so the
+  // rest of the tiers keep their shape. Still a probability: nothing here can
+  // guarantee a league contains a 95+ player.
+  const stars = { ...a.stars };
+  if (generationalScale !== 1) {
+    const extra = stars.generational * (generationalScale - 1);
+    stars.generational += extra;
+    stars.none = Math.max(0, stars.none - extra);
+  }
+
+  const tier = STAR_TIERS[pickWeighted(rng, stars)];
   const targets = [];
 
   let cap = 99;
@@ -388,8 +404,10 @@ export function rosterTargets(rng, archetypeKey, size) {
     targets.push(star);
     cap = star - 1;
   }
+  const mean = a.mean + meanShift;
+  const spread = a.spread * spreadScale;
   while (targets.length < size) {
-    targets.push(clamp(Math.round(rng.gauss(a.mean, a.spread)), 46, cap));
+    targets.push(clamp(Math.round(rng.gauss(mean, spread)), 40, cap));
   }
   return targets.sort((x, y) => y - x);
 }
@@ -400,9 +418,9 @@ export function rosterTargets(rng, archetypeKey, size) {
  * @param {string} archetypeKey  from pickTeamArchetype()
  * @param {number} size   how many players (14 leaves a roster spot open)
  */
-export function makeRoster(rng, archetypeKey, size = 14) {
+export function makeRoster(rng, archetypeKey, size = 14, tuning = {}) {
   const a = TEAM_ARCHETYPES[archetypeKey] || TEAM_ARCHETYPES.balanced;
-  const targets = rosterTargets(rng, archetypeKey, size);
+  const targets = rosterTargets(rng, archetypeKey, size, tuning);
   const positions = rosterPositions(rng);
 
   // Best players get the deepest positions on the chart, so the top of the
@@ -417,7 +435,9 @@ export function makeRoster(rng, archetypeKey, size = 14) {
       target,
       position: order[i] || 'SF',
       age: drawAge(rng, a.ageBias, target),
-      potBias: a.potBias * (fringe ? 1.1 : 1),
+      // Development Variance widens or narrows how far potential can sit
+      // above current ability.
+      potBias: a.potBias * (fringe ? 1.1 : 1) * (tuning.devVariance || 1),
     });
   });
 }

@@ -19,6 +19,7 @@ import { makeMental, MENTAL_KEYS } from './playerMental.js';
 import { makeTraits, derivePriorities } from './playerPersonality.js';
 import { ovr } from './playerRatings.js';
 import { marketForTeam, lookupCity } from './markets.js';
+import { normalize as normalizeSettings } from './gameSettings.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -110,9 +111,13 @@ function rngForPlayer(id) {
   };
 }
 
-/** Give a pre-mental-attributes player a profile. Returns true if it added one. */
-function backfillMental(p) {
-  if (!p || !p.id) return false;
+/**
+ * Give a pre-mental-attributes player a profile. Returns true if it added one.
+ * `enabled` is the league's own setting: a league generated with Mental
+ * Attributes switched off must not have them handed back by the upgrade path.
+ */
+function backfillMental(p, enabled) {
+  if (!p || !p.id || !enabled) return false;
   const m = p.mental;
   if (m && MENTAL_KEYS.every((k) => typeof m[k] === 'number')) return false;
   p.mental = makeMental(rngForPlayer(p.id), { age: p.age, personality: p.personality });
@@ -137,9 +142,9 @@ const LEGACY_PERSONALITY = {
   'Free Spirit': 'independent',
 };
 
-/** Give a pre-personality-system player traits and priorities. */
-function backfillPersonality(p) {
-  if (!p || !p.id) return false;
+/** As above: never re-add a layer the league was deliberately created without. */
+function backfillPersonality(p, enabled) {
+  if (!p || !p.id || !enabled) return false;
   const per = p.personality;
   if (per && Array.isArray(per.traits) && per.priorities) return false;
 
@@ -186,13 +191,19 @@ function migrateTeamMarket(t) {
  */
 export function migrateLeague(league) {
   if (!league || !Array.isArray(league.players)) return { league, changed: 0 };
+  // Settings first: the backfills below have to know which layers this league
+  // is supposed to have before they decide whether to add them.
+  league.settings = { ...normalizeSettings(league.settings), ...(league.settings || {}) };
+  league.settings = { ...league.settings, ...normalizeSettings(league.settings) };
+  const rules = league.settings;
+
   let changed = 0;
   let mentals = 0;
   let persons = 0;
   for (const p of league.players) {
     if (migratePlayer(p)) changed++;
-    if (backfillMental(p)) mentals++;
-    if (backfillPersonality(p)) persons++;
+    if (backfillMental(p, rules.mentalAttributes)) mentals++;
+    if (backfillPersonality(p, rules.personalityTraits)) persons++;
   }
   let markets = 0;
   for (const t of league.teams || []) if (migrateTeamMarket(t)) markets++;

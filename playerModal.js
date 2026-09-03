@@ -36,6 +36,7 @@ import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import {
   TRAIT_BY_ID, PRIORITIES, priorityLevel, satisfaction, satisfactionLabel,
 } from './playerPersonality.js';
+import { formatPotential } from './gameSettings.js';
 import {
   formatHeight, formatBirthDate, formatBirthplace, formatDraft,
   moraleLabel, fatigueLabel,
@@ -107,7 +108,7 @@ export function open(playerId) {
   const p = (league && league.players || []).find((x) => x.id === playerId);
   if (!p) return;
   current = p;
-  activeTab = 'attributes';   // the tab that always has real content
+  activeTab = 'attributes';   // the only tab guaranteed to have content
   lastFocus = document.activeElement;
   render();
   root.hidden = false;
@@ -159,8 +160,8 @@ function render() {
     <div class="pm-facts">
       ${fact('Age', p.age ?? '—')}
       ${fact('Overall', o || '—')}
-      ${fact('Potential', p.potential ?? '—')}
-      ${fact('Upside', upside(p, o))}
+      ${fact('Potential', formatPotential(p.potential, o, potMode()).text)}
+      ${potMode() === 'Exact' ? fact('Upside', upside(p, o)) : ''}
       ${p.college ? fact('College', p.college) : ''}
     </div>
 
@@ -181,8 +182,8 @@ function render() {
         <!-- tabs -->
         <div class="pm-tabs">
           ${tab('attributes', 'Attributes', true)}
-          ${tab('mental', 'Mental', true)}
-          ${tab('personality', 'Personality', true)}
+          ${p.mental ? tab('mental', 'Mental', true) : ''}
+          ${p.personality ? tab('personality', 'Personality', true) : ''}
           ${tab('career', 'Career Stats', true)}
           ${tab('gamelog', 'Game Log', false)}
           ${tab('contracts', 'Contract History', false)}
@@ -205,6 +206,10 @@ function render() {
     </div>
   </div>`;
 }
+
+/** The league's Potential Visibility rule; Range when a save predates it. */
+const potMode = () =>
+  (league && league.settings && league.settings.potentialVisibility) || 'Range';
 
 const PHASE = {
   regular_season: 'Regular Season', playoffs: 'Playoffs', offseason: 'Offseason',

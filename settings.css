@@ -1,0 +1,127 @@
+/* ==========================================================================
+   Hoops Dynasty — SETTINGS (Players & Rosters)
+   Loads after theme.css and new-career.css: the page shell, sidebar and footer
+   are reused from New Career, so this file only adds the settings list.
+   ========================================================================== */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ------------------------------------------- top bar: presets + defaults */
+.set-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 0.9rem;
+}
+.set-preset { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.set-preset select {
+  background: var(--panel-2); border: 1px solid var(--stroke); border-radius: 6px;
+  color: var(--white); font-family: var(--font-body); font-size: 0.86rem;
+  padding: 0.5rem 0.6rem; min-width: 190px;
+}
+.set-preset select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(91,141,214,0.22); }
+
+.set-note, .set-rule {
+  color: var(--muted); font-size: 0.78rem; line-height: 1.6;
+  background: var(--panel); border: 1px solid var(--stroke);
+  border-radius: 10px; padding: 0.7rem 0.9rem; margin-bottom: 0.9rem;
+}
+.set-rule { margin-top: 1rem; margin-bottom: 0; border-left: 2px solid var(--brand); }
+
+/* Rules stored but not yet consumed by any system — said plainly rather than
+   presented as a switch that silently does nothing. */
+.pending-tag {
+  display: inline-block; padding: 0.08rem 0.36rem; border-radius: 4px;
+  border: 1px solid rgba(212, 175, 55, 0.5); color: var(--gold);
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+/* ------------------------------------------- collapsible groups */
+.set-group {
+  background: var(--panel); border: 1px solid var(--stroke);
+  border-radius: 12px; margin-bottom: 0.6rem; overflow: hidden;
+}
+.set-head {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%;
+  background: none; border: 0; cursor: pointer; padding: 0.9rem 1rem;
+  color: var(--white); font-family: var(--font-body);
+  font-size: 0.8rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
+}
+.set-head:hover { background: rgba(255,255,255,0.03); }
+.set-head .chev { color: var(--muted); transition: transform 0.18s ease; font-size: 0.7rem; }
+.set-group.is-open .set-head .chev { transform: rotate(180deg); }
+.set-head .gt { flex: 1 1 auto; text-align: left; }
+.set-head .gc {
+  color: var(--muted-2); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em;
+  border: 1px solid var(--stroke); border-radius: 20px; padding: 0.05rem 0.45rem;
+}
+
+.set-body { display: none; padding: 0 1rem 0.5rem; }
+.set-group.is-open .set-body { display: block; }
+
+.set-row {
+  display: grid; grid-template-columns: 1fr 200px; gap: 1rem;
+  align-items: start; padding: 0.7rem 0; border-top: 1px solid var(--stroke-2);
+}
+.set-row:first-child { border-top: 0; }
+.sl { min-width: 0; display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.sn { font-size: 0.88rem; font-weight: 700; }
+
+/* the ? affordance */
+.help {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 50%;
+  background: none; border: 1px solid var(--stroke); color: var(--muted);
+  font-size: 0.62rem; font-weight: 800; line-height: 1; cursor: pointer; padding: 0;
+}
+.help:hover { color: var(--brand-hi); border-color: var(--brand); }
+.sh {
+  flex: 1 0 100%; margin-top: 0.35rem; padding: 0.55rem 0.7rem;
+  background: var(--panel-2); border: 1px solid var(--stroke); border-radius: 8px;
+  color: var(--muted); font-size: 0.76rem; line-height: 1.55;
+}
+
+.sc { display: flex; justify-content: flex-end; }
+.sc select, .sc input {
+  background: var(--panel-2); border: 1px solid var(--stroke); border-radius: 6px;
+  color: var(--white); font-family: var(--font-body); font-size: 0.86rem;
+  padding: 0.45rem 0.6rem; width: 100%;
+}
+.sc select:focus, .sc input:focus {
+  outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(91,141,214,0.22);
+}
+
+/* toggle */
+.sw {
+  width: 46px; height: 25px; border-radius: 14px; cursor: pointer; padding: 0;
+  background: var(--inset); border: 1px solid var(--stroke);
+  position: relative; transition: background 0.18s ease, border-color 0.18s ease;
+}
+.sw span {
+  position: absolute; top: 2px; left: 2px; width: 19px; height: 19px;
+  border-radius: 50%; background: var(--muted); transition: transform 0.18s ease, background 0.18s ease;
+}
+.sw.is-on { background: rgba(207, 97, 39, 0.28); border-color: var(--brand); }
+.sw.is-on span { transform: translateX(21px); background: var(--brand-hi); }
+.sw:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(91,141,214,0.22); }
+
+.save-state {
+  position: absolute; right: 1.5rem;
+  color: var(--muted-2); font-size: 0.74rem; transition: color 0.2s ease;
+}
+.save-state.is-flash { color: var(--green); font-weight: 700; }
+
+/* ------------------------------------------- responsive */
+@media (max-width: 620px) {
+  /* No room beside the button on a phone — the indicator would collide. */
+  .save-state { display: none; }
+}
+
+@media (max-width: 700px) {
+  .set-row { grid-template-columns: 1fr; gap: 0.5rem; }
+  .sc { justify-content: flex-start; }
+  .sc select, .sc input { max-width: 220px; }
+  .set-bar { flex-direction: column; align-items: stretch; }
+  .set-preset select { min-width: 0; flex: 1 1 100%; }
+}
