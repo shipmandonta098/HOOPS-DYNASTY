@@ -138,7 +138,8 @@ function render() {
       <div class="pm-id">
         <div class="pm-name">${esc(p.name)}</div>
         <div class="pm-pos">${esc(p.position || '—')}${
-          POSITION_NAME[p.position] ? ` <span>| ${esc(POSITION_NAME[p.position])}</span>` : ''}</div>
+          POSITION_NAME[p.position] ? ` <span>| ${esc(POSITION_NAME[p.position])}</span>` : ''}${
+          p.archetypeLabel ? ` <span class="arch">${esc(p.archetypeLabel)}</span>` : ''}</div>
         <div class="pm-team">
           ${team ? crestHTML(team, 26) : ''}
           <span>
@@ -276,6 +277,19 @@ function careerPane(p) {
 }
 
 /**
+ * Durability is a stored 0-99 trait. It is deliberately shown as a trait and
+ * not as an "injury risk percentage": nothing simulates injuries yet, so a
+ * probability would imply a model that does not exist.
+ */
+function durabilityLabel(v) {
+  if (v >= 85) return { text: 'Iron Man', band: 'hi' };
+  if (v >= 70) return { text: 'Durable', band: 'hi' };
+  if (v >= 55) return { text: 'Average', band: 'mid' };
+  if (v >= 40) return { text: 'Fragile', band: 'mid' };
+  return { text: 'Injury Prone', band: 'lo' };
+}
+
+/**
  * Biography. Every row is a stored field; a row whose field is missing (a save
  * created before these existed) is dropped rather than shown as a dash.
  */
@@ -295,6 +309,8 @@ function bioPane(p) {
       : null],
     ['Drafted', p.draft !== undefined ? formatDraft(p.draft) : null],
     ['Personality', p.personality || null],
+    ['Durability', typeof p.durability === 'number' ? durabilityLabel(p.durability).text : null,
+      null, typeof p.durability === 'number' ? durabilityLabel(p.durability).band : null],
     ['Morale', typeof p.morale === 'number' ? mor.text : null, null, mor.band],
     ['Fatigue', typeof p.fatigue === 'number' ? fat.text : null, null, fat.band],
   ].filter(([, v]) => v != null);

@@ -66,6 +66,17 @@
       }
     },
     "personality": { "type": "string", "description": "Locker-room archetype, e.g. 'Team-First'." },
+    "archetype": {
+      "type": "string",
+      "description": "Playing-style archetype id the ratings were shaped around (e.g. 'rim_protector'). See playerGen.js ARCHETYPES."
+    },
+    "archetypeLabel": { "type": "string", "description": "Display name for `archetype`, denormalised so screens need no lookup table." },
+    "durability": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99,
+      "description": "Injury resistance, high is durable. Stored for the season simulator; no injury model consumes it yet, so it is shown as a trait rather than a risk percentage."
+    },
     "morale":  { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99. Set at generation; the season simulator may move it." },
     "fatigue": { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99, low is fresh. Set at generation; the simulator may move it." },
     "overall": {

@@ -38,17 +38,47 @@ const ATTRIBUTES = [
 ];
 
 /**
- * Per-position attribute weights. Each column roughly sums to the same total
- * so overalls are comparable across positions. Tweak these to change how the
- * league values different archetypes.
+ * THE CATEGORY MODEL — kept in step with playerRatings.js on the browser side.
+ *
+ * The fourteen attributes roll up into five categories, and each position
+ * weights those categories differently. Two reasons this beats weighting the
+ * fourteen attributes directly:
+ *
+ *   - It is the same model the UI grades players with, so the overall the
+ *     engine computes always matches the categories a player sees on screen.
+ *   - It is what stops a player being punished for skills his role does not
+ *     ask for. Shooting is 11% of a centre's overall, so a rim protector who
+ *     cannot shoot is still rated on rim protection.
+ *
+ * Weights within a category are relative; category weights sum to 1 per
+ * position, so overalls stay comparable across positions.
  */
-const POSITION_WEIGHTS = {
-  PG: { passing: 3, ballHandling: 3, threePoint: 2.5, midRange: 2, perimeterDefense: 2, steal: 1.5, basketballIQ: 2, athleticism: 1.5, freeThrow: 1, insideScoring: 1, defensiveRebound: 0.5, interiorDefense: 0.5 },
-  SG: { threePoint: 3, midRange: 2.5, ballHandling: 2, perimeterDefense: 2.5, athleticism: 2, insideScoring: 1.5, passing: 1.5, steal: 1.5, basketballIQ: 1.5, freeThrow: 1, defensiveRebound: 0.5 },
-  SF: { threePoint: 2.5, insideScoring: 2, midRange: 2, perimeterDefense: 2.5, athleticism: 2.5, defensiveRebound: 1.5, ballHandling: 1.5, passing: 1.5, interiorDefense: 1.5, basketballIQ: 1.5, steal: 1 },
-  PF: { insideScoring: 2.5, interiorDefense: 2.5, defensiveRebound: 2.5, offensiveRebound: 2, athleticism: 2, midRange: 1.5, block: 1.5, threePoint: 1, perimeterDefense: 1, basketballIQ: 1.5 },
-  C: { interiorDefense: 3, insideScoring: 3, defensiveRebound: 3, block: 2.5, offensiveRebound: 2.5, athleticism: 1.5, basketballIQ: 1.5, midRange: 1, passing: 1 },
+const CATEGORIES = {
+  phy: [['athleticism', 1], ['insideScoring', 0.8]],
+  sho: [['threePoint', 1], ['midRange', 0.9], ['freeThrow', 0.5]],
+  ply: [['passing', 1], ['ballHandling', 0.9], ['basketballIQ', 0.7]],
+  def: [['perimeterDefense', 1], ['interiorDefense', 1], ['block', 0.6], ['steal', 0.6]],
+  reb: [['defensiveRebound', 1], ['offensiveRebound', 0.8]],
 };
+
+const POSITION_WEIGHTS = {
+  PG: { phy: 0.13, sho: 0.25, ply: 0.35, def: 0.19, reb: 0.08 },
+  SG: { phy: 0.15, sho: 0.33, ply: 0.20, def: 0.23, reb: 0.09 },
+  SF: { phy: 0.19, sho: 0.27, ply: 0.16, def: 0.24, reb: 0.14 },
+  PF: { phy: 0.22, sho: 0.18, ply: 0.11, def: 0.27, reb: 0.22 },
+  C: { phy: 0.24, sho: 0.11, ply: 0.09, def: 0.30, reb: 0.26 },
+};
+
+/** Weighted 0..99 score for one category, or null when the data is absent. */
+function categoryScore(attrs, key) {
+  let sum = 0;
+  let weight = 0;
+  for (const [attr, w] of CATEGORIES[key]) {
+    const v = attrs[attr];
+    if (typeof v === 'number') { sum += v * w; weight += w; }
+  }
+  return weight > 0 ? Math.round(sum / weight) : null;
+}
 
 /**
  * Compute a 0..99 overall rating for a player given their position.
@@ -59,9 +89,10 @@ function computeOverall(player) {
   const attrs = player.attributes || {};
   let weightedSum = 0;
   let weightTotal = 0;
-  for (const [attr, weight] of Object.entries(weights)) {
-    const value = typeof attrs[attr] === 'number' ? attrs[attr] : 50;
-    weightedSum += value * weight;
+  for (const [key, weight] of Object.entries(weights)) {
+    const score = categoryScore(attrs, key);
+    if (score === null) continue;
+    weightedSum += score * weight;
     weightTotal += weight;
   }
   const raw = weightTotal > 0 ? weightedSum / weightTotal : 50;

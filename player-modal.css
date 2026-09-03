@@ -54,6 +54,11 @@ body.pm-open { overflow: hidden; }
   letter-spacing: 0.14em; text-transform: uppercase; margin-top: 0.4rem;
 }
 .pm-pos span { color: var(--muted); font-weight: 700; }
+.pm-pos .arch {
+  display: inline-block; margin-left: 0.5rem; padding: 0.12rem 0.42rem;
+  border: 1px solid rgba(207, 97, 39, 0.45); border-radius: 4px;
+  color: var(--brand); font-size: 0.66rem; letter-spacing: 0.1em;
+}
 .pm-team { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
 .pm-team b { display: block; font-size: 0.9rem; }
 .pm-team em { display: block; font-style: normal; color: var(--muted); font-size: 0.74rem; }

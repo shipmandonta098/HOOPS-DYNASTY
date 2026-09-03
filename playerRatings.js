@@ -58,6 +58,48 @@ export function groupScores(player) {
 }
 
 /* ---------------------------------------------------------------------------
+ * OVERALL
+ * ---------------------------------------------------------------------------
+ * ONE definition of overall, shared by the browser and (in the same form) by
+ * engine/lib/ratings.js: a position-weighted blend of the five category
+ * scores. Weights sum to 1 per position, so overalls stay comparable across
+ * positions while each position values what it actually needs — playmaking
+ * carries a point guard, defence and rebounding carry a centre.
+ *
+ * This is also what stops a player being punished for skills his role does not
+ * ask for: a centre's shooting is worth 11% of his overall, so a rim protector
+ * who cannot shoot is still rated on rim protection.
+ */
+export const POSITION_WEIGHTS = {
+  PG: { phy: 0.13, sho: 0.25, ply: 0.35, def: 0.19, reb: 0.08 },
+  SG: { phy: 0.15, sho: 0.33, ply: 0.20, def: 0.23, reb: 0.09 },
+  SF: { phy: 0.19, sho: 0.27, ply: 0.16, def: 0.24, reb: 0.14 },
+  PF: { phy: 0.22, sho: 0.18, ply: 0.11, def: 0.27, reb: 0.22 },
+  C:  { phy: 0.24, sho: 0.11, ply: 0.09, def: 0.30, reb: 0.26 },
+};
+
+/**
+ * Overall from the five categories, weighted by position. Pure, and the source
+ * of truth — `player.overall` is a cache of exactly this.
+ * @param {object} scores { phy, sho, ply, def, reb }
+ * @param {string} position
+ */
+export function overallFromCategories(scores, position) {
+  const w = POSITION_WEIGHTS[position] || POSITION_WEIGHTS.SF;
+  let sum = 0, wt = 0;
+  for (const k of Object.keys(w)) {
+    const v = scores[k];
+    if (typeof v === 'number') { sum += v * w[k]; wt += w[k]; }
+  }
+  return wt ? Math.max(0, Math.min(99, Math.round(sum / wt))) : 0;
+}
+
+/** Overall computed straight from a player's stored attributes. */
+export function computeOverall(player) {
+  return overallFromCategories(groupScores(player), player && player.position);
+}
+
+/* ---------------------------------------------------------------------------
  * GRADES
  * ------------------------------------------------------------------------ */
 
@@ -120,12 +162,16 @@ export function gradeBand(v) {
  * SHARED HELPERS
  * ------------------------------------------------------------------------ */
 
-/** Player overall — the cached field when present, else the attribute mean. */
+/**
+ * Player overall — the cached field when present, else computed from the
+ * attributes with the same position-weighted definition that produced it.
+ * (The old fallback was a flat mean of all fourteen attributes, which
+ * disagreed with the cached value for anyone with a lopsided profile.)
+ */
 export function ovr(p) {
   if (p && typeof p.overall === 'number') return p.overall;
-  const a = (p && p.attributes) || {};
-  const k = Object.keys(a);
-  return k.length ? Math.round(k.reduce((s, x) => s + a[x], 0) / k.length) : 0;
+  if (p && p.attributes) return computeOverall(p);
+  return 0;
 }
 
 /** Copy of `list`, best overall first. */

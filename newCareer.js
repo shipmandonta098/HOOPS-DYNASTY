@@ -20,6 +20,7 @@
 import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
 import { autoChart } from './depthChart.js';
+import { makeRoster, pickTeamArchetype } from './playerGen.js';
 import {
   makeRNG, hashString, loadDraft, saveDraft, summaryLine, unassignedTeams,
   listPresets, savePreset, getPreset, renamePreset, deletePreset, applyPreset,
@@ -28,12 +29,13 @@ import {
 
 /* ============================== player generation ============================== */
 
-const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
-const ATTRIBUTES = [
-  'insideScoring', 'midRange', 'threePoint', 'freeThrow', 'passing', 'ballHandling',
-  'offensiveRebound', 'defensiveRebound', 'perimeterDefense', 'interiorDefense',
-  'block', 'steal', 'athleticism', 'basketballIQ',
-];
+
+/* League economics. settings.salaryCap below reads from these, so the numbers
+   the contracts were built against are the numbers the league is played with. */
+const SALARY_CAP = 140;      // $M
+const MIN_SALARY = 1.1;      // $M
+const MAX_SALARY = 50;       // $M — what a 99-overall commands
+const ROSTER_SIZE = 14;      // of maxRosterSize 15, leaving a spot open
 const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah', 'Malik',
   'Trey', 'Devin', 'Zion', 'Jaylen', 'Brandon', 'Darius', 'Keegan', 'Obi', 'Xavier',
   'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi',
@@ -71,30 +73,87 @@ function uniqueName(rng, used) {
   return base;
 }
 
-/** Generate one player with a full attribute block + cached overall. */
-function makePlayer(idNum, teamId, pos, target, rng, startSeason, usedNames) {
-  const attrs = {};
-  for (const a of ATTRIBUTES) attrs[a] = Math.max(25, Math.min(99, Math.round(rng.gauss(target, 7))));
-  const boosts = {
-    PG: ['passing', 'ballHandling', 'threePoint'], SG: ['threePoint', 'midRange', 'perimeterDefense'],
-    SF: ['athleticism', 'perimeterDefense', 'insideScoring'], PF: ['insideScoring', 'defensiveRebound', 'interiorDefense'],
-    C: ['interiorDefense', 'block', 'defensiveRebound', 'insideScoring'],
-  }[pos];
-  for (const b of boosts) attrs[b] = Math.min(99, attrs[b] + rng.int(3, 9));
-  const overall = Math.round(ATTRIBUTES.reduce((s, a) => s + attrs[a], 0) / ATTRIBUTES.length);
-  const age = rng.int(19, 34);
-  const room = age <= 23 ? rng.int(4, 12) : age <= 27 ? rng.int(0, 4) : 0;
+/**
+ * Wrap a generated rating profile (playerGen.js) into a full player record:
+ * identity, biography, contract. The ratings themselves — attributes, overall,
+ * potential, age, archetype, durability — come from the talent system, which
+ * owns the distribution and the archetype shaping.
+ */
+function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
     name: uniqueName(rng, usedNames),
-    position: pos, age, teamId,
+    position: rated.position,
+    age: rated.age,
+    teamId,
     // Bio is generated HERE and stored in the save, so the profile screen
     // reads real saved fields instead of inventing anything at render time.
-    ...makeBio(rng, { position: pos, age, startSeason }),
-    attributes: attrs, overall, potential: Math.min(99, overall + room),
-    contract: { salary: Math.max(1, Math.round((overall - 55) * 1.1)), yearsRemaining: rng.int(1, 4), type: 'standard', playerOption: false, teamOption: false },
+    ...makeBio(rng, { position: rated.position, age: rated.age, startSeason }),
+    attributes: rated.attributes,
+    overall: rated.overall,
+    potential: rated.potential,
+    // Archetype travels with the player: it is what the ratings were shaped
+    // around, so the profile can name it rather than infer it back.
+    archetype: rated.archetype,
+    archetypeLabel: rated.archetypeLabel,
+    durability: rated.durability,
+    contract: null,   // filled in by the payroll pass, which respects the cap
     statsHistory: [],
   };
+}
+
+/**
+ * Price a player. Superlinear in overall, because pay in a capped league is
+ * not linear in ability — the difference between 85 and 90 costs far more than
+ * the difference between 65 and 70.
+ */
+function rawValue(overall) {
+  const t = Math.max(0, (overall - 55) / 40);
+  return Math.pow(Math.min(1, t), 2.2) * MAX_SALARY;
+}
+
+/**
+ * Give every player a contract, with each team's payroll landing somewhere
+ * sensible against the cap.
+ *
+ * The old generator priced players independently and produced ~$185M payrolls
+ * against a $140M cap — every team $45M over, which made cap space meaningless.
+ * Here each roster is priced on the curve above and then scaled as a block to
+ * a target share of the cap, so teams differ in how tight they are: most have
+ * room, a few are pressed right up against it, and the odd contender is a
+ * little over.
+ */
+function assignContracts(players, teams, rng, cap) {
+  for (const team of teams) {
+    const roster = players.filter((p) => p.teamId === team.id);
+    if (!roster.length) continue;
+
+    const raw = roster.map((p) => rawValue(p.overall));
+    const rawTotal = raw.reduce((a, b) => a + b, 0) || 1;
+    // Most teams sit under the cap; a few go over, as real clubs do.
+    const targetShare = Math.max(0.62, Math.min(1.05, rng.gauss(0.88, 0.10)));
+    const scale = (cap * targetShare) / rawTotal;
+
+    roster.forEach((p, i) => {
+      const salary = Math.max(MIN_SALARY, Math.round(raw[i] * scale * 10) / 10);
+      // Better players and prime-age players get longer deals; nobody old or
+      // marginal is signed long.
+      const long = p.overall >= 80 && p.age <= 31;
+      const years = p.age >= 34 ? rng.int(1, 2)
+        : long ? rng.int(2, 5)
+        : p.overall >= 70 ? rng.int(1, 4)
+        : rng.int(1, 3);
+      const type = salary >= MAX_SALARY * 0.6 ? 'max'
+        : salary <= MIN_SALARY * 1.4 ? 'vet_min'
+        : (p.age <= 22 && years >= 2) ? 'rookie'
+        : 'standard';
+      p.contract = {
+        salary, yearsRemaining: years, type,
+        playerOption: years >= 2 && rng.next() < 0.10,
+        teamOption: years >= 2 && rng.next() < 0.09,
+      };
+    });
+  }
 }
 
 /**
@@ -108,13 +167,19 @@ function generateLeague(cfg) {
 
   const players = [];
   const usedNames = new Set();
+  const teamArchetypes = {};
   let idNum = 1;
   for (const team of teams) {
-    const market = marketOf(team);
-    const quality = market === 'Large' ? 68 : market === 'Medium' ? 64 : 61;
-    for (const pos of POSITIONS) players.push(makePlayer(idNum++, team.id, pos, quality + rng.int(-2, 6), rng, cfg.season, usedNames));
-    for (let i = 0; i < 7; i++) players.push(makePlayer(idNum++, team.id, rng.pick(POSITIONS), quality + rng.int(-8, 2), rng, cfg.season, usedNames));
+    // Each club draws its own build — contender, deep, young, rebuilding and
+    // so on — so rosters differ in kind, not just in luck. Market size nudges
+    // the odds without deciding them.
+    const key = pickTeamArchetype(rng, marketOf(team));
+    teamArchetypes[team.id] = key;
+    for (const rated of makeRoster(rng, key, ROSTER_SIZE)) {
+      players.push(makePlayer(idNum++, team.id, rated, rng, cfg.season, usedNames));
+    }
   }
+  assignContracts(players, teams, rng, SALARY_CAP);
 
   const divById = {};
   for (const d of cfg.structure.divisions) divById[d.id] = d;
@@ -132,7 +197,7 @@ function generateLeague(cfg) {
       lastSimulatedSeason: null,
     },
     settings: {
-      salaryCap: 140, minSalary: 1, maxRosterSize: 15,
+      salaryCap: SALARY_CAP, minSalary: MIN_SALARY, maxRosterSize: 15,
       meetingsPerMatchup: 4, draftClassSize: 18, playoffTeams: 8,
       difficulty: cfg.difficulty,
     },
