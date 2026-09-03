@@ -213,3 +213,30 @@ body.pm-open { overflow: hidden; }
   .pm-tabs { gap: 0.9rem; }
   .pm-tab { font-size: 0.68rem; letter-spacing: 0.09em; }
 }
+
+/* ------------------------------------------------------ mental attributes
+   A dedicated section, styled apart from the ability attributes because it is
+   a different kind of rating — and one that deliberately does not feed OVR. */
+.pm-mental-note {
+  color: var(--muted); font-size: 0.8rem; line-height: 1.55;
+  padding-bottom: 0.9rem; margin-bottom: 1rem;
+  border-bottom: 1px solid var(--stroke-2);
+}
+.pm-mental-note b { color: var(--white); }
+.pm-mental-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem 1.8rem;
+}
+.mn-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.mn-label { font-size: 0.84rem; font-weight: 700; }
+.mn-val { font-size: 1.05rem; font-weight: 800; }
+.mn-track {
+  display: block; height: 7px; border-radius: 4px; margin: 0.3rem 0 0.35rem;
+  background: var(--inset); overflow: hidden;
+}
+.mn-fill { display: block; height: 100%; background: currentColor; border-radius: 4px; }
+.mn-blurb { color: var(--muted-2); font-size: 0.72rem; line-height: 1.45; }
+.pm-mental-sum {
+  margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--stroke-2);
+  color: var(--muted); font-size: 0.8rem;
+}

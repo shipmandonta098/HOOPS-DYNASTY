@@ -285,6 +285,40 @@
         }
       }
     },
+    "mental": {
+      "type": "object",
+      "description": "Mental attributes on the same 1-99 scale as ability ratings, but DELIBERATELY OUTSIDE `attributes` so they can never feed `overall` — overall is computed by iterating the ability categories over `attributes` alone. These describe how a player responds to pressure, mistakes, opponents and coaching. They are tendencies that shift probabilities, never guarantees.",
+      "required": [
+        "resilience",
+        "concentration",
+        "confidence",
+        "composure",
+        "coachability"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "resilience": {
+          "$ref": "#/definitions/mentalRating",
+          "description": "Recovery from mistakes, missed shots and bad stretches."
+        },
+        "concentration": {
+          "$ref": "#/definitions/mentalRating",
+          "description": "Sustained engagement; fewer lapses and careless errors."
+        },
+        "confidence": {
+          "$ref": "#/definitions/mentalRating",
+          "description": "Willingness to take responsibility under pressure. Does NOT improve shooting ability."
+        },
+        "composure": {
+          "$ref": "#/definitions/mentalRating",
+          "description": "Emotional control against crowds, trash talk, physicality and officials."
+        },
+        "coachability": {
+          "$ref": "#/definitions/mentalRating",
+          "description": "Receptiveness to feedback, systems and role changes."
+        }
+      }
+    },
     "contract": {
       "type": [
         "object",
@@ -368,6 +402,12 @@
       "minimum": 0,
       "maximum": 99,
       "description": "A single 0..99 skill rating."
+    },
+    "mentalRating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 99,
+      "description": "A single 1..99 mental rating."
     }
   }
 }

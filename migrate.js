@@ -15,6 +15,7 @@
  */
 
 import { computeOverall } from './playerRatings.js';
+import { makeMental, MENTAL_KEYS } from './playerMental.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -77,18 +78,64 @@ function migratePlayer(p) {
 }
 
 /**
+ * A player-stable RNG for backfilling fields onto an existing save.
+ *
+ * Seeded from the player's id, NOT from chance, so the same player gets the
+ * same values every time the save is opened. A fresh draw on each load would
+ * mean a player's mental profile changed whenever you looked at him.
+ */
+function rngForPlayer(id) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let a = h >>> 0;
+  const r = () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+  return {
+    next: r,
+    int: (min, max) => min + Math.floor(r() * (max - min + 1)),
+    pick: (arr) => arr[Math.floor(r() * arr.length)],
+    gauss: (m, s) => {
+      let u = 0, v = 0;
+      while (!u) u = r();
+      while (!v) v = r();
+      return m + Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * s;
+    },
+  };
+}
+
+/** Give a pre-mental-attributes player a profile. Returns true if it added one. */
+function backfillMental(p) {
+  if (!p || !p.id) return false;
+  const m = p.mental;
+  if (m && MENTAL_KEYS.every((k) => typeof m[k] === 'number')) return false;
+  p.mental = makeMental(rngForPlayer(p.id), { age: p.age, personality: p.personality });
+  return true;
+}
+
+/**
  * Migrate a whole league. Mutates and returns it; safe to call repeatedly.
  * @returns {{ league: object, changed: number }}
  */
 export function migrateLeague(league) {
   if (!league || !Array.isArray(league.players)) return { league, changed: 0 };
   let changed = 0;
-  for (const p of league.players) if (migratePlayer(p)) changed++;
+  let mentals = 0;
+  for (const p of league.players) {
+    if (migratePlayer(p)) changed++;
+    if (backfillMental(p)) mentals++;
+  }
   // Fields added after the first saves shipped, defaulted rather than assumed.
   if (!Array.isArray(league.freeAgents)) league.freeAgents = [];
   if (!Array.isArray(league.transactions)) league.transactions = [];
   if (changed) {
     console.info(`Save upgraded: ${changed} player(s) moved to the 23-attribute model.`);
   }
-  return { league, changed };
+  if (mentals) {
+    console.info(`Save upgraded: mental attributes assigned to ${mentals} player(s).`);
+  }
+  return { league, changed, mentals };
 }

@@ -19,6 +19,7 @@
 
 import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
+import { makeMental } from './playerMental.js';
 import { autoChart } from './depthChart.js';
 import { makeRoster, pickTeamArchetype } from './playerGen.js';
 import {
@@ -80,6 +81,7 @@ function uniqueName(rng, used) {
  * owns the distribution and the archetype shaping.
  */
 function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
+  const bio = makeBio(rng, { position: rated.position, age: rated.age, startSeason });
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
     name: uniqueName(rng, usedNames),
@@ -88,8 +90,12 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cap) {
     teamId,
     // Bio is generated HERE and stored in the save, so the profile screen
     // reads real saved fields instead of inventing anything at render time.
-    ...makeBio(rng, { position: rated.position, age: rated.age, startSeason }),
+    ...bio,
     attributes: rated.attributes,
+    // Mental ratings live in their own field, NOT in `attributes`. That is
+    // what keeps them out of overall: computeOverall iterates the ability
+    // categories over `attributes` and cannot reach here.
+    mental: makeMental(rng, { age: rated.age, personality: bio.personality }),
     overall: rated.overall,
     potential: rated.potential,
     // Archetype travels with the player: it is what the ratings were shaped

@@ -32,6 +32,7 @@ import {
   groupScore, gradeBand, ratingLabel, ovr, initials, contractStatus,
 } from './playerRatings.js';
 import { crestHTML } from './leagueConfig.js';
+import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import {
   formatHeight, formatBirthDate, formatBirthplace, formatDraft,
   moraleLabel, fatigueLabel,
@@ -177,11 +178,15 @@ function render() {
         <!-- tabs -->
         <div class="pm-tabs">
           ${tab('attributes', 'Attributes', true)}
+          ${tab('mental', 'Mental', true)}
           ${tab('career', 'Career Stats', true)}
           ${tab('gamelog', 'Game Log', false)}
           ${tab('contracts', 'Contract History', false)}
         </div>
-        <div class="pm-pane">${activeTab === 'career' ? careerPane(p) : attrPane(p)}</div>
+        <div class="pm-pane">${
+          activeTab === 'career' ? careerPane(p)
+          : activeTab === 'mental' ? mentalPane(p)
+          : attrPane(p)}</div>
       </div>
 
       <!-- ============ bio + contract ============ -->
@@ -249,6 +254,40 @@ function attrPane(p) {
         </div>`;
       }).join('')}
     </div>`).join('')}</div>`;
+}
+
+/**
+ * Mental attributes — how the ability shows up under pressure, kept in their
+ * own section because they are a different kind of thing from the ability
+ * ratings and, deliberately, do not feed overall.
+ */
+function mentalPane(p) {
+  const m = p.mental;
+  if (!m) {
+    return `<p class="pm-empty">This save predates the mental attributes.
+      Start a new career to see them.</p>`;
+  }
+  const summary = mentalSummary(m);
+  return `<div class="pm-mental">
+    <p class="pm-mental-note">These describe how a player responds to pressure,
+      mistakes, opponents and coaching. They are tendencies, not certainties, and
+      they do <b>not</b> affect his Overall or Potential.</p>
+    <div class="pm-mental-grid">
+      ${MENTAL_ATTRS.map(({ key, label, blurb }) => {
+        const v = m[key];
+        return `<div class="mn-row">
+          <div class="mn-head">
+            <span class="mn-label">${esc(label)}</span>
+            <span class="mn-val g-${gradeBand(v)}">${typeof v === 'number' ? v : '—'}</span>
+          </div>
+          <span class="mn-track"><span class="mn-fill g-${gradeBand(v)}"
+            style="width:${typeof v === 'number' ? v : 0}%"></span></span>
+          <div class="mn-blurb">${esc(blurb)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${summary ? `<p class="pm-mental-sum">${esc(summary)}</p>` : ''}
+  </div>`;
 }
 
 /**
