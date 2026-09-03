@@ -33,10 +33,9 @@ import {
 /* ============================== player generation ============================== */
 
 
-/* Minimum salary, maximum salary, contract length and roster size all come
-   from the Settings screen now (gameSettings.js). The cap stays here because
-   it is a league rule, and league rules are a separate settings pass. */
-const SALARY_CAP = 140;      // $M — a league rule, not a Players & Rosters one
+/* Every economic rule now comes from the Settings screen (gameSettings.js):
+   the cap, the payroll floor, cap type, salaries, contract lengths and roster
+   size. Nothing about league finances is hard-coded here any more. */
 const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah', 'Malik',
   'Trey', 'Devin', 'Zion', 'Jaylen', 'Brandon', 'Darius', 'Keegan', 'Obi', 'Xavier',
   'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi',
@@ -144,10 +143,25 @@ function rawValue(overall, maxSalary) {
  * room, a few are pressed right up against it, and the odd contender is a
  * little over.
  */
-function assignContracts(players, teams, rng, cap, rules) {
+function assignContracts(players, teams, rng, rules) {
   const minSalary = rules.minSalary;
   const maxSalary = rules.maxSalary;
+  const minYears = rules.minContractLength;
   const maxYears = rules.maxContractLength;
+  const cap = rules.salaryCap;
+
+  // What the cap type means for where a generated payroll may land.
+  //   Hard  — the line cannot be crossed, so nobody starts over it.
+  //   Soft  — teams may sit a little over, as real clubs do.
+  //   None  — there is no line, so spending spreads much wider.
+  const band = {
+    Hard: { mean: 0.84, sd: 0.09, lo: 0.55, hi: 1.0 },
+    Soft: { mean: 0.88, sd: 0.10, lo: 0.62, hi: 1.05 },
+    None: { mean: 0.92, sd: 0.18, lo: 0.45, hi: 1.45 },
+  }[rules.salaryCapType] || { mean: 0.88, sd: 0.10, lo: 0.62, hi: 1.05 };
+
+  // The payroll floor is a share of the cap too, so it survives a cap change.
+  const floorShare = cap > 0 ? Math.min(band.hi, rules.minPayroll / cap) : 0;
 
   for (const team of teams) {
     const roster = players.filter((p) => p.teamId === team.id);
@@ -155,8 +169,10 @@ function assignContracts(players, teams, rng, cap, rules) {
 
     const raw = roster.map((p) => rawValue(p.overall, maxSalary));
     const rawTotal = raw.reduce((a, b) => a + b, 0) || 1;
-    // Most teams sit under the cap; a few go over, as real clubs do.
-    const targetShare = Math.max(0.62, Math.min(1.05, rng.gauss(0.88, 0.10)));
+    // Where this club lands, within the band its cap type allows and never
+    // below the league's payroll floor.
+    const targetShare = Math.max(Math.max(band.lo, floorShare),
+      Math.min(band.hi, rng.gauss(band.mean, band.sd)));
     const scale = (cap * targetShare) / rawTotal;
 
     roster.forEach((p, i) => {
@@ -165,12 +181,15 @@ function assignContracts(players, teams, rng, cap, rules) {
       // Better players and prime-age players get longer deals; nobody old or
       // marginal is signed long. One season is always the floor, which is why
       // there is no minimum-length setting.
-      const cap2 = (n) => Math.max(1, Math.min(maxYears, n));
+      // Clamp every draw into [minContractLength, maxContractLength].
+      const yr = (lo, hi) => rng.int(
+        Math.max(minYears, Math.min(maxYears, lo)),
+        Math.max(minYears, Math.min(maxYears, hi)));
       const long = p.overall >= 80 && p.age <= 31;
-      const years = p.age >= 34 ? rng.int(1, cap2(2))
-        : long ? rng.int(2, cap2(5))
-        : p.overall >= 70 ? rng.int(1, cap2(4))
-        : rng.int(1, cap2(3));
+      const years = p.age >= 34 ? yr(1, 2)
+        : long ? yr(2, 5)
+        : p.overall >= 70 ? yr(1, 4)
+        : yr(1, 3);
       const type = salary >= maxSalary * 0.6 ? 'max'
         : salary <= minSalary * 1.4 ? 'vet_min'
         : (p.age <= 22 && years >= 2) ? 'rookie'
@@ -181,6 +200,23 @@ function assignContracts(players, teams, rng, cap, rules) {
         teamOption: years >= 2 && rng.next() < 0.09,
       };
     });
+
+    // Per-player rounding to $0.1M and the min/max clamps each nudge the total,
+    // so a roster aimed at the floor could still land a fraction under it —
+    // measured at $125.8M against a $126M floor. Top the shortfall up on the
+    // best-paid players who still have room, so the floor is a floor.
+    if (rules.minPayroll > 0) {
+      let total = roster.reduce((s, p) => s + p.contract.salary, 0);
+      const order = [...roster].sort((a, b) => b.contract.salary - a.contract.salary);
+      for (const p of order) {
+        if (total >= rules.minPayroll - 0.001) break;
+        const room = maxSalary - p.contract.salary;
+        if (room <= 0) continue;
+        const add = Math.min(room, Math.ceil((rules.minPayroll - total) * 10) / 10);
+        p.contract.salary = Math.round((p.contract.salary + add) * 10) / 10;
+        total += add;
+      }
+    }
   }
 }
 
@@ -213,7 +249,7 @@ function generateLeague(cfg) {
       players.push(makePlayer(idNum++, team.id, rated, rng, cfg.season, usedNames, rules));
     }
   }
-  assignContracts(players, teams, rng, SALARY_CAP, rules);
+  assignContracts(players, teams, rng, rules);
 
   const divById = {};
   for (const d of cfg.structure.divisions) divById[d.id] = d;
@@ -231,10 +267,10 @@ function generateLeague(cfg) {
       lastSimulatedSeason: null,
     },
     settings: {
-      salaryCap: SALARY_CAP,
       // The rules this league was generated under travel with the save, so a
-      // career keeps playing by the settings it was created with.
-      ...loadSettings(),
+      // career keeps playing by the settings it was created with. salaryCap is
+      // one of them now, so nothing separate needs setting here.
+      ...rules,
       meetingsPerMatchup: 4, draftClassSize: 18, playoffTeams: 8,
       difficulty: cfg.difficulty,
     },
@@ -249,7 +285,8 @@ function generateLeague(cfg) {
       logoPrimary: t.logoPrimary || null,
       logoSecondary: t.logoSecondary || null,
       population: t.population != null ? t.population : null,
-      marketSize: marketOf(t), fanInterest: t.fanInterest, budget: t.budget,
+      marketSize: marketOf(t), fanInterest: t.fanInterest,
+      budget: rules.teamBudgets ? t.budget : null,
       championships: t.championships || 0,
       divisionId: t.divisionId || null,
       conferenceId: t.divisionId && divById[t.divisionId] ? divById[t.divisionId].conferenceId : null,

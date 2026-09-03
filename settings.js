@@ -9,7 +9,7 @@
  */
 
 import {
-  GROUPS, defaults, normalize, loadSettings, saveSettings,
+  GROUPS, defaults, normalize, isRelevant, loadSettings, saveSettings,
   listRulePresets, saveRulePreset, getRulePreset, deleteRulePreset,
 } from './gameSettings.js';
 
@@ -22,18 +22,25 @@ let openGroups = new Set(['roster', 'generation']);   // first two open by defau
 
 /* -------------------------------- render --------------------------------- */
 
-function controlHTML(s) {
+function controlHTML(s, off) {
   const v = settings[s.key];
+  const dis = off ? ' disabled' : '';
   if (s.type === 'toggle') {
-    return `<button class="sw${v ? ' is-on' : ''}" data-key="${s.key}" role="switch"
+    return `<button class="sw${v ? ' is-on' : ''}" data-key="${s.key}" role="switch"${dis}
       aria-checked="${v ? 'true' : 'false'}" aria-label="${esc(s.label)}"><span></span></button>`;
   }
   if (s.type === 'choice') {
-    return `<select data-key="${s.key}" aria-label="${esc(s.label)}">${
+    return `<select data-key="${s.key}" aria-label="${esc(s.label)}"${dis}>${
       s.options.map((o) => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   }
   return `<input type="number" data-key="${s.key}" value="${v}" min="${s.min}" max="${s.max}"
-    step="${s.step || 1}" aria-label="${esc(s.label)}" />`;
+    step="${s.step || 1}" aria-label="${esc(s.label)}"${dis} />`;
+}
+
+/** Why a setting is greyed out, in the terms of the setting that disabled it. */
+function irrelevantNote(s) {
+  const d = s.dependsOn;
+  return `Only applies when Salary Cap Type is ${d.value} — currently ${settings[d.key]}.`;
 }
 
 function render() {
@@ -45,17 +52,20 @@ function render() {
         <span class="gt">${esc(g.label)}</span>
         <span class="gc">${g.settings.length}</span>
       </button>
-      <div class="set-body">${g.settings.map((s) => `
-        <div class="set-row">
+      <div class="set-body">${g.settings.map((s) => {
+        const off = !isRelevant(s, settings);
+        return `<div class="set-row${off ? ' is-off' : ''}">
           <div class="sl">
             <span class="sn">${esc(s.label)}</span>
             <button class="help" type="button" data-help="${s.key}"
               aria-label="What does ${esc(s.label)} affect?">?</button>
             ${s.applied ? '' : '<span class="pending-tag">Pending</span>'}
+            ${off ? `<span class="off-tag">${esc(irrelevantNote(s))}</span>` : ''}
             <div class="sh" id="help-${s.key}" hidden>${esc(s.help)}</div>
           </div>
-          <div class="sc">${controlHTML(s)}</div>
-        </div>`).join('')}
+          <div class="sc">${controlHTML(s, off)}</div>
+        </div>`;
+      }).join('')}
       </div>
     </section>`;
   }).join('');

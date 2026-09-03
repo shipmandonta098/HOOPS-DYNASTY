@@ -125,3 +125,13 @@
   .set-bar { flex-direction: column; align-items: stretch; }
   .set-preset select { min-width: 0; flex: 1 1 100%; }
 }
+
+/* A rule that cannot apply given another rule: greyed, not hidden, so the
+   reason stays visible. */
+.set-row.is-off .sn { color: var(--muted); }
+.set-row.is-off .sc { opacity: 0.45; }
+.off-tag {
+  color: var(--muted-2); font-size: 0.68rem; font-style: italic;
+}
+.sc select:disabled, .sc input:disabled { cursor: not-allowed; }
+.sw:disabled { cursor: not-allowed; opacity: 0.5; }

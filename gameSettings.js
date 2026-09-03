@@ -98,6 +98,32 @@ export const GROUPS = [
     ],
   },
   {
+    id: 'finances', label: 'Finances',
+    settings: [
+      { key: 'salaryCapType', label: 'Salary Cap Type', type: 'choice',
+        options: ['Soft', 'Hard', 'None'], def: 'Soft', applied: true,
+        help: 'Soft: teams may exceed the cap, with restrictions on what they can do while over. Hard: the cap cannot be crossed at all. None: no cap. Generated payrolls respect the choice — under Hard nobody starts over the line.' },
+      { key: 'salaryCap', label: 'Salary Cap ($M)', type: 'number',
+        def: 140, min: 20, max: 500, step: 1, applied: true,
+        help: 'The team payroll limit. Generated rosters are priced against it, so raising it makes contracts larger across the league rather than just moving a line on a chart.' },
+      { key: 'minPayroll', label: 'Minimum Payroll ($M)', type: 'number',
+        def: 126, min: 0, max: 500, step: 1, applied: true,
+        help: 'The least a team may spend. Generated payrolls are held at or above it, so no club starts the league below the floor.' },
+      { key: 'luxuryTaxThreshold', label: 'Luxury Tax Threshold ($M)', type: 'number',
+        def: 170, min: 0, max: 800, step: 1, applied: false,
+        help: 'Payroll above this line is taxed. Stored now; the bill is charged once seasons are simulated and finances run.' },
+      { key: 'luxuryTaxRate', label: 'Luxury Tax Rate ($ per $1 over)', type: 'number',
+        def: 1.5, min: 0, max: 10, step: 0.1, applied: false,
+        help: 'What each dollar above the threshold costs the owner. 1.5 means $1.50 of tax per $1 over. Needs season finances.' },
+      { key: 'teamBudgets', label: 'Team Budgets', type: 'toggle', def: true, applied: true,
+        help: 'Owners set a spending budget separate from the cap, so a wealthy small-market owner can outspend a frugal large-market one. Off removes budgets entirely.' },
+      { key: 'tradeSalaryMatch', label: 'Trade Salary Match (%)', type: 'number',
+        def: 125, min: 100, max: 300, step: 5, applied: false,
+        dependsOn: { key: 'salaryCapType', value: 'Soft' },
+        help: 'Soft cap only. A team already over the cap cannot take back more than this share of the salary it sends out — 125% means $10M out can bring at most $12.5M back. It stops clubs already over the cap from going much further over. Meaningless under a Hard cap (which cannot be crossed) or None (which has no line), and needs the trade system.' },
+    ],
+  },
+  {
     id: 'contracts', label: 'Contracts',
     settings: [
       { key: 'minSalary', label: 'Minimum Salary ($M)', type: 'number',
@@ -106,9 +132,12 @@ export const GROUPS = [
       { key: 'maxSalary', label: 'Maximum Player Salary ($M)', type: 'number',
         def: 50, min: 10, max: 150, step: 0.5, applied: true,
         help: 'What a 99-overall player commands. Salaries scale superlinearly toward this, so the gap between 85 and 90 costs far more than 65 to 70.' },
+      { key: 'minContractLength', label: 'Minimum Contract Length (years)', type: 'number',
+        def: 1, min: 1, max: 8, applied: true,
+        help: 'The shortest deal that can be signed. Contracts shorter than a season are not supported, so 1 is the floor. Raising it forces longer commitments across the league.' },
       { key: 'maxContractLength', label: 'Maximum Contract Length (years)', type: 'number',
         def: 5, min: 1, max: 8, applied: true,
-        help: 'The longest deal that can be signed. One season is the minimum, so there is no separate minimum-length setting.' },
+        help: 'The longest deal that can be signed.' },
     ],
   },
   {
@@ -134,6 +163,18 @@ export const GROUPS = [
     ],
   },
 ];
+
+/**
+ * Is a setting relevant given the rest? Trade Salary Match only means anything
+ * under a soft cap: a hard cap cannot be crossed, and None has no line to be
+ * over. The screen disables an irrelevant setting and says why rather than
+ * hiding it, so the reason is visible.
+ */
+export function isRelevant(setting, settings) {
+  const dep = setting.dependsOn;
+  if (!dep) return true;
+  return settings[dep.key] === dep.value;
+}
 
 /** Flat lookup for validation. */
 export const ALL_SETTINGS = GROUPS.flatMap((g) => g.settings);
@@ -165,6 +206,10 @@ export function normalize(raw) {
   // Cross-setting rules that a per-field clamp cannot express.
   if (out.minRosterSize > out.maxRosterSize) out.minRosterSize = out.maxRosterSize;
   if (out.minSalary > out.maxSalary) out.minSalary = Math.min(out.minSalary, out.maxSalary);
+  if (out.minContractLength > out.maxContractLength) out.minContractLength = out.maxContractLength;
+  // A floor above the cap, or a tax line below it, would be incoherent.
+  if (out.minPayroll > out.salaryCap) out.minPayroll = out.salaryCap;
+  if (out.luxuryTaxThreshold < out.salaryCap) out.luxuryTaxThreshold = out.salaryCap;
   // Priorities are derived from traits, so they cannot outlive them.
   if (!out.personalityTraits) out.dynamicPriorities = false;
   return out;
