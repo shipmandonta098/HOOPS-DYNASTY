@@ -15,7 +15,7 @@
  * two panels built from real contract data stand in for chemistry.
  */
 
-import { loadLeague, listSavesDetailed } from './db.js';
+import { loadLeague, listSavesDetailed, saveLeague } from './db.js';
 import { crestHTML } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
@@ -39,6 +39,10 @@ function computeVM(league) {
   const roster = (league.players || []).filter((p) => p.teamId === team.id);
 
   const signed = roster.filter((p) => p.contract);
+  const statuses = roster.map((p) => contractStatus(p).tone);
+  const underContract = statuses.filter((t) => t === 'ok').length;
+  const expiring = statuses.filter((t) => t === 'warn').length;
+  const optioned = statuses.filter((t) => t === 'option').length;
   const ages = roster.map((p) => p.age).filter((a) => typeof a === 'number');
   const payroll = signed.reduce((s, p) => s + (Number(p.contract.salary) || 0), 0);
   const cap = typeof settings.salaryCap === 'number' ? settings.salaryCap : null;
@@ -51,6 +55,7 @@ function computeVM(league) {
       players: roster.length,
       maxRoster: settings.maxRosterSize || null,
       signed: signed.length,
+      underContract, expiring, optioned,
       avgAge: ages.length ? (ages.reduce((a, b) => a + b, 0) / ages.length) : null,
       payroll,
       cap,
@@ -94,6 +99,8 @@ const SORTS = {
 /* ---------------------------------- render -------------------------------- */
 let vm = null;
 let state = { view: 'all', sort: 'ovr' };
+let leagueRef = null;      // the loaded save, mutated by roster actions
+let leagueId = null;
 
 function renderHeader() {
   const t = vm.team;
@@ -110,7 +117,9 @@ function renderStrip() {
   const T = vm.totals;
   const cells = [
     ['Total Players', T.maxRoster ? `${T.players} / ${T.maxRoster}` : String(T.players), ''],
-    ['Under Contract', String(T.signed), ''],
+    ['Under Contract', String(T.underContract), ''],
+    ['Expiring', String(T.expiring), T.expiring ? 'warn' : ''],
+    ...(T.optioned ? [['Option Years', String(T.optioned), '']] : []),
     ['Average Age', T.avgAge != null ? T.avgAge.toFixed(1) : '—', ''],
     ['Total Salary', fmtM(T.payroll), ''],
     ['Salary Cap Room',
@@ -135,7 +144,8 @@ function renderTable() {
     ['#', 'Player', 'Pos', 'Age', 'OVR', 'POT', 'Contract', 'Salary', 'Years']
       .map((h, i) => `<th class="${['c-num','c-player','c-pos','c-age','c-ovr','c-pot','c-con','c-sal','c-yrs'][i]}">${h}</th>`).join('') +
     ATTR_GROUPS.map((g, i) =>
-      `<th class="c-grade${i === 0 ? ' col-first' : ''}" title="${esc(g.label)}">${esc(g.short)}</th>`).join('');
+      `<th class="c-grade${i === 0 ? ' col-first' : ''}" title="${esc(g.label)}">${esc(g.short)}</th>`).join('') +
+    '<th class="c-menu"><span class="sr-only">Actions</span></th>';
 
   el('tbody').innerHTML = rows.map((p, i) => {
     const c = contractStatus(p);
@@ -161,6 +171,8 @@ function renderTable() {
       <td class="c-sal">${p.contract ? fmtM(p.contract.salary) : '—'}</td>
       <td class="c-yrs">${p.contract ? (Number(p.contract.yearsRemaining) || 0) : '—'}</td>
       ${grades}
+      <td class="c-menu"><button class="row-dots" data-menu="${esc(p.id)}"
+        aria-haspopup="true" aria-label="Actions for ${esc(p.name)}">&#8943;</button></td>
     </tr>`;
   }).join('');
 
@@ -276,6 +288,86 @@ function renderLegend() {
 
 const camelToWords = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
+/* ------------------------------- row actions -------------------------------
+   Negotiate and Trade need contract-negotiation and trade systems that do not
+   exist yet, so they render disabled rather than pretending. Waive is real: it
+   frees the player, drops his salary off the payroll and writes the save. */
+
+let openMenuFor = null;
+
+function closeRowMenu() {
+  const m = el('rowMenu');
+  if (m) m.remove();
+  openMenuFor = null;
+}
+
+function openRowMenu(btn, playerId) {
+  closeRowMenu();
+  const p = vm.roster.find((x) => x.id === playerId);
+  if (!p) return;
+  openMenuFor = playerId;
+
+  const menu = document.createElement('div');
+  menu.id = 'rowMenu';
+  menu.className = 'row-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    <div class="rm-head">${esc(p.name)}</div>
+    <button role="menuitem" class="is-todo" disabled title="Not built yet">Negotiate Contract</button>
+    <button role="menuitem" data-act="waive">Waive Player</button>
+    <button role="menuitem" class="is-todo" disabled title="Not built yet">Trade Player</button>`;
+  document.body.appendChild(menu);
+
+  // Anchor under the button, nudged back inside the viewport if it would spill.
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
+  menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+
+  menu.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'waive') await waivePlayer(p);
+    closeRowMenu();
+  });
+}
+
+/**
+ * Release a player: teamId goes null, his id joins freeAgents, and the save is
+ * written. His salary comes fully off the payroll because the save has no
+ * dead-money model — the confirmation says so rather than quietly implying
+ * that releasing a contract is free in a real cap system.
+ */
+async function waivePlayer(p) {
+  const salary = p.contract ? Number(p.contract.salary) || 0 : 0;
+  const ok = confirm(
+    `Waive ${p.name}?\n\n` +
+    `He becomes a free agent and his ${fmtM(salary)} comes off the payroll in full — ` +
+    `this save has no dead-money model, so released salary is not retained.\n\n` +
+    `This cannot be undone.`);
+  if (!ok) return;
+
+  const rec = (leagueRef.players || []).find((x) => x.id === p.id);
+  if (!rec) return;
+  rec.teamId = null;
+  if (!Array.isArray(leagueRef.freeAgents)) leagueRef.freeAgents = [];
+  if (!leagueRef.freeAgents.includes(rec.id)) leagueRef.freeAgents.push(rec.id);
+
+  try {
+    await saveLeague(leagueId, leagueRef);
+  } catch (err) {
+    console.error('Could not save after waiving:', err);
+    alert('The player could not be waived — the save failed to write.');
+    return;
+  }
+  // Recompute from the mutated league so every panel agrees with the new roster.
+  vm = computeVM(leagueRef);
+  renderStrip();
+  renderTable();
+  renderComposition();
+  renderSalary();
+}
+
 /* ----------------------------------- boot --------------------------------- */
 async function boot() {
   let league = null;
@@ -290,6 +382,8 @@ async function boot() {
   mountNav('roster', id);
   if (!league) { renderNoCareer(); return; }
 
+  leagueRef = league;
+  leagueId = id;
   initPlayerModal(league);
 
   vm = computeVM(league);
@@ -306,6 +400,21 @@ async function boot() {
     const b = e.target.closest('.tab');
     if (b && b.classList.contains('is-todo')) e.preventDefault();
   });
+
+  // Row actions. The dots live inside the table, which re-renders, so the
+  // listener is delegated from the tbody rather than bound per button.
+  el('tbody').addEventListener('click', (e) => {
+    const btn = e.target.closest('.row-dots');
+    if (!btn) return;
+    e.stopPropagation();
+    if (openMenuFor === btn.dataset.menu) { closeRowMenu(); return; }
+    openRowMenu(btn, btn.dataset.menu);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#rowMenu') && !e.target.closest('.row-dots')) closeRowMenu();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRowMenu(); });
+  window.addEventListener('resize', closeRowMenu);
 }
 
 boot();

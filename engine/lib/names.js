@@ -24,10 +24,15 @@ const LAST_NAMES = [
   'Williams', 'Johnson', 'Brooks', 'Freeman', 'Sanders', 'Bryant', 'Ellison',
 ];
 
+// Invented schools only — no real programs and no real developmental leagues.
+// Kept in step with the identical list in playerBio.js (the browser side).
 const COLLEGES = [
-  'Duke', 'Kentucky', 'Kansas', 'UCLA', 'Gonzaga', 'Michigan', 'Arizona',
-  'Baylor', 'Villanova', 'Alabama', 'Houston', 'Overseas', 'G-League Ignite',
-  'Auburn', 'Tennessee', 'Purdue', 'UConn', 'Marquette', 'Creighton',
+  'Westlake State', 'Cardinal Ridge', 'Northgate', 'St. Ambrose',
+  'Lakeshore Tech', 'Verdant Valley', 'Ironwood', 'Summit College',
+  'Pinehurst A&M', 'Granite State', 'Ashford', 'Blue Harbor',
+  'Coastal Polytechnic', 'Fairmont', 'Kingsbury', 'Redstone',
+  'Silverbrook', 'Thornfield University', 'Cascade State', 'Marlowe',
+  'Overseas Professional', 'Developmental League',
 ];
 
 module.exports = { FIRST_NAMES, LAST_NAMES, COLLEGES };

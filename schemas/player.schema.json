@@ -24,7 +24,50 @@
       "type": ["string", "null"],
       "description": "Id of the team that rosters this player. null = free agent or undrafted prospect."
     },
-    "college": { "type": "string" },
+    "college": { "type": "string", "description": "Fictional school, or 'Overseas Professional' / 'Developmental League'." },
+
+    "heightIn": { "type": "integer", "minimum": 60, "maximum": 96, "description": "Height in inches." },
+    "weightLb": { "type": "integer", "minimum": 120, "maximum": 400, "description": "Weight in pounds." },
+    "birthDate": {
+      "type": "object",
+      "description": "Generated at league creation; year is derived from age and the starting season, so the two can never disagree.",
+      "required": ["year", "month", "day"],
+      "additionalProperties": false,
+      "properties": {
+        "year":  { "type": "integer" },
+        "month": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "day":   { "type": "integer", "minimum": 1, "maximum": 31 }
+      }
+    },
+    "birthplace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "city":    { "type": "string" },
+        "region":  { "type": ["string", "null"], "description": "State/province, where one applies." },
+        "country": { "type": "string" }
+      }
+    },
+    "nationality": { "type": "string" },
+    "experience": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Completed seasons of service. Always age minus entry age, so it stays consistent with draft.year."
+    },
+    "draft": {
+      "type": ["object", "null"],
+      "description": "Where the player was taken, or null if undrafted.",
+      "required": ["year", "round", "pick"],
+      "additionalProperties": false,
+      "properties": {
+        "year":  { "type": "integer" },
+        "round": { "type": "integer", "minimum": 1 },
+        "pick":  { "type": "integer", "minimum": 1 }
+      }
+    },
+    "personality": { "type": "string", "description": "Locker-room archetype, e.g. 'Team-First'." },
+    "morale":  { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99. Set at generation; the season simulator may move it." },
+    "fatigue": { "type": "integer", "minimum": 0, "maximum": 99, "description": "0..99, low is fresh. Set at generation; the simulator may move it." },
     "overall": {
       "type": "integer",
       "minimum": 0,

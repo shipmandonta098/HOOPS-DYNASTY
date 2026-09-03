@@ -14,15 +14,17 @@
  *
  * GROUND RULE, as everywhere else: only what the save holds.
  *
- * The reference design carried a lot the save has no field for — jersey
- * number, photo, height, weight, experience, birthdate, birthplace,
- * nationality, draft position, personality, morale, fatigue, health, injury
- * risk, days rested, scouting notes, team chemistry, player role. None of it
- * is here; inventing any of it would make the profile fiction. Badges are out
- * at the user's request. What IS here is real: identity, age, position, team,
- * the cached overall and potential, all fourteen stored attributes, the
- * contract, and the career stat lines once a season has actually been
- * simulated.
+ * Biographical fields (height, weight, birth date and place, nationality,
+ * draft position, college, experience, personality, morale, fatigue) are
+ * REAL STORED DATA: playerBio.js generates them during league creation off
+ * the seeded RNG and writes them into the player record. Nothing here is
+ * invented at render time.
+ *
+ * Still absent, because the save genuinely has no field for them: jersey
+ * number, photograph, health/injury risk, days rested, scouting notes, team
+ * chemistry and player role. Badges are out at the user's request. Saves made
+ * before the bio fields existed simply omit those rows rather than showing a
+ * wall of dashes.
  */
 
 import {
@@ -30,6 +32,10 @@ import {
   groupScore, gradeBand, ratingLabel, ovr, initials, contractStatus,
 } from './playerRatings.js';
 import { crestHTML } from './leagueConfig.js';
+import {
+  formatHeight, formatBirthDate, formatBirthplace, formatDraft,
+  moraleLabel, fatigueLabel,
+} from './playerBio.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -177,10 +183,13 @@ function render() {
         <div class="pm-pane">${activeTab === 'career' ? careerPane(p) : attrPane(p)}</div>
       </div>
 
-      <!-- ============ contract ============ -->
+      <!-- ============ bio + contract ============ -->
       <aside class="pm-side">
-        <h3>Contract</h3>
-        ${contractPane(p, meta)}
+        ${bioPane(p)}
+        <div class="pm-block">
+          <h3>Contract</h3>
+          ${contractPane(p, meta)}
+        </div>
       </aside>
     </div>
   </div>`;
@@ -264,6 +273,41 @@ function careerPane(p) {
     <tbody>${rows.map((r) => `<tr>${cols.map(([k]) =>
       `<td>${r[k] != null ? esc(r[k]) : '—'}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></div>`;
+}
+
+/**
+ * Biography. Every row is a stored field; a row whose field is missing (a save
+ * created before these existed) is dropped rather than shown as a dash.
+ */
+function bioPane(p) {
+  const mor = moraleLabel(p.morale);
+  const fat = fatigueLabel(p.fatigue);
+  const rows = [
+    ['Height', typeof p.heightIn === 'number' ? formatHeight(p.heightIn) : null],
+    ['Weight', typeof p.weightLb === 'number' ? `${p.weightLb} lbs` : null],
+    ['Birthdate', p.birthDate ? `${formatBirthDate(p.birthDate)}` : null,
+      p.birthDate && typeof p.age === 'number' ? `Age ${p.age}` : null],
+    ['Birthplace', p.birthplace ? formatBirthplace(p.birthplace) : null],
+    ['Nationality', p.nationality || null],
+    ['College', p.college || null],
+    ['Experience', typeof p.experience === 'number'
+      ? (p.experience === 0 ? 'Rookie' : `${p.experience} ${p.experience === 1 ? 'season' : 'seasons'}`)
+      : null],
+    ['Drafted', p.draft !== undefined ? formatDraft(p.draft) : null],
+    ['Personality', p.personality || null],
+    ['Morale', typeof p.morale === 'number' ? mor.text : null, null, mor.band],
+    ['Fatigue', typeof p.fatigue === 'number' ? fat.text : null, null, fat.band],
+  ].filter(([, v]) => v != null);
+
+  if (!rows.length) {
+    return `<div class="pm-block"><h3>Bio</h3>
+      <p class="pm-note">This save predates the biographical fields. Start a new
+      career to see them.</p></div>`;
+  }
+  return `<div class="pm-block"><h3>Bio</h3><div class="pm-rows">${rows.map(
+    ([k, v, sub, band]) => `<div class="pm-row"><span>${esc(k)}</span>` +
+      `<b${band ? ` class="g-${band}"` : ''}>${esc(v)}${
+        sub ? `<em>${esc(sub)}</em>` : ''}</b></div>`).join('')}</div></div>`;
 }
 
 /**

@@ -18,6 +18,7 @@
  */
 
 import { saveLeague, listSaves } from './db.js';
+import { makeBio } from './playerBio.js';
 import {
   makeRNG, hashString, loadDraft, saveDraft, summaryLine, unassignedTeams,
   listPresets, savePreset, getPreset, renamePreset, deletePreset, applyPreset,
@@ -34,13 +35,43 @@ const ATTRIBUTES = [
 ];
 const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah', 'Malik',
   'Trey', 'Devin', 'Zion', 'Jaylen', 'Brandon', 'Darius', 'Keegan', 'Obi', 'Xavier',
-  'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi'];
+  'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi',
+  'Amari', 'Corey', 'Dante', 'Elias', 'Filip', 'Gabe', 'Hakim', 'Idris', 'Jonas',
+  'Kofi', 'Lonzo', 'Micah', 'Nikola', 'Omar', 'Pierre', 'Rashad', 'Sekou', 'Tobias',
+  'Uche', 'Vince', 'Wes', 'Yannick', 'Zane', 'Andre', 'Bruno', 'Caleb', 'Damir',
+  'Emeka', 'Frank', 'Goran', 'Hugo', 'Ivan', 'Jamal', 'Kristaps'];
 const LAST = ['Carter', 'Robinson', 'Mitchell', 'Thompson', 'Edwards', 'Hayes', 'Foster',
   'Coleman', 'Reeves', 'Miller', 'Wallace', 'Walker', 'Vincent', 'Sharpe', 'Duren',
-  'Sanders', 'Bryant', 'Ellison', 'Brooks', 'Freeman', 'Howard', 'Nowell', 'Prosper'];
+  'Sanders', 'Bryant', 'Ellison', 'Brooks', 'Freeman', 'Howard', 'Nowell', 'Prosper',
+  'Abara', 'Bogdan', 'Castillo', 'Dempsey', 'Ferreira', 'Gallagher', 'Haywood',
+  'Ibrahim', 'Jankovic', 'Keita', 'Larsen', 'Mensah', 'Novak', 'Okafor', 'Petrov',
+  'Quintero', 'Ramsey', 'Sokolov', 'Traore', 'Underwood', 'Vasquez', 'Whitfield',
+  'Yates', 'Zielinski', 'Ashford', 'Barnett', 'Cross', 'Dunlap', 'Everett'];
+
+/**
+ * Pick a name nobody in the league already has. With ~360 players drawn from
+ * a few thousand combinations, collisions are otherwise a certainty — the old
+ * pools produced 95 duplicates in a 360-player league, four players deep in
+ * places, which made a name a useless way to identify anyone.
+ */
+function uniqueName(rng, used) {
+  for (let i = 0; i < 40; i++) {
+    const n = `${rng.pick(FIRST)} ${rng.pick(LAST)}`;
+    if (!used.has(n)) { used.add(n); return n; }
+  }
+  // Exhausted the pool: distinguish with a middle initial rather than give up.
+  const base = `${rng.pick(FIRST)} ${rng.pick(LAST)}`;
+  for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const [f, l] = base.split(' ');
+    const n = `${f} ${c}. ${l}`;
+    if (!used.has(n)) { used.add(n); return n; }
+  }
+  used.add(base);
+  return base;
+}
 
 /** Generate one player with a full attribute block + cached overall. */
-function makePlayer(idNum, teamId, pos, target, rng) {
+function makePlayer(idNum, teamId, pos, target, rng, startSeason, usedNames) {
   const attrs = {};
   for (const a of ATTRIBUTES) attrs[a] = Math.max(25, Math.min(99, Math.round(rng.gauss(target, 7))));
   const boosts = {
@@ -54,8 +85,11 @@ function makePlayer(idNum, teamId, pos, target, rng) {
   const room = age <= 23 ? rng.int(4, 12) : age <= 27 ? rng.int(0, 4) : 0;
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
-    name: `${rng.pick(FIRST)} ${rng.pick(LAST)}`,
+    name: uniqueName(rng, usedNames),
     position: pos, age, teamId,
+    // Bio is generated HERE and stored in the save, so the profile screen
+    // reads real saved fields instead of inventing anything at render time.
+    ...makeBio(rng, { position: pos, age, startSeason }),
     attributes: attrs, overall, potential: Math.min(99, overall + room),
     contract: { salary: Math.max(1, Math.round((overall - 55) * 1.1)), yearsRemaining: rng.int(1, 4), type: 'standard', playerOption: false, teamOption: false },
     statsHistory: [],
@@ -72,12 +106,13 @@ function generateLeague(cfg) {
   const teams = cfg.teams;
 
   const players = [];
+  const usedNames = new Set();
   let idNum = 1;
   for (const team of teams) {
     const market = marketOf(team);
     const quality = market === 'Large' ? 68 : market === 'Medium' ? 64 : 61;
-    for (const pos of POSITIONS) players.push(makePlayer(idNum++, team.id, pos, quality + rng.int(-2, 6), rng));
-    for (let i = 0; i < 7; i++) players.push(makePlayer(idNum++, team.id, rng.pick(POSITIONS), quality + rng.int(-8, 2), rng));
+    for (const pos of POSITIONS) players.push(makePlayer(idNum++, team.id, pos, quality + rng.int(-2, 6), rng, cfg.season, usedNames));
+    for (let i = 0; i < 7; i++) players.push(makePlayer(idNum++, team.id, rng.pick(POSITIONS), quality + rng.int(-8, 2), rng, cfg.season, usedNames));
   }
 
   const divById = {};
