@@ -31,11 +31,14 @@ const fmtM = (n) => `$${Number(n).toFixed(2)}M`;
 
 /* ------------------------------- view model -------------------------------
    One pass over the save, producing exactly what the screen draws. */
-function computeVM(league) {
+function computeVM(league, viewTeamId) {
   const meta = league.meta || {};
   const settings = league.settings || {};
-  const teamId = meta.userTeamId || (league.teams[0] && league.teams[0].id);
-  const team = league.teams.find((t) => t.id === teamId) || league.teams[0] || {};
+  const userTeamId = meta.userTeamId || (league.teams[0] && league.teams[0].id);
+  const wanted = viewTeamId || userTeamId;
+  const team = league.teams.find((t) => t.id === wanted)
+            || league.teams.find((t) => t.id === userTeamId)
+            || league.teams[0] || {};
   const roster = (league.players || []).filter((p) => p.teamId === team.id);
 
   const signed = roster.filter((p) => p.contract);
@@ -49,6 +52,9 @@ function computeVM(league) {
 
   return {
     meta, settings, team, roster,
+    userTeamId,
+    // Roster moves only apply to the team you actually manage.
+    isOwnTeam: team.id === userTeamId,
     seasonLabel: meta.currentSeason ? `${meta.currentSeason} Season` : '',
     phaseLabel: PHASE_LABEL[meta.phase] || meta.phase || '',
     totals: {
@@ -98,19 +104,70 @@ const SORTS = {
 
 /* ---------------------------------- render -------------------------------- */
 let vm = null;
-let state = { view: 'all', sort: 'ovr' };
+let state = { view: 'all', sort: 'ovr', teamId: null };
 let leagueRef = null;      // the loaded save, mutated by roster actions
 let leagueId = null;
 
+/**
+ * Fill the team switcher once. Teams are grouped by conference when the league
+ * has a structure, so a 30-team list stays navigable; your own team is marked
+ * so it's findable at a glance.
+ */
+function renderTeamOptions() {
+  const sel = el('teamSel');
+  const teams = leagueRef.teams || [];
+  const label = (t) => `${`${t.city || ''} ${t.name || ''}`.trim()}${
+    t.id === vm.userTeamId ? ' \u2605' : ''}`;
+  const opt = (t) =>
+    `<option value="${esc(t.id)}">${esc(label(t))}</option>`;
+
+  const confs = (leagueRef.structure && leagueRef.structure.conferences) || [];
+  const divs = (leagueRef.structure && leagueRef.structure.divisions) || [];
+  if (confs.length) {
+    const confOf = {};
+    for (const d of divs) confOf[d.id] = d.conferenceId;
+    const grouped = confs.map((c) => ({
+      name: c.name,
+      teams: teams.filter((t) => confOf[t.divisionId] === c.id),
+    }));
+    const placed = new Set(grouped.flatMap((g) => g.teams.map((t) => t.id)));
+    const rest = teams.filter((t) => !placed.has(t.id));
+    sel.innerHTML =
+      grouped.filter((g) => g.teams.length).map((g) =>
+        `<optgroup label="${esc(g.name)}">${g.teams.map(opt).join('')}</optgroup>`).join('') +
+      (rest.length ? `<optgroup label="Unassigned">${rest.map(opt).join('')}</optgroup>` : '');
+  } else {
+    sel.innerHTML = teams.map(opt).join('');
+  }
+}
+
 function renderHeader() {
   const t = vm.team;
-  el('teamChipName').textContent = `${t.city || ''} ${t.name || ''}`.trim() || 'Team';
+  el('teamSel').value = t.id || '';
   el('teamChipSub').textContent =
-    [vm.phaseLabel, vm.meta.currentSeason].filter(Boolean).join(' · ');
+    [vm.phaseLabel, vm.meta.currentSeason].filter(Boolean).join(' \u00b7 ');
+  el('ownTag').hidden = !vm.isOwnTeam;
   const chip = el('teamChipLogo');
   chip.textContent = '';
   chip.style.background = 'none';
   chip.innerHTML = crestHTML(t, 34);
+}
+
+/** Redraw everything that depends on which team is being viewed. */
+function renderAll() {
+  renderHeader();
+  renderStrip();
+  renderTable();
+  renderComposition();
+  renderSalary();
+}
+
+/** Keep ?team= in the address bar so a roster view is linkable and survives a reload. */
+function syncUrl() {
+  const u = new URL(location.href);
+  if (vm.isOwnTeam) u.searchParams.delete('team');
+  else u.searchParams.set('team', vm.team.id);
+  history.replaceState(null, '', u);
 }
 
 function renderStrip() {
@@ -311,11 +368,17 @@ function openRowMenu(btn, playerId) {
   menu.id = 'rowMenu';
   menu.className = 'row-menu';
   menu.setAttribute('role', 'menu');
+  // Roster moves belong to the team you manage. Viewing another club's roster
+  // is read-only, and the menu says why rather than silently doing nothing.
+  const own = vm.isOwnTeam;
+  const notYours = 'You only manage ' +
+    `${(leagueRef.teams.find((t) => t.id === vm.userTeamId) || {}).name || 'your own team'}`;
   menu.innerHTML = `
     <div class="rm-head">${esc(p.name)}</div>
     <button role="menuitem" class="is-todo" disabled title="Not built yet">Negotiate Contract</button>
-    <button role="menuitem" data-act="waive">Waive Player</button>
-    <button role="menuitem" class="is-todo" disabled title="Not built yet">Trade Player</button>`;
+    <button role="menuitem" ${own ? 'data-act="waive"' : `class="is-todo" disabled title="${esc(notYours)}"`}>Waive Player</button>
+    <button role="menuitem" class="is-todo" disabled title="Not built yet">Trade Player</button>
+    ${own ? '' : `<div class="rm-note">${esc(notYours)}.</div>`}`;
   document.body.appendChild(menu);
 
   // Anchor under the button, nudged back inside the viewport if it would spill.
@@ -339,6 +402,7 @@ function openRowMenu(btn, playerId) {
  * that releasing a contract is free in a real cap system.
  */
 async function waivePlayer(p) {
+  if (!vm.isOwnTeam) return;   // only ever your own roster
   const salary = p.contract ? Number(p.contract.salary) || 0 : 0;
   const ok = confirm(
     `Waive ${p.name}?\n\n` +
@@ -361,11 +425,8 @@ async function waivePlayer(p) {
     return;
   }
   // Recompute from the mutated league so every panel agrees with the new roster.
-  vm = computeVM(leagueRef);
-  renderStrip();
-  renderTable();
-  renderComposition();
-  renderSalary();
+  vm = computeVM(leagueRef, state.teamId);
+  renderAll();
 }
 
 /* ----------------------------------- boot --------------------------------- */
@@ -386,14 +447,25 @@ async function boot() {
   leagueId = id;
   initPlayerModal(league);
 
-  vm = computeVM(league);
-  renderHeader();
-  renderStrip();
-  renderTable();
-  renderComposition();
-  renderSalary();
+  state.teamId = new URLSearchParams(location.search).get('team') || null;
+  vm = computeVM(league, state.teamId);
+  state.teamId = vm.team.id;          // an unknown ?team= falls back to yours
+  renderTeamOptions();
+  renderAll();
   renderLegend();
+  syncUrl();
 
+  el('teamSel').addEventListener('change', (e) => {
+    state.teamId = e.target.value;
+    closeRowMenu();
+    vm = computeVM(leagueRef, state.teamId);
+    // Position filters can leave an empty table on a team with a different
+    // shape, so a team change starts from the full roster again.
+    state.view = 'all';
+    el('viewSel').value = 'all';
+    renderAll();
+    syncUrl();
+  });
   el('viewSel').addEventListener('change', (e) => { state.view = e.target.value; renderTable(); });
   el('sortSel').addEventListener('change', (e) => { state.sort = e.target.value; renderTable(); });
   el('tabs').addEventListener('click', (e) => {

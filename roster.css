@@ -25,8 +25,34 @@
 
 .roster-top .gm { display: flex; align-items: center; gap: 0.6rem; }
 .roster-top .gm .avatar { width: 34px; height: 34px; display: grid; place-items: center; }
-.roster-top .gm .who .n { font-weight: 700; font-size: 0.86rem; }
-.roster-top .gm .who .t { color: var(--muted); font-size: 0.75rem; }
+.roster-top .gm .who .t { color: var(--muted); font-size: 0.75rem; display: flex; align-items: center; gap: 0.45rem; }
+
+/* Team switcher: the select carries the team name, so it is styled as the
+   heading it visually is rather than as a form control. */
+.team-switch #teamSel {
+  background: none; border: 0; padding: 0 1.1rem 0 0; margin-left: -0.1rem;
+  color: var(--white); font-family: var(--font-body);
+  font-weight: 700; font-size: 0.88rem; cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 5px center, right 1px center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.team-switch #teamSel:hover { color: var(--brand-hi); }
+.team-switch #teamSel:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px rgba(91, 141, 214, 0.22); border-radius: 4px;
+}
+/* Native option lists inherit the page background on some platforms. */
+.team-switch #teamSel option,
+.team-switch #teamSel optgroup { background: var(--card); color: var(--white); }
+
+.own-tag {
+  padding: 0.1rem 0.35rem; border-radius: 4px;
+  border: 1px solid rgba(207, 97, 39, 0.5); color: var(--brand);
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+}
 
 /* ------------------------------------------- 2. SUMMARY STRIP + CONTROLS */
 .strip-card { display: flex; align-items: stretch; gap: 1rem; flex-wrap: wrap; padding: 0; margin-bottom: 0.9rem; }
@@ -167,6 +193,11 @@
 /* Actions whose systems don't exist yet — inert, and visibly so. */
 .row-menu button.is-todo { color: var(--muted-2); cursor: not-allowed; }
 .row-menu button[data-act="waive"]:hover { color: var(--danger); }
+.row-menu .rm-note {
+  padding: 0.45rem 0.55rem 0.2rem; margin-top: 0.25rem;
+  border-top: 1px solid var(--stroke-2);
+  color: var(--muted-2); font-size: 0.68rem; line-height: 1.45;
+}
 
 /* Screen-reader-only label for the actions column header. */
 .sr-only {

@@ -39,11 +39,15 @@
             <button class="tab is-todo" data-tab="fa"       title="Not built yet">Free Agents</button>
           </div>
         </div>
-        <div class="gm">
+        <!-- Team switcher — browse any roster in the league, not just your own.
+             The select is the control; the crest and labels beside it reflect
+             whichever team is being viewed. -->
+        <div class="gm team-switch">
           <div class="avatar" id="teamChipLogo">🏀</div>
           <div class="who">
-            <div class="n" id="teamChipName">Team</div>
-            <div class="t" id="teamChipSub">—</div>
+            <label class="sr-only" for="teamSel">Viewing team</label>
+            <select id="teamSel" aria-label="Viewing team"><!-- roster.js --></select>
+            <div class="t"><span id="teamChipSub">—</span><span class="own-tag" id="ownTag" hidden>Your Team</span></div>
           </div>
         </div>
       </div>
