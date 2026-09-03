@@ -13,6 +13,7 @@
  */
 
 import { listSavesDetailed, loadLeague, deleteSave, saveLeague } from './db.js';
+import { crestHTML } from './leagueConfig.js';
 
 /* ------------------------------- helpers ------------------------------- */
 
@@ -51,8 +52,8 @@ function phaseInfo(phase, season) {
   };
   const map = {
     regular_season: { label: 'Regular Season', color: 'var(--green)', icon: ICONS.calendar, sub: season ? `${season} Season` : 'In progress' },
-    playoffs:       { label: 'Playoffs',       color: 'var(--red-hi)', icon: ICONS.trophy,   sub: 'Postseason' },
-    finals:         { label: 'Finals',         color: 'var(--orange)', icon: ICONS.trophy,   sub: 'Championship' },
+    playoffs:       { label: 'Playoffs',       color: 'var(--violet)', icon: ICONS.trophy,   sub: 'Postseason' },
+    finals:         { label: 'Finals',         color: 'var(--gold)',   icon: ICONS.trophy,   sub: 'Championship' },
     offseason:      { label: 'Offseason',      color: 'var(--blue)',   icon: ICONS.clipboard, sub: 'Between seasons' },
     draft:          { label: 'Draft',          color: 'var(--blue)',   icon: ICONS.clipboard, sub: 'Draft night' },
     free_agency:    { label: 'Free Agency',    color: 'var(--blue)',   icon: ICONS.clipboard, sub: 'Signings open' },
@@ -100,8 +101,6 @@ function rowHTML(r) {
   const p = phaseInfo(r.phase, r.season);
   const badgeHue = hue(r.leagueName);
   const badgeBg = `linear-gradient(160deg, hsl(${badgeHue} 45% 32%), hsl(${badgeHue} 55% 18%))`;
-  const crestBg = r.team.color || '#33506e';
-  const emoji = r.team.emoji || '🏀';
   const city = r.team.city || 'Unknown';
   const name = (r.team.name || 'Team').toUpperCase();
 
@@ -112,7 +111,7 @@ function rowHTML(r) {
         <span class="league-name">${escapeHTML(r.leagueName)}</span>
       </div>
       <div class="cell team" data-label="Team">
-        <span class="crest" style="background:${crestBg}">${emoji}</span>
+        ${crestHTML(r.team, 34)}
         <span><span class="team-city">${escapeHTML(city)}</span><span class="team-name">${escapeHTML(name)}</span></span>
       </div>
       <div class="cell phase" data-label="Phase">

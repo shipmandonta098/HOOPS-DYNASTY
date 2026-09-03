@@ -13,13 +13,13 @@
   border-radius: 20px; padding: 0.45rem 1rem;
 }
 .ls-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-left: auto; }
-.mini.primary { background: var(--red); border-color: var(--red); }
-.mini.primary:hover:not(:disabled) { background: var(--red-hi); border-color: var(--red-hi); }
+.mini.primary { background: var(--brand); border-color: var(--brand); }
+.mini.primary:hover:not(:disabled) { background: var(--brand-hi); border-color: var(--brand-hi); }
 
 /* Unassigned warning panel -------------------------------------------------- */
-.ls-unassigned { border-color: rgba(227, 146, 43, 0.55); }
-.ls-unassigned .badge.alt { background: var(--orange); color: #10233b; }
-.ls-unassigned .count { color: var(--orange); font-weight: 800; }
+.ls-unassigned { border-color: rgba(212, 175, 55, 0.55); }
+.ls-unassigned .badge.alt { background: var(--gold); color: var(--ink-0); }
+.ls-unassigned .count { color: var(--gold); font-weight: 800; }
 
 /* Conference / division cards ---------------------------------------------- */
 .conf {
@@ -41,8 +41,8 @@
   padding: 0.4rem 0.55rem; cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.icon-btn:hover { border-color: var(--red); background: rgba(193,39,45,0.12); }
-.icon-btn.danger:hover { color: var(--red-hi); }
+.icon-btn:hover { border-color: var(--brand); background: rgba(207, 97, 39, 0.14); }
+.icon-btn.danger:hover { color: var(--danger); }
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .div {
@@ -55,7 +55,7 @@
 .team-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
 .chip {
   display: flex; align-items: center; gap: 0.5rem;
-  background: rgba(20, 40, 66, 0.85); border: 1px solid var(--stroke);
+  background: var(--panel); border: 1px solid var(--stroke);
   border-radius: 8px; padding: 0.4rem 0.5rem 0.4rem 0.4rem;
 }
 .chip .crest {
@@ -70,19 +70,19 @@
   color: var(--white); font-size: 0.7rem; padding: 0.25rem; max-width: 130px;
 }
 .chip .chip-actions { display: flex; gap: 0.25rem; }
-.chip.is-unassigned { border-color: rgba(227,146,43,0.6); }
+.chip.is-unassigned { border-color: rgba(212, 175, 55, 0.6); }
 
 .ls-empty { color: var(--muted); text-align: center; padding: 2rem 1rem; }
 
 /* Modals --------------------------------------------------------------------- */
 .modal {
   position: fixed; inset: 0; z-index: 50;
-  background: rgba(4, 10, 20, 0.72);
+  background: rgba(3, 4, 5, 0.78);
   display: grid; place-items: center; padding: 1rem;
 }
 .modal[hidden] { display: none; }
 .modal-card {
-  background: var(--navy-1); border: 1px solid var(--stroke); border-radius: 12px;
+  background: var(--ink-1); border: 1px solid var(--stroke); border-radius: 12px;
   padding: 1.2rem 1.3rem; width: min(560px, 96vw);
   max-height: 88vh; overflow-y: auto;
   box-shadow: 0 20px 50px rgba(0,0,0,0.55);
@@ -103,7 +103,7 @@
   padding: 0.55rem 0.6rem; letter-spacing: 0; text-transform: none;
 }
 .form-grid input:focus, .form-grid select:focus {
-  outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(74,158,255,0.18);
+  outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(91, 141, 214, 0.22);
 }
 /* Actions stay pinned to the bottom of the card: the Edit Team form is tall
    enough to scroll, and Save/Cancel must never be the part you can't find. */
@@ -111,8 +111,8 @@
   display: flex; justify-content: flex-end; gap: 0.5rem;
   position: sticky; bottom: -1.2rem; z-index: 2;
   margin-top: 0.9rem; padding: 0.7rem 0 1.2rem;
-  background: var(--navy-1);
-  box-shadow: 0 -12px 18px -12px rgba(4, 10, 20, 0.9);
+  background: var(--ink-1);
+  box-shadow: 0 -12px 18px -12px rgba(3, 4, 5, 0.9);
 }
 
 .lib-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem; }

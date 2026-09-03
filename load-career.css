@@ -18,39 +18,7 @@
     12. Reduced motion
    ========================================================================== */
 
-@font-face {
-  font-family: 'Anton';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('./fonts/anton-latin.woff2') format('woff2');
-}
-
 /* ------------------------------------------------------------------ 1. TOKENS */
-:root {
-  --navy-0: #081120;
-  --navy-1: #0d1e34;
-  --navy-2: #12283f;
-  --panel:  rgba(14, 30, 52, 0.66);
-  --panel-2:rgba(9, 20, 36, 0.9);
-  --row:    rgba(12, 26, 46, 0.55);
-  --stroke: rgba(120, 150, 190, 0.18);
-  --line:   rgba(150, 185, 230, 0.10);
-
-  --red:    #c1272d;
-  --red-hi: #e5393f;
-  --white:  #f2f5f8;
-  --muted:  #8ea3ba;
-  --silver: #cfd6df;
-
-  --green:  #3fb950;   /* regular season */
-  --blue:   #4a9eff;   /* offseason / draft / free agency */
-  --orange: #e3922b;   /* finals */
-
-  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
 /* ------------------------------------------------------------------ 2. BASE */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; }
@@ -60,26 +28,11 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(ellipse 90% 70% at 50% 30%, var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+  /* field gradient comes from theme.css */
   overflow-x: hidden;
 }
 
 /* ------------------------------------------------- 3. CORNER + COURT */
-.court { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.6; }
-.court .paint { fill: none; stroke: var(--line); stroke-width: 2; }
-
-.corner-tl {
-  position: fixed;
-  top: 0; left: 0;
-  width: min(96px, 15vw);
-  height: min(96px, 15vw);
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(135deg, var(--red) 0%, #7d1a1e 100%);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-}
-
 /* ------------------------------------------------- 4. PAGE SHELL */
 .page { position: relative; z-index: 2; flex: 1 0 auto; display: flex; flex-direction: column;
   padding: 2rem clamp(1.2rem, 3.5vw, 3.5rem) 1.5rem; }
@@ -95,7 +48,7 @@ body {
   padding-top: 0.3rem;
 }
 .brand .h { color: var(--white); display: block; }
-.brand .d { color: var(--red); display: block; }
+.brand .d { color: var(--brand); display: block; }
 .brand .tr { display: block; width: 22px; height: 22px; color: var(--silver); margin-top: 0.35rem; }
 .brand .tr svg { display: block; width: 100%; height: 100%; }
 
@@ -130,7 +83,7 @@ body {
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.import:hover { border-color: var(--red); background: rgba(193,39,45,0.12); }
+.import:hover { border-color: var(--brand); background: rgba(207, 97, 39, 0.14); }
 .import svg { width: 17px; height: 17px; }
 
 /* ------------------------------------------------- 6. SAVES TABLE */
@@ -163,8 +116,8 @@ body {
   cursor: pointer;
   transition: border-color 0.14s ease, background 0.14s ease;
 }
-.save-row:hover { background: rgba(20,40,66,0.7); }
-.save-row.is-selected { border-color: var(--red); box-shadow: 0 0 16px rgba(193,39,45,0.35); }
+.save-row:hover { background: rgba(255, 255, 255, 0.05); }
+.save-row.is-selected { border-color: var(--brand); box-shadow: 0 0 16px rgba(207, 97, 39, 0.35); }
 
 .cell { min-width: 0; }
 .cell.league { display: flex; align-items: center; gap: 0.85rem; }
@@ -195,7 +148,7 @@ body {
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.menu-btn:hover { border-color: var(--red); background: rgba(193,39,45,0.12); }
+.menu-btn:hover { border-color: var(--brand); background: rgba(207, 97, 39, 0.14); }
 
 /* ------------------------------------------------- 7. BADGE / CREST / PILL */
 .league-badge {
@@ -208,21 +161,13 @@ body {
   color: var(--white);
   border: 1px solid rgba(255,255,255,0.12);
 }
-.crest {
-  flex: 0 0 auto;
-  width: 40px; height: 40px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  font-size: 1.2rem;
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset;
-}
 
 /* ------------------------------------------------- 8. ROW MENU POPOVER */
 .row-menu {
   position: absolute;
   z-index: 30;
   min-width: 160px;
-  background: #0b1420;
+  background: var(--card);
   border: 1px solid var(--stroke);
   border-radius: 9px;
   padding: 0.4rem;
@@ -241,7 +186,7 @@ body {
 }
 .row-menu button:hover { background: rgba(255,255,255,0.06); }
 .row-menu button svg { width: 16px; height: 16px; }
-.row-menu button.danger { color: var(--red-hi); }
+.row-menu button.danger { color: var(--danger); }
 
 /* ------------------------------------------------- 9. EMPTY STATE */
 .empty {
@@ -250,7 +195,7 @@ body {
   color: var(--muted);
 }
 .empty h2 { font-family: var(--font-display); color: var(--white); font-size: 1.6rem; text-transform: uppercase; margin-bottom: 0.6rem; }
-.empty a { color: var(--red-hi); text-decoration: none; font-weight: 700; }
+.empty a { color: var(--brand-hi); text-decoration: none; font-weight: 700; }
 .empty a:hover { text-decoration: underline; }
 
 /* ------------------------------------------------- 10. FOOTER */
@@ -260,7 +205,7 @@ body {
   display: flex; align-items: center;
   padding: 1rem clamp(1.2rem, 3.5vw, 3.5rem);
   border-top: 1px solid var(--stroke);
-  background: var(--navy-0);
+  background: var(--ink-0);
   gap: 1.6rem;
 }
 .footer .ghost {
@@ -271,7 +216,7 @@ body {
   cursor: pointer; opacity: 0.85;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
-.footer .ghost:hover { opacity: 1; color: var(--red-hi); }
+.footer .ghost:hover { opacity: 1; color: var(--brand-hi); }
 .footer .ghost:disabled { opacity: 0.3; cursor: not-allowed; }
 .footer .ghost.manage { margin-left: auto; }
 .footer .ghost .ic {

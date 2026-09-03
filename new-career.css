@@ -19,40 +19,9 @@
     13. Reduced motion
    ========================================================================== */
 
-@font-face {
-  font-family: 'Anton';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('./fonts/anton-latin.woff2') format('woff2');
-}
-
 /* ------------------------------------------------------------------
    1. TOKENS
    ------------------------------------------------------------------ */
-:root {
-  --navy-0: #081120;
-  --navy-1: #0d1e34;
-  --navy-2: #12283f;
-  --panel:  rgba(14, 30, 52, 0.72);   /* section card fill */
-  --panel-2:rgba(9, 20, 36, 0.85);    /* inset controls */
-  --stroke: rgba(120, 150, 190, 0.18);/* hairline borders */
-  --line:   rgba(150, 185, 230, 0.14);/* faint court paint */
-
-  --red:    #c1272d;
-  --red-dk: #7d1a1e;
-  --red-hi: #e5393f;
-  --white:  #f2f5f8;
-  --muted:  #93a6bd;                  /* secondary text */
-  --silver: #cfd6df;
-  --blue:   #4a9eff;                  /* input focus + Normal */
-  --green:  #3fb950;                  /* Easy */
-  --orange: #e3922b;                  /* Hard */
-
-  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
 /* ------------------------------------------------------------------
    2. BASE + ARENA
    ------------------------------------------------------------------ */
@@ -65,11 +34,7 @@ body {
   min-height: 100vh;          /* grow with content so the page scrolls */
   display: flex;             /* sticky-footer column: footer never overlaps content */
   flex-direction: column;
-  background:
-    radial-gradient(ellipse 80% 60% at 70% 8%,
-      rgba(90, 130, 185, 0.18) 0%, rgba(90,130,185,0) 55%),
-    radial-gradient(ellipse 100% 80% at 40% 60%,
-      var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+  /* field gradient comes from theme.css */
   overflow-x: hidden;
 }
 
@@ -84,8 +49,8 @@ body {
   opacity: 0.5;
   pointer-events: none;
 }
-.hoop .stroke { fill: none; stroke: rgba(150, 185, 230, 0.35); stroke-width: 3; }
-.hoop .glow   { fill: rgba(150, 190, 240, 0.10); }
+.hoop .stroke { fill: none; stroke: rgba(255, 255, 255, 0.22); stroke-width: 3; }
+.hoop .glow   { fill: rgba(255, 255, 255, 0.06); }
 
 /* ------------------------------------------------------------------
    3. LAYOUT — fixed sidebar + scrollable main.
@@ -119,7 +84,7 @@ body {
   font-size: 2.1rem;
 }
 .sidebar .brand .h { color: var(--white); display: block; }
-.sidebar .brand .d { color: var(--red); display: block; }
+.sidebar .brand .d { color: var(--brand); display: block; }
 .sidebar .brand-trophy {
   width: 26px;
   height: 26px;
@@ -184,7 +149,7 @@ body {
   width: 26px;
   height: 26px;
   border-radius: 5px;
-  background: var(--red);
+  background: var(--brand);
   color: var(--white);
   font-weight: 800;
   font-size: 0.95rem;
@@ -238,7 +203,7 @@ body {
 .name-field input:focus {
   outline: none;
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(91, 141, 214, 0.22);
 }
 .name-field .counter {
   position: absolute;
@@ -273,7 +238,7 @@ body {
   border-radius: 5px;
   transition: color 0.15s ease, background 0.15s ease;
 }
-.stepper button:hover { color: var(--red-hi); background: rgba(255,255,255,0.04); }
+.stepper button:hover { color: var(--brand-hi); background: rgba(255,255,255,0.04); }
 .stepper .value {
   font-size: 1.35rem;
   font-weight: 700;
@@ -300,7 +265,7 @@ body {
   flex: 0 0 auto;
   width: 150px;
   height: 206px;
-  background: linear-gradient(180deg, rgba(20,40,66,0.9), rgba(9,18,32,0.9));
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
   border: 2px solid var(--stroke);
   border-radius: 10px;
   padding: 0.8rem 0.75rem;
@@ -311,7 +276,7 @@ body {
   align-items: center;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-.team-card:hover { transform: translateY(-2px); border-color: rgba(150,180,220,0.4); }
+.team-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.28); }
 .team-card .logo {
   width: 50px;
   height: 50px;
@@ -358,8 +323,8 @@ body {
 
 /* Selected team card — red border + glow, star shown, stats revealed. */
 .team-card.is-selected {
-  border-color: var(--red);
-  box-shadow: 0 0 20px rgba(193, 39, 45, 0.5);
+  border-color: var(--brand);
+  box-shadow: 0 0 20px var(--brand-glow);
 }
 .team-card.is-selected .star { opacity: 1; }
 .team-card.is-selected .stats { display: block; }
@@ -397,11 +362,11 @@ body {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: rgba(150, 180, 220, 0.3);
+  background: rgba(255, 255, 255, 0.22);
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.dots .dot.active { background: var(--red); }
+.dots .dot.active { background: var(--brand); }
 
 /* ------------------------------------------------------------------
    10. DIFFICULTY CARDS
@@ -436,8 +401,8 @@ body {
 /* Accent colors per difficulty (icon + name). */
 .diff-card[data-diff="easy"]   { --accent: var(--green); }
 .diff-card[data-diff="normal"] { --accent: var(--blue); }
-.diff-card[data-diff="hard"]   { --accent: var(--orange); }
-.diff-card[data-diff="legend"] { --accent: var(--red-hi); }
+.diff-card[data-diff="hard"]   { --accent: var(--gold); }
+.diff-card[data-diff="legend"] { --accent: var(--violet); }
 .diff-card .diff-name,
 .diff-card .diff-icon { color: var(--accent); }
 
@@ -461,7 +426,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1rem 1.5rem;
-  background: var(--navy-0);
+  background: var(--ink-0);
   border-top: 1px solid var(--stroke);
 }
 .footer .ghost {
@@ -480,7 +445,7 @@ body {
   opacity: 0.85;
   transition: opacity 0.15s ease, color 0.15s ease;
 }
-.footer .ghost:hover { opacity: 1; color: var(--red-hi); }
+.footer .ghost:hover { opacity: 1; color: var(--brand-hi); }
 .footer .ghost.back { left: 1.8rem; }
 .footer .ghost.settings { right: 1.8rem; }
 .footer .ghost .ic {
@@ -497,7 +462,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  background: var(--red);
+  background: var(--brand);
   color: var(--white);
   border: none;
   border-radius: 8px;
@@ -510,7 +475,7 @@ body {
   cursor: pointer;
   transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
-.start-btn:hover { background: var(--red-hi); box-shadow: 0 0 24px rgba(193,39,45,0.6); }
+.start-btn:hover { background: var(--brand-hi); box-shadow: 0 0 24px var(--brand-glow); }
 .start-btn:active { transform: translateY(1px); }
 .start-btn .tr { width: 22px; height: 22px; }
 .start-btn .tr svg { width: 100%; height: 100%; }
@@ -580,7 +545,7 @@ body {
 .preset-field select:focus {
   outline: none;
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(91, 141, 214, 0.22);
 }
 .preset-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .mini {
@@ -597,8 +562,8 @@ body {
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
-.mini:hover:not(:disabled) { border-color: var(--red); background: rgba(193,39,45,0.12); }
-.mini.danger:hover:not(:disabled) { color: var(--red-hi); }
+.mini:hover:not(:disabled) { border-color: var(--brand); background: rgba(207, 97, 39, 0.14); }
+.mini.danger:hover:not(:disabled) { color: var(--danger); }
 .mini:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ---- League Structure --------------------------------------------------- */
@@ -607,7 +572,7 @@ body {
   display: block;
   width: 100%;
   text-align: left;
-  background: linear-gradient(180deg, rgba(20,40,66,0.85), rgba(9,18,32,0.85));
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
   border: 1px solid var(--stroke);
   border-radius: 9px;
   padding: 0.95rem 1.1rem;
@@ -617,8 +582,8 @@ body {
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 .structure-btn:hover {
-  border-color: var(--red);
-  box-shadow: 0 0 18px rgba(193, 39, 45, 0.28);
+  border-color: var(--brand);
+  box-shadow: 0 0 18px rgba(207, 97, 39, 0.30);
   transform: translateY(-1px);
 }
 .structure-btn .sb-main {
@@ -637,7 +602,7 @@ body {
 .structure-btn .sb-summary {
   display: inline-block;
   margin-top: 0.6rem;
-  background: var(--inset, rgba(8,21,37,0.9));
+  background: var(--inset);
   border: 1px solid var(--stroke);
   border-radius: 20px;
   padding: 0.28rem 0.8rem;
@@ -647,7 +612,7 @@ body {
 }
 .structure-warn {
   margin-top: 0.6rem;
-  color: var(--orange);
+  color: var(--gold);
   font-size: 0.78rem;
   letter-spacing: 0.02em;
 }

@@ -28,41 +28,9 @@
 /* Athletic display face for the wordmark — SELF-HOSTED (no CDN dependency).
    Lives in ./fonts/ so it loads offline, over file://, and on GitHub Pages.
    Anton is SIL Open Font License 1.1 (see fonts/OFL.txt). Arial Narrow fallback. */
-@font-face {
-  font-family: 'Anton';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('./fonts/anton-latin.woff2') format('woff2');
-}
-
 /* ------------------------------------------------------------------
    1. DESIGN TOKENS — retune the whole screen from here.
    ------------------------------------------------------------------ */
-:root {
-  /* Near-black arena */
-  --ink-0: #060708;   /* darkest — edges */
-  --ink-1: #0e1012;   /* mid field */
-  --ink-2: #17191c;   /* faint centre lift */
-
-  /* Leather orange — the single accent */
-  --orange:    #cf6127;
-  --orange-hi: #e8813f;   /* hover / bright */
-  --orange-dk: #8a3c13;   /* pressed / shadow */
-
-  /* Hardwood */
-  --wood-near: #6a4523;
-  --wood-mid:  #40280f;
-  --wood-far:  #150d06;
-
-  --white:  #f4f4f3;
-  --paint:  rgba(255, 255, 255, 0.16);   /* court lines */
-  --hair:   rgba(255, 255, 255, 0.13);   /* menu dividers + rules */
-
-  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
 /* ------------------------------------------------------------------
    2. BASE / RESET + ARENA BACKGROUND
    Near-black everywhere, with one soft lift behind the wordmark so the
@@ -77,9 +45,7 @@ body {
   overflow-x: hidden;               /* single fixed view */
   overflow-y: auto;                 /* fallback: a very short viewport can still reach the menu */
   position: relative;
-  background:
-    radial-gradient(ellipse 70% 55% at 50% 34%,
-      var(--ink-2) 0%, var(--ink-1) 46%, var(--ink-0) 100%);
+  /* field gradient comes from theme.css */
 }
 
 /* ------------------------------------------------------------------
@@ -127,7 +93,7 @@ body {
 .floor svg { display: block; position: absolute; inset: 0; }
 .floor .paint {
   fill: none;
-  stroke: var(--paint);
+  stroke: var(--line);
   stroke-width: 2.5;
 }
 
@@ -183,7 +149,7 @@ body {
   flex: 0 0 auto;
   width: clamp(46px, 7.5vh, 86px);
   height: clamp(46px, 7.5vh, 86px);
-  color: var(--orange);
+  color: var(--brand);
   filter: drop-shadow(0 0 16px rgba(207, 97, 39, 0.30));
 }
 .crest .ball svg { width: 100%; height: 100%; display: block; }
@@ -211,7 +177,7 @@ body {
 .title .line2 {                     /* DYNASTY — orange */
   display: block;
   font-size: clamp(2.9rem, min(10.6vw, 12vh), 8.1rem);
-  color: var(--orange);
+  color: var(--brand);
   text-shadow: 0 4px 24px rgba(0, 0, 0, 0.65);
   animation: fadeUp 0.7s ease-out 0.55s both;
 }
@@ -278,7 +244,7 @@ body {
 /* 10a. Plain items brighten to orange on hover. */
 .btn:hover,
 .btn:focus-visible {
-  color: var(--orange-hi);
+  color: var(--brand-hi);
   background: rgba(255, 255, 255, 0.035);
   text-shadow: 0 0 16px rgba(232, 129, 63, 0.45);
   outline: none;
@@ -286,14 +252,14 @@ body {
 
 /* 10b. Primary action — the filled orange block. */
 .btn.is-highlight {
-  background: var(--orange);
+  background: var(--brand);
   color: var(--white);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45),
               0 0 0 1px rgba(0, 0, 0, 0.2) inset;
 }
 .btn.is-highlight:hover,
 .btn.is-highlight:focus-visible {
-  background: var(--orange-hi);
+  background: var(--brand-hi);
   color: var(--white);
   text-shadow: none;
   box-shadow: 0 0 26px rgba(207, 97, 39, 0.55),

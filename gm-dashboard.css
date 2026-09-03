@@ -17,45 +17,14 @@
     11. Reduced motion
    ========================================================================== */
 
-@font-face {
-  font-family: 'Anton'; font-style: normal; font-weight: 400; font-display: swap;
-  src: url('./fonts/anton-latin.woff2') format('woff2');
-}
-
 /* ------------------------------------------------------------- 1. TOKENS */
-:root {
-  --navy-0: #070f1c;
-  --navy-1: #0c1a2e;
-  --navy-2: #10233b;
-  --card:   #0e2036;
-  --card-2: #0a1a2e;
-  --inset:  #081525;
-  --stroke: rgba(120, 150, 190, 0.16);
-  --stroke-2: rgba(120, 150, 190, 0.10);
-
-  --red:    #c1272d;
-  --red-hi: #e5393f;
-  --white:  #eef3f8;
-  --muted:  #8ea3ba;
-  --muted-2:#63758c;
-  --silver: #cfd6df;
-
-  --green:  #35c05a;
-  --blue:   #4a9eff;
-  --orange: #e3922b;
-  --gold:   #d4af37;
-
-  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
-  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
-}
-
 /* ------------------------------------------------------------- 2. BASE */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; }
 body {
   font-family: var(--font-body);
   color: var(--white);
-  background: var(--navy-0);
+  /* field gradient comes from theme.css */
   min-height: 100vh;
 }
 .app { display: grid; grid-template-columns: 212px 1fr; min-height: 100vh; }
@@ -64,7 +33,7 @@ body {
 .sidebar {
   position: sticky; top: 0; align-self: start;
   height: 100vh; overflow-y: auto;
-  background: linear-gradient(180deg, var(--navy-1), var(--navy-0));
+  background: linear-gradient(180deg, var(--ink-1), var(--ink-0));
   border-right: 1px solid var(--stroke);
   padding: 1.3rem 0.7rem 1rem;
   scrollbar-width: thin;
@@ -74,7 +43,7 @@ body {
   font-size: 1.65rem; padding: 0 0.6rem; text-align: left;
 }
 .sidebar .brand .h { color: var(--white); display: block; }
-.sidebar .brand .d { color: var(--red); display: block; }
+.sidebar .brand .d { color: var(--brand); display: block; }
 .sidebar .brand .sub { display: block; font-family: var(--font-body); font-weight: 700;
   font-size: 0.52rem; letter-spacing: 0.18em; color: var(--muted); margin-top: 0.35rem; }
 .sidebar .brand .tr { display: block; width: 20px; height: 20px; color: var(--silver); margin: 0.5rem auto 0.9rem; }
@@ -92,12 +61,12 @@ body {
 }
 .nav a .ic { width: 20px; text-align: center; font-size: 0.95rem; filter: grayscale(0.2); }
 .nav a:hover { background: rgba(255,255,255,0.04); color: var(--white); }
-.nav a.active { background: var(--red); color: #fff; box-shadow: 0 0 14px rgba(193,39,45,0.4); }
+.nav a.active { background: var(--brand); color: #fff; box-shadow: 0 0 14px rgba(207, 97, 39, 0.40); }
 .nav a .badge {
-  margin-left: auto; background: var(--red); color: #fff;
+  margin-left: auto; background: var(--brand); color: #fff;
   font-size: 0.66rem; font-weight: 800; border-radius: 10px; padding: 0.05rem 0.4rem;
 }
-.nav a.active .badge { background: #fff; color: var(--red); }
+.nav a.active .badge { background: #fff; color: var(--brand); }
 
 /* ------------------------------------------------------------- 4. TOP BAR */
 .main { min-width: 0; padding: 1.1rem clamp(1rem, 2vw, 1.8rem) 2rem; }
@@ -116,7 +85,7 @@ body {
   padding: 0.5rem 0.8rem; cursor: pointer;
 }
 .topbar .gm .avatar { width: 34px; height: 34px; border-radius: 7px; display: grid; place-items: center;
-  background: linear-gradient(160deg, #1b3c60, #0a1a2e); font-size: 1.1rem; }
+  background: var(--card); font-size: 1.1rem; }
 .topbar .gm .who { line-height: 1.15; }
 .topbar .gm .who .n { font-weight: 700; font-size: 0.86rem; }
 .topbar .gm .who .t { color: var(--muted); font-size: 0.74rem; }
@@ -138,7 +107,7 @@ body {
   font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.74rem; cursor: pointer;
   transition: background 0.14s ease, border-color 0.14s ease;
 }
-.card-btn:hover { border-color: var(--red); background: rgba(193,39,45,0.1); }
+.card-btn:hover { border-color: var(--brand); background: rgba(207, 97, 39, 0.12); }
 
 .grid { display: grid; gap: 0.9rem; margin-bottom: 0.9rem; }
 
@@ -167,7 +136,7 @@ body {
 .sw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.8rem; }
 .sw-grid h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.35rem; }
 .sw-grid .good h3 { color: var(--green); }
-.sw-grid .bad h3 { color: var(--red-hi); }
+.sw-grid .bad h3 { color: var(--danger); }
 .sw-grid ul { list-style: none; }
 .sw-grid li { font-size: 0.8rem; color: var(--white); padding: 0.12rem 0; }
 .sw-grid li::before { content: "• "; color: var(--muted); }
@@ -181,10 +150,10 @@ body {
 .players { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; }
 .pl { text-align: center; }
 .pl .av { position: relative; width: 64px; height: 64px; margin: 0 auto 0.4rem; }
-.pl .av .face { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(150,180,220,0.28); display: grid; place-items: center; font-size: 1.4rem;
-  background: linear-gradient(160deg,#24405f,#0f2036); }
+.pl .av .face { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--stroke); display: grid; place-items: center; font-size: 1.4rem;
+  background: linear-gradient(160deg, var(--card), var(--inset)); }
 .pl .av .ovr { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
-  background: var(--navy-0); border: 1px solid var(--gold); color: var(--gold); font-weight: 800;
+  background: var(--ink-0); border: 1px solid var(--gold); color: var(--gold); font-weight: 800;
   font-size: 0.64rem; border-radius: 8px; padding: 0.02rem 0.3rem; }
 .pl .pos { color: var(--muted); font-size: 0.62rem; letter-spacing: 0.06em; }
 .pl .pn { font-weight: 700; font-size: 0.78rem; margin: 0.1rem 0 0.25rem; }
@@ -243,7 +212,7 @@ body {
 .pos-line b { color: var(--white); font-weight: 800; margin-right: 0.15rem; }
 
 .fin-grid.two { grid-template-columns: repeat(2, 1fr); }
-.fin .f .v.neg { color: var(--red-hi); }
+.fin .f .v.neg { color: var(--danger); }
 
 .note { margin-top: 0.4rem; color: var(--muted); font-size: 0.82rem; line-height: 1.5;
   padding: 0.9rem 1.1rem; border: 1px dashed var(--stroke); border-radius: 10px; }

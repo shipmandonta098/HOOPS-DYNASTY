@@ -1,0 +1,110 @@
+/* ==========================================================================
+   Hoops Dynasty — THEME
+   One palette for the whole game. Every screen links this BEFORE its own
+   stylesheet, so retuning the look happens here and nowhere else.
+
+       <link rel="stylesheet" href="./theme.css" />
+       <link rel="stylesheet" href="./this-page.css" />
+
+   The language is the title screen's: a near-black arena, dark hardwood,
+   and a single leather-orange accent. Anything that isn't the accent is
+   greyscale — that's what keeps the accent meaning "this is the action".
+
+   NAMING
+     --ink-*     background field, darkest to lightest
+     --panel/…   surfaces that sit on the field (cards, rows, insets)
+     --stroke/…  hairline borders, brightest to faintest
+     --brand-*   the orange accent (primary actions, active state, DYNASTY)
+     --wood-*    hardwood floor
+     status      --green / --blue / --gold / --violet — these carry MEANING
+                 (difficulty tiers, season phases) and are deliberately NOT
+                 orange, so the accent never competes with them.
+   ========================================================================== */
+
+/* Athletic display face — SELF-HOSTED (no CDN dependency). Lives in ./fonts/
+   so it loads offline, over file://, and on GitHub Pages.
+   Anton is SIL Open Font License 1.1 (see fonts/OFL.txt). */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/anton-latin.woff2') format('woff2');
+}
+
+:root {
+  /* --- field ------------------------------------------------------- */
+  --ink-0: #060708;                       /* deepest — page edges */
+  --ink-1: #0e1012;                       /* mid field */
+  --ink-2: #17191c;                       /* faint centre lift */
+
+  /* --- surfaces ---------------------------------------------------- */
+  --panel:   rgba(24, 26, 30, 0.72);      /* section card fill */
+  --panel-2: rgba(12, 13, 15, 0.85);      /* inset controls */
+  --row:     rgba(20, 22, 25, 0.55);      /* table rows */
+  --card:    #16181b;                     /* opaque card */
+  --inset:   #0b0c0e;                     /* deepest inset well */
+
+  /* --- lines ------------------------------------------------------- */
+  --stroke:   rgba(255, 255, 255, 0.11);  /* hairline borders */
+  --stroke-2: rgba(255, 255, 255, 0.06);  /* fainter divider */
+  --line:     rgba(255, 255, 255, 0.16);  /* court paint */
+  --hair:     rgba(255, 255, 255, 0.13);  /* menu dividers + rules */
+
+  /* --- the accent -------------------------------------------------- */
+  --brand:    #cf6127;                    /* primary action, active state */
+  --brand-hi: #e8813f;                    /* hover / bright */
+  --brand-glow: rgba(207, 97, 39, 0.55);
+
+  /* --- hardwood ---------------------------------------------------- */
+  --wood-near: #6a4523;
+  --wood-mid:  #40280f;
+  --wood-far:  #150d06;
+
+  /* --- text -------------------------------------------------------- */
+  --white:   #f4f4f3;
+  --muted:   #9a9a97;                     /* secondary text */
+  --muted-2: #6a6a68;                     /* tertiary text */
+  --silver:  #cfcfcb;
+
+  /* --- status (meaning, not decoration) ---------------------------- */
+  --green:  #4cae4f;   /* Easy difficulty · regular season · under the cap */
+  --blue:   #5b8dd6;   /* Normal difficulty · offseason/draft/free agency */
+  --gold:   #d4af37;   /* Finals · championships · awards */
+  --violet: #9b6bd6;   /* Legend difficulty */
+  --danger: #d0453c;   /* destructive actions · over the cap */
+
+  --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+/* ==========================================================================
+   SHARED BACKDROP
+   Every screen sits on the same field: near-black with a soft centre lift,
+   faint arena rings off the side edges, and a warm hardwood glow along the
+   bottom edge. The title screen draws real planks on top of this; content
+   screens keep just the glow so the floor never fights the content.
+   ========================================================================== */
+body {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 30%,
+      var(--ink-2) 0%, var(--ink-1) 46%, var(--ink-0) 100%);
+}
+
+/* Arena rings — hard-band radial gradients, so no extra markup is needed.
+   Fixed and non-interactive; sits behind everything the page draws. */
+.arena-rings {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle min(520px, 46vw) at -4% 44%,
+      transparent 0 61%, rgba(255,255,255,0.030) 61% 62.4%, transparent 63%),
+    radial-gradient(circle min(560px, 48vw) at 104% 38%,
+      transparent 0 61%, rgba(255,255,255,0.030) 61% 62.4%, transparent 63%),
+    /* warm hardwood glow washing up from the bottom edge */
+    linear-gradient(to top,
+      rgba(106, 69, 35, 0.20) 0%, rgba(64, 40, 15, 0.10) 8%,
+      rgba(0, 0, 0, 0) 20%);
+}
