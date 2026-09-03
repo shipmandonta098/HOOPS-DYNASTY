@@ -21,6 +21,8 @@
 
 import { loadLeague, listSavesDetailed } from './db.js';
 import { crestHTML, marketOf } from './leagueConfig.js';
+import { mountNav, activeLeagueId, renderNoCareer } from './shell.js';
+import { ovr, byOvr, initials } from './playerRatings.js';
 
 /* ------------------------------ ratings (real) ------------------------------
    Computed from each player's stored attributes — arithmetic on real data,
@@ -29,13 +31,6 @@ const ATTRS_OFF = ['insideScoring', 'midRange', 'threePoint', 'passing', 'ballHa
 const ATTRS_DEF = ['perimeterDefense', 'interiorDefense', 'block', 'steal', 'defensiveRebound'];
 const ATTRS_SHOOT = ['threePoint', 'midRange', 'freeThrow'];
 
-function ovr(p) {
-  if (typeof p.overall === 'number') return p.overall;
-  const a = p.attributes || {};
-  const k = Object.keys(a);
-  return k.length ? Math.round(k.reduce((s, x) => s + a[x], 0) / k.length) : 0;
-}
-const byOvr = (list) => [...list].sort((a, b) => ovr(b) - ovr(a));
 
 /** Minutes-weighted rating of the top 8 — the team's real on-paper strength. */
 function teamRating(players) {
@@ -57,7 +52,6 @@ function avgAttrs(players, list) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const initials = (n) => String(n || '').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const fmtM = (n) => `$${Number(n).toFixed(2)}M`;
 
 /** Paint a team crest into `node`, replacing the placeholder box styling. */
@@ -219,37 +213,17 @@ function render(vm) {
 }
 
 /* --------------------------------- boot --------------------------------- */
-async function activeId() {
-  const q = new URLSearchParams(location.search).get('id');
-  if (q) return q;
-  try { const s = localStorage.getItem('activeLeagueId'); if (s) return s; } catch (_) {}
-  const list = await listSavesDetailed();
-  return list.length ? list[0].id : null;
-}
-
 async function boot() {
   let league = null;
+  let id = null;
   try {
-    const id = await activeId();
+    id = await activeLeagueId(listSavesDetailed);
     if (id) league = await loadLeague(id);
   } catch (err) { console.error('Failed to load league:', err); }
 
-  if (!league) {
-    document.querySelector('.main').innerHTML =
-      '<div style="padding:4rem 1rem;text-align:center;color:#8ea3ba">' +
-      '<h1 style="font-family:var(--font-display);color:#fff;font-size:2rem;text-transform:uppercase">No active career</h1>' +
-      '<p style="margin-top:.6rem">Start one from <a style="color:#e5393f" href="./new-career.html">New Career</a> ' +
-      'or pick one from <a style="color:#e5393f" href="./load-career.html">Load Career</a>.</p></div>';
-    return;
-  }
+  mountNav('dashboard', id);
+  if (!league) { renderNoCareer(); return; }
   render(computeVM(league));
-
-  // Sidebar: only Dashboard exists so far; the rest are navigation placeholders.
-  document.querySelector('.nav').addEventListener('click', (e) => {
-    const a = e.target.closest('a'); if (!a) return;
-    if (a.dataset.to === 'title') { e.preventDefault(); location.href = './index.html'; return; }
-    if (!a.classList.contains('active')) { e.preventDefault(); console.log('→ nav:', a.dataset.nav || a.textContent.trim()); }
-  });
 }
 
 boot();

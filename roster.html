@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — Roster</title>
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./gm-dashboard.css" />
+  <link rel="stylesheet" href="./roster.css" />
+</head>
+<body>
+
+  <!-- Shared arena backdrop (theme.css): faint rings + hardwood glow. -->
+  <div class="arena-rings" aria-hidden="true"></div>
+  <div class="app">
+
+    <!-- ================= SIDEBAR (nav filled by shell.js) ================= -->
+    <aside class="sidebar">
+      <a class="brand" href="./index.html" style="text-decoration:none;display:block">
+        <span class="h">Hoops</span><span class="d">Dynasty</span>
+        <span class="sub">Basketball GM Simulator</span>
+        <span class="tr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg></span>
+      </a>
+      <nav class="nav"><!-- shell.js --></nav>
+    </aside>
+
+    <!-- ================= MAIN ================= -->
+    <main class="main">
+
+      <!-- Title + section tabs + team chip -->
+      <div class="topbar roster-top">
+        <div class="rt-left">
+          <h1>Roster</h1>
+          <div class="tabs" id="tabs">
+            <button class="tab is-active" data-tab="players">Players</button>
+            <button class="tab is-todo" data-tab="depth"    title="Not built yet">Depth Chart</button>
+            <button class="tab is-todo" data-tab="moves"    title="Not built yet">Roster Moves</button>
+            <button class="tab is-todo" data-tab="fa"       title="Not built yet">Free Agents</button>
+          </div>
+        </div>
+        <div class="gm">
+          <div class="avatar" id="teamChipLogo">🏀</div>
+          <div class="who">
+            <div class="n" id="teamChipName">Team</div>
+            <div class="t" id="teamChipSub">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary strip — every figure counted from the roster itself -->
+      <div class="card strip-card">
+        <div class="strip" id="strip"><!-- roster.js --></div>
+        <div class="controls">
+          <label class="ctl">
+            <span>View</span>
+            <select id="viewSel">
+              <option value="all">All Players</option>
+              <option value="contract">Under Contract</option>
+              <option value="expiring">Expiring</option>
+              <option value="unsigned">Unsigned</option>
+              <option value="PG">Point Guards</option>
+              <option value="SG">Shooting Guards</option>
+              <option value="SF">Small Forwards</option>
+              <option value="PF">Power Forwards</option>
+              <option value="C">Centers</option>
+            </select>
+          </label>
+          <label class="ctl">
+            <span>Sort</span>
+            <select id="sortSel">
+              <option value="ovr">OVR</option>
+              <option value="pot">POT</option>
+              <option value="age">Age</option>
+              <option value="salary">Salary</option>
+              <option value="years">Years</option>
+              <option value="pos">Position</option>
+              <option value="name">Name</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <!-- Roster table -->
+      <div class="card table-card">
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead>
+              <tr id="thead"><!-- roster.js: fixed columns + the five categories --></tr>
+            </thead>
+            <tbody id="tbody"><!-- roster.js --></tbody>
+          </table>
+        </div>
+        <p class="empty-note" id="emptyNote" hidden></p>
+      </div>
+
+      <!-- Bottom panels.
+           NOTE: the reference has a "Team Chemistry" panel here. The save has
+           no chemistry, morale or coach-fit data of any kind, so inventing a
+           number for it would be a lie — these two panels show what the save
+           genuinely holds instead. -->
+      <div class="bottom">
+        <div class="card">
+          <h2>Roster Composition</h2>
+          <div class="comp" id="comp"><!-- roster.js --></div>
+        </div>
+        <div class="card">
+          <h2>Salary Breakdown</h2>
+          <div class="sal" id="sal"><!-- roster.js --></div>
+        </div>
+      </div>
+
+      <!-- How the five category grades are computed — shown, not hidden, so
+           it's clear they're derived from stored attributes. -->
+      <details class="legend">
+        <summary>How the category grades are calculated</summary>
+        <div class="legend-body" id="legend"><!-- roster.js --></div>
+      </details>
+
+    </main>
+  </div>
+
+  <script type="module" src="./roster.js"></script>
+</body>
+</html>

@@ -67,6 +67,16 @@ body {
   font-size: 0.66rem; font-weight: 800; border-radius: 10px; padding: 0.05rem 0.4rem;
 }
 .nav a.active .badge { background: #fff; color: var(--brand); }
+/* Screens that don't exist yet: visibly inert, not dead links that look live. */
+.nav a.is-todo { color: var(--muted-2); cursor: not-allowed; }
+.nav a.is-todo:hover { background: none; color: var(--muted-2); }
+
+/* Shared "no career loaded" state (shell.js). */
+.no-career { padding: 4rem 1rem; text-align: center; color: var(--muted); }
+.no-career h1 { font-family: var(--font-display); color: var(--white); font-size: 2rem; text-transform: uppercase; }
+.no-career p { margin-top: 0.6rem; }
+.no-career a { color: var(--brand); font-weight: 700; }
+
 
 /* ------------------------------------------------------------- 4. TOP BAR */
 .main { min-width: 0; padding: 1.1rem clamp(1rem, 2vw, 1.8rem) 2rem; }
