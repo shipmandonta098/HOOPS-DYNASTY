@@ -133,15 +133,15 @@ export function letterGrade(v) {
 }
 
 /**
- * Word for a 0-99 rating. Deliberately shares gradeBand's thresholds so the
- * label and the colour never disagree — "GOOD" is always green, "AVERAGE"
- * always amber.
+ * Word for a 0-99 rating. Shares gradeBand's thresholds exactly, so the label
+ * and the colour can never disagree.
  */
 export function ratingLabel(v) {
   if (typeof v !== 'number') return '—';
-  if (v >= 82) return 'Elite';
-  if (v >= 67) return 'Good';
-  if (v >= 52) return 'Average';
+  if (v >= 80) return 'Elite';
+  if (v >= 70) return 'Good';
+  if (v >= 66) return 'Solid';
+  if (v >= 61) return 'Average';
   return 'Poor';
 }
 
@@ -163,12 +163,27 @@ export const ATTR_LABELS = {
   offensiveRebound: 'Offensive Rebounding', defensiveRebound: 'Defensive Rebounding',
 };
 
-/** Which colour band a grade sits in: 'hi' | 'mid' | 'lo' (or '' if absent). */
+/**
+ * The colour band a 0-99 rating sits in. Every rating shown anywhere in the
+ * game — overall, potential, category scores, the twenty-three attributes and
+ * the letter grades derived from them — runs through this one function, so
+ * the scale is the same on every screen by construction.
+ *
+ *   elite  80-99  bright green   All-Star and above
+ *   good   70-79  green          starter / strong rotation
+ *   solid  66-69  lime           slightly above average
+ *   avg    61-65  yellow         average to below average
+ *   poor    0-60  red            fringe / replacement level
+ *
+ * Colours live in theme.css as .g-<band>.
+ */
 export function gradeBand(v) {
   if (typeof v !== 'number') return '';
-  if (v >= 67) return 'hi';    // B- and up
-  if (v >= 52) return 'mid';   // C- .. C+
-  return 'lo';
+  if (v >= 80) return 'elite';
+  if (v >= 70) return 'good';
+  if (v >= 66) return 'solid';
+  if (v >= 61) return 'avg';
+  return 'poor';
 }
 
 /* ---------------------------------------------------------------------------

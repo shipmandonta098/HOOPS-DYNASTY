@@ -141,10 +141,8 @@
 .c-player .pn { font-weight: 700; }
 .c-player .star { color: var(--gold); font-size: 0.8rem; }
 
-/* overall / potential / grade colour bands */
-.g-hi  { color: var(--green); }
-.g-mid { color: var(--gold); }
-.g-lo  { color: var(--danger); }
+/* Rating colours come from theme.css (.g-elite .. .g-poor) so every screen
+   shares one scale. */
 .c-ovr, .c-pot { font-weight: 800; font-size: 0.95rem; }
 
 /* contract badge */

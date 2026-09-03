@@ -74,9 +74,29 @@
   --violet: #9b6bd6;   /* Legend difficulty */
   --danger: #d0453c;   /* destructive actions · over the cap */
 
+  /* --- rating scale (playerRatings.js gradeBand) --------------------
+     Read left to right as a ramp: red -> yellow -> lime -> green ->
+     bright green. Muted enough to sit on the near-black field without
+     glowing, separated enough to be told apart at a glance in a table. */
+  --rating-elite: #3fca7d;   /* 80-99  All-Star and above */
+  --rating-good:  #5fb06b;   /* 70-79  starter / strong rotation */
+  --rating-solid: #b9c93e;   /* 66-69  slightly above average */
+  --rating-avg:   #d7ab3c;   /* 61-65  average to below average */
+  --rating-poor:  #d9564a;   /* 0-60   fringe / replacement level */
+
   --font-display: 'Anton', 'Arial Narrow', 'Helvetica Neue', sans-serif;
   --font-body:    'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
+
+/* Rating colours. Defined once here rather than per page, so the roster
+   table, the depth chart and the player profile cannot drift apart.
+   Applies to ratings ONLY — age, salary, contract years, stats and season
+   years are deliberately left uncoloured. */
+.g-elite { color: var(--rating-elite); }
+.g-good  { color: var(--rating-good); }
+.g-solid { color: var(--rating-solid); }
+.g-avg   { color: var(--rating-avg); }
+.g-poor  { color: var(--rating-poor); }
 
 /* ==========================================================================
    SHARED BACKDROP

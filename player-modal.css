@@ -171,6 +171,9 @@ body.pm-open { overflow: hidden; }
   padding: 0.5rem 0; border-top: 1px solid var(--stroke-2);
 }
 .pm-rows > .pm-row:first-child { border-top: 0; }
+/* Morale / Fatigue / Durability are qualitative traits shown as words, not
+   ratings on the 0-99 scale, so they keep a plain good / neutral / poor
+   colouring instead of joining the rating ramp. */
 .pm-row b.g-hi { color: var(--green); }
 .pm-row b.g-mid { color: var(--gold); }
 .pm-row b.g-lo { color: var(--danger); }
@@ -185,10 +188,9 @@ body.pm-open { overflow: hidden; }
   color: var(--muted-2); font-size: 0.68rem; line-height: 1.5;
 }
 
-/* colour bands — shared with the roster grades */
-.pm .g-hi  { color: var(--green); }
-.pm .g-mid { color: var(--gold); }
-.pm .g-lo  { color: var(--danger); }
+/* Rating colours come from theme.css (.g-elite .. .g-poor). The overall ring's
+   arc and the attribute bars are painted with currentColor, so they follow the
+   band class without needing rules of their own. */
 
 /* ------------------------------------------------------ responsive */
 @media (max-width: 880px) {
