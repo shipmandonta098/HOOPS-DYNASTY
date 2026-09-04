@@ -34,6 +34,7 @@ import {
 import { crestHTML } from './leagueConfig.js';
 import { applyTeamTheme } from './teamTheme.js';
 import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
+import { pronouns } from './playerBio.js';
 import {
   TRAIT_BY_ID, PRIORITIES, priorityLevel, satisfaction, satisfactionLabel,
 } from './playerPersonality.js';
@@ -281,11 +282,12 @@ function mentalPane(p) {
     return `<p class="pm-empty">This save predates the mental attributes.
       Start a new career to see them.</p>`;
   }
-  const summary = mentalSummary(m);
+  const pn = pronouns(p);
+  const summary = mentalSummary(m, pn);
   return `<div class="pm-mental">
     <p class="pm-mental-note">These describe how a player responds to pressure,
       mistakes, opponents and coaching. They are tendencies, not certainties, and
-      they do <b>not</b> affect his Overall or Potential.</p>
+      they do <b>not</b> affect ${pn.poss} Overall or Potential.</p>
     <div class="pm-mental-grid">
       ${MENTAL_ATTRS.map(({ key, label, blurb }) => {
         const v = m[key];
@@ -325,11 +327,13 @@ function personalityPane(p) {
     .sort((a, b) => b.v - a.v);
 
   const sat = satisfaction(p, playerContext(p));
+  const pn = pronouns(p);
 
   return `<div class="pm-person">
     <p class="pm-mental-note">Personality governs how this player is to
       <b>manage</b> — contracts, roles, loyalty, the media, the locker room. It
-      does <b>not</b> affect his Overall, his Potential or how he plays.</p>
+      does <b>not</b> affect ${pn.poss} Overall, ${pn.poss} Potential or how
+      ${pn.subj} plays.</p>
 
     <div class="pp-block">
       <div class="pp-h">Traits</div>
@@ -344,7 +348,7 @@ function personalityPane(p) {
     </div>
 
     <div class="pp-block">
-      <div class="pp-h">Career Priorities <span>what he wants right now</span></div>
+      <div class="pp-h">Career Priorities <span>what ${pn.subj} wants right now</span></div>
       <div class="pp-priorities">${ranked.map((d) => {
         const lv = priorityLevel(d.v);
         return `<div class="pp-row">

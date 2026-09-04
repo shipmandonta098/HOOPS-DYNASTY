@@ -28,6 +28,7 @@ import {
 import {
   POSITIONS, SLOT_LABEL, autoChart, reconcile, move, starters, startingFive,
 } from './depthChart.js';
+import { pronouns } from './playerBio.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -621,7 +622,7 @@ function showTab(tab) {
 /* ------------------------------- row actions -------------------------------
    Negotiate and Trade need contract-negotiation and trade systems that do not
    exist yet, so they render disabled rather than pretending. Waive is real: it
-   frees the player, drops his salary off the payroll and writes the save. */
+   frees the player, drops their salary off the payroll and writes the save. */
 
 let openMenuFor = null;
 
@@ -677,9 +678,11 @@ function openRowMenu(btn, playerId) {
 async function waivePlayer(p) {
   if (!vm.isOwnTeam) return;   // only ever your own roster
   const salary = p.contract ? Number(p.contract.salary) || 0 : 0;
+  const pn = pronouns(p);
   const ok = confirm(
     `Waive ${p.name}?\n\n` +
-    `He becomes a free agent and his ${fmtM(salary)} comes off the payroll in full — ` +
+    `${pn.Subj} becomes a free agent and ${pn.poss} ${fmtM(salary)} comes off the ` +
+    `payroll in full — ` +
     `this save has no dead-money model, so released salary is not retained.\n\n` +
     `This cannot be undone.`);
   if (!ok) return;

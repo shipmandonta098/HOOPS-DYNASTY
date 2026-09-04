@@ -152,6 +152,29 @@ export function makeBio(rng, { position, age, startSeason, overall = 70,
   };
 }
 
+/* ---------------------------------------------------------------- pronouns */
+
+/**
+ * How to refer to a player in prose.
+ *
+ * Screens write copy about a specific player — "his mental strength", "he
+ * becomes a free agent" — and now that a league can be women's or mixed, that
+ * copy has to follow the player rather than assume. One source, so a new screen
+ * cannot quietly reintroduce the assumption.
+ *
+ * Saves made before the gender setting existed are men's leagues, so the
+ * default is he/him rather than a guess.
+ */
+const PRONOUNS = {
+  male:   { subj: 'he',  Subj: 'He',  obj: 'him', poss: 'his', self: 'himself' },
+  female: { subj: 'she', Subj: 'She', obj: 'her', poss: 'her', self: 'herself' },
+};
+
+export function pronouns(player) {
+  const g = player && player.gender === 'female' ? 'female' : 'male';
+  return PRONOUNS[g];
+}
+
 /* ---------------------------------------------------------------- display */
 
 /** 78 -> `6'6"`. */

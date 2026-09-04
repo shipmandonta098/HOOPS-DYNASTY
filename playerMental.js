@@ -137,7 +137,7 @@ export function pressureFactor(rating, { strength = 1, floor = 0.35, ceil = 2.2 
 }
 
 /** One-line read on a mental profile, for a scouting blurb. */
-export function mentalSummary(mental) {
+export function mentalSummary(mental, pn = { poss: 'his' }) {
   if (!mental) return null;
   const rated = MENTAL_ATTRS
     .map((m) => ({ ...m, v: mental[m.key] }))
@@ -152,5 +152,5 @@ export function mentalSummary(mental) {
       : mean >= 55 ? 'No strong mental tendencies either way.'
       : 'Struggles across most mental areas.';
   }
-  return `${best.label} is his mental strength; ${worst.label.toLowerCase()} is the concern.`;
+  return `${best.label} is ${pn.poss} mental strength; ${worst.label.toLowerCase()} is the concern.`;
 }

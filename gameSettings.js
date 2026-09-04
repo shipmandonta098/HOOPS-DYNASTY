@@ -87,7 +87,7 @@ export const GROUPS = [
         help: 'Loyal, Ambitious, Ego-Driven, Mentor and twenty others. Personality governs off-court behaviour and how difficult a player is to manage. It never affects Overall.' },
       { key: 'dynamicPriorities', label: 'Dynamic Career Priorities', type: 'toggle',
         def: true, applied: true,
-        help: 'What a player currently wants — minutes, money, a ring, stability — recomputed from his traits, age and standing, so it moves as his career does. Requires Personality Traits.' },
+        help: 'What a player currently wants — minutes, money, a ring, stability — recomputed from their traits, age and standing, so it moves as their career does. Requires Personality Traits.' },
     ],
   },
   {
@@ -166,7 +166,7 @@ export const GROUPS = [
         help: 'How long a second-round rookie deal runs.' },
       { key: 'refuseAfterRookie', label: 'Can Refuse After Rookie Contract', type: 'toggle',
         def: true, applied: false,
-        help: 'A player finishing his rookie deal may decline to re-sign. Needs contract negotiation.' },
+        help: 'A player finishing a rookie deal may decline to re-sign. Needs contract negotiation.' },
     ],
   },
 ];
