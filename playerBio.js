@@ -18,11 +18,18 @@
  * cities only (a city is not a league or a team, so it carries no sports
  * branding).
  *
+ * Where a player is from now comes from nameCultures.js, which owns the
+ * country/city table AND the naming traditions, so that a player's birthplace
+ * and his name are drawn together instead of independently. That module is the
+ * only place either lives; this one just merges the result into the record.
+ *
  * Personality used to live here as a single label. It is now its own layer
  * (playerPersonality.js) with multiple traits and derived career priorities,
  * because "what kind of person is this to manage" is not a biographical fact
  * like a birthplace.
  */
+
+import { makeOrigin } from './nameCultures.js';
 
 /* ------------------------------------------------------------------ pools */
 
@@ -36,22 +43,6 @@ export const COLLEGES = [
   'Overseas Professional', 'Developmental League',
 ];
 
-/** Birthplaces: city, region, country. Real places, no sports branding. */
-const BIRTHPLACES = [
-  ['Norwalk', 'CT', 'USA'], ['Akron', 'OH', 'USA'], ['Fresno', 'CA', 'USA'],
-  ['Baton Rouge', 'LA', 'USA'], ['Savannah', 'GA', 'USA'], ['Tacoma', 'WA', 'USA'],
-  ['Tulsa', 'OK', 'USA'], ['Rochester', 'NY', 'USA'], ['Mesa', 'AZ', 'USA'],
-  ['Flint', 'MI', 'USA'], ['Camden', 'NJ', 'USA'], ['Waco', 'TX', 'USA'],
-  ['Peoria', 'IL', 'USA'], ['Asheville', 'NC', 'USA'], ['Provo', 'UT', 'USA'],
-  ['Toronto', 'ON', 'Canada'], ['Montreal', 'QC', 'Canada'],
-  ['Belgrade', null, 'Serbia'], ['Ljubljana', null, 'Slovenia'],
-  ['Zagreb', null, 'Croatia'], ['Vilnius', null, 'Lithuania'],
-  ['Melbourne', 'VIC', 'Australia'], ['Lagos', null, 'Nigeria'],
-  ['Dakar', null, 'Senegal'], ['Bamako', null, 'Mali'],
-  ['Paris', null, 'France'], ['Barcelona', null, 'Spain'],
-  ['Athens', null, 'Greece'], ['Munich', null, 'Germany'],
-  ['São Paulo', null, 'Brazil'], ['Buenos Aires', null, 'Argentina'],
-];
 
 /**
  * Height range in inches, plus a build adjustment in pounds. Weight is
@@ -91,7 +82,9 @@ export function makeBio(rng, { position, age, startSeason }) {
   const experience = Math.max(0, age - entryAge);
   const undrafted = rng.int(1, 100) <= 12;
 
-  const [city, region, country] = rng.pick(BIRTHPLACES);
+  // Birthplace, nationality and naming tradition are ONE draw, not three:
+  // a player born in Bamako should not end up with an unrelated name.
+  const origin = makeOrigin(rng);
   const monthIdx = rng.int(0, 11);
 
   return {
@@ -102,8 +95,19 @@ export function makeBio(rng, { position, age, startSeason }) {
       month: monthIdx + 1,
       day: rng.int(1, DAYS_IN[monthIdx]),
     },
-    birthplace: { city, region, country },
-    nationality: country,
+    birthplace: {
+      city: origin.birthCity,
+      region: origin.birthRegion,
+      country: origin.birthCountry,
+    },
+    nationality: origin.nationality,
+    // Born in one country, raised in another — null for most players.
+    secondaryNationality: origin.secondaryNationality,
+    // The naming tradition his name was drawn from. A naming tradition and
+    // nothing else: not ancestry, not appearance. If portraits ever exist they
+    // need their own variable rather than reading this one.
+    namingOrigin: origin.namingOrigin,
+    gender: origin.gender,
     college: rng.pick(COLLEGES),
     experience,
     draft: undrafted ? null : {

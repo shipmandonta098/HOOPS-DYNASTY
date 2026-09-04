@@ -19,6 +19,7 @@
 
 import { saveLeague, listSaves } from './db.js';
 import { makeBio } from './playerBio.js';
+import { makeName } from './nameCultures.js';
 import { makeMental } from './playerMental.js';
 import { makePersonality } from './playerPersonality.js';
 import { loadSettings, generationTuning } from './gameSettings.js';
@@ -36,37 +37,30 @@ import {
 /* Every economic rule now comes from the Settings screen (gameSettings.js):
    the cap, the payroll floor, cap type, salaries, contract lengths and roster
    size. Nothing about league finances is hard-coded here any more. */
-const FIRST = ['James', 'Marcus', 'Tyrese', 'DeAndre', 'Jalen', 'Cam', 'Isaiah', 'Malik',
-  'Trey', 'Devin', 'Zion', 'Jaylen', 'Brandon', 'Darius', 'Keegan', 'Obi', 'Xavier',
-  'Jordan', 'Quentin', 'Terrence', 'Cason', 'Julian', 'Bilal', 'Kel', 'Deni', 'Santi',
-  'Amari', 'Corey', 'Dante', 'Elias', 'Filip', 'Gabe', 'Hakim', 'Idris', 'Jonas',
-  'Kofi', 'Lonzo', 'Micah', 'Nikola', 'Omar', 'Pierre', 'Rashad', 'Sekou', 'Tobias',
-  'Uche', 'Vince', 'Wes', 'Yannick', 'Zane', 'Andre', 'Bruno', 'Caleb', 'Damir',
-  'Emeka', 'Frank', 'Goran', 'Hugo', 'Ivan', 'Jamal', 'Kristaps'];
-const LAST = ['Carter', 'Robinson', 'Mitchell', 'Thompson', 'Edwards', 'Hayes', 'Foster',
-  'Coleman', 'Reeves', 'Miller', 'Wallace', 'Walker', 'Vincent', 'Sharpe', 'Duren',
-  'Sanders', 'Bryant', 'Ellison', 'Brooks', 'Freeman', 'Howard', 'Nowell', 'Prosper',
-  'Abara', 'Bogdan', 'Castillo', 'Dempsey', 'Ferreira', 'Gallagher', 'Haywood',
-  'Ibrahim', 'Jankovic', 'Keita', 'Larsen', 'Mensah', 'Novak', 'Okafor', 'Petrov',
-  'Quintero', 'Ramsey', 'Sokolov', 'Traore', 'Underwood', 'Vasquez', 'Whitfield',
-  'Yates', 'Zielinski', 'Ashford', 'Barnett', 'Cross', 'Dunlap', 'Everett'];
-
 /**
- * Pick a name nobody in the league already has. With ~360 players drawn from
- * a few thousand combinations, collisions are otherwise a certainty — the old
- * pools produced 95 duplicates in a 360-player league, four players deep in
- * places, which made a name a useless way to identify anyone.
+ * Pick a name nobody in the league already has, drawn from the naming
+ * tradition his origin gave him (nameCultures.js). With ~360 players,
+ * collisions are otherwise a certainty — the old single-pool generator
+ * produced 95 duplicates in a 360-player league, four players deep in places,
+ * which made a name a useless way to identify anyone.
+ *
+ * Retries stay INSIDE the player's own culture. Reaching for a different
+ * culture's pool just to dodge a collision would be the one thing this system
+ * exists to prevent, so the last resort is a middle initial instead.
  */
-function uniqueName(rng, used) {
-  for (let i = 0; i < 40; i++) {
-    const n = `${rng.pick(FIRST)} ${rng.pick(LAST)}`;
+function uniqueName(rng, used, origin) {
+  for (let i = 0; i < 60; i++) {
+    const n = makeName(rng, origin);
     if (!used.has(n)) { used.add(n); return n; }
   }
-  // Exhausted the pool: distinguish with a middle initial rather than give up.
-  const base = `${rng.pick(FIRST)} ${rng.pick(LAST)}`;
+  // Exhausted the culture's combinations: distinguish with a middle initial
+  // rather than give up or leave the tradition.
+  const base = makeName(rng, origin);
+  const parts = base.split(' ');
   for (const c of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
-    const [f, l] = base.split(' ');
-    const n = `${f} ${c}. ${l}`;
+    // Insert before the surname, which is the last token even when the name
+    // carries a particle ("Le Blanc") or a second surname.
+    const n = [parts[0], `${c}.`, ...parts.slice(1)].join(' ');
     if (!used.has(n)) { used.add(n); return n; }
   }
   used.add(base);
@@ -91,7 +85,9 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
   if (personality && !cfg.dynamicPriorities) delete personality.priorities;
   return {
     id: `p_${String(idNum).padStart(4, '0')}`,
-    name: uniqueName(rng, usedNames),
+    // The name comes from the bio: birthplace and naming tradition are one
+    // draw, so a Bamako-born player is not handed an unrelated name.
+    name: uniqueName(rng, usedNames, bio),
     position: rated.position,
     age: rated.age,
     teamId,

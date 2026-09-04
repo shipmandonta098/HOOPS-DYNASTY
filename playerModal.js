@@ -458,7 +458,11 @@ function bioPane(p) {
     ['Birthdate', p.birthDate ? `${formatBirthDate(p.birthDate)}` : null,
       p.birthDate && typeof p.age === 'number' ? `Age ${p.age}` : null],
     ['Birthplace', p.birthplace ? formatBirthplace(p.birthplace) : null],
-    ['Nationality', p.nationality || null],
+    // A dual-national shows both. namingOrigin and gender are internal
+    // generation fields and deliberately never displayed.
+    ['Nationality', p.nationality
+      ? (p.secondaryNationality ? `${p.nationality} / ${p.secondaryNationality}` : p.nationality)
+      : null],
     ['College', p.college || null],
     ['Experience', typeof p.experience === 'number'
       ? (p.experience === 0 ? 'Rookie' : `${p.experience} ${p.experience === 1 ? 'season' : 'seasons'}`)

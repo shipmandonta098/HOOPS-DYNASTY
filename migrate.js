@@ -20,6 +20,7 @@ import { makeTraits, derivePriorities } from './playerPersonality.js';
 import { ovr } from './playerRatings.js';
 import { marketForTeam, lookupCity } from './markets.js';
 import { normalize as normalizeSettings } from './gameSettings.js';
+import { cultureForCountry } from './nameCultures.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -164,6 +165,32 @@ function backfillPersonality(p, enabled) {
 }
 
 /**
+ * Record the origin fields on a player generated before naming cultures
+ * existed.
+ *
+ * His NAME IS NOT TOUCHED. A name already in a save is that player's identity
+ * — re-rolling it would rewrite the league's history for no gain — and a name
+ * written by the old single-pool generator cannot be classified backwards
+ * anyway. What is recorded is where a name from his birth country would have
+ * come from, so that anything generated for him LATER stays consistent with
+ * the country he is already from.
+ *
+ * A country the table does not know leaves namingOrigin null: "unknown" is the
+ * truth there, and substituting a default tradition would be a guess dressed
+ * up as data.
+ */
+function backfillOrigin(p) {
+  if (!p || !p.id || typeof p.gender === 'string') return false;
+  p.gender = 'male';
+  if (p.secondaryNationality === undefined) p.secondaryNationality = null;
+  const country = (p.birthplace && p.birthplace.country) || p.nationality || null;
+  p.namingOrigin = country
+    ? cultureForCountry(rngForPlayer(p.id + ':origin'), country)
+    : null;
+  return true;
+}
+
+/**
  * Bring a team's market size onto the geography-based system.
  *
  * Market size used to be derived from a per-team random "population", so a
@@ -200,10 +227,12 @@ export function migrateLeague(league) {
   let changed = 0;
   let mentals = 0;
   let persons = 0;
+  let origins = 0;
   for (const p of league.players) {
     if (migratePlayer(p)) changed++;
     if (backfillMental(p, rules.mentalAttributes)) mentals++;
     if (backfillPersonality(p, rules.personalityTraits)) persons++;
+    if (backfillOrigin(p)) origins++;
   }
   let markets = 0;
   for (const t of league.teams || []) if (migrateTeamMarket(t)) markets++;
@@ -223,5 +252,8 @@ export function migrateLeague(league) {
   if (persons) {
     console.info(`Save upgraded: personality traits and priorities assigned to ${persons} player(s).`);
   }
-  return { league, changed, mentals, persons };
+  if (origins) {
+    console.info(`Save upgraded: origin fields recorded for ${origins} player(s) (names unchanged).`);
+  }
+  return { league, changed, mentals, persons, origins };
 }

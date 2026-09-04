@@ -18,7 +18,7 @@
 
 const { RNG } = require('./lib/rng');
 const { POSITIONS, computeOverall, ATTRIBUTES } = require('./lib/ratings');
-const { FIRST_NAMES, LAST_NAMES, COLLEGES } = require('./lib/names');
+const { makeOrigin, makeName, COLLEGES } = require('./lib/names');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 /**
@@ -87,13 +87,25 @@ function generateProspect(index, year, rng) {
 
   const position = rng.pick(POSITIONS);
   const attributes = buildAttributes(position, targetOverall, rng);
-  const name = `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`;
+  // Where he is from and what he is called are one draw, not two, so a
+  // prospect born in Bamako is not handed an unrelated name.
+  const origin = makeOrigin(rng);
+  const name = makeName(rng, origin);
 
   const prospect = {
     id: `prospect_${year}_${String(index + 1).padStart(2, '0')}`,
     name,
     position,
     age,
+    birthplace: {
+      city: origin.birthCity,
+      region: origin.birthRegion,
+      country: origin.birthCountry,
+    },
+    nationality: origin.nationality,
+    secondaryNationality: origin.secondaryNationality,
+    namingOrigin: origin.namingOrigin,
+    gender: origin.gender,
     college: rng.pick(COLLEGES),
     teamId: null, // undrafted
     draftClass: year,

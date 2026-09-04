@@ -109,7 +109,26 @@
       }
     },
     "nationality": {
-      "type": "string"
+      "type": "string",
+      "description": "Country the player represents. Comes from his birth country unless he was raised elsewhere."
+    },
+    "secondaryNationality": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Second country, for a player born in one and raised in another. Null for most players."
+    },
+    "namingOrigin": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Internal: the naming tradition his name was drawn from (a key in nameCultures.js). A naming tradition ONLY \u2014 not ancestry, not appearance, not ethnicity. Portrait or heritage systems must use their own separate field rather than reading this one. Null on saves made before naming cultures existed, where the country is not in the table."
+    },
+    "gender": {
+      "type": "string",
+      "description": "Internal: which given-name pool to draw from. 'male' throughout a men's league."
     },
     "experience": {
       "type": "integer",

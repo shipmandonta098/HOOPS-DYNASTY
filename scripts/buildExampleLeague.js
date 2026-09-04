@@ -19,7 +19,7 @@
 const path = require('path');
 const { RNG } = require('../engine/lib/rng');
 const { POSITIONS, computeOverall, ATTRIBUTES } = require('../engine/lib/ratings');
-const { FIRST_NAMES, LAST_NAMES, COLLEGES } = require('../engine/lib/names');
+const { makeOrigin, makeName, COLLEGES } = require('../engine/lib/names');
 const { generateDraftClass } = require('../engine/generateDraftClass');
 const { saveLeague } = require('../engine/saveLoad');
 
@@ -79,12 +79,23 @@ function makePlayer(idNum, teamId, position, tier, rng) {
   for (const b of boosts) attributes[b] = Math.min(99, attributes[b] + rng.int(3, 9));
 
   const age = rng.int(19, 34);
+  // Origin and name are one draw: the name follows from where he is from.
+  const origin = makeOrigin(rng);
   const player = {
     id: `p_${String(idNum).padStart(3, '0')}`,
-    name: `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`,
+    name: makeName(rng, origin),
     position,
     age,
     teamId,
+    birthplace: {
+      city: origin.birthCity,
+      region: origin.birthRegion,
+      country: origin.birthCountry,
+    },
+    nationality: origin.nationality,
+    secondaryNationality: origin.secondaryNationality,
+    namingOrigin: origin.namingOrigin,
+    gender: origin.gender,
     college: rng.pick(COLLEGES),
     attributes,
     statsHistory: [],
