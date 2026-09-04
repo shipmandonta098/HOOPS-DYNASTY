@@ -168,7 +168,8 @@ function render() {
       ${fact('Overall', o || '—')}
       ${fact('Potential', formatPotential(p.potential, o, potMode()).text)}
       ${potMode() === 'Exact' ? fact('Upside', upside(p, o)) : ''}
-      ${p.college ? fact('College', p.college) : ''}
+      ${p.college ? fact('College', p.college)
+        : p.preDraftPath && p.preDraftPath !== 'College' ? fact('Pre-Draft', p.preDraftPath) : ''}
     </div>
 
     <div class="pm-body">
@@ -464,7 +465,13 @@ function bioPane(p) {
     ['Nationality', p.nationality
       ? (p.secondaryNationality ? `${p.nationality} / ${p.secondaryNationality}` : p.nationality)
       : null],
-    ['College', p.college || null],
+    // Always shown, and "None" is a real answer: a player who never attended
+    // an American college is not missing data. The route he did take sits
+    // beside it rather than being crammed into the college field.
+    ['College', p.college || (p.preDraftPath ? 'None' : null)],
+    // Only when it says something the College row does not — "College: Duke"
+    // followed by "Pre-Draft Path: College" is the same fact twice.
+    ['Pre-Draft Path', p.preDraftPath && p.preDraftPath !== 'College' ? p.preDraftPath : null],
     ['Experience', typeof p.experience === 'number'
       ? (p.experience === 0 ? 'Rookie' : `${p.experience} ${p.experience === 1 ? 'season' : 'seasons'}`)
       : null],

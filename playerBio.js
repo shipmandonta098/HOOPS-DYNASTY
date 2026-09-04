@@ -30,18 +30,9 @@
  */
 
 import { makeOrigin } from './nameCultures.js';
+import { makeBackground } from './colleges.js';
 
 /* ------------------------------------------------------------------ pools */
-
-/** Invented schools — no real programs, no real developmental leagues. */
-export const COLLEGES = [
-  'Westlake State', 'Cardinal Ridge', 'Northgate', 'St. Ambrose',
-  'Lakeshore Tech', 'Verdant Valley', 'Ironwood', 'Summit College',
-  'Pinehurst A&M', 'Granite State', 'Ashford', 'Blue Harbor',
-  'Coastal Polytechnic', 'Fairmont', 'Kingsbury', 'Redstone',
-  'Silverbrook', 'Thornfield University', 'Cascade State', 'Marlowe',
-  'Overseas Professional', 'Developmental League',
-];
 
 
 /**
@@ -73,7 +64,8 @@ const DAYS_IN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  * @param {object} o            { position, age, startSeason }
  * @returns {object} fields to merge into the player record
  */
-export function makeBio(rng, { position, age, startSeason, heightIn: h, weightLb: wt }) {
+export function makeBio(rng, { position, age, startSeason, overall = 70,
+  heightIn: h, weightLb: wt }) {
   const build = BUILD[position] || BUILD.SF;
   // The generator draws the frame first and hands it here, so the body in the
   // biography is the same body the ratings were built around.
@@ -81,14 +73,37 @@ export function makeBio(rng, { position, age, startSeason, heightIn: h, weightLb
   const weightLb = typeof wt === 'number' ? wt : Math.max(155, Math.min(330, Math.round(
     heightIn * 4.7 - 150 + build.build + rng.gauss(0, 8))));
 
-  // Age drives everything else, so service time and draft year always agree.
-  const entryAge = rng.int(19, 23);
-  const experience = Math.max(0, age - entryAge);
-  const undrafted = rng.int(1, 100) <= 12;
-
   // Birthplace, nationality and naming tradition are ONE draw, not three:
   // a player born in Bamako should not end up with an unrelated name.
   const origin = makeOrigin(rng);
+
+  // Where he played before turning pro is a SEPARATE draw from where he was
+  // born. Being born abroad does not mean he skipped American college
+  // basketball — a Rome-born Italian who played at Arizona is an ordinary
+  // player, not an edge case — and a player who never attended one gets a null
+  // college and the route he actually took, never "Overseas Professional"
+  // stuffed into a field that means "school".
+  const background = makeBackground(rng, {
+    overall, position, age,
+    birthCountry: origin.birthCountry,
+    birthRegion: origin.birthRegion,
+    secondaryNationality: origin.secondaryNationality,
+  });
+
+  // Entry age follows the history rather than being drawn beside it, so the
+  // biography cannot contradict itself: a four-year college player arrives at
+  // 22, a one-and-done at 19, and nobody is credited with more college than he
+  // has had birthdays.
+  const ENTRY = {
+    College: 18 + background.collegeYears,
+    'International Professional': rng.int(19, 23),
+    'Development League': rng.int(19, 21),
+    'Direct Entry': rng.int(18, 19),
+    Other: rng.int(19, 22),
+  };
+  const entryAge = Math.min(age, ENTRY[background.preDraftPath] || 20);
+  const experience = Math.max(0, age - entryAge);
+  const undrafted = rng.int(1, 100) <= 12;
   const monthIdx = rng.int(0, 11);
 
   return {
@@ -112,7 +127,12 @@ export function makeBio(rng, { position, age, startSeason, heightIn: h, weightLb
     // need their own variable rather than reading this one.
     namingOrigin: origin.namingOrigin,
     gender: origin.gender,
-    college: rng.pick(COLLEGES),
+    // A real institution, or null. Never a career path.
+    college: background.college,
+    // How he reached the professional league: College, International
+    // Professional, Development League, Direct Entry or Other.
+    preDraftPath: background.preDraftPath,
+    collegeYears: background.collegeYears,
     experience,
     draft: undrafted ? null : {
       year: startSeason - experience,

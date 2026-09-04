@@ -79,6 +79,9 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
   // rolling a second, unrelated body.
   const bio = makeBio(rng, {
     position: rated.position, age: rated.age, startSeason,
+    // Recruiting weighting only — how highly he was rated coming out, which
+    // nudges which programme took him. College never feeds back into a rating.
+    overall: rated.overall,
     heightIn: rated.heightIn, weightLb: rated.weightLb,
   });
   // Personality first: it feeds the mental tilt, and priorities are derived

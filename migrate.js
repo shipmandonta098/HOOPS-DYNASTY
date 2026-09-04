@@ -23,6 +23,7 @@ import { normalize as normalizeSettings } from './gameSettings.js';
 import { cultureForCountry } from './nameCultures.js';
 import { secondaryPosition } from './playerGen.js';
 import { classifyArchetype, archetypeById } from './playerArchetypes.js';
+import { pickCollege, COLLEGES } from './colleges.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -225,6 +226,71 @@ function backfillIdentity(p) {
   return changed;
 }
 
+/** The whole invented-school pool the old generator drew from. */
+const FICTIONAL_COLLEGES = new Set([
+  'Westlake State', 'Cardinal Ridge', 'Northgate', 'St. Ambrose',
+  'Lakeshore Tech', 'Verdant Valley', 'Ironwood', 'Summit College',
+  'Pinehurst A&M', 'Granite State', 'Ashford', 'Blue Harbor',
+  'Coastal Polytechnic', 'Fairmont', 'Kingsbury', 'Redstone',
+  'Silverbrook', 'Thornfield University', 'Cascade State', 'Marlowe',
+]);
+
+/** Two career paths that were being stored in the college field. */
+const PATH_IN_COLLEGE_FIELD = {
+  'Overseas Professional': 'International Professional',
+  'Developmental League': 'Development League',
+};
+
+const REAL_COLLEGES = new Set(COLLEGES.map((c) => c.name));
+
+/**
+ * Move a save off invented schools and separate the college field from the
+ * career path that was being stored inside it.
+ *
+ *   'Overseas Professional' / 'Developmental League' were never schools. They
+ *   become college: null with the route recorded in preDraftPath, which is
+ *   what they always meant.
+ *
+ *   An invented school becomes a real one, drawn with the same weighting a new
+ *   player would get — his rating and where he grew up — and seeded from his
+ *   id, so it is stable across every load rather than changing whenever you
+ *   open the save.
+ *
+ * A player who somehow already carries a real school keeps it.
+ */
+function backfillCollege(p) {
+  if (!p || !p.id) return false;
+  const existing = p.college;
+  const path = PATH_IN_COLLEGE_FIELD[existing];
+  if (path) {
+    p.college = null;
+    p.preDraftPath = path;
+    if (p.collegeYears === undefined) p.collegeYears = 0;
+    return true;
+  }
+  if (typeof existing === 'string' && !REAL_COLLEGES.has(existing)) {
+    // Anything not in the real pool — the invented list, or an old save that
+    // picked one up some other way — is replaced.
+    const rng = rngForPlayer(p.id + ':college');
+    p.college = pickCollege(rng, {
+      overall: ovr(p),
+      birthCountry: (p.birthplace && p.birthplace.country) || p.nationality,
+      birthRegion: (p.birthplace && p.birthplace.region) || null,
+    });
+    p.preDraftPath = 'College';
+    if (p.collegeYears === undefined) p.collegeYears = rng.int(1, 4);
+    return true;
+  }
+  if (existing && !p.preDraftPath) { p.preDraftPath = 'College'; return true; }
+  if (!existing && !p.preDraftPath) {
+    p.college = null;
+    p.preDraftPath = 'Other';
+    p.collegeYears = 0;
+    return true;
+  }
+  return false;
+}
+
 /**
  * Bring a team's market size onto the geography-based system.
  *
@@ -264,12 +330,14 @@ export function migrateLeague(league) {
   let persons = 0;
   let origins = 0;
   let identities = 0;
+  let schools = 0;
   for (const p of league.players) {
     if (migratePlayer(p)) changed++;
     if (backfillMental(p, rules.mentalAttributes)) mentals++;
     if (backfillPersonality(p, rules.personalityTraits)) persons++;
     if (backfillOrigin(p)) origins++;
     if (backfillIdentity(p)) identities++;
+    if (backfillCollege(p)) schools++;
   }
   let markets = 0;
   for (const t of league.teams || []) if (migrateTeamMarket(t)) markets++;
@@ -295,5 +363,8 @@ export function migrateLeague(league) {
   if (identities) {
     console.info(`Save upgraded: secondary position / archetype derived for ${identities} player(s).`);
   }
-  return { league, changed, mentals, persons, origins, identities };
+  if (schools) {
+    console.info(`Save upgraded: ${schools} player(s) moved to real colleges and a separate pre-draft path.`);
+  }
+  return { league, changed, mentals, persons, origins, identities, schools };
 }

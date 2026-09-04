@@ -21,7 +21,8 @@ const { RNG } = require('../engine/lib/rng');
 const { POSITIONS, computeOverall } = require('../engine/lib/ratings');
 const { load, adaptRNG } = require('../engine/lib/esm');
 const { makeRatedPlayer } = load('playerGen.js');
-const { makeOrigin, makeName, COLLEGES } = require('../engine/lib/names');
+const { makeBackground } = load('colleges.js');
+const { makeOrigin, makeName } = require('../engine/lib/names');
 const { generateDraftClass } = require('../engine/generateDraftClass');
 const { saveLeague } = require('../engine/saveLoad');
 
@@ -77,6 +78,15 @@ function makePlayer(idNum, teamId, position, tier, rng) {
   const attributes = rated.attributes;
   // Origin and name are one draw: the name follows from where he is from.
   const origin = makeOrigin(rng);
+  // Where he played before turning pro is its own draw, separate from where he
+  // was born: a Rome-born player who went to Arizona is ordinary, and one who
+  // never attended an American college gets a null college plus his real route.
+  const background = makeBackground(adaptRNG(rng), {
+    overall: target, position, age,
+    birthCountry: origin.birthCountry,
+    birthRegion: origin.birthRegion,
+    secondaryNationality: origin.secondaryNationality,
+  });
   const player = {
     id: `p_${String(idNum).padStart(3, '0')}`,
     name: makeName(rng, origin),
@@ -97,7 +107,9 @@ function makePlayer(idNum, teamId, position, tier, rng) {
     secondaryNationality: origin.secondaryNationality,
     namingOrigin: origin.namingOrigin,
     gender: origin.gender,
-    college: rng.pick(COLLEGES),
+    college: background.college,
+    preDraftPath: background.preDraftPath,
+    collegeYears: background.collegeYears,
     attributes,
     statsHistory: [],
   };

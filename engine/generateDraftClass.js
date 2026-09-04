@@ -20,7 +20,8 @@ const { RNG } = require('./lib/rng');
 const { POSITIONS, computeOverall } = require('./lib/ratings');
 const { load, adaptRNG } = require('./lib/esm');
 const { makeRatedPlayer } = load('playerGen.js');
-const { makeOrigin, makeName, COLLEGES } = require('./lib/names');
+const { makeBackground } = load('colleges.js');
+const { makeOrigin, makeName } = require('./lib/names');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 /**
@@ -74,6 +75,16 @@ function generateProspect(index, year, rng) {
   // prospect born in Bamako is not handed an unrelated name.
   const origin = makeOrigin(rng);
   const name = makeName(rng, origin);
+  // Where he played before turning pro is its own draw, separate from where he
+  // was born: a Rome-born prospect who played at Arizona is ordinary, and one
+  // who never attended an American college gets a null college plus the route
+  // he actually took.
+  const background = makeBackground(adaptRNG(rng), {
+    overall: targetOverall, position, age,
+    birthCountry: origin.birthCountry,
+    birthRegion: origin.birthRegion,
+    secondaryNationality: origin.secondaryNationality,
+  });
 
   const prospect = {
     id: `prospect_${year}_${String(index + 1).padStart(2, '0')}`,
@@ -94,7 +105,9 @@ function generateProspect(index, year, rng) {
     secondaryNationality: origin.secondaryNationality,
     namingOrigin: origin.namingOrigin,
     gender: origin.gender,
-    college: rng.pick(COLLEGES),
+    college: background.college,
+    preDraftPath: background.preDraftPath,
+    collegeYears: background.collegeYears,
     teamId: null, // undrafted
     draftClass: year,
     tier: tier.label,

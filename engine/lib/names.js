@@ -55,15 +55,4 @@ function makeName(rng, origin) {
   return cultures.makeName(adapt(rng), origin);
 }
 
-// Invented schools only — no real programs and no real developmental leagues.
-// Kept in step with the identical list in playerBio.js (the browser side).
-const COLLEGES = [
-  'Westlake State', 'Cardinal Ridge', 'Northgate', 'St. Ambrose',
-  'Lakeshore Tech', 'Verdant Valley', 'Ironwood', 'Summit College',
-  'Pinehurst A&M', 'Granite State', 'Ashford', 'Blue Harbor',
-  'Coastal Polytechnic', 'Fairmont', 'Kingsbury', 'Redstone',
-  'Silverbrook', 'Thornfield University', 'Cascade State', 'Marlowe',
-  'Overseas Professional', 'Developmental League',
-];
-
-module.exports = { makeOrigin, makeName, COLLEGES, CULTURES: cultures.CULTURES, COUNTRIES: cultures.COUNTRIES };
+module.exports = { makeOrigin, makeName, CULTURES: cultures.CULTURES, COUNTRIES: cultures.COUNTRIES };

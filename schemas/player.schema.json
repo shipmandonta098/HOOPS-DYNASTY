@@ -48,10 +48,6 @@
       ],
       "description": "Id of the team that rosters this player. null = free agent or undrafted prospect."
     },
-    "college": {
-      "type": "string",
-      "description": "Fictional school, or 'Overseas Professional' / 'Developmental League'."
-    },
     "heightIn": {
       "type": "integer",
       "minimum": 60,
@@ -107,6 +103,30 @@
           "type": "string"
         }
       }
+    },
+    "college": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The real U.S. college or university he attended, or null if he did not attend one. Never a career path \u2014 how he reached the pros is preDraftPath."
+    },
+    "preDraftPath": {
+      "type": "string",
+      "enum": [
+        "College",
+        "International Professional",
+        "Development League",
+        "Direct Entry",
+        "Other"
+      ],
+      "description": "How the player reached the professional league. Separate from birthplace, nationality and college."
+    },
+    "collegeYears": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Seasons spent in college; 0 for a player who did not attend one. Entry age is derived from this, so the biography's chronology stays self-consistent."
     },
     "secondaryPosition": {
       "type": [
