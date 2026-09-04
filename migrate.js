@@ -21,6 +21,8 @@ import { ovr } from './playerRatings.js';
 import { marketForTeam, lookupCity } from './markets.js';
 import { normalize as normalizeSettings } from './gameSettings.js';
 import { cultureForCountry } from './nameCultures.js';
+import { secondaryPosition } from './playerGen.js';
+import { classifyArchetype, archetypeById } from './playerArchetypes.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -191,6 +193,39 @@ function backfillOrigin(p) {
 }
 
 /**
+ * Fill in the fields the position/archetype rework added.
+ *
+ * Both are DERIVED from ratings the save already has, not invented:
+ *
+ *   secondaryPosition — read off his actual categories and height. A player
+ *     who could always credibly slide to the four now says so; nothing about
+ *     him changed.
+ *   archetype — re-read only when the stored id no longer exists. The old
+ *     generator had a smaller, differently-named set (rim_runner, post_hub,
+ *     defensive_wing and so on), and an id nothing can resolve is worse than
+ *     one derived from the player's real numbers. A player whose archetype
+ *     still exists keeps it: he has been that player for however many seasons
+ *     you have managed him, and re-labelling him would be a change, not a fix.
+ */
+function backfillIdentity(p) {
+  let changed = false;
+  if (p.secondaryPosition === undefined && p.attributes && p.position) {
+    const h = typeof p.heightIn === 'number' ? p.heightIn : null;
+    p.secondaryPosition = h ? secondaryPosition(p.attributes, h, p.position) : null;
+    changed = true;
+  }
+  if (p.archetype && !archetypeById(p.archetype)) {
+    const now = classifyArchetype(p);
+    if (now) {
+      p.archetype = now.id;
+      p.archetypeLabel = now.label;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
  * Bring a team's market size onto the geography-based system.
  *
  * Market size used to be derived from a per-team random "population", so a
@@ -228,11 +263,13 @@ export function migrateLeague(league) {
   let mentals = 0;
   let persons = 0;
   let origins = 0;
+  let identities = 0;
   for (const p of league.players) {
     if (migratePlayer(p)) changed++;
     if (backfillMental(p, rules.mentalAttributes)) mentals++;
     if (backfillPersonality(p, rules.personalityTraits)) persons++;
     if (backfillOrigin(p)) origins++;
+    if (backfillIdentity(p)) identities++;
   }
   let markets = 0;
   for (const t of league.teams || []) if (migrateTeamMarket(t)) markets++;
@@ -255,5 +292,8 @@ export function migrateLeague(league) {
   if (origins) {
     console.info(`Save upgraded: origin fields recorded for ${origins} player(s) (names unchanged).`);
   }
-  return { league, changed, mentals, persons, origins };
+  if (identities) {
+    console.info(`Save upgraded: secondary position / archetype derived for ${identities} player(s).`);
+  }
+  return { league, changed, mentals, persons, origins, identities };
 }

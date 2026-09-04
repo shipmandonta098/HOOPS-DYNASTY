@@ -10,7 +10,7 @@
  * Ratings carried no information — an 80 meant nothing because nobody was
  * shaped like anything.
  *
- * HOW THIS WORKS INSTEAD — the maths runs backwards from a target:
+ * HOW THIS WORKS INSTEAD — the player is built, then the level is applied:
  *
  *   1. Each TEAM draws an archetype (contender, top-heavy, deep, young,
  *      veteran, rebuilding, balanced) which sets its mean talent, its spread,
@@ -19,14 +19,23 @@
  *   2. Each team may draw a headline player from a rare star tier. These are
  *      PROBABILITIES, never quotas: nothing guarantees a league contains a 95+
  *      player, and most leagues do not.
- *   3. Each ROSTER SLOT draws a target overall from that team's curve.
- *   4. Each PLAYER draws a position archetype (rim protector, sharpshooter,
- *      floor general, ...) whose category deltas give him real strengths and
- *      real weaknesses.
- *   5. The five categories are shifted as a block until the position-weighted
- *      overall lands on the target, which preserves the archetype's shape.
- *   6. The fourteen stored attributes are drawn around their category with
- *      jitter, then corrected so each category score comes back to plan.
+ *   3. Each ROSTER SLOT draws a position and a target overall from that team's
+ *      curve.
+ *   4. The PLAYER is then built in the order a scout would describe him:
+ *        position  ->  physical frame (height, weight)
+ *                  ->  archetype compatible with that position and frame
+ *                  ->  a full 23-attribute SHAPE from position + frame +
+ *                      archetype + age + correlated individual variation
+ *                  ->  a signature skill and/or a real hole
+ *   5. Only then is the shape SHIFTED — as a block, every attribute by the
+ *      same amount — until his position-weighted overall lands on the target.
+ *      Shifting preserves every gap, which is the whole trick: it is what
+ *      makes two 75s at the same position play nothing alike, and what lets an
+ *      88 keep a genuine weakness instead of being 88 at everything.
+ *   6. Potential is drawn afterwards from age and development room.
+ *
+ * The shape itself lives in playerArchetypes.js, which knows nothing about
+ * levels. This file owns the arithmetic that puts a level on it.
  *
  * The result: overall is still derived from attributes (playerRatings.js owns
  * that definition), but the distribution and the shape are both controlled.
@@ -35,8 +44,14 @@
 import {
   ATTR_GROUPS, POSITION_WEIGHTS, overallFromCategories, groupScore,
 } from './playerRatings.js';
+import {
+  ATTRS, POS_HEIGHT, POSITION_BASE, FACTORS,
+  archetypesFor, archetypeById, frameMods, ageMods, classifyArchetype,
+} from './playerArchetypes.js';
 
-const CATS = ['phy', 'sho', 'ply', 'def', 'reb'];
+export { classifyArchetype, archetypeById };
+
+const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /* ===========================================================================
@@ -98,91 +113,53 @@ export function pickTeamArchetype(rng, marketSize) {
 }
 
 /* ===========================================================================
- * 2. PLAYER ARCHETYPES
+ * 2. THE PHYSICAL FRAME
  * ---------------------------------------------------------------------------
- * Category deltas, in rating points, applied before the block is shifted onto
- * the target overall. They are what makes a 74 defensive centre look nothing
- * like a 74 scoring guard.
+ * Height and weight are generated HERE, before any skill, because they decide
+ * what the rest of the player can plausibly be. They used to be drawn in
+ * playerBio.js after the ratings existed, which meant a 7'0" player could be
+ * quicker than a 6'1" one — the body was decoration.
+ *
+ * Most players are ordinary for their position. A small share are not, and
+ * that is deliberate: the 6'8" point guard and the 6'7" centre are supposed to
+ * exist, be rare, and still make sense, because the frame then feeds every
+ * attribute through frameMods().
  * ======================================================================== */
-export const ARCHETYPES = {
-  PG: [
-    { id: 'floor_general',  label: 'Floor General',   w: 3,
-      d: { phy: -4, sho:  +1, ply: +14, def:  -3, reb:  -8 },
-      a: { passingIQ: +8, ballHandling: +5, dunk: -14, postControl: -12, shotIQ: +5 } },
-    { id: 'scoring_guard',  label: 'Scoring Guard',   w: 3,
-      d: { phy:  +1, sho: +11, ply:  +4, def:  -8, reb:  -9 },
-      a: { threePoint: +7, midRange: +6, layup: +4, postControl: -12, dunk: -6 } },
-    { id: 'two_way_guard',  label: 'Two-Way Guard',   w: 2,
-      d: { phy:  +4, sho:  +1, ply:  +6, def:  +9, reb:  -6 },
-      a: { steal: +9, defensiveIQ: +7, postControl: -10, dunk: -6 } },
-    { id: 'burst_athlete',  label: 'Burst Athlete',   w: 2,
-      d: { phy: +13, sho:  -6, ply:  +5, def:  +2, reb:  -5 },
-      a: { speed: +9, agility: +8, vertical: +7, threePoint: -14, midRange: -8, layup: +10, dunk: +8 } },
-  ],
-  SG: [
-    { id: 'sharpshooter',   label: 'Sharpshooter',    w: 3,
-      d: { phy:  -6, sho: +14, ply:  -2, def:  -7, reb:  -6 },
-      a: { threePoint: +14, freeThrow: +10, shotIQ: +7, dunk: -16, postControl: -12, layup: -6 } },
-    { id: 'three_and_d',    label: '3&D Wing',        w: 3,
-      d: { phy:  +2, sho:  +5, ply: -10, def: +12, reb:  -3 },
-      a: { threePoint: +12, perimeterDefense: +9, postControl: -12, midRange: -6 } },
-    { id: 'slasher',        label: 'Slasher',         w: 2,
-      d: { phy: +12, sho:  +2, ply:  +2, def:  -2, reb:  -2 },
-      a: { speed: +8, vertical: +8, layup: +13, dunk: +11, threePoint: -15, midRange: -6 } },
-    { id: 'combo_guard',    label: 'Combo Guard',     w: 2,
-      d: { phy:  +1, sho:  +6, ply:  +8, def:  -6, reb:  -7 },
-      a: { ballHandling: +7, midRange: +6, postControl: -11, dunk: -5 } },
-  ],
-  SF: [
-    { id: 'wing_scorer',    label: 'Wing Scorer',     w: 3,
-      d: { phy:  +5, sho: +10, ply:  +1, def:  -8, reb:  -6 },
-      a: { midRange: +8, threePoint: +6, layup: +5, shotIQ: +5, postControl: -6 } },
-    { id: 'defensive_wing', label: 'Defensive Wing',  w: 3,
-      d: { phy:  +6, sho:  -7, ply:  -5, def: +14, reb:  +3 },
-      a: { perimeterDefense: +9, defensiveIQ: +8, steal: +6, threePoint: -12, postControl: -8 } },
-    { id: 'point_forward',  label: 'Point Forward',   w: 2,
-      d: { phy:  -2, sho:  +2, ply: +14, def:  -4, reb:  +2 },
-      a: { passing: +8, passingIQ: +8, dunk: -10, threePoint: -5 } },
-    { id: 'finisher',       label: 'Athletic Finisher', w: 2,
-      d: { phy: +14, sho:  -4, ply:  -3, def:  +3, reb:  +5 },
-      a: { vertical: +11, strength: +7, dunk: +17, layup: +11, threePoint: -22, midRange: -12, freeThrow: -8 } },
-  ],
-  PF: [
-    { id: 'stretch_four',   label: 'Stretch Four',    w: 3,
-      d: { phy:  -6, sho: +13, ply:  +2, def:  -7, reb:  -4 },
-      a: { threePoint: +16, midRange: +9, freeThrow: +8, dunk: -12, postControl: -8 } },
-    { id: 'defensive_big',  label: 'Defensive Big',   w: 3,
-      d: { phy:  +5, sho:  -9, ply:  -7, def: +13, reb: +10 },
-      a: { interiorDefense: +9, block: +9, defensiveIQ: +6, threePoint: -18, midRange: -10 } },
-    { id: 'rim_runner',     label: 'Rim Runner',      w: 2,
-      d: { phy: +13, sho:  -6, ply:  -6, def:  +4, reb: +10 },
-      a: { vertical: +10, strength: +8, dunk: +18, layup: +10, threePoint: -24, midRange: -14, freeThrow: -10 } },
-    { id: 'face_up_four',   label: 'Face-Up Four',    w: 2,
-      d: { phy:  +3, sho:  +7, ply:  +7, def:  -5, reb:  -2 },
-      a: { midRange: +9, ballHandling: +7, postControl: -6 } },
-  ],
-  C: [
-    { id: 'rim_protector',  label: 'Rim Protector',   w: 4,
-      d: { phy:  +6, sho: -12, ply: -12, def: +14, reb: +13 },
-      a: { block: +12, interiorDefense: +10, strength: +8, threePoint: -26, midRange: -16,
-           freeThrow: -12, dunk: +9, layup: +6 } },
-    { id: 'post_hub',       label: 'Post Hub',        w: 2,
-      d: { phy:  +4, sho:  -4, ply:  +9, def:  +2, reb:  +9 },
-      a: { postControl: +16, passing: +8, passingIQ: +8, strength: +7, threePoint: -18, speed: -8 } },
-    { id: 'stretch_five',   label: 'Stretch Five',    w: 2,
-      d: { phy:  -5, sho: +14, ply:  +1, def:  -4, reb:  +2 },
-      a: { threePoint: +18, midRange: +10, freeThrow: +9, dunk: -12, strength: -6 } },
-    { id: 'athletic_big',   label: 'Athletic Big',    w: 3,
-      d: { phy: +14, sho:  -8, ply:  -8, def:  +8, reb: +11 },
-      a: { vertical: +11, speed: +8, dunk: +16, layup: +8, threePoint: -24, midRange: -14, freeThrow: -9 } },
-  ],
+
+/** Weight offset by position: a centre carries more than his height alone says. */
+const POS_BUILD = { PG: -6, SG: -2, SF: +3, PF: +10, C: +18 };
+
+// How far off the positional norm a body is allowed to get. Asymmetric on
+// purpose: an oversized guard is a real archetype, a 5'8" two-guard is not.
+const HEIGHT_RANGE = {
+  PG: [69, 82], SG: [72, 84], SF: [74, 86], PF: [76, 88], C: [77, 90],
 };
 
-function pickArchetype(rng, position) {
-  const list = ARCHETYPES[position] || ARCHETYPES.SF;
-  const table = {};
-  list.forEach((a, i) => { table[i] = a.w; });
-  return list[Number(pickWeighted(rng, table))];
+function makeFrame(rng, position) {
+  const mean = POS_HEIGHT[position] || POS_HEIGHT.SF;
+  let h = rng.gauss(mean, 2.0);
+  // Unconventional bodies. Roughly one player in fourteen is meaningfully off
+  // the standard for his spot — enough that a roster usually has one, not so
+  // many that they stop being interesting.
+  if (rng.next() < 0.07) h += (rng.next() < 0.5 ? -1 : 1) * (3 + rng.next() * 3);
+  const [lo, hi] = HEIGHT_RANGE[position] || HEIGHT_RANGE.SF;
+  const heightIn = clamp(Math.round(h), lo, hi);
+  const weightLb = clamp(Math.round(
+    heightIn * 4.7 - 150 + (POS_BUILD[position] || 0) + rng.gauss(0, 9)), 155, 330);
+  return { heightIn, weightLb };
+}
+
+/**
+ * Pick an archetype the player's position AND body can support. The frame is a
+ * weight, not a gate: a 6'7" rim protector is unlikely and not impossible.
+ */
+function pickArchetype(rng, position, heightIn) {
+  const options = archetypesFor(position, heightIn);
+  if (!options.length) return archetypeById('all_around_wing');
+  const total = options.reduce((sum, o) => sum + o.weight, 0);
+  let r = rng.next() * total;
+  for (const o of options) { r -= o.weight; if (r <= 0) return o.archetype; }
+  return options[options.length - 1].archetype;
 }
 
 /* ===========================================================================
@@ -196,7 +173,7 @@ function pickArchetype(rng, position) {
  * Past his peak a player has none: his potential is what he already is.
  */
 const GROWTH = {
-  19: [14.0, 6.0], 20: [12.0, 5.5], 21: [10.0, 5.0], 22: [8.0, 4.5],
+  18: [15.5, 6.2], 19: [14.0, 6.0], 20: [12.0, 5.5], 21: [10.0, 5.0], 22: [8.0, 4.5],
   23: [6.5, 4.0],  24: [5.0, 3.5],  25: [3.5, 3.0],  26: [2.0, 2.5],
 };
 
@@ -247,94 +224,221 @@ function drawPotential(rng, ovr, age, potBias) {
  * 4. BUILDING ONE PLAYER
  * ======================================================================== */
 
+/** How hard the four correlated factors push, and how much noise sits on top. */
+const FACTOR_SCALE = 6.0;
+const IDIOSYNCRATIC = 4.5;
+
+/* An archetype's strengths count for less than its weaknesses.
+ *
+ * That is not a nerf, it is what a weighted mean does. Overall is (roughly)
+ * the average of a player's ratings, so a hole has to be PAID FOR by every
+ * other rating rising. Give the profile symmetric peaks and troughs and the
+ * shift lands the peaks absurdly high — two players in three ended up with a
+ * 95+ rating, which makes 95 mean nothing.
+ *
+ * Asymmetry also matches how the game actually reads: a defensive centre is
+ * defined far more by the 27 points he gives away on offence than by the 9 he
+ * gains on defence. Specialists still reach the top of the scale, but they get
+ * there through the signature spike below, which is the deliberate exception
+ * rather than every player's default shape. */
+const UPSIDE = 0.55;
+
 /**
- * Shape five category scores for `archetype` and shift them as a block until
- * the position-weighted overall equals `target`. Shifting preserves the gaps
- * between categories, which is what the archetype actually is.
+ * Every attribute as a delta around a neutral player: position + frame +
+ * archetype + age + correlated individual variation.
+ *
+ * The correlated part matters as much as the archetype. Independent noise on
+ * 23 ratings averages out into mush; four latent factors (explosiveness,
+ * shooting touch, feel, physicality) loaded onto related attributes mean an
+ * explosive player is explosive everywhere and a shooter shoots from
+ * everywhere, while still never producing two identical numbers.
  */
-function buildCategories(rng, target, position, archetype) {
-  const w = POSITION_WEIGHTS[position] || POSITION_WEIGHTS.SF;
+function buildShape(rng, { position, heightIn, weightLb, archetype, age }) {
+  const base = POSITION_BASE[position] || POSITION_BASE.SF;
+  const frame = frameMods(position, heightIn, weightLb);
+  const aged = ageMods(age);
 
-  // Near the ceiling an archetype physically cannot keep its full shape: at 95
-  // overall, one category sitting 15 points low forces every other category to
-  // ~99 to compensate. So the deltas are scaled to fit the headroom, which is
-  // not a fudge — it is what the arithmetic of a weighted mean requires. Elite
-  // players have relative strengths, not gaping holes.
-  const dmax = Math.max(...CATS.map((c) => archetype.d[c]));
-  const dmin = Math.min(...CATS.map((c) => archetype.d[c]));
-  let k = 1;
-  if (dmax > 0) k = Math.min(k, (97 - target) / dmax);
-  if (dmin < 0) k = Math.min(k, (26 - target) / dmin);
-  k = clamp(k, 0.35, 1);
+  const factor = {};
+  for (const k of Object.keys(FACTORS)) factor[k] = rng.gauss(0, 1);
 
-  const scores = {};
-  for (const c of CATS) scores[c] = target + archetype.d[c] * k + rng.gauss(0, 3.2 * k);
-
-  // Converge onto the target. Correcting EVERY category by the gap was the bug
-  // here: with one category pinned at 99 the others absorbed its share too and
-  // overshot, which is how a Rim Runner ended up with 95 playmaking. Only
-  // categories that can still move in the needed direction take the
-  // correction, and the step is sized by their combined position weight so the
-  // overall lands exactly.
-  for (let i = 0; i < 8; i++) {
-    const current = overallFromCategories(
-      Object.fromEntries(CATS.map((c) => [c, Math.round(scores[c])])), position);
-    const gap = target - current;
-    if (gap === 0) break;
-    const movable = CATS.filter((c) => (gap > 0 ? scores[c] < 99 : scores[c] > 22));
-    const weight = movable.reduce((sum, c) => sum + w[c], 0);
-    if (!movable.length || weight <= 0) break;
-    const step = gap / weight;
-    for (const c of movable) scores[c] = clamp(scores[c] + step, 22, 99);
+  const shape = {};
+  for (const attr of ATTRS) {
+    const d = archetype.p[attr] || 0;
+    let v = (base[attr] || 0) + (d > 0 ? d * UPSIDE : d)
+          + (frame[attr] || 0) + (aged[attr] || 0);
+    for (const [name, loads] of Object.entries(FACTORS)) {
+      if (loads[attr]) v += factor[name] * loads[attr] * FACTOR_SCALE;
+    }
+    shape[attr] = v + rng.gauss(0, IDIOSYNCRATIC);
   }
-  for (const c of CATS) scores[c] = Math.round(clamp(scores[c], 22, 99));
-  return scores;
+  return shape;
+}
+
+/** Fisher-Yates against the seeded RNG. */
+function shuffled(rng, arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 /**
- * Spread each category across its attributes with jitter, then correct so the
- * weighted category score comes back to plan — texture inside a category
- * without moving the category itself.
+ * Give the player a signature skill, a real hole, or both.
+ *
+ * This is what produces specialists. Because the shape is shifted onto the
+ * target AFTERWARDS, a spike here does not make him better overall — it makes
+ * him more lopsided at the same overall. A 69 with an 88 three-ball is a 69
+ * precisely because the spike was paid for everywhere else, which is exactly
+ * what a shooting specialist is.
+ *
+ * It also applies at the top of the league. An 88 who is elite at everything
+ * should be rare, so most stars keep a genuine weakness; only the roughly one
+ * player in twenty-five who comes back `complete` has his holes filled in.
  */
-function buildAttributes(rng, scores, archetype) {
-  const tilt = archetype.a || {};
-  const attrs = {};
+function applyIdentity(rng, shape, archetype) {
+  const sig = archetype.sig || [];
+  const holes = archetype.hole || [];
+  const complete = rng.next() < 0.04;
+  if (complete) {
+    // The genuinely all-around player: no dug-out weakness, no outsized skill.
+    for (const a of holes) shape[a] += 8;
+    return { complete: true, signature: [] };
+  }
+  const signature = [];
+  if (sig.length && rng.next() < 0.62) {
+    const n = rng.next() < 0.25 ? 2 : 1;
+    for (const a of shuffled(rng, sig).slice(0, n)) {
+      shape[a] += Math.abs(rng.gauss(10, 4.5));
+      signature.push(a);
+    }
+  }
+  if (holes.length && rng.next() < 0.55) {
+    const n = rng.next() < 0.3 ? 2 : 1;
+    for (const a of shuffled(rng, holes).slice(0, n)) shape[a] -= Math.abs(rng.gauss(11, 5));
+  }
+  return { complete: false, signature };
+}
+
+/* Cap how far a STRENGTH can run, in shape space rather than in rating space.
+ *
+ * The first attempt compressed the top of the finished 0-99 scale, and it was
+ * wrong in a way worth recording: at a 93 target the offset dominates, so
+ * squashing everything above ~88 collapsed the whole player into the 90s. It
+ * fixed the "everyone has a 95" problem by breaking a more important one —
+ * stars came out elite at everything, which is precisely what the design says
+ * must not happen.
+ *
+ * Softening the SHAPE instead leaves the level alone. A deviation of +12 above
+ * his own weighted mean passes through almost untouched; +25 and +40 both
+ * arrive near +18. So a 75 rim protector's block stops running to 97, a 93
+ * slasher keeps his mediocre jumper, and the deep holes — which are never
+ * softened, because a weakness should be free to be a real one — stay exactly
+ * as deep as the archetype made them. */
+const PEAK = 24;
+
+/**
+ * How far a strength may stand out, given how good the player already is.
+ *
+ * There is simply less room above 90 than above 70, so the cap shrinks with
+ * the level. This is the honest version of what "elite players have relative
+ * strengths, not gaping ones" means — and it is the opposite of flattening,
+ * because only the PEAKS are capped. A star's weaknesses are never softened,
+ * so an elite slasher keeps the mediocre jumper his archetype gave him instead
+ * of being dragged up to 90 with everything else.
+ */
+function peakRoom(level) {
+  return clamp(99 - level, 5, PEAK);
+}
+
+function softenPeak(d, room) {
+  return d > 0 ? room * (1 - Math.exp(-d / room)) : d;
+}
+
+const HARD_FLOOR = 24;
+
+/**
+ * Realise a shape at a given additive offset.
+ *
+ * Deviations are measured against the shape's own position-weighted mean —
+ * roughly "his own level" — so the softening acts on how far a strength stands
+ * out, not on how good the player is.
+ */
+function realise(shape, offset, position) {
+  const w = POSITION_WEIGHTS[position] || POSITION_WEIGHTS.SF;
+  let sum = 0, wt = 0;
   for (const g of ATTR_GROUPS) {
-    const target = scores[g.key];
-    // The tilt is what separates two players with the SAME category score:
-    // a rim runner and a stretch five can both sit at 70 Shooting, but one
-    // gets there on dunks and layups and the other on threes. Without this,
-    // bundling finishing and jump shooting into one category would flatten
-    // exactly the distinction the categories are meant to expose.
-    for (const [attr] of g.parts) {
-      attrs[attr] = clamp(target + (tilt[attr] || 0) + rng.gauss(0, 5.5), 20, 99);
-    }
-    // Correct back onto the category score so the tilt reshapes the inside of
-    // a category without moving the category itself.
-    for (let i = 0; i < 4; i++) {
-      const got = groupScore({ attributes: attrs }, g);
-      const gap = target - got;
-      if (gap === 0) break;
-      const movable = g.parts.filter(([a]) => (gap > 0 ? attrs[a] < 99 : attrs[a] > 20));
-      const weight = movable.reduce((sum, [, w]) => sum + w, 0);
-      if (!movable.length || weight <= 0) break;
-      const total = g.parts.reduce((sum, [, w]) => sum + w, 0);
-      const step = (gap * total) / weight;
-      for (const [a] of movable) attrs[a] = clamp(attrs[a] + step, 20, 99);
-    }
-    for (const [attr] of g.parts) attrs[attr] = Math.round(attrs[attr]);
+    const per = w[g.key] / g.parts.length;
+    for (const [a] of g.parts) { sum += shape[a] * per; wt += per; }
+  }
+  const mean = wt ? sum / wt : 0;
+  const room = peakRoom(mean + offset);
+  const attrs = {};
+  for (const a of ATTRS) {
+    attrs[a] = clamp(Math.round(mean + offset + softenPeak(shape[a] - mean, room)), HARD_FLOOR, 99);
   }
   return attrs;
 }
 
 /**
+ * Slide the whole shape until the position-weighted overall hits `target`.
+ *
+ * ONE offset applied to EVERY attribute. That is the difference between this
+ * and the previous generator, which scaled an archetype's deltas down as the
+ * target rose and so flattened stars into 90-at-everything blobs. Shifting
+ * preserves every gap at every level: the compression that does occur happens
+ * only where an attribute actually hits 99 or 20, which is real arithmetic
+ * rather than a fudge.
+ */
+function shiftToTarget(shape, position, target) {
+  const ovrAt = (o) => overallFromCategories(
+    Object.fromEntries(ATTR_GROUPS.map(
+      (g) => [g.key, groupScore({ attributes: realise(shape, o, position) }, g)])),
+    position);
+
+  // Overall is non-decreasing in the offset, so bisection is exact.
+  let lo = -60, hi = 200;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (ovrAt(mid) < target) lo = mid; else hi = mid;
+  }
+  const a = realise(shape, lo, position), b = realise(shape, hi, position);
+  const errA = Math.abs(ovrAt(lo) - target), errB = Math.abs(ovrAt(hi) - target);
+  return errA <= errB ? a : b;
+}
+
+/**
+ * The position a player could also credibly play, or null.
+ *
+ * Derived, never rolled: it is the position OTHER than his own whose weighting
+ * of his actual categories, penalised by how far his height sits from that
+ * spot's norm, comes closest to his primary. That is why a 6'9" ball-handling
+ * forward can come out SF/PG while a 6'9" rim runner cannot, and why most
+ * players get an adjacent spot or nothing at all.
+ */
+export function secondaryPosition(attributes, heightIn, primary) {
+  const cats = Object.fromEntries(
+    ATTR_GROUPS.map((g) => [g.key, groupScore({ attributes }, g)]));
+  const fit = {};
+  for (const p of POSITIONS) {
+    fit[p] = overallFromCategories(cats, p) - Math.abs(heightIn - POS_HEIGHT[p]) * 1.7;
+  }
+  const other = POSITIONS.filter((p) => p !== primary).sort((x, y) => fit[y] - fit[x])[0];
+  return fit[other] >= fit[primary] - 2.2 ? other : null;
+}
+
+/**
  * One player at a target overall.
- * @returns {object} { position, archetype, attributes, overall, potential, age, durability }
+ * @returns {object} position, secondaryPosition, heightIn, weightLb, archetype,
+ *   attributes, overall, potential, age, durability
  */
 export function makeRatedPlayer(rng, { target, position, age, potBias = 1 }) {
-  const archetype = pickArchetype(rng, position);
-  const scores = buildCategories(rng, clamp(Math.round(target), 40, 99), position, archetype);
-  const attributes = buildAttributes(rng, scores, archetype);
+  const { heightIn, weightLb } = makeFrame(rng, position);
+  const archetype = pickArchetype(rng, position, heightIn);
+  const shape = buildShape(rng, { position, heightIn, weightLb, archetype, age });
+  applyIdentity(rng, shape, archetype);
+  const attributes = shiftToTarget(shape, position, clamp(Math.round(target), 40, 99));
 
   // Overall is read back off the attributes rather than trusted from the
   // target, so the stored number always matches the stored skills.
@@ -343,6 +447,9 @@ export function makeRatedPlayer(rng, { target, position, age, potBias = 1 }) {
 
   return {
     position,
+    secondaryPosition: secondaryPosition(attributes, heightIn, position),
+    heightIn,
+    weightLb,
     archetype: archetype.id,
     archetypeLabel: archetype.label,
     attributes,

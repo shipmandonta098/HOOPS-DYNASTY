@@ -108,6 +108,14 @@
         }
       }
     },
+    "secondaryPosition": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": ["PG", "SG", "SF", "PF", "C", null],
+      "description": "A second position his attributes and size actually support, or null. Derived from the ratings (see secondaryPosition() in playerGen.js), never rolled."
+    },
     "nationality": {
       "type": "string",
       "description": "Country the player represents. Comes from his birth country unless he was raised elsewhere."

@@ -17,7 +17,9 @@
  */
 
 const { RNG } = require('./lib/rng');
-const { POSITIONS, computeOverall, ATTRIBUTES } = require('./lib/ratings');
+const { POSITIONS, computeOverall } = require('./lib/ratings');
+const { load, adaptRNG } = require('./lib/esm');
+const { makeRatedPlayer } = load('playerGen.js');
 const { makeOrigin, makeName, COLLEGES } = require('./lib/names');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
@@ -46,31 +48,6 @@ function pickTier(rng) {
 }
 
 /**
- * Build a prospect's attribute block so that its computed overall lands near a
- * target value, with a position-appropriate profile. We generate around the
- * target, then let ratings.computeOverall() report the real number.
- */
-function buildAttributes(position, targetOverall, rng) {
-  const attrs = {};
-  for (const attr of ATTRIBUTES) {
-    // Center around the target with spread; individual skills vary a lot.
-    attrs[attr] = Math.max(25, Math.min(99, Math.round(rng.gaussian(targetOverall, 8))));
-  }
-  // Give position-defining skills a boost so archetypes read true.
-  const boosts = {
-    PG: ['passing', 'passingIQ', 'ballHandling', 'threePoint'],
-    SG: ['threePoint', 'midRange', 'perimeterDefense', 'shotIQ'],
-    SF: ['speed', 'agility', 'perimeterDefense', 'layup'],
-    PF: ['strength', 'dunk', 'defensiveRebound', 'interiorDefense'],
-    C: ['interiorDefense', 'block', 'defensiveRebound', 'postControl', 'strength'],
-  }[position] || [];
-  for (const b of boosts) {
-    attrs[b] = Math.min(99, attrs[b] + rng.int(4, 10));
-  }
-  return attrs;
-}
-
-/**
  * Generate a single prospect object.
  * @param {number} index - draft order position used to build a stable id.
  * @param {number} year
@@ -86,7 +63,13 @@ function generateProspect(index, year, rng) {
   const targetOverall = Math.max(40, potential - Math.max(4, rawnessGap));
 
   const position = rng.pick(POSITIONS);
-  const attributes = buildAttributes(position, targetOverall, rng);
+  // Prospects come out of the SAME generator the league does — frame first,
+  // then an archetype his body supports, then attributes shaped around it.
+  // Building them with a separate flat draw would mean a draft class was made
+  // of a different kind of basketball player from the league drafting it.
+  const rated = makeRatedPlayer(adaptRNG(rng),
+    { target: targetOverall, position, age });
+  const attributes = rated.attributes;
   // Where he is from and what he is called are one draw, not two, so a
   // prospect born in Bamako is not handed an unrelated name.
   const origin = makeOrigin(rng);
@@ -96,7 +79,12 @@ function generateProspect(index, year, rng) {
     id: `prospect_${year}_${String(index + 1).padStart(2, '0')}`,
     name,
     position,
+    secondaryPosition: rated.secondaryPosition,
     age,
+    heightIn: rated.heightIn,
+    weightLb: rated.weightLb,
+    archetype: rated.archetype,
+    archetypeLabel: rated.archetypeLabel,
     birthplace: {
       city: origin.birthCity,
       region: origin.birthRegion,

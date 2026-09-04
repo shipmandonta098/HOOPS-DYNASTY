@@ -19,6 +19,7 @@
 
 const { RNG } = require('./lib/rng');
 const { computeOverall, ATTRIBUTES } = require('./lib/ratings');
+const { classifyArchetype } = require('./lib/esm').load('playerArchetypes.js');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 // Which attributes fade with age, and how fast (relative multiplier).
@@ -91,7 +92,10 @@ function developPlayer(player, rng) {
     // GROWTH: climb toward potential. The further below the ceiling, the
     // bigger the jump. High basketball IQ accelerates development.
     const room = Math.max(0, potential - before);
-    const iqFactor = ((attrs.basketballIQ || 50) - 50) / 100; // -0.25..+0.49
+    // basketballIQ was split into three separate IQ ratings; reading the dead
+    // name meant this factor was silently pinned at 50 for every player.
+    const iq = ((attrs.shotIQ || 50) + (attrs.passingIQ || 50) + (attrs.defensiveIQ || 50)) / 3;
+    const iqFactor = (iq - 50) / 100;                         // -0.25..+0.49
     const magnitude = (0.15 + room * 0.06) * (1 + iqFactor) * rng.float(0.7, 1.5);
     // Growth spreads across all attributes but favors "trainable" skills.
     nudgeAttributes(attrs, magnitude, {}, +1, rng);
@@ -117,6 +121,21 @@ function developPlayer(player, rng) {
   const after = computeOverall(player);
   player.overall = after; // cache the derived overall for convenience/readers
   player.overallChange = after - before;
+
+  // ---- Archetype evolution ----
+  // A player's archetype is READ BACK off the ratings he now has, not carried
+  // forward as a label stapled on at birth. So a slashing guard who develops a
+  // jumper genuinely becomes a three-level scorer, and an athletic wing who
+  // loses a step genuinely becomes a 3-and-D wing — because the numbers moved
+  // first and the label followed. Nothing here reassigns an archetype at
+  // random; if the ratings did not change shape, neither does the label.
+  const now = classifyArchetype(player);
+  if (now && now.id !== player.archetype) {
+    player.archetypeChangedFrom = player.archetypeLabel || null;
+    player.archetype = now.id;
+    player.archetypeLabel = now.label;
+    if (!note) note = 'archetype';
+  }
 
   // ---- Retirement check ----
   // Risk rises with age and falls with remaining ability. A 40-year-old star

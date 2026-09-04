@@ -49,6 +49,10 @@ export const COLLEGES = [
  * 4.7 lb per inch minus 150 — which puts a 6'0" guard near 190 and a 7'0"
  * centre near 245 — and `build` shifts that by position.
  */
+// Fallback frame, used only when a caller has no generated one to pass in
+// (an old save being repaired). New players get their height and weight from
+// playerGen.js, BEFORE any rating exists, because the body is what decides
+// which ratings are plausible — see makeFrame() there.
 const BUILD = {
   PG: { lo: 71, hi: 77, build: -6 },
   SG: { lo: 74, hi: 80, build: -2 },
@@ -69,12 +73,12 @@ const DAYS_IN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  * @param {object} o            { position, age, startSeason }
  * @returns {object} fields to merge into the player record
  */
-export function makeBio(rng, { position, age, startSeason }) {
+export function makeBio(rng, { position, age, startSeason, heightIn: h, weightLb: wt }) {
   const build = BUILD[position] || BUILD.SF;
-  const heightIn = rng.int(build.lo, build.hi);
-  // Weight tracks height, shifted by build, with real spread — then clamped so
-  // no roll produces someone implausible.
-  const weightLb = Math.max(155, Math.min(330, Math.round(
+  // The generator draws the frame first and hands it here, so the body in the
+  // biography is the same body the ratings were built around.
+  const heightIn = typeof h === 'number' ? h : rng.int(build.lo, build.hi);
+  const weightLb = typeof wt === 'number' ? wt : Math.max(155, Math.min(330, Math.round(
     heightIn * 4.7 - 150 + build.build + rng.gauss(0, 8))));
 
   // Age drives everything else, so service time and draft year always agree.

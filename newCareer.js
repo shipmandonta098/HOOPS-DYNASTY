@@ -74,7 +74,13 @@ function uniqueName(rng, used, origin) {
  * owns the distribution and the archetype shaping.
  */
 function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
-  const bio = makeBio(rng, { position: rated.position, age: rated.age, startSeason });
+  // The frame came out of the talent system, which drew it BEFORE the ratings
+  // so the ratings could be built around it. The bio reports it rather than
+  // rolling a second, unrelated body.
+  const bio = makeBio(rng, {
+    position: rated.position, age: rated.age, startSeason,
+    heightIn: rated.heightIn, weightLb: rated.weightLb,
+  });
   // Personality first: it feeds the mental tilt, and priorities are derived
   // from the traits plus his age and standing.
   const personality = cfg.personalityTraits
@@ -89,6 +95,9 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
     // draw, so a Bamako-born player is not handed an unrelated name.
     name: uniqueName(rng, usedNames, bio),
     position: rated.position,
+    // Derived from his actual attributes and size, never rolled — see
+    // secondaryPosition() in playerGen.js. Null when nothing else fits.
+    secondaryPosition: rated.secondaryPosition,
     age: rated.age,
     teamId,
     // Bio is generated HERE and stored in the save, so the profile screen

@@ -18,7 +18,9 @@
 
 const path = require('path');
 const { RNG } = require('../engine/lib/rng');
-const { POSITIONS, computeOverall, ATTRIBUTES } = require('../engine/lib/ratings');
+const { POSITIONS, computeOverall } = require('../engine/lib/ratings');
+const { load, adaptRNG } = require('../engine/lib/esm');
+const { makeRatedPlayer } = load('playerGen.js');
 const { makeOrigin, makeName, COLLEGES } = require('../engine/lib/names');
 const { generateDraftClass } = require('../engine/generateDraftClass');
 const { saveLeague } = require('../engine/saveLoad');
@@ -62,31 +64,30 @@ function contractFor(overall, age, rng) {
 }
 
 function makePlayer(idNum, teamId, position, tier, rng) {
-  // Tier sets the rough overall target; attributes cluster around it.
+  // Tier sets the rough overall target. The player himself — frame, archetype
+  // and the 23 attributes shaped around them — comes out of the game's own
+  // generator, so the example league contains the same kind of basketball
+  // players the game does. The hand-rolled version here was still boosting
+  // `athleticism` and `insideScoring`, attributes that stopped existing at the
+  // 14-to-23 split, so those "position boosts" wrote fields nobody read.
   const target = { star: 80, starter: 71, rotation: 63, bench: 55 }[tier];
-  const attributes = {};
-  for (const attr of ATTRIBUTES) {
-    attributes[attr] = Math.max(25, Math.min(99, Math.round(rng.gaussian(target, 7))));
-  }
-  // Position boosts so archetypes read true.
-  const boosts = {
-    PG: ['passing', 'ballHandling', 'threePoint'],
-    SG: ['threePoint', 'midRange', 'perimeterDefense'],
-    SF: ['athleticism', 'perimeterDefense', 'insideScoring'],
-    PF: ['insideScoring', 'defensiveRebound', 'interiorDefense'],
-    C: ['interiorDefense', 'block', 'defensiveRebound', 'insideScoring'],
-  }[position];
-  for (const b of boosts) attributes[b] = Math.min(99, attributes[b] + rng.int(3, 9));
-
   const age = rng.int(19, 34);
+  const rated = makeRatedPlayer(adaptRNG(rng),
+    { target, position, age });
+  const attributes = rated.attributes;
   // Origin and name are one draw: the name follows from where he is from.
   const origin = makeOrigin(rng);
   const player = {
     id: `p_${String(idNum).padStart(3, '0')}`,
     name: makeName(rng, origin),
     position,
+    secondaryPosition: rated.secondaryPosition,
     age,
     teamId,
+    heightIn: rated.heightIn,
+    weightLb: rated.weightLb,
+    archetype: rated.archetype,
+    archetypeLabel: rated.archetypeLabel,
     birthplace: {
       city: origin.birthCity,
       region: origin.birthRegion,

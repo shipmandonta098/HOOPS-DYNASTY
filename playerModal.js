@@ -148,6 +148,7 @@ function render() {
       <div class="pm-id">
         <div class="pm-name">${esc(p.name)}</div>
         <div class="pm-pos">${esc(p.position || '—')}${
+          p.secondaryPosition ? ` / ${esc(p.secondaryPosition)}` : ''}${
           POSITION_NAME[p.position] ? ` <span>| ${esc(POSITION_NAME[p.position])}</span>` : ''}${
           p.archetypeLabel ? ` <span class="arch">${esc(p.archetypeLabel)}</span>` : ''}</div>
         <div class="pm-team">
