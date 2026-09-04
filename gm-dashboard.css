@@ -230,3 +230,55 @@ body {
 @media (max-width: 980px) { .facts { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 560px) { .facts { grid-template-columns: 1fr; gap: 0.5rem; }
   .fin-grid.two { grid-template-columns: 1fr; } }
+
+/* ==========================================================================
+   TEAM ACCENTS (teamTheme.js)
+   ---------------------------------------------------------------------------
+   The team's palette, contrast-corrected, applied as ~10-15% of the surface:
+   edges, bars, rings and tints. Everything else stays neutral Hoops Dynasty.
+
+   NAVIGATION DELIBERATELY STAYS ORANGE. The sidebar is app-level furniture —
+   it means "you are here in Hoops Dynasty", not "this is your team". Tinting
+   it would put two strong colours in competition at the highest level of the
+   hierarchy and make the app look like a different product per franchise. Team
+   colour starts where team content starts.
+
+   Nothing here touches a rating or a financial colour: green still means good,
+   gold average, red poor or over the cap. Team colour is decoration only.
+   ========================================================================== */
+
+/* --- team identity card: the one place the colour is allowed to be obvious */
+.has-team-theme .strip.card {
+  border-left: 3px solid var(--team-primary);
+  background:
+    radial-gradient(240px 120px at 0% 50%, var(--team-softer), transparent 70%),
+    var(--card);
+}
+.has-team-theme .identity .logo {
+  box-shadow: 0 0 0 2px var(--team-line), 0 0 22px -6px var(--team-glow);
+}
+.has-team-theme .identity .name {
+  padding-bottom: 0.28rem;
+  border-bottom: 2px solid var(--team-primary);
+  display: inline-block;
+}
+
+/* --- section headers: a small vertical marker, used everywhere identically */
+.has-team-theme .card-head h2 {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.has-team-theme .card-head h2::before {
+  content: ""; width: 3px; height: 13px; border-radius: 2px;
+  background: var(--team-primary); flex: 0 0 auto;
+}
+
+/* --- top rated players: rings pick up the team, the OVR badge does not */
+.has-team-theme .pl .av .face { border-color: var(--team-line); }
+.has-team-theme .pl:hover .av .face { border-color: var(--team-primary); }
+
+/* --- payroll / team rating: a hairline top edge, no fills */
+.has-team-theme .grid > .card { border-top: 1px solid var(--stroke); }
+.has-team-theme .ov .big, .has-team-theme .fin .f .v { /* semantic, untouched */ }
+.has-team-theme .ov-row + .ov-row { border-top-color: var(--team-softer); }
+
+/* --- no career loaded: nothing to theme, so the accents simply do not apply */

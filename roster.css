@@ -416,3 +416,40 @@
   .mv-row { grid-template-columns: 30px 1fr; row-gap: 0.2rem; }
   .mv-team, .mv-when { grid-column: 2; font-size: 0.7rem; }
 }
+
+/* ==========================================================================
+   TEAM ACCENTS (teamTheme.js) — the Roster follows the team being VIEWED, so
+   switching clubs re-tints the screen. Semantic colours are untouched: the
+   rating bands and the cap bar keep their meaning.
+   ========================================================================== */
+
+/* active tab and the team chip: team content, so team colour */
+.has-team-theme .tab.is-active { border-bottom-color: var(--team-primary); }
+.has-team-theme .team-switch {
+  border-left: 2px solid var(--team-primary); padding-left: 0.7rem;
+}
+
+/* section headings get the same marker as the dashboard */
+.has-team-theme .bottom h2,
+.has-team-theme .mv-head h2,
+.has-team-theme .pp-h,
+.has-team-theme .dc-col h3 { display: inline-flex; align-items: center; gap: 0.5rem; }
+.has-team-theme .bottom h2::before,
+.has-team-theme .mv-head h2::before,
+.has-team-theme .dc-col h3::before {
+  content: ""; width: 3px; height: 12px; border-radius: 2px;
+  background: var(--team-primary); flex: 0 0 auto;
+}
+
+/* row hover: a team-coloured edge rather than a wash */
+.has-team-theme .tbl tbody tr { border-left: 2px solid transparent; }
+.has-team-theme .tbl tbody tr:hover { border-left-color: var(--team-primary); }
+
+/* the player avatar and the depth-chart starter slot */
+.has-team-theme .c-player .av { border-color: var(--team-line); }
+.has-team-theme .dc-row.is-starter { background: var(--team-softer); }
+.has-team-theme .dc-row.is-starter .ds { color: var(--team-primary); }
+
+/* payroll: the TRACK is tinted, the FILL stays green or red. A bar that means
+   "over the cap" must not be recoloured to a team's turquoise. */
+.has-team-theme .cap-track { background: var(--team-softer); }

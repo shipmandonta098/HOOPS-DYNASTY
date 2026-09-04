@@ -20,6 +20,7 @@
  */
 
 import { loadLeague, listSavesDetailed, touchLastPlayed } from './db.js';
+import { applyTeamTheme } from './teamTheme.js';
 import { crestHTML, marketOf } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer, markPlayed } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
@@ -60,7 +61,9 @@ function setCrest(node, team, size) {
   if (!node) return;
   node.textContent = '';
   node.style.background = 'none';
-  node.style.boxShadow = 'none';
+  // Clear rather than 'none': an inline 'none' outranks the stylesheet, which
+  // silently killed the team-coloured ring around the crest.
+  node.style.boxShadow = '';
   node.style.padding = '0';
   node.innerHTML = crestHTML(team, size);
 }
@@ -141,6 +144,10 @@ function computeVM(league) {
 function render(vm) {
   const el = (id) => document.getElementById(id);
   const t = vm.team;
+
+  // Re-tint the shell for this club. Contrast correction happens inside, so a
+  // near-black or neon palette still produces accents that read.
+  applyTeamTheme(t);
 
   // Top bar — league, season, phase. No invented calendar date or GM persona.
   el('ctxLeague').textContent = vm.meta.leagueName || 'League';

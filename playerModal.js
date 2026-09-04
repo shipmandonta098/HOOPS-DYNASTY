@@ -32,6 +32,7 @@ import {
   groupScore, gradeBand, ratingLabel, ovr, initials, contractStatus,
 } from './playerRatings.js';
 import { crestHTML } from './leagueConfig.js';
+import { applyTeamTheme } from './teamTheme.js';
 import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import {
   TRAIT_BY_ID, PRIORITIES, priorityLevel, satisfaction, satisfactionLabel,
@@ -133,6 +134,10 @@ function render() {
   const team = (league.teams || []).find((t) => t.id === p.teamId) || null;
   const o = ovr(p);
   const meta = league.meta || {};
+
+  // A profile carries the colours of the player's OWN club, so opening a
+  // rival's card looks like his team rather than yours.
+  applyTeamTheme(team, root);
 
   root.innerHTML = `<div class="pm-card">
     <button class="pm-x" data-pm-close aria-label="Close profile">✕</button>

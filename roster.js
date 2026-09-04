@@ -16,6 +16,7 @@
  */
 
 import { loadLeague, listSavesDetailed, touchLastPlayed, saveLeague } from './db.js';
+import { applyTeamTheme } from './teamTheme.js';
 import { crestHTML } from './leagueConfig.js';
 import { mountNav, activeLeagueId, renderNoCareer, markPlayed } from './shell.js';
 import { initPlayerModal } from './playerModal.js';
@@ -153,6 +154,9 @@ function renderTeamOptions() {
 
 function renderHeader() {
   const t = vm.team;
+  // The Roster follows whichever club is being VIEWED, so the team switcher
+  // re-tints the screen as well as changing the data.
+  applyTeamTheme(t);
   el('teamSel').value = t.id || '';
   el('teamChipSub').textContent =
     [vm.phaseLabel, vm.meta.currentSeason].filter(Boolean).join(' \u00b7 ');

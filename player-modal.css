@@ -279,3 +279,21 @@ body.pm-open { overflow: hidden; }
 .pp-pending, .pp-none {
   margin-top: 0.8rem; color: var(--muted-2); font-size: 0.7rem; line-height: 1.5;
 }
+
+/* ------------------------------------------------------ team accents
+   The profile takes the colours of the player's own club (teamTheme.js), so a
+   rival's card looks like his team. Ratings keep their semantic colours. */
+.pm.has-team-theme .pm-face { border-color: var(--team-line); }
+.pm.has-team-theme .pm-pos { color: var(--team-primary); }
+.pm.has-team-theme .pm-pos .arch {
+  border-color: var(--team-line); color: var(--team-primary);
+}
+.pm.has-team-theme .pm-side h3,
+.pm.has-team-theme .pp-h { display: inline-flex; align-items: center; gap: 0.5rem; }
+.pm.has-team-theme .pm-side h3::before,
+.pm.has-team-theme .pp-h::before {
+  content: ""; width: 3px; height: 11px; border-radius: 2px;
+  background: var(--team-primary); flex: 0 0 auto;
+}
+.pm.has-team-theme .pm-tab.is-active { border-bottom-color: var(--team-primary); }
+.pm.has-team-theme .pp-trait { border-left-color: var(--team-primary); }
