@@ -184,6 +184,10 @@ function backfillPersonality(p, enabled) {
  */
 function backfillOrigin(p) {
   if (!p || !p.id || typeof p.gender === 'string') return false;
+  // Every save that predates the Player Gender setting is a men's league —
+  // that is what it was generated as, so that is what it stays. Nothing here
+  // re-rolls anyone's gender; the setting applies to players generated from
+  // now on.
   p.gender = 'male';
   if (p.secondaryNationality === undefined) p.secondaryNationality = null;
   const country = (p.birthplace && p.birthplace.country) || p.nationality || null;
@@ -212,7 +216,9 @@ function backfillIdentity(p) {
   let changed = false;
   if (p.secondaryPosition === undefined && p.attributes && p.position) {
     const h = typeof p.heightIn === 'number' ? p.heightIn : null;
-    p.secondaryPosition = h ? secondaryPosition(p.attributes, h, p.position) : null;
+    p.secondaryPosition = h
+      ? secondaryPosition(p.attributes, h, p.position, p.gender === 'female' ? 'female' : 'male')
+      : null;
     changed = true;
   }
   if (p.archetype && !archetypeById(p.archetype)) {

@@ -79,9 +79,12 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
   // rolling a second, unrelated body.
   const bio = makeBio(rng, {
     position: rated.position, age: rated.age, startSeason,
-    // Recruiting weighting only — how highly he was rated coming out, which
-    // nudges which programme took him. College never feeds back into a rating.
+    // Recruiting weighting only — how highly the player was rated coming out,
+    // which nudges which programme took them. College never feeds a rating.
     overall: rated.overall,
+    // Chosen by the talent system from the league's Player Gender setting; the
+    // bio uses it for the given-name pool and the fallback frame.
+    gender: rated.gender,
     heightIn: rated.heightIn, weightLb: rated.weightLb,
   });
   // Personality first: it feeds the mental tilt, and priorities are derived
@@ -98,7 +101,8 @@ function makePlayer(idNum, teamId, rated, rng, startSeason, usedNames, cfg) {
     // draw, so a Bamako-born player is not handed an unrelated name.
     name: uniqueName(rng, usedNames, bio),
     position: rated.position,
-    // Derived from his actual attributes and size, never rolled — see
+    gender: rated.gender,
+    // Derived from actual attributes and size, never rolled — see
     // secondaryPosition() in playerGen.js. Null when nothing else fits.
     secondaryPosition: rated.secondaryPosition,
     age: rated.age,

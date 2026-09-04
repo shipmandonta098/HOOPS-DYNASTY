@@ -156,7 +156,8 @@
     },
     "gender": {
       "type": "string",
-      "description": "Internal: which given-name pool to draw from. 'male' throughout a men's league."
+      "enum": ["male", "female"],
+      "description": "Which player pool this player was generated from. Selects the physical distributions (height, weight, strength, vertical, explosiveness) and the given-name pool. Never read by the overall calculation, and separate from birthplace, nationality, college, personality and mental attributes."
     },
     "experience": {
       "type": "integer",

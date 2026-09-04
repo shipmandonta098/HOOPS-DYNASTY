@@ -51,6 +51,9 @@ export const CULTURES = {
       Tyler Connor Blake Grant Wyatt Hunter Chase Owen Reid Bennett Miles Spencer Carter
       Preston Landon Colton Beckett Graham Hayden Nolan Tanner Trevor Dalton Garrett
       Brooks Sawyer Emmett Weston Harrison Griffin Sullivan Porter Tucker Ellis Rhett`),
+    firstF: w(`Emma Olivia Ava Sophia Charlotte Amelia Harper Ella Grace Chloe
+      Abigail Lily Hannah Zoe Madison Natalie Claire Audrey Paige Brooke Reagan
+      Kelsey Morgan Sydney Riley Peyton Taylor Quinn Hailey Delaney`),
     last: w(`Smith Johnson Williams Brown Jones Miller Davis Wilson Anderson Taylor Thomas
       Moore Jackson White Harris Martin Thompson Robinson Clark Walker Hall Allen Young
       King Wright Scott Green Baker Adams Nelson Carter Mitchell Turner Phillips Campbell
@@ -65,6 +68,9 @@ export const CULTURES = {
       Amari Kobe Trevon Damari Jaylen Elijah Zion Keon Rashad Donovan Kendrick Antoine
       Terrell Cedric Darnell Lamont Deion Tyrone Jermaine Andre Demetrius Julius Marquis
       Khalil Jabari Kwame Omari Tariq Rasheed Nasir Zaire Amir Caleb Micah Josiah`),
+    firstF: w(`Imani Jada Aaliyah Zaria Nia Kiara Amari Tiana Alaya Janae Destiny
+      Shanice Latoya Ebony Kenya Asia Precious Trinity Deja Kamryn Aniyah Makayla
+      Journee Zuri Sanaa Tamia Chanel Deshawn Keisha Monique`),
     last: w(`Williams Johnson Jackson Harris Robinson Coleman Brooks Freeman Hayes Bryant
       Ellison Nowell Reeves Wallace Vincent Sharpe Duren Sanders Prosper Whitfield Barnett
       Everett Dunlap Cross Hayward Ashford Rhodes Baldwin Gaines Pryor Stallworth Grayson
@@ -76,6 +82,9 @@ export const CULTURES = {
     first: w(`Carlos Miguel Diego Andres Mateo Julian Adrian Emiliano Rafael Alejandro
       Gabriel Marco Antonio Javier Ricardo Fernando Sergio Eduardo Cristian Ivan Ramon
       Alonso Hector Esteban Rodrigo Leonel Nestor Salvador Ignacio Bruno`),
+    firstF: w(`Sofia Isabella Camila Valentina Gabriela Mariana Daniela Ximena Lucia
+      Alejandra Adriana Natalia Paola Carmen Elena Rosa Guadalupe Marisol Selena
+      Yolanda Fernanda Rocio Esperanza Alma`),
     last: w(`Garcia Rodriguez Martinez Hernandez Lopez Gonzalez Perez Sanchez Ramirez
       Torres Flores Rivera Gomez Diaz Reyes Morales Cruz Ortiz Gutierrez Chavez Ramos
       Vargas Castillo Jimenez Mendoza Herrera Medina Aguilar Vega Rojas Salazar Ibarra
@@ -86,6 +95,8 @@ export const CULTURES = {
     label: 'Asian American',
     first: w(`Kevin Justin Brandon Eric Jason Daniel Steven Nathan Aaron Alan Derek Vincent
       Ronnie Wesley Simon Curtis Marvin Nolan Warren Elliot`),
+    firstF: w(`Jenny Grace Christine Michelle Angela Vivian Karen Amy Joyce Cindy
+      Tiffany Sandra Nicole Lisa Priya Anika Mei Hana Sarina Kaylee`),
     last: w(`Nguyen Kim Lee Park Chen Wang Tran Patel Singh Choi Yang Liu Huang Vu Pham
       Shah Rao Cho Sato Reyes Villanueva Bautista Ocampo Mercado`),
   },
@@ -94,6 +105,9 @@ export const CULTURES = {
     label: 'Caribbean',
     first: w(`Andre Shawn Kemar Devon Rohan Damion Orville Nikolai Delano Junior Tyrell
       Ricardo Everton Dwayne Shane Romario Akeem Jerome Wendell Clifton`),
+    firstF: w(`Shanice Kadeisha Alicia Nadine Simone Tanisha Camille Yvette Cherelle
+      Andrea Marcia Denise Paulette Sharon Dionne Latoya Kerry-Ann Shanelle Roxanne
+      Verona`),
     last: w(`Campbell Brown Clarke Reid Bailey Grant Powell Sinclair Bennett McKenzie
       Gordon Foster Nelson Hylton Blake Ellington Beckford Dixon Fraser Chambers Salmon
       Wint Palmer Whyte`),
@@ -104,6 +118,9 @@ export const CULTURES = {
     first: w(`Lucas Hugo Theo Nathan Louis Antoine Maxime Julien Baptiste Clement Romain
       Guillaume Florian Quentin Adrien Mathis Corentin Bastien Aurelien Sylvain Fabien
       Cedric Damien Vincent Olivier Thibault Loic Yann Gaetan Armand`),
+    firstF: w(`Camille Manon Chloe Ines Lea Sarah Emma Louise Julie Marion Amelie
+      Clemence Elodie Pauline Margaux Oceane Coralie Justine Melanie Sandrine
+      Aurelie Delphine Fanny Noemie`),
     last: w(`Martin Bernard Dubois Thomas Robert Richard Petit Durand Leroy Moreau Simon
       Laurent Lefebvre Michel Garcia Roux Fournier Girard Bonnet Dupont Lambert Fontaine
       Rousseau Vincent Muller Faure Andre Mercier Blanc Guerin Boyer Chevalier Lemaire
@@ -113,10 +130,13 @@ export const CULTURES = {
     // here and in every other culture that has them.
     particleLast: w(`Blanc Roux Gall Goff Guen Bihan Corre Moal Clerc Maire Fevre Roy
       Coz Meur Bris Floch Gouil Bras Hir Nen`),
-    build: (rng, first, last, pick) => {
-      // Compound given names (Jean-Baptiste) and the occasional particle.
+    build: (rng, first, last, pick, female) => {
+      // Compound given names (Jean-Baptiste, Marie-Claire) and the occasional
+      // particle. The head has to match the rest of the name's gender.
       if (rng.next() < 0.14) {
-        const heads = ['Jean', 'Pierre', 'Marc', 'Paul', 'Louis'];
+        const heads = female
+          ? ['Marie', 'Anne', 'Jeanne', 'Claire', 'Louise']
+          : ['Jean', 'Pierre', 'Marc', 'Paul', 'Louis'];
         first = `${heads[Math.floor(rng.next() * heads.length)]}-${first}`;
       }
       if (rng.next() < 0.07) last = `Le ${pick('particleLast')}`;
@@ -128,6 +148,9 @@ export const CULTURES = {
     label: 'Spanish',
     first: w(`Alejandro Pablo Javier Sergio Alvaro Adrian Marcos Ruben Iker Unai Aitor
       Jorge Raul Ismael Guillermo Nicolas Joaquin Borja Gonzalo Hector Ignacio Mario`),
+    firstF: w(`Maria Lucia Paula Marta Laura Sara Ana Carmen Elena Irene Claudia
+      Alba Nerea Cristina Andrea Beatriz Raquel Silvia Nuria Rocio Aitana Julia
+      Natalia Patricia`),
     last: w(`Garcia Fernandez Gonzalez Rodriguez Lopez Martinez Sanchez Perez Gomez Martin
       Jimenez Ruiz Hernandez Diaz Moreno Alvarez Romero Alonso Gutierrez Navarro Torres
       Dominguez Vazquez Ramos Gil Serrano Blanco Molina Morales Suarez Ortega Castro
@@ -156,6 +179,9 @@ export const CULTURES = {
     first: w(`Santiago Nicolas Facundo Tomas Matias Agustin Juan Franco Lucas Gonzalo
       Martin Joaquin Bruno Ignacio Federico Julian Luciano Emiliano Lautaro Manuel
       Rodrigo Sebastian Nahuel Ramiro`),
+    firstF: w(`Sofia Valentina Martina Camila Lucia Julieta Catalina Agustina
+      Micaela Florencia Milagros Rocio Guadalupe Delfina Antonella Brenda Carolina
+      Malena Ariana Belen`),
     last: w(`Gonzalez Rodriguez Fernandez Lopez Martinez Garcia Perez Romero Sosa Diaz
       Alvarez Torres Ruiz Ramirez Benitez Acosta Medina Rossi Ferrari Bianchi Russo
       Esposito Colombo Ricci Moretti Gallo Conti Marino Rizzo Bruno Ferrero Pagani
@@ -167,6 +193,9 @@ export const CULTURES = {
     first: w(`Lucas Gabriel Rafael Bruno Thiago Matheus Felipe Gustavo Vinicius Leonardo
       Rodrigo Eduardo Caio Diego Marcelo Andre Renato Fabio Igor Murilo Vitor Danilo
       Wesley Alisson Everton Douglas Rogerio Jefferson`),
+    firstF: w(`Ana Maria Julia Beatriz Larissa Gabriela Camila Amanda Fernanda
+      Leticia Bruna Carolina Mariana Rafaela Isabela Patricia Vitoria Jaqueline
+      Aline Renata Thais Priscila`),
     last: w(`Silva Santos Oliveira Souza Lima Pereira Ferreira Almeida Costa Gomes Ribeiro
       Martins Carvalho Rocha Barbosa Araujo Nascimento Cardoso Correia Teixeira Moreira
       Mendes Ramos Cavalcanti Batista Freitas Monteiro Azevedo Machado Vieira`),
@@ -195,6 +224,8 @@ export const CULTURES = {
     label: 'Italian',
     first: w(`Marco Luca Andrea Matteo Alessandro Davide Simone Federico Riccardo Stefano
       Giovanni Lorenzo Gabriele Nicolo Tommaso Filippo Emanuele Dario Fabio Cristian`),
+    firstF: w(`Giulia Sofia Chiara Martina Sara Francesca Alessia Elena Valentina
+      Federica Ilaria Silvia Giorgia Alice Beatriz Camilla Arianna Marta Elisa Noemi`),
     last: w(`Rossi Russo Ferrari Esposito Bianchi Romano Colombo Ricci Marino Greco Bruno
       Gallo Conti Costa Giordano Mancini Rizzo Lombardi Moretti Barbieri Fontana Santoro
       Mariani Rinaldi Caruso Ferrara Galli Martini Leone Longo`),
@@ -210,6 +241,8 @@ export const CULTURES = {
     label: 'German',
     first: w(`Lukas Jonas Felix Maximilian Leon Paul Elias Moritz Julian Niklas Tobias
       Sebastian Fabian Florian Dominik Marcel Philipp Jannik Tim Simon Bastian Kilian`),
+    firstF: w(`Lena Mia Hannah Emilia Anna Sophia Marie Lea Laura Julia Katharina
+      Franziska Nina Johanna Charlotte Antonia Theresa Magdalena Verena Svenja`),
     last: w(`Muller Schmidt Schneider Fischer Weber Meyer Wagner Becker Schulz Hoffmann
       Schafer Koch Bauer Richter Klein Wolf Schroder Neumann Schwarz Zimmermann Braun
       Kruger Hofmann Hartmann Lange Werner Krause Lehmann Kohler Herrmann Walter Konig`),
@@ -225,6 +258,8 @@ export const CULTURES = {
     label: 'Dutch',
     first: w(`Daan Sem Lars Thijs Jesse Bram Ruben Stijn Jorrit Niels Sander Joris Mees
       Teun Rick Koen Pim Wessel Hidde Guus`),
+    firstF: w(`Sanne Lotte Anne Fleur Eva Julia Emma Iris Femke Noor Lieke Marit
+      Maud Roos Isa Sofie Bo Nienke Esmee Tess`),
     last: w(`Jansen Vries Bakker Visser Smit Meijer Boer Mulder Bos Vos Peters Hendriks
       Dekker Brouwer Willems Kuipers Linden Maas Verhoeven Koster Prins Blom Wolters`),
     // Each Dutch particle takes its own kind of surname — "de Vries", "van
@@ -249,6 +284,8 @@ export const CULTURES = {
     label: 'Nordic',
     first: w(`Emil Oscar Viktor Elias Anton Filip Hugo Axel Alfred Melvin Rasmus Mikkel
       Kasper Jonas Henrik Sondre Magnus Sigurd Eirik Aleksander Joakim Tobias`),
+    firstF: w(`Emma Ida Ella Freja Sara Maja Amanda Linnea Elin Astrid Ingrid Sofie
+      Hanna Nora Frida Signe Tuva Alva Vilde Malin`),
     last: w(`Johansson Andersson Karlsson Nilsson Larsson Olsson Persson Svensson Gustafsson
       Pettersson Hansen Nielsen Jensen Pedersen Kristiansen Larsen Berg Lindqvist Sandberg
       Holm Dahl Aune Bakken Haugen Nygaard Virtanen Korhonen Makinen`),
@@ -258,6 +295,8 @@ export const CULTURES = {
     label: 'South Slavic',
     first: w(`Nikola Marko Stefan Luka Filip Milos Nemanja Aleksandar Vladimir Dusan Bojan
       Uros Ivan Petar Goran Zoran Dejan Bogdan Ognjen Vuk Andrija Matej Jure Rok Ziga`),
+    firstF: w(`Ana Marija Ivana Jelena Milica Katarina Nikolina Sara Tijana Dragana
+      Sanja Petra Nina Maja Tamara Kristina Andjela Teodora Lana Iva`),
     last: w(`Jovanovic Petrovic Nikolic Markovic Djordjevic Stojanovic Ilic Pavlovic
       Milosevic Popovic Stankovic Lukic Kovacevic Simic Todorovic Ristic Savic Vasic
       Horvat Novak Kovacic Maric Babic Juric Vukovic Zupan Kranjc Potocnik Golob Zajc`),
@@ -267,6 +306,9 @@ export const CULTURES = {
     label: 'East Slavic',
     first: w(`Ivan Dmitri Alexei Sergei Andrei Maxim Nikita Artem Roman Pavel Egor Kirill
       Denis Oleg Yaroslav Bohdan Taras Mykola Vadym Ruslan`),
+    firstF: w(`Anna Maria Ekaterina Olga Natalia Svetlana Irina Yulia Daria Ksenia
+      Alina Polina Viktoria Tatiana Elena Anastasia Sofia Veronika Margarita
+      Nadezhda`),
     last: w(`Ivanov Smirnov Kuznetsov Popov Sokolov Lebedev Novikov Morozov Petrov Volkov
       Vasiliev Zaytsev Pavlov Semenov Golubev Shevchenko Kovalenko Bondarenko Tkachenko
       Kravchenko Melnyk Boyko Moroz Lysenko`),
@@ -276,6 +318,9 @@ export const CULTURES = {
     label: 'Polish',
     first: w(`Jakub Kacper Filip Szymon Mateusz Bartosz Michal Piotr Tomasz Marcin Wojciech
       Damian Adrian Krzysztof Rafal Dawid Igor Oskar Maciej Przemyslaw`),
+    firstF: w(`Zuzanna Julia Maja Lena Hanna Alicja Amelia Oliwia Magdalena
+      Katarzyna Agnieszka Karolina Natalia Weronika Aleksandra Paulina Ewa Monika
+      Joanna Marta`),
     last: w(`Nowak Kowalski Wisniewski Wojcik Kowalczyk Kaminski Lewandowski Zielinski
       Szymanski Wozniak Dabrowski Kozlowski Jankowski Mazur Kwiatkowski Krawczyk Piotrowski
       Grabowski Zajac Pawlowski Michalski Adamczyk Dudek Nowicki Majewski`),
@@ -289,6 +334,8 @@ export const CULTURES = {
     label: 'Lithuanian',
     first: w(`Tomas Mantas Lukas Dovydas Rokas Nerijus Karolis Justas Arvydas Gediminas
       Marius Donatas Paulius Ignas Deividas Vytautas Aurimas Simonas Edvinas`),
+    firstF: w(`Gabija Emilija Ugne Austeja Kamile Ieva Ruta Egle Dovile Migle
+      Viktorija Simona Justina Aiste Laura Greta`),
     last: w(`Kazlauskas Petrauskas Jankauskas Stankevicius Vasiliauskas Butkus Paulauskas
       Urbonas Zukauskas Balciunas Navickas Rimkus Adomaitis Vaitkus Grigas Simkus
       Baranauskas Sereika Norkus Dapkus`),
@@ -298,6 +345,8 @@ export const CULTURES = {
     label: 'Latvian',
     first: w(`Janis Kristaps Rihards Martins Toms Andris Roberts Davis Edgars Kaspars
       Arturs Gatis Normunds Ainars`),
+    firstF: w(`Anna Elizabete Sofija Alise Marta Laura Elina Liga Ilze Dace Kristine
+      Baiba Zane Signe Agnese Ieva`),
     last: w(`Berzins Kalnins Ozols Liepins Krumins Jansons Zarins Balodis Vitols Klavins
       Skujins Purins Cers Strautins Lacis`),
   },
@@ -306,6 +355,8 @@ export const CULTURES = {
     label: 'Estonian',
     first: w(`Marten Rasmus Kaspar Siim Kristjan Martin Henri Karl Sander Rauno Tanel
       Mihkel Priit Indrek`),
+    firstF: w(`Laura Sofia Emma Mia Liis Maria Karin Kadri Piret Anu Kertu Merilin
+      Triin Elina Kaisa Helena`),
     last: w(`Tamm Saar Kask Sepp Raud Mets Kukk Rebane Ilves Koppel Vaher Parn Lepik
       Kivi Toom`),
   },
@@ -314,6 +365,8 @@ export const CULTURES = {
     label: 'Greek',
     first: w(`Giannis Nikos Dimitris Kostas Georgios Vasilis Christos Panagiotis Thanasis
       Stelios Alexandros Michalis Petros Andreas Ilias`),
+    firstF: w(`Maria Eleni Katerina Sofia Georgia Vasiliki Dimitra Anastasia Ioanna
+      Christina Angeliki Despina Nikoleta Panagiota Konstantina Evangelia Athina Zoi`),
     last: w(`Papadopoulos Papadakis Georgiou Nikolaou Vlachos Antoniou Karagiannis Makris
       Economou Pappas Christou Dimitriou Ioannou Katsaros Samaras Sideris Fotiadis`),
   },
@@ -322,6 +375,8 @@ export const CULTURES = {
     label: 'Turkish',
     first: w(`Mehmet Mustafa Ahmet Emre Burak Cem Kerem Furkan Baris Onur Berk Serkan
       Ozan Tolga Yigit Deniz Kaan Alper Umut Efe`),
+    firstF: w(`Zeynep Elif Ayse Fatma Merve Busra Esra Hatice Selin Ece Ceren Melis
+      Irem Sude Damla Gizem Aslı Duygu`),
     last: w(`Yilmaz Kaya Demir Sahin Celik Yildiz Yildirim Ozturk Aydin Ozdemir Arslan
       Dogan Kilic Aslan Cetin Kara Koc Kurt Ozkan Simsek Polat Korkmaz Erdogan`),
   },
@@ -330,6 +385,8 @@ export const CULTURES = {
     label: 'Maghrebi',
     first: w(`Mohamed Youssef Karim Bilal Rachid Samir Hicham Nabil Yassine Anis Sofiane
       Adel Walid Amine Zakaria Ilyes Mehdi Riad Tarek Farid`),
+    firstF: w(`Amina Fatima Khadija Yasmine Sara Nour Meryem Salma Hind Imane
+      Chaimae Ikram Nadia Leila Samira Rania`),
     last: w(`Benali Bouzid Haddad Cherif Mansouri Zerrouki Belkacem Ouali Saidi Tahiri
       Aissa Kaddour Meziane Boukhari Ferhat Slimani Hamidi Bencheikh Lahlou Naciri`),
     build: (rng, first, last) => {
@@ -347,6 +404,8 @@ export const CULTURES = {
     label: 'Levantine',
     first: w(`Omar Khalil Tariq Rami Sami Hassan Hussein Ziad Fadi Nader Bassel Marwan
       Ayman Jamil Wael Ghassan Imad`),
+    firstF: w(`Layla Noor Rania Dana Maya Sara Farah Hala Lina Reem Yara Nadia Amal
+      Zeina Hiba Rasha`),
     last: w(`Haddad Khoury Nassar Sayegh Hamdan Aziz Rahman Farah Salloum Dabbagh Mansour
       Sabbagh Karam Zayed Barakat Jaber Halabi`),
     build: (rng, first, last) => (rng.next() < 0.18 ? `${first} Al-${last}` : `${first} ${last}`),
@@ -357,6 +416,8 @@ export const CULTURES = {
     first: w(`Amadou Ibrahima Moussa Ousmane Cheick Modibo Bakary Seydou Lassana Adama
       Mamadou Boubacar Salif Drissa Souleymane Yacouba Abdoulaye Sekou Fousseni Alpha
       Sidiki Karim Bourama Aliou`),
+    firstF: w(`Aminata Fatoumata Kadiatou Mariam Aissata Oumou Djeneba Awa Rokia
+      Salimata Assitan Bintou Nana Kadidiatou Hawa Sira`),
     last: w(`Traore Keita Diarra Coulibaly Diallo Sissoko Doumbia Konate Camara Fofana
       Toure Cisse Sanogo Dembele Kone Bagayoko Samake Diakite Sylla Kanoute Berthe Maiga
       Sidibe Tangara`),
@@ -366,6 +427,8 @@ export const CULTURES = {
     label: 'Senegalese',
     first: w(`Cheikh Mamadou Ibrahima Pape Moussa Alioune Abdou Serigne Babacar Ousmane
       Modou Saliou Malick Assane Lamine Mbaye`),
+    firstF: w(`Aminata Fatou Awa Ndeye Khady Mariama Astou Sokhna Adama Rokhaya
+      Coumba Dieynaba Bineta Anta Seynabou Yacine`),
     last: w(`Diop Ndiaye Fall Gueye Sow Ba Sarr Faye Seck Diagne Thiam Mbaye Dieng Niang
       Sy Wade Diouf Badji Gaye`),
   },
@@ -374,6 +437,8 @@ export const CULTURES = {
     label: 'Yoruba',
     first: w(`Tunde Segun Femi Kunle Bola Wale Dele Yemi Ayo Sola Bayo Kola Niyi Tayo
       Gbenga Rotimi Damilola Olumide Seyi Bode`),
+    firstF: w(`Adeola Folake Yetunde Bukola Temitope Funmilayo Titilayo Abimbola
+      Omolara Oluwaseun Damilola Ayotunde Kehinde Simisola Motunrayo Adenike`),
     last: w(`Adeyemi Okonkwo Adebayo Ogunleye Balogun Afolabi Oyelaran Adesina Ajayi
       Oladipo Olawale Bankole Ogundipe Adewale Fashola Oyekan Sanusi Akindele Babatunde
       Olaniyan`),
@@ -385,6 +450,8 @@ export const CULTURES = {
     // Levantine pool, which shares a religion with the region and nothing else.
     first: w(`Abubakar Musa Ibrahim Sani Yakubu Aliyu Umar Bello Nasir Suleiman Aminu
       Kabiru Danladi Shehu Usman Garba Hamza Idris Lawal Auwal Salisu Nuhu`),
+    firstF: w(`Aisha Fatima Zainab Hauwa Maryam Hadiza Amina Halima Rukayya Safiya
+      Bilkisu Salamatu Khadija Asmau Jamila Binta`),
     last: w(`Abubakar Musa Bello Sani Aliyu Yusuf Danjuma Gambo Tijjani Adamu Lawal
       Mohammed Shehu Garba Ahmadu Dikko Zubairu Bala Isah Maikano Jibrin Sulaiman`),
   },
@@ -393,6 +460,8 @@ export const CULTURES = {
     label: 'Igbo',
     first: w(`Chidi Emeka Obinna Ikenna Chuka Nnamdi Uche Kelechi Ifeanyi Chinedu Somto
       Ebuka Okey Arinze Chukwuma Ugonna`),
+    firstF: w(`Chinelo Ngozi Adaeze Chiamaka Nneka Ifeoma Chidinma Amarachi Uchenna
+      Obiageli Chioma Ebele Nkechi Onyinye Ada Ifeyinwa`),
     last: w(`Okafor Nwosu Eze Okeke Nwachukwu Obi Anyanwu Chukwu Onyeka Madu Nnaji Ezeh
       Uzo Iheanacho Okorie Ugwu`),
   },
@@ -400,6 +469,8 @@ export const CULTURES = {
   akan: {
     label: 'Akan',
     first: w(`Kwame Kofi Kwaku Yaw Kojo Kwabena Kwasi Nana Fiifi Ekow Kudjo Selorm Elikem`),
+    firstF: w(`Akosua Ama Abena Afua Yaa Adwoa Efua Akua Nana Esi Serwaa Adjoa Maame
+      Araba Aba`),
     last: w(`Mensah Boateng Asante Owusu Osei Appiah Agyeman Darko Adjei Amoah Frimpong
       Antwi Baffour Nyarko Gyasi Sarpong`),
   },
@@ -408,6 +479,8 @@ export const CULTURES = {
     label: 'Cameroonian',
     first: w(`Joel Landry Yannick Christian Serge Bertrand Arnaud Nfor Bruno Herve Franck
       Aurelien Cedric`),
+    firstF: w(`Nadege Carine Sandrine Josiane Bertille Larissa Colette Odette
+      Solange Christelle Manuela Estelle Yvette Marlyse Clarisse`),
     last: w(`Nkemdirim Mbappe Etoo Njoya Fotso Nkoulou Ateba Ekambi Bikoi Ondoa Njie Tchami
       Menye Ngando`),
   },
@@ -416,6 +489,8 @@ export const CULTURES = {
     label: 'Central African',
     first: w(`Emmanuel Christian Blaise Patrick Serge Gaston Didier Jonas Elie Bienvenu
       Trésor Merveille`),
+    firstF: w(`Nadine Christelle Grace Divine Esperance Sandrine Dorcas Rachel
+      Mireille Josee Beatrice Nelly Prisca Deborah Naomie`),
     last: w(`Mbala Kabongo Tshimanga Mukendi Ilunga Lokonda Mputu Nzuzi Kalonji Bakala
       Ngoma Mavungu Luyindula`),
   },
@@ -427,6 +502,8 @@ export const CULTURES = {
     // they have their own pool below.
     first: w(`Abdi Hassan Ahmed Mohamed Yonas Dawit Bereket Tewodros Samuel Nuredin Kaleb
       Abdirahman Yohannes Mesfin Girmay Elias Robel Filmon`),
+    firstF: w(`Amina Hodan Sagal Ifrah Ayaan Fatuma Hanan Selam Bethlehem Mahlet
+      Rahel Meron Hiwot Senait Tsion Feven`),
     last: w(`Farah Warsame Osman Hersi Jama Tesfaye Girma Haile Bekele Mekonnen Abdullahi
       Gebre Tekle Hagos Yusuf Ali Aden Weldu`),
   },
@@ -438,6 +515,8 @@ export const CULTURES = {
     // how the names actually work, not an oversight.
     first: w(`Deng Bol Garang Majok Thon Kuol Chol Mading Akol Lual Duop Gai Ajak Manute
       Ater Anei Wenyin Ring Nyal Buay Malith Peter Samuel`),
+    firstF: w(`Nyandeng Achol Nyibol Adut Aluel Awut Nyakim Ayen Abuk Akuol Nyaruot
+      Achan Amer Aluk Nyalong Athieng`),
     last: w(`Deng Bol Garang Majok Ajak Mading Malual Kuol Chol Akot Nyang Wol Athian
       Aleer Gatluak Manyang Riak Thiong Awuol Lual Machar Yak Dut Reath`),
   },
@@ -445,6 +524,8 @@ export const CULTURES = {
   southernAfrican: {
     label: 'Southern African',
     first: w(`Thabo Sipho Lunga Kagiso Mpho Tebogo Bongani Sifiso Lungelo Katlego Tumelo`),
+    firstF: w(`Thandiwe Nomsa Zanele Lerato Palesa Nokuthula Buhle Nandi Refilwe
+      Ayanda Sibongile Naledi Mpho Bongiwe Zodwa Lindiwe`),
     last: w(`Nkosi Dlamini Mokoena Ndlovu Khumalo Mabaso Sithole Zulu Molefe Mahlangu
       Radebe Tshabalala`),
   },
@@ -453,6 +534,7 @@ export const CULTURES = {
     label: 'Chinese',
     first: w(`Wei Hao Jun Ming Lei Yong Peng Kai Tao Bo Jian Feng Cheng Xiang Zhen Long
       Yang Shuai Dong Rui`),
+    firstF: w(`Xiaoyu Jing Li Yan Mei Fang Hui Na Ying Lin Qing Xin Wei Ling Yun Jia`),
     last: w(`Wang Li Zhang Liu Chen Yang Huang Zhao Wu Zhou Xu Sun Ma Zhu Hu Guo Lin He
       Gao Luo Zheng Liang Song Tang`),
   },
@@ -461,6 +543,8 @@ export const CULTURES = {
     label: 'Japanese',
     first: w(`Yuto Sota Ren Haruto Riku Kaito Yuki Sora Hinata Takumi Daiki Shota Kenta
       Ryo Naoki Kazuki`),
+    firstF: w(`Yui Hina Sakura Aoi Rin Mei Hana Koharu Akari Yuna Miyu Ichika Nanami
+      Riko Saki Kaede`),
     last: w(`Sato Suzuki Takahashi Tanaka Watanabe Ito Yamamoto Nakamura Kobayashi Kato
       Yoshida Yamada Sasaki Matsumoto Inoue Kimura Hayashi Shimizu`),
   },
@@ -469,6 +553,8 @@ export const CULTURES = {
     label: 'Korean',
     first: w(`Minjun Seojun Doyun Jiho Haneul Junseo Yunho Sungmin Jaewon Hyunwoo Taeyang
       Donghyun Kyungho Sangwoo`),
+    firstF: w(`Jiwoo Seoyeon Minseo Jiyu Hayoon Seoyun Jimin Yerin Chaewon Soyeon
+      Hyejin Eunji Nayeon Dahye Sowon Yuna`),
     last: w(`Kim Lee Park Choi Jung Kang Cho Yoon Jang Lim Han Oh Seo Shin Kwon Hwang Ahn
       Song`),
   },
@@ -477,6 +563,8 @@ export const CULTURES = {
     label: 'Filipino',
     first: w(`Jose Angelo Mark Paolo Carlo Miguel Rafael Kiefer Jio Dwight Christian Jaymar
       Arvin Reymart`),
+    firstF: w(`Maria Angel Princess Nicole Jasmine Kyla Althea Shaira Trisha Danica
+      Ella Bea Kate Sofia Reyna Camille`),
     last: w(`Santos Reyes Cruz Bautista Ocampo Garcia Mendoza Torres Ramos Aquino Villanueva
       Castro Dela Rosa Aguilar Fajardo Pascual Manalo Salvador`),
   },
@@ -485,6 +573,8 @@ export const CULTURES = {
     label: 'South Asian',
     first: w(`Arjun Rohan Aditya Rahul Vikram Sanjay Nikhil Karan Ravi Ankit Imran Bilal
       Hamza Zain Faisal Usman Rizwan Amrit Gurpreet Jasdeep`),
+    firstF: w(`Priya Ananya Aditi Kavya Diya Riya Sneha Pooja Neha Meera Anjali
+      Shreya Isha Nisha Divya Tanvi`),
     last: w(`Patel Sharma Singh Kumar Reddy Nair Iyer Gupta Mehta Chopra Bhatt Desai Rao
       Khan Ahmed Malik Hussain Chaudhry Sandhu Grewal`),
   },
@@ -492,6 +582,8 @@ export const CULTURES = {
   persian: {
     label: 'Persian',
     first: w(`Arash Reza Kaveh Babak Farhad Siavash Navid Behrouz Kamran Peyman Sina Omid`),
+    firstF: w(`Sara Setareh Niloofar Yasaman Parisa Mahsa Shirin Nasrin Leila Roya
+      Azadeh Golnaz Negin Mitra Farnaz Sahar`),
     last: w(`Hosseini Rezaei Mohammadi Ahmadi Karimi Sadeghi Jafari Nazari Shirazi Farhadi
       Bahrami Ansari`),
   },
@@ -499,6 +591,8 @@ export const CULTURES = {
   hebrew: {
     label: 'Israeli',
     first: w(`Omri Itay Yonatan Guy Noam Amit Roi Eitan Tomer Shai Lior Nadav Ori Gilad`),
+    firstF: w(`Noa Maya Tamar Yael Shira Talia Adi Michal Avigail Hila Ayelet Roni
+      Lior Gali Ella Sivan`),
     last: w(`Cohen Levi Mizrahi Peretz Biton Avraham Friedman Katz Shapira Segal Barkan
       Aviv Zohar Gal`),
   },
@@ -510,6 +604,7 @@ export const CULTURES = {
   indigenousCanadian: {
     label: 'Indigenous Canadian',
     first: w(`Ethan Dakota Kyle Jordan Tyler Shane Dallas Cody Devon Marcus`),
+    firstF: w(`Kiona Winona Aiyana Nokomis Wapun Miskwa Tansi Sikwan Nipin Kanien`),
     last: w(`Cardinal Sinclair Beaulieu Morin Whitebear Bearpaw Nepinak Meechas Lameman
       Desjarlais Bruyere Flett`),
   },
@@ -700,6 +795,24 @@ export const COUNTRIES = {
  * proportional to 1/(i + k). Lists are written commonest-first, so common
  * names recur and rare ones stay rare without hand-weighting every entry.
  */
+/* Surnames that change form for a woman.
+ *
+ * Only where the language actually does it. Serbian and Croatian surnames do
+ * not decline, Estonian and Turkish ones do not, so those cultures are absent
+ * here on purpose — adding a rule everywhere would be inventing grammar.
+ */
+const FEMININE_SURNAME = {
+  eastSlavic: (n) => n
+    .replace(/sky$/, 'skaya').replace(/ov$/, 'ova').replace(/ev$/, 'eva')
+    .replace(/in$/, 'ina'),
+  polish: (n) => n.replace(/ski$/, 'ska').replace(/cki$/, 'cka').replace(/dzki$/, 'dzka'),
+  lithuanian: (n) => n
+    .replace(/as$/, 'aite').replace(/ius$/, 'iute').replace(/us$/, 'ute')
+    .replace(/is$/, 'yte'),
+  latvian: (n) => n.replace(/ins$/, 'ina').replace(/is$/, 'e').replace(/s$/, 'a'),
+  greek: (n) => n.replace(/os$/, 'ou').replace(/is$/, 'i').replace(/as$/, 'a'),
+};
+
 function pickRanked(rng, list, k = 6) {
   let total = 0;
   for (let i = 0; i < list.length; i++) total += 1 / (i + k);
@@ -745,7 +858,7 @@ const COUNTRIES_BY_CULTURE = (() => {
  * A small share of players were born in one country and raised in another,
  * which is how a second nationality arises.
  */
-export function makeOrigin(rng) {
+export function makeOrigin(rng, gender = 'male') {
   const countryKey = pickWeightedPairs(rng, COUNTRY_PAIRS);
   const country = COUNTRIES[countryKey];
   const place = country.cities[Math.floor(rng.next() * country.cities.length)];
@@ -773,17 +886,31 @@ export function makeOrigin(rng) {
     // The league is a men's league, so given names come from male pools.
     // A women's league would add a `firstFemale` pool per culture and read
     // this field to choose between them.
-    gender: 'male',
+    // Passed in by the generator from the league's Player Gender setting;
+    // it selects the given-name pool and nothing else.
+    gender,
   };
 }
 
 /** Build a name in the style of `origin.namingOrigin`. */
 export function makeName(rng, origin) {
-  const culture = CULTURES[(origin && origin.namingOrigin)] || CULTURES.anglo;
-  const first = pickRanked(rng, culture.first);
-  const last = pickRanked(rng, culture.last);
-  const pick = (which) => pickRanked(rng, culture[which]);
-  return culture.build ? culture.build(rng, first, last, pick) : `${first} ${last}`;
+  const id = (origin && origin.namingOrigin) || 'anglo';
+  const culture = CULTURES[id] || CULTURES.anglo;
+  const female = origin && origin.gender === 'female';
+  // Given names come from the pool for the player's gender; surnames are
+  // shared, except in the languages that actually inflect them for a woman.
+  const pool = female && culture.firstF ? culture.firstF : culture.first;
+  const first = pickRanked(rng, pool);
+  const fem = female && FEMININE_SURNAME[id];
+  const surname = () => {
+    const n = pickRanked(rng, culture.last);
+    return fem ? fem(n) : n;
+  };
+  const last = surname();
+  const pick = (which) => (which === 'last' ? surname() : pickRanked(rng, culture[which]));
+  return culture.build
+    ? culture.build(rng, first, last, pick, female)
+    : `${first} ${last}`;
 }
 
 /**

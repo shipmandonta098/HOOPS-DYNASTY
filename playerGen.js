@@ -45,7 +45,7 @@ import {
   ATTR_GROUPS, POSITION_WEIGHTS, overallFromCategories, groupScore,
 } from './playerRatings.js';
 import {
-  ATTRS, POS_HEIGHT, POSITION_BASE, FACTORS,
+  ATTRS, POSITION_BASE, FACTORS, GENDER_PHYSICAL, posHeight, baseWeight,
   archetypesFor, archetypeById, frameMods, ageMods, classifyArchetype,
 } from './playerArchetypes.js';
 
@@ -126,26 +126,40 @@ export function pickTeamArchetype(rng, marketSize) {
  * attribute through frameMods().
  * ======================================================================== */
 
-/** Weight offset by position: a centre carries more than his height alone says. */
-const POS_BUILD = { PG: -6, SG: -2, SF: +3, PF: +10, C: +18 };
-
-// How far off the positional norm a body is allowed to get. Asymmetric on
-// purpose: an oversized guard is a real archetype, a 5'8" two-guard is not.
-const HEIGHT_RANGE = {
-  PG: [69, 82], SG: [72, 84], SF: [74, 86], PF: [76, 88], C: [77, 90],
+/** Weight offset by position: a centre carries more than height alone says. */
+const POS_BUILD = {
+  male:   { PG: -6, SG: -2, SF: +3, PF: +10, C: +18 },
+  female: { PG: -5, SG: -2, SF: +2, PF: +7,  C: +12 },
 };
 
-function makeFrame(rng, position) {
-  const mean = POS_HEIGHT[position] || POS_HEIGHT.SF;
-  let h = rng.gauss(mean, 2.0);
+// How far off the positional norm a body is allowed to get. Asymmetric on
+// purpose: an oversized guard is a real archetype, a 5'8" men's two-guard is
+// not. Separate ranges per gender rather than one shifted set, because the
+// women's game is not the men's game moved down seven inches.
+const HEIGHT_RANGE = {
+  male:   { PG: [69, 82], SG: [72, 84], SF: [74, 86], PF: [76, 88], C: [77, 90] },
+  female: { PG: [63, 76], SG: [65, 78], SF: [67, 80], PF: [69, 82], C: [70, 84] },
+};
+
+const WEIGHT_RANGE = { male: [155, 330], female: [120, 265] };
+
+function makeFrame(rng, position, gender) {
+  const mean = posHeight(gender, position);
+  const sd = gender === 'female' ? 1.9 : 2.0;
+  let h = rng.gauss(mean, sd);
   // Unconventional bodies. Roughly one player in fourteen is meaningfully off
-  // the standard for his spot — enough that a roster usually has one, not so
-  // many that they stop being interesting.
+  // the standard for the spot — enough that a roster usually has one, not so
+  // many that they stop being interesting. This is where the exceptionally
+  // tall centre and the undersized guard come from, in either pool.
   if (rng.next() < 0.07) h += (rng.next() < 0.5 ? -1 : 1) * (3 + rng.next() * 3);
-  const [lo, hi] = HEIGHT_RANGE[position] || HEIGHT_RANGE.SF;
+  const ranges = HEIGHT_RANGE[gender] || HEIGHT_RANGE.male;
+  const [lo, hi] = ranges[position] || ranges.SF;
   const heightIn = clamp(Math.round(h), lo, hi);
+  const build = (POS_BUILD[gender] || POS_BUILD.male)[position] || 0;
+  const spread = gender === 'female' ? 7 : 9;
+  const [wlo, whi] = WEIGHT_RANGE[gender] || WEIGHT_RANGE.male;
   const weightLb = clamp(Math.round(
-    heightIn * 4.7 - 150 + (POS_BUILD[position] || 0) + rng.gauss(0, 9)), 155, 330);
+    baseWeight(gender, heightIn) + build + rng.gauss(0, spread)), wlo, whi);
   return { heightIn, weightLb };
 }
 
@@ -153,8 +167,8 @@ function makeFrame(rng, position) {
  * Pick an archetype the player's position AND body can support. The frame is a
  * weight, not a gate: a 6'7" rim protector is unlikely and not impossible.
  */
-function pickArchetype(rng, position, heightIn) {
-  const options = archetypesFor(position, heightIn);
+function pickArchetype(rng, position, heightIn, gender) {
+  const options = archetypesFor(position, heightIn, gender);
   if (!options.length) return archetypeById('all_around_wing');
   const total = options.reduce((sum, o) => sum + o.weight, 0);
   let r = rng.next() * total;
@@ -253,10 +267,12 @@ const UPSIDE = 0.55;
  * explosive player is explosive everywhere and a shooter shoots from
  * everywhere, while still never producing two identical numbers.
  */
-function buildShape(rng, { position, heightIn, weightLb, archetype, age }) {
+function buildShape(rng, { position, heightIn, weightLb, archetype, age, gender }) {
   const base = POSITION_BASE[position] || POSITION_BASE.SF;
-  const frame = frameMods(position, heightIn, weightLb);
+  const frame = frameMods(position, heightIn, weightLb, gender);
   const aged = ageMods(age);
+  // Physical ratings only, and never the overall — see GENDER_PHYSICAL.
+  const sex = GENDER_PHYSICAL[gender] || GENDER_PHYSICAL.male;
 
   const factor = {};
   for (const k of Object.keys(FACTORS)) factor[k] = rng.gauss(0, 1);
@@ -265,7 +281,7 @@ function buildShape(rng, { position, heightIn, weightLb, archetype, age }) {
   for (const attr of ATTRS) {
     const d = archetype.p[attr] || 0;
     let v = (base[attr] || 0) + (d > 0 ? d * UPSIDE : d)
-          + (frame[attr] || 0) + (aged[attr] || 0);
+          + (frame[attr] || 0) + (aged[attr] || 0) + (sex[attr] || 0);
     for (const [name, loads] of Object.entries(FACTORS)) {
       if (loads[attr]) v += factor[name] * loads[attr] * FACTOR_SCALE;
     }
@@ -417,12 +433,14 @@ function shiftToTarget(shape, position, target) {
  * forward can come out SF/PG while a 6'9" rim runner cannot, and why most
  * players get an adjacent spot or nothing at all.
  */
-export function secondaryPosition(attributes, heightIn, primary) {
+export function secondaryPosition(attributes, heightIn, primary, gender = 'male') {
   const cats = Object.fromEntries(
     ATTR_GROUPS.map((g) => [g.key, groupScore({ attributes }, g)]));
   const fit = {};
   for (const p of POSITIONS) {
-    fit[p] = overallFromCategories(cats, p) - Math.abs(heightIn - POS_HEIGHT[p]) * 1.7;
+    // Height is judged against the norms of his or her own pool, so a 6'4"
+    // player is a centre in one league and a wing in the other.
+    fit[p] = overallFromCategories(cats, p) - Math.abs(heightIn - posHeight(gender, p)) * 1.7;
   }
   const other = POSITIONS.filter((p) => p !== primary).sort((x, y) => fit[y] - fit[x])[0];
   return fit[other] >= fit[primary] - 2.2 ? other : null;
@@ -433,10 +451,10 @@ export function secondaryPosition(attributes, heightIn, primary) {
  * @returns {object} position, secondaryPosition, heightIn, weightLb, archetype,
  *   attributes, overall, potential, age, durability
  */
-export function makeRatedPlayer(rng, { target, position, age, potBias = 1 }) {
-  const { heightIn, weightLb } = makeFrame(rng, position);
-  const archetype = pickArchetype(rng, position, heightIn);
-  const shape = buildShape(rng, { position, heightIn, weightLb, archetype, age });
+export function makeRatedPlayer(rng, { target, position, age, potBias = 1, gender = 'male' }) {
+  const { heightIn, weightLb } = makeFrame(rng, position, gender);
+  const archetype = pickArchetype(rng, position, heightIn, gender);
+  const shape = buildShape(rng, { position, heightIn, weightLb, archetype, age, gender });
   applyIdentity(rng, shape, archetype);
   const attributes = shiftToTarget(shape, position, clamp(Math.round(target), 40, 99));
 
@@ -447,7 +465,11 @@ export function makeRatedPlayer(rng, { target, position, age, potBias = 1 }) {
 
   return {
     position,
-    secondaryPosition: secondaryPosition(attributes, heightIn, position),
+    // Which pool he or she was generated from. It selects the physical
+    // distributions and the given-name pool, and it is never read by the
+    // overall calculation.
+    gender,
+    secondaryPosition: secondaryPosition(attributes, heightIn, position, gender),
     heightIn,
     weightLb,
     archetype: archetype.id,
@@ -525,6 +547,22 @@ export function rosterTargets(rng, archetypeKey, size, tuning = {}) {
  * @param {string} archetypeKey  from pickTeamArchetype()
  * @param {number} size   how many players (14 leaves a roster spot open)
  */
+/**
+ * Draw one player's gender from the league setting.
+ *
+ * Mixed is applied as a PROBABILITY across the whole population, not as a
+ * quota per roster, so individual teams and draft classes vary around the
+ * split instead of each matching it exactly — which is what the setting means
+ * and also what makes a league feel generated rather than dealt out.
+ */
+export function pickGender(rng, tuning = {}) {
+  const mode = tuning.playerGender || 'Male';
+  if (mode === 'Female') return 'female';
+  if (mode !== 'Mixed') return 'male';
+  const maleShare = typeof tuning.genderSplit === 'number' ? tuning.genderSplit / 100 : 0.5;
+  return rng.next() < maleShare ? 'male' : 'female';
+}
+
 export function makeRoster(rng, archetypeKey, size = 14, tuning = {}) {
   const a = TEAM_ARCHETYPES[archetypeKey] || TEAM_ARCHETYPES.balanced;
   const targets = rosterTargets(rng, archetypeKey, size, tuning);
@@ -541,6 +579,10 @@ export function makeRoster(rng, archetypeKey, size = 14, tuning = {}) {
     return makeRatedPlayer(rng, {
       target,
       position: order[i] || 'SF',
+      // Drawn per player, never per roster: the talent target above was
+      // decided before this line and knows nothing about it, which is what
+      // keeps gender out of the overall entirely.
+      gender: pickGender(rng, tuning),
       age: drawAge(rng, a.ageBias, target),
       // Development Variance widens or narrows how far potential can sit
       // above current ability.

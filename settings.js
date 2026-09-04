@@ -9,7 +9,7 @@
  */
 
 import {
-  GROUPS, defaults, normalize, isRelevant, loadSettings, saveSettings,
+  GROUPS, ALL_SETTINGS, defaults, normalize, isRelevant, loadSettings, saveSettings,
   listRulePresets, saveRulePreset, getRulePreset, deleteRulePreset,
 } from './gameSettings.js';
 
@@ -40,7 +40,10 @@ function controlHTML(s, off) {
 /** Why a setting is greyed out, in the terms of the setting that disabled it. */
 function irrelevantNote(s) {
   const d = s.dependsOn;
-  return `Only applies when Salary Cap Type is ${d.value} — currently ${settings[d.key]}.`;
+  // Named from the dependency itself rather than hard-coded, so a second
+  // conditional setting explains itself correctly instead of citing the cap.
+  const owner = ALL_SETTINGS.find((x) => x.key === d.key);
+  return `Only applies when ${owner ? owner.label : d.key} is ${d.value} — currently ${settings[d.key]}.`;
 }
 
 function render() {

@@ -41,6 +41,13 @@ export const GROUPS = [
   {
     id: 'generation', label: 'Player Generation',
     settings: [
+      { key: 'playerGender', label: 'Player Gender', type: 'choice',
+        options: ['Male', 'Female', 'Mixed'], def: 'Male', applied: true,
+        help: 'Which player pool the league draws from. Gender changes the physical distributions — height, weight, strength, vertical, explosiveness — and nothing else. It is never a talent penalty: a 90 in a women\u2019s league is a 90, an elite player in that league\u2019s own competitive context. Shooting, playmaking, IQ, defence and rebounding are generated identically.' },
+      { key: 'genderSplit', label: 'Male Share (Mixed)', type: 'number',
+        min: 0, max: 100, step: 5, def: 50, unit: '%', applied: true,
+        dependsOn: { key: 'playerGender', value: 'Mixed' },
+        help: 'In a Mixed league, the share of generated players who are male. Applied as a probability across the whole population, so individual rosters and draft classes vary around it rather than each matching it exactly.' },
       { key: 'talentLevel', label: 'Player Talent Level', type: 'choice',
         options: ['Low', 'Normal', 'High', 'Custom'], def: 'Normal', applied: true,
         help: 'Shifts the whole league up or down the rating scale. The scale itself never changes — 95+ stays generational, 70-74 stays rotation. Custom leaves the curve alone and lets Variance and Generational Frequency do the work.' },
@@ -269,7 +276,12 @@ export function generationTuning(settings) {
   const variance = { Low: 0.72, Normal: 1, High: 1.38 }[s.talentVariance] ?? 1;
   const generational = { 'Extremely Rare': 1, Rare: 3.5, Occasional: 9 }[s.generationalFrequency] ?? 1;
   const devVariance = { Low: 0.65, Normal: 1, High: 1.5 }[s.developmentVariance] ?? 1;
-  return { meanShift: level, spreadScale: variance, generationalScale: generational, devVariance };
+  return {
+    meanShift: level, spreadScale: variance, generationalScale: generational, devVariance,
+    // Passed straight through: the generator draws each player's gender from
+    // these, and nothing about them reaches the talent curve.
+    playerGender: s.playerGender, genderSplit: s.genderSplit,
+  };
 }
 
 /** Format a potential for display, honouring Potential Visibility. */

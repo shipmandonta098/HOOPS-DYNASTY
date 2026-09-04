@@ -20,7 +20,11 @@ const path = require('path');
 const { RNG } = require('../engine/lib/rng');
 const { POSITIONS, computeOverall } = require('../engine/lib/ratings');
 const { load, adaptRNG } = require('../engine/lib/esm');
-const { makeRatedPlayer } = load('playerGen.js');
+
+// The example league is a men's league; a real career takes this from the
+// New Career settings screen.
+const RULES = { playerGender: 'Male' };
+const { makeRatedPlayer, pickGender } = load('playerGen.js');
 const { makeBackground } = load('colleges.js');
 const { makeOrigin, makeName } = require('../engine/lib/names');
 const { generateDraftClass } = require('../engine/generateDraftClass');
@@ -73,11 +77,12 @@ function makePlayer(idNum, teamId, position, tier, rng) {
   // 14-to-23 split, so those "position boosts" wrote fields nobody read.
   const target = { star: 80, starter: 71, rotation: 63, bench: 55 }[tier];
   const age = rng.int(19, 34);
+  const gender = pickGender(adaptRNG(rng), RULES);
   const rated = makeRatedPlayer(adaptRNG(rng),
-    { target, position, age });
+    { target, position, age, gender });
   const attributes = rated.attributes;
   // Origin and name are one draw: the name follows from where he is from.
-  const origin = makeOrigin(rng);
+  const origin = makeOrigin(rng, gender);
   // Where he played before turning pro is its own draw, separate from where he
   // was born: a Rome-born player who went to Arizona is ordinary, and one who
   // never attended an American college gets a null college plus his real route.
@@ -91,6 +96,7 @@ function makePlayer(idNum, teamId, position, tier, rng) {
     id: `p_${String(idNum).padStart(3, '0')}`,
     name: makeName(rng, origin),
     position,
+    gender: rated.gender,
     secondaryPosition: rated.secondaryPosition,
     age,
     teamId,

@@ -457,6 +457,9 @@ function bioPane(p) {
   const rows = [
     ['Height', typeof p.heightIn === 'number' ? formatHeight(p.heightIn) : null],
     ['Weight', typeof p.weightLb === 'number' ? `${p.weightLb} lbs` : null],
+    // Its own line, and its own concept: nothing about birthplace,
+    // nationality, college, personality or mental attributes reads it.
+    ['Gender', p.gender ? p.gender[0].toUpperCase() + p.gender.slice(1) : null],
     ['Birthdate', p.birthDate ? `${formatBirthDate(p.birthDate)}` : null,
       p.birthDate && typeof p.age === 'number' ? `Age ${p.age}` : null],
     ['Birthplace', p.birthplace ? formatBirthplace(p.birthplace) : null],

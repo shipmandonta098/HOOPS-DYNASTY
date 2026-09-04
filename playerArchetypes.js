@@ -39,8 +39,58 @@ export const ATTRS = [
   'defensiveRebound', 'offensiveRebound',
 ];
 
-/** Typical height in inches, by position. Frames are measured against these. */
-export const POS_HEIGHT = { PG: 74.0, SG: 77.0, SF: 79.5, PF: 81.5, C: 83.5 };
+/**
+ * Typical height in inches, by gender and position. Frames are measured
+ * against these, never against a single league-wide number, which is what lets
+ * a women's league have its own tall and short without every player in it
+ * reading as undersized.
+ */
+export const POS_HEIGHT = {
+  male:   { PG: 74.0, SG: 77.0, SF: 79.5, PF: 81.5, C: 83.5 },
+  female: { PG: 68.5, SG: 70.5, SF: 72.5, PF: 74.5, C: 76.5 },
+};
+
+/** Positional norm for a gender, defaulting sensibly for older saves. */
+export function posHeight(gender, position) {
+  const table = POS_HEIGHT[gender] || POS_HEIGHT.male;
+  return table[position] || table.SF;
+}
+
+/**
+ * Pounds a frame of this height normally carries, before positional build.
+ * Two formulas, not one with a fudge applied: women's and men's bodies do not
+ * sit on the same height-to-weight line, and pretending they do would put a
+ * 6'0" player at 188 lb in a league where she is closer to 160.
+ */
+export function baseWeight(gender, heightIn) {
+  return gender === 'female' ? heightIn * 4.0 - 130 : heightIn * 4.7 - 150;
+}
+
+/* ===========================================================================
+ * GENDER AND THE PHYSICAL RATINGS
+ * ---------------------------------------------------------------------------
+ * Deltas in shape space, applied to physical ratings ONLY. Shooting,
+ * playmaking, ball handling, every IQ rating, defensive awareness and
+ * rebounding technique are generated identically for everyone — they are not
+ * listed here, and that is the point.
+ *
+ * WHY THIS IS NOT A TALENT PENALTY. These deltas move the SHAPE of a player,
+ * and the generator then shifts the whole shape onto a target overall that was
+ * drawn without any knowledge of gender. So in a women's league the level is
+ * restored in full — a 90 is a 90, elite in that league's own competitive
+ * context — while the relative texture survives: strength, vertical and
+ * finishing above the rim sit lower against her shooting and passing than a
+ * man's would. In a Mixed league the same deltas produce a real physical
+ * difference between the two pools, because there only half the population
+ * carries them, which is exactly the distinction that should not be equalised
+ * away. Gender never enters the overall calculation itself.
+ * ======================================================================== */
+export const GENDER_PHYSICAL = {
+  male: {},
+  female: {
+    strength: -14, vertical: -12, dunk: -24, speed: -5, agility: -3, block: -5,
+  },
+};
 
 /* ===========================================================================
  * POSITION BASELINES
@@ -290,13 +340,27 @@ export function frameFit(archetype, heightIn) {
   return off === 0 ? 1 : Math.max(0.02, 0.5 ** (off / 2));
 }
 
-/** Archetypes a player of this position and height could plausibly be, weighted. */
-export function archetypesFor(position, heightIn) {
+/**
+ * The archetype height bands are written in men's inches. Read literally they
+ * would make every women's archetype impossible — a 6'4" centre is nowhere
+ * near a rim protector's 81-88 band — so a player's height is first expressed
+ * relative to her own positional norm and then translated. A women's centre at
+ * her position's typical height fits the same archetypes a men's centre at his
+ * does, which is the correct reading: the bands describe "unusually short or
+ * tall FOR THIS ROLE", not a number of inches.
+ */
+function equivalentHeight(gender, position, heightIn) {
+  return heightIn + (posHeight('male', position) - posHeight(gender, position));
+}
+
+/** Archetypes a player of this position, height and gender could plausibly be. */
+export function archetypesFor(position, heightIn, gender = 'male') {
+  const equiv = equivalentHeight(gender, position, heightIn);
   const out = [];
   for (const a of ARCHETYPES) {
     const base = a.pos[position];
     if (!base) continue;
-    out.push({ archetype: a, weight: base * frameFit(a, heightIn) });
+    out.push({ archetype: a, weight: base * frameFit(a, equiv) });
   }
   return out;
 }
@@ -314,10 +378,11 @@ export function archetypesFor(position, heightIn) {
  * oversized guard really does rebound better and change direction worse, and
  * a small-ball five really does struggle to protect the rim.
  * ======================================================================== */
-export function frameMods(position, heightIn, weightLb) {
-  const dh = heightIn - (POS_HEIGHT[position] || 79.5);
-  // Weight relative to what this frame would normally carry.
-  const expected = heightIn * 4.7 - 150;
+export function frameMods(position, heightIn, weightLb, gender = 'male') {
+  const dh = heightIn - posHeight(gender, position);
+  // Weight relative to what this frame would normally carry, on the line for
+  // her own population rather than a borrowed one.
+  const expected = baseWeight(gender, heightIn);
   const dw = (weightLb - expected) / 10;   // in "ten-pound" units
   const m = {};
   const add = (k, v) => { m[k] = (m[k] || 0) + v; };
@@ -431,10 +496,11 @@ export function classifyArchetype(player) {
   if (vals.some((v) => v === null)) return null;
 
   const position = player.position;
+  const gender = player.gender === 'female' ? 'female' : 'male';
   const height = typeof player.heightIn === 'number'
-    ? player.heightIn : (POS_HEIGHT[position] || 79.5);
+    ? player.heightIn : posHeight(gender, position);
   const weight = typeof player.weightLb === 'number'
-    ? player.weightLb : height * 4.7 - 150;
+    ? player.weightLb : baseWeight(gender, height);
 
   // Undo everything that is NOT the archetype before comparing.
   //
@@ -445,16 +511,21 @@ export function classifyArchetype(player) {
   // frame and age are known quantities, so subtracting them leaves the part of
   // his profile that is actually a choice about what kind of player he is.
   const base = POSITION_BASE[position] || POSITION_BASE.SF;
-  const frame = frameMods(position, height, weight);
+  const frame = frameMods(position, height, weight, gender);
   const aged = typeof player.age === 'number' ? ageMods(player.age) : {};
+  // The gender physical deltas are known, so they come out too — otherwise a
+  // women's rim protector would read as short on strength and be classified as
+  // something she is not.
+  const sex = GENDER_PHYSICAL[gender] || {};
 
-  const resid = ATTRS.map((k) => a[k] - (base[k] || 0) - (frame[k] || 0) - (aged[k] || 0));
+  const resid = ATTRS.map((k) =>
+    a[k] - (base[k] || 0) - (frame[k] || 0) - (aged[k] || 0) - (sex[k] || 0));
   const mean = resid.reduce((s, v) => s + v, 0) / resid.length;
   const shape = resid.map((v) => v - mean);
   const shapeMag = Math.sqrt(shape.reduce((s, v) => s + v * v, 0)) || 1;
 
   let best = null;
-  for (const { archetype, weight: prior } of archetypesFor(position, height)) {
+  for (const { archetype, weight: prior } of archetypesFor(position, height, gender)) {
     const prof = ATTRS.map((k) => archetype.p[k] || 0);
     const pMean = prof.reduce((s, v) => s + v, 0) / prof.length;
     const centred = prof.map((v) => v - pMean);

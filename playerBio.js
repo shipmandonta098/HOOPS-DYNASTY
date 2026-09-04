@@ -31,6 +31,7 @@
 
 import { makeOrigin } from './nameCultures.js';
 import { makeBackground } from './colleges.js';
+import { posHeight, baseWeight } from './playerArchetypes.js';
 
 /* ------------------------------------------------------------------ pools */
 
@@ -65,17 +66,23 @@ const DAYS_IN = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
  * @returns {object} fields to merge into the player record
  */
 export function makeBio(rng, { position, age, startSeason, overall = 70,
-  heightIn: h, weightLb: wt }) {
+  gender = 'male', heightIn: h, weightLb: wt }) {
   const build = BUILD[position] || BUILD.SF;
   // The generator draws the frame first and hands it here, so the body in the
-  // biography is the same body the ratings were built around.
-  const heightIn = typeof h === 'number' ? h : rng.int(build.lo, build.hi);
-  const weightLb = typeof wt === 'number' ? wt : Math.max(155, Math.min(330, Math.round(
-    heightIn * 4.7 - 150 + build.build + rng.gauss(0, 8))));
+  // biography is the same body the ratings were built around. The fallback
+  // below only runs when a caller has no generated frame, and it still uses
+  // the norms for the player's own pool rather than a borrowed set.
+  const heightIn = typeof h === 'number'
+    ? h : Math.round(posHeight(gender, position) + rng.gauss(0, 2));
+  const weightLb = typeof wt === 'number' ? wt : Math.max(120, Math.min(330, Math.round(
+    baseWeight(gender, heightIn) + build.build + rng.gauss(0, 8))));
 
   // Birthplace, nationality and naming tradition are ONE draw, not three:
   // a player born in Bamako should not end up with an unrelated name.
-  const origin = makeOrigin(rng);
+  // Gender selects the given-name pool and nothing else about where he or she
+  // is from: birthplace, nationality and naming tradition are drawn exactly the
+  // same way for everyone.
+  const origin = makeOrigin(rng, gender);
 
   // Where he played before turning pro is a SEPARATE draw from where he was
   // born. Being born abroad does not mean he skipped American college

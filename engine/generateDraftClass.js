@@ -19,7 +19,7 @@
 const { RNG } = require('./lib/rng');
 const { POSITIONS, computeOverall } = require('./lib/ratings');
 const { load, adaptRNG } = require('./lib/esm');
-const { makeRatedPlayer } = load('playerGen.js');
+const { makeRatedPlayer, pickGender } = load('playerGen.js');
 const { makeBackground } = load('colleges.js');
 const { makeOrigin, makeName } = require('./lib/names');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
@@ -53,7 +53,7 @@ function pickTier(rng) {
  * @param {number} index - draft order position used to build a stable id.
  * @param {number} year
  */
-function generateProspect(index, year, rng) {
+function generateProspect(index, year, rng, rules = {}) {
   const tier = pickTier(rng);
   const potential = rng.int(tier.potMin, tier.potMax);
   const age = rng.int(18, 22);
@@ -68,12 +68,15 @@ function generateProspect(index, year, rng) {
   // then an archetype his body supports, then attributes shaped around it.
   // Building them with a separate flat draw would mean a draft class was made
   // of a different kind of basketball player from the league drafting it.
+  // The draft class draws from the same pool the league does, so a women's
+  // league does not produce men's prospects.
+  const gender = pickGender(adaptRNG(rng), rules);
   const rated = makeRatedPlayer(adaptRNG(rng),
-    { target: targetOverall, position, age });
+    { target: targetOverall, position, age, gender });
   const attributes = rated.attributes;
   // Where he is from and what he is called are one draw, not two, so a
   // prospect born in Bamako is not handed an unrelated name.
-  const origin = makeOrigin(rng);
+  const origin = makeOrigin(rng, gender);
   const name = makeName(rng, origin);
   // Where he played before turning pro is its own draw, separate from where he
   // was born: a Rome-born prospect who played at Arizona is ordinary, and one
@@ -101,6 +104,7 @@ function generateProspect(index, year, rng) {
       region: origin.birthRegion,
       country: origin.birthCountry,
     },
+    gender: rated.gender,
     nationality: origin.nationality,
     secondaryNationality: origin.secondaryNationality,
     namingOrigin: origin.namingOrigin,
@@ -134,7 +138,8 @@ function generateDraftClass(inputLeague, options = {}) {
 
   const prospects = [];
   for (let i = 0; i < size; i++) {
-    prospects.push(generateProspect(i, year, rng));
+    // The league's own Player Gender setting drives the class.
+    prospects.push(generateProspect(i, year, rng, league.settings || {}));
   }
   // Sort by overall (best prospects first) so pick order is scouting-friendly.
   prospects.sort((a, b) => b.overall - a.overall || b.potential - a.potential);
