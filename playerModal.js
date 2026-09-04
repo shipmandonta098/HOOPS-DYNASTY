@@ -171,43 +171,40 @@ function render() {
     </div>
 
     <div class="pm-body">
-      <div class="pm-main">
-        <!-- five category ratings -->
-        <div class="pm-cats">
-          ${ATTR_GROUPS.map((g) => {
-            const v = groupScore(p, g);
-            return `<div class="pm-cat">
-              <div class="ct">${esc(g.label)}</div>
-              <div class="cv g-${gradeBand(v)}">${v ?? '—'}</div>
-              <div class="cl g-${gradeBand(v)}">${esc(ratingLabel(v))}</div>
-            </div>`;
-          }).join('')}
-        </div>
-
-        <!-- tabs -->
-        <div class="pm-tabs">
-          ${tab('attributes', 'Attributes', true)}
-          ${p.mental ? tab('mental', 'Mental', true) : ''}
-          ${p.personality ? tab('personality', 'Personality', true) : ''}
-          ${tab('career', 'Career Stats', true)}
-          ${tab('gamelog', 'Game Log', false)}
-          ${tab('contracts', 'Contract History', false)}
-        </div>
-        <div class="pm-pane">${
-          activeTab === 'career' ? careerPane(p)
-          : activeTab === 'mental' ? mentalPane(p)
-          : activeTab === 'personality' ? personalityPane(p)
-          : attrPane(p)}</div>
+      <!-- five category ratings: a summary of the player, not tab content, so
+           it stays above the tabs on every panel -->
+      <div class="pm-cats">
+        ${ATTR_GROUPS.map((g) => {
+          const v = groupScore(p, g);
+          return `<div class="pm-cat">
+            <div class="ct">${esc(g.label)}</div>
+            <div class="cv g-${gradeBand(v)}">${v ?? '—'}</div>
+            <div class="cl g-${gradeBand(v)}">${esc(ratingLabel(v))}</div>
+          </div>`;
+        }).join('')}
       </div>
 
-      <!-- ============ bio + contract ============ -->
-      <aside class="pm-side">
-        ${bioPane(p)}
-        <div class="pm-block">
-          <h3>Contract</h3>
-          ${contractPane(p, meta)}
-        </div>
-      </aside>
+      <!-- Every panel is a tab. Bio and Contract used to sit in a permanent
+           side column, which read as a sidebar on a wide screen but stacked
+           underneath whichever tab was open on a narrow one — so they looked
+           like part of Attributes, then part of Mental, then part of
+           Personality. One tab, one panel. -->
+      <div class="pm-tabs">
+        ${tab('bio', 'Bio', true)}
+        ${tab('attributes', 'Attributes', true)}
+        ${p.mental ? tab('mental', 'Mental', true) : ''}
+        ${p.personality ? tab('personality', 'Personality', true) : ''}
+        ${tab('contract', 'Contract', true)}
+        ${tab('career', 'Career Stats', true)}
+        ${tab('gamelog', 'Game Log', false)}
+      </div>
+      <div class="pm-pane">${
+        activeTab === 'bio' ? bioPane(p)
+        : activeTab === 'contract' ? contractPane(p, meta)
+        : activeTab === 'career' ? careerPane(p)
+        : activeTab === 'mental' ? mentalPane(p)
+        : activeTab === 'personality' ? personalityPane(p)
+        : attrPane(p)}</div>
     </div>
   </div>`;
 }
@@ -474,14 +471,13 @@ function bioPane(p) {
   ].filter(([, v]) => v != null);
 
   if (!rows.length) {
-    return `<div class="pm-block"><h3>Bio</h3>
-      <p class="pm-note">This save predates the biographical fields. Start a new
-      career to see them.</p></div>`;
+    return `<p class="pm-empty">This save predates the biographical fields.
+      Start a new career to see them.</p>`;
   }
-  return `<div class="pm-block"><h3>Bio</h3><div class="pm-rows">${rows.map(
+  return `<div class="pm-rows pm-rows-wide">${rows.map(
     ([k, v, sub, band]) => `<div class="pm-row"><span>${esc(k)}</span>` +
       `<b${band ? ` class="g-${band}"` : ''}>${esc(v)}${
-        sub ? `<em>${esc(sub)}</em>` : ''}</b></div>`).join('')}</div></div>`;
+        sub ? `<em>${esc(sub)}</em>` : ''}</b></div>`).join('')}</div>`;
 }
 
 /**
@@ -492,7 +488,7 @@ function bioPane(p) {
 function contractPane(p, meta) {
   const c = p.contract;
   if (!c) {
-    return `<div class="pm-rows"><div class="pm-row"><span>Status</span>
+    return `<div class="pm-rows pm-rows-wide"><div class="pm-row"><span>Status</span>
       <b>Not under contract</b></div></div>`;
   }
   const st = contractStatus(p);
@@ -507,9 +503,12 @@ function contractPane(p, meta) {
   if (c.playerOption) rows.push(['Player Option', 'Yes']);
   if (c.teamOption) rows.push(['Team Option', 'Yes']);
 
-  return `<div class="pm-rows">${rows.map(([k, v, sub]) =>
+  return `<div class="pm-rows pm-rows-wide">${rows.map(([k, v, sub]) =>
     `<div class="pm-row"><span>${esc(k)}</span><b>${esc(v)}${
       sub ? `<em>${esc(sub)}</em>` : ''}</b></div>`).join('')}</div>
     <p class="pm-note">Contract totals beyond these fields — guarantees, cap
-      holds, year-by-year salary — are not stored in the save.</p>`;
+      holds, year-by-year salary — are not stored in the save.</p>
+    <div class="pm-subhead">Contract History</div>
+    <p class="pm-note">Past deals are not recorded yet. Signings and extensions
+      will appear here once they are logged.</p>`;
 }

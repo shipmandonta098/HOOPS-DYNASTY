@@ -97,8 +97,7 @@ body.pm-open { overflow: hidden; }
 .pm-fact .v { font-size: 1.15rem; font-weight: 800; margin-top: 0.2rem; }
 
 /* ------------------------------------------------------ body split */
-.pm-body { display: grid; grid-template-columns: 1fr 300px; gap: clamp(0.9rem, 2vw, 1.6rem); }
-.pm-body > * { min-width: 0; }
+.pm-body { min-width: 0; }
 
 /* five category ratings */
 .pm-cats {
@@ -157,12 +156,11 @@ body.pm-open { overflow: hidden; }
 }
 
 /* ------------------------------------------------------ contract side */
-.pm-side { display: grid; gap: 0.9rem; align-content: start; }
 .pm-block {
   background: var(--panel-2); border: 1px solid var(--stroke);
   border-radius: 10px; padding: 1rem;
 }
-.pm-side h3 {
+.pm-block h3, .pm-subhead {
   font-size: 0.62rem; font-weight: 800; letter-spacing: 0.15em;
   text-transform: uppercase; color: var(--muted); margin-bottom: 0.8rem;
 }
@@ -171,6 +169,16 @@ body.pm-open { overflow: hidden; }
   padding: 0.5rem 0; border-top: 1px solid var(--stroke-2);
 }
 .pm-rows > .pm-row:first-child { border-top: 0; }
+/* As a full-width tab panel rather than a 300px sidebar, the rows can run in
+   columns instead of one long list. */
+.pm-rows-wide {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  column-gap: 2rem;
+}
+.pm-rows-wide > .pm-row { border-top: 1px solid var(--stroke-2); }
+.pm-subhead {
+  margin-top: 1.4rem; padding-top: 0.9rem; border-top: 1px solid var(--stroke-2);
+}
 /* Morale / Fatigue / Durability are qualitative traits shown as words, not
    ratings on the 0-99 scale, so they keep a plain good / neutral / poor
    colouring instead of joining the rating ramp. */
@@ -194,7 +202,6 @@ body.pm-open { overflow: hidden; }
 
 /* ------------------------------------------------------ responsive */
 @media (max-width: 880px) {
-  .pm-body { grid-template-columns: 1fr; }
   .pm-cats { grid-template-columns: repeat(3, 1fr); row-gap: 0.8rem; }
   .pm-cat:nth-child(4) { border-left: 0; }
 }
@@ -288,9 +295,11 @@ body.pm-open { overflow: hidden; }
 .pm.has-team-theme .pm-pos .arch {
   border-color: var(--team-line); color: var(--team-primary);
 }
-.pm.has-team-theme .pm-side h3,
+.pm.has-team-theme .pm-block h3,
+.pm.has-team-theme .pm-subhead,
 .pm.has-team-theme .pp-h { display: inline-flex; align-items: center; gap: 0.5rem; }
-.pm.has-team-theme .pm-side h3::before,
+.pm.has-team-theme .pm-block h3::before,
+.pm.has-team-theme .pm-subhead::before,
 .pm.has-team-theme .pp-h::before {
   content: ""; width: 3px; height: 11px; border-radius: 2px;
   background: var(--team-primary); flex: 0 0 auto;
