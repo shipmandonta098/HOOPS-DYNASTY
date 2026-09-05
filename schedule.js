@@ -77,31 +77,110 @@ export function effectiveRules(settings) {
  * across the league rather than always on the same teams, and it is the same
  * every time this runs.
  */
-function buildPairings(teams, matchups, rules, rng) {
+function buildPairings(teams, matchups, rules, rng, season) {
   const confOf = (t) => t.conference;
   const divOf = (t) => t.division;
+  const kindOf = (a, b) => (divOf(a) && divOf(a) === divOf(b) ? 'division'
+    : confOf(a) && confOf(a) === confOf(b) ? 'conference' : 'nonConference');
+
+  /**
+   * Split n meetings between the two clubs as evenly as the number allows.
+   *
+   * An odd count cannot split evenly, and the extra home game must not land on
+   * the same club every year — a franchise that gets the extra date forever is
+   * a quiet, permanent advantage. The season is part of the hash, so the extra
+   * alternates from year to year while staying deterministic within one.
+   */
+  const meet = (a, b, n, out) => {
+    if (rules.homeAwayBalance === 'Random') {
+      for (let k = 0; k < n; k++) {
+        out.push(rng.next() < 0.5 ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
+      }
+      return;
+    }
+    const half = Math.floor(n / 2);
+    for (let k = 0; k < half; k++) out.push({ home: a.id, away: b.id });
+    for (let k = 0; k < half; k++) out.push({ home: b.id, away: a.id });
+    if (n % 2) {
+      const aHosts = rules.homeAwayBalance === 'Mostly Balanced'
+        ? rng.next() < 0.5
+        : hashString(`${a.id}|${b.id}|${season}`) % 2 === 0;
+      out.push(aHosts ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
+    }
+  };
+
   const games = [];
+  const pairs = [];
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
       const a = teams[i], b = teams[j];
-      const n = divOf(a) && divOf(a) === divOf(b) ? matchups.division
-        : confOf(a) && confOf(a) === confOf(b) ? matchups.conference
-        : matchups.nonConference;
-      if (!n) continue;
-      if (rules.homeAwayBalance === 'Random') {
-        for (let k = 0; k < n; k++) {
-          games.push(rng.next() < 0.5 ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
-        }
-        continue;
-      }
-      const half = Math.floor(n / 2);
-      for (let k = 0; k < half; k++) games.push({ home: a.id, away: b.id });
-      for (let k = 0; k < half; k++) games.push({ home: b.id, away: a.id });
-      if (n % 2) {
-        const aHosts = rules.homeAwayBalance === 'Mostly Balanced'
-          ? rng.next() < 0.5
-          : hashString(`${a.id}|${b.id}`) % 2 === 0;
-        games.push(aHosts ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
+      const kind = kindOf(a, b);
+      const n = matchups[kind];
+      pairs.push({ a, b, kind });
+      if (n) meet(a, b, n, games);
+    }
+  }
+
+  /* ----------------------- the remaining games -------------------------- */
+  // When the specified rules assign fewer games than the season length, the
+  // shortfall is not dropped — it is distributed, one extra meeting at a time,
+  // over the pairs whose category the user did NOT pin down. Pairs the user
+  // specified exactly are left alone, because those numbers were instructions.
+  const perTeam = {};
+  for (const t of teams) perTeam[t.id] = 0;
+  for (const g of games) { perTeam[g.home]++; perTeam[g.away]++; }
+  const target = matchups.targetGames || 0;
+  if (target > 0) {
+    // Which pairs may take an extra meeting.
+    //
+    // A specified count is a GUARANTEED MINIMUM, not a ceiling — the spec's own
+    // example assigns 76 of 82 and expects the generator to place the other
+    // six, which it can only do by adding meetings to pairs the user already
+    // gave a number. So every category is eligible EXCEPT one explicitly set to
+    // zero: that is not "few games", it is "these teams never meet", and topping
+    // it up would overrule the clearest instruction on the screen.
+    const sources = matchups.sources || {};
+    const eligible = pairs.filter((p) =>
+      !(sources[p.kind] === 'user' && matchups[p.kind] === 0));
+    // Pairs the user left to the generator go first, so the extras land where
+    // no preference was expressed before they touch a specified category.
+    const free = eligible.filter((p) => sources[p.kind] !== 'user')
+      .concat(eligible.filter((p) => sources[p.kind] === 'user'));
+    const order = free.slice();
+    // Shuffled within each band so the extras are spread, without letting the
+    // shuffle undo the auto-before-specified ordering above.
+    const band = (p) => (sources[p.kind] !== 'user' ? 0 : 1);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng.next() * (i + 1));
+      if (band(order[i]) !== band(order[j])) continue;
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    // Rounds over the eligible pairs, adding a meeting only where BOTH clubs
+    // are still short, so the extra games land evenly instead of piling onto
+    // whichever pair happens to come first.
+    // Each extra is a single game, so its host decides a home date outright.
+    // Handing it to whichever club is currently the more road-heavy keeps the
+    // top-up from unbalancing what the even splits above achieved — without
+    // this, six extra games meant a six-game home/away gap.
+    const homeCount = {};
+    for (const t of teams) homeCount[t.id] = 0;
+    for (const g of games) homeCount[g.home]++;
+    const balancedMeet = (a, b) => {
+      const aHomeShare = homeCount[a.id] - (perTeam[a.id] - homeCount[a.id]);
+      const bHomeShare = homeCount[b.id] - (perTeam[b.id] - homeCount[b.id]);
+      const host = aHomeShare <= bHomeShare ? a : b;
+      const guest = host === a ? b : a;
+      games.push({ home: host.id, away: guest.id });
+      homeCount[host.id]++;
+    };
+    let added = true;
+    for (let round = 0; round < 12 && added; round++) {
+      added = false;
+      for (const p of order) {
+        if (perTeam[p.a.id] >= target || perTeam[p.b.id] >= target) continue;
+        balancedMeet(p.a, p.b);
+        perTeam[p.a.id]++; perTeam[p.b.id]++;
+        added = true;
       }
     }
   }
@@ -258,7 +337,8 @@ export function buildSchedule(league, season, settingsOverride, structure) {
 
   const matchups = matchupsFor(teams, rules);   // already resolved
   const cal = seasonCalendar(rules, year - 1);
-  const pairs = buildPairings(teams, matchups, rules, rng);
+  const pairs = buildPairings(teams,
+    { ...matchups, targetGames: rules.regularSeasonGames }, rules, rng, year);
 
   // Variation shuffles how the season is dealt. Low keeps the ordering close to
   // the pairing order, High reorders it freely — every season differs either

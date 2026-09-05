@@ -12,7 +12,7 @@ import {
   GROUPS, ALL_SETTINGS, defaults, normalize, isRelevant, loadSettings, saveSettings,
   listRulePresets, saveRulePreset, getRulePreset, deleteRulePreset,
 } from './gameSettings.js';
-import { scheduleSummary, autoFixSchedule } from './scheduleRules.js';
+import { scheduleSummary, autoFixSchedule, matchupBreakdown } from './scheduleRules.js';
 import { buildSchedule, scheduleStats } from './schedule.js';
 import { loadDraft } from './leagueConfig.js';
 
@@ -49,6 +49,13 @@ function controlHTML(s, off) {
     }
     return `<input type="date" data-key="${s.key}" data-monthday="1"
       value="${year}-${esc(v)}" aria-label="${esc(s.label)}"${dis} />`;
+  }
+  if (s.type === 'optnum') {
+    // Blank is a real, meaningful value here — "no special treatment" — so the
+    // field is left genuinely empty and the placeholder says what that means.
+    return `<input type="number" data-key="${s.key}" data-optnum="1"
+      value="${v === '' || v == null ? '' : v}" min="${s.min}" max="${s.max}"
+      step="${s.step || 1}" placeholder="Auto" aria-label="${esc(s.label)}"${dis} />`;
   }
   if (s.type === 'text') {
     return `<input type="text" data-key="${s.key}" value="${esc(v)}"
@@ -127,6 +134,40 @@ function draftLeague() {
 
 let previewOpen = false;
 
+/**
+ * The live consequence of the opponent rules, recomputed on every change.
+ *
+ * Shows the arithmetic rather than the conclusion — 4 opponents x 4 games = 16
+ * — because the question these settings raise is "what does this actually do
+ * to my season", and a single total does not answer it. Everything comes from
+ * the league structure currently being built, so it follows teams,
+ * conferences, divisions and the game count as they move.
+ */
+function matchupPanel(teams, structure) {
+  const b = matchupBreakdown(teams, settings, structure);
+  const rows = b.lines.map((l) => `<div class="mx-row">
+    <span class="mx-l">${esc(l.label)}</span>
+    <span class="mx-v">${esc(l.text)}</span>
+    <span class="mx-src${l.source === 'user' ? ' is-user' : ''}">${
+      l.source === 'user' ? 'set' : 'auto'}</span>
+  </div>`).join('');
+
+  const over = b.over;
+  const remaining = b.target - b.assigned;
+  return `<div class="mx-panel">
+    <div class="mx-h">League Structure</div>
+    <div class="mx-struct">${b.structure.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+    <div class="mx-h">Schedule</div>
+    ${rows}
+    <div class="mx-total${over ? ' is-over' : ''}">
+      <span>Assigned Games</span><b>${b.assigned} / ${b.target}</b>
+    </div>
+    ${!over && remaining > 0 ? `<div class="mx-rem">Remaining Games: ${remaining}
+      <em>— distributed automatically</em></div>` : ''}
+    ${!over && remaining === 0 ? '<div class="mx-rem">Fully specified.</div>' : ''}
+  </div>`;
+}
+
 function renderScheduleBar() {
   const bar = el('schedBar');
   if (!bar) return;
@@ -148,6 +189,7 @@ function renderScheduleBar() {
     </div>
     <div class="sb-line">${esc(sum.text)}</div>
     <div class="sb-sub">${teams.length} teams · ${sum.plan.totalGames} games total</div>
+    ${matchupPanel(teams, structure)}
     ${problems ? `<ul class="sb-problems">${problems}</ul>` : ''}
     ${notes ? `<ul class="sb-notes">${notes}</ul>` : ''}
     <div class="sb-actions">
@@ -265,7 +307,11 @@ el('groups').addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.key;
   if (!k) return;
   if (e.target.dataset.monthday) settings[k] = e.target.value.slice(5);  // drop the year
-  else settings[k] = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
+  // An empty optional number stays empty. Coercing it to 0 here would turn
+  // "no special treatment" into "these teams never meet".
+  else if (e.target.dataset.optnum) {
+    settings[k] = e.target.value === '' ? '' : Number(e.target.value);
+  } else settings[k] = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
   commit();
 });
 

@@ -108,7 +108,7 @@ export function leagueShape(teams, structure) {
  *
  * @returns {{division, conference, nonConference, gamesPerTeam, exact}}
  */
-export function autoBalanceMatchups(shape, targetGames) {
+export function autoBalanceMatchups(shape, targetGames, preferUnder) {
   const d = Math.round(shape.divisionOpponents);
   const c = Math.round(shape.conferenceOpponents);
   const x = Math.round(shape.nonConferenceOpponents);
@@ -121,9 +121,14 @@ export function autoBalanceMatchups(shape, targetGames) {
       for (let mx = x ? 1 : 0; mx <= (x ? Math.min(MAX, mc || md || MAX) : 0); mx++) {
         const games = d * md + c * mc + x * mx;
         if (!games) continue;
-        const miss = Math.abs(games - target);
-        // Prefer, in order: closest to the target, then the clearest
-        // division > conference > non-conference ordering, then fewer games.
+        // Overshooting is worse than undershooting when this is filling in
+        // blanks around counts the user fixed: a shortfall is distributed by
+        // the generator, while an excess simply produces more games than the
+        // season was set to.
+        const over = games > target;
+        const miss = Math.abs(games - target) * (preferUnder && over ? 3 : 1);
+        // Then the clearest division > conference > non-conference ordering,
+        // then fewer games.
         const spread = (md - mc) + (mc - mx);
         const score = miss * 1000 - spread * 10 + games * 0.001;
         if (!best || score < best.score) {
@@ -142,23 +147,90 @@ export function autoBalanceMatchups(shape, targetGames) {
   };
 }
 
-/** The meeting counts in force — auto-balanced, or the user's own. */
+/** A specified count, or null when the field was left blank. */
+function spec(v) {
+  return v === '' || v == null || !Number.isFinite(Number(v)) ? null : Math.round(Number(v));
+}
+
+/**
+ * The meeting counts in force.
+ *
+ * BLANK IS NOT ZERO. A blank field means the category gets no special
+ * scheduling treatment and is worked out by the generator; zero means those
+ * teams genuinely never meet. Conflating the two would silently delete a
+ * third of a league's fixtures the first time someone cleared a box.
+ *
+ * Specified categories are CONSTRAINTS and are honoured exactly. Whatever
+ * season length is left over is then spread across the blank categories, in
+ * the priority order division, conference, non-conference. If every category
+ * is specified, any shortfall is reported as a remainder for the generator to
+ * distribute rather than being forced into the counts.
+ *
+ * @returns {{ shape, division, conference, nonConference, gamesPerTeam, exact,
+ *   assigned, remaining, sources }} `sources` says, per category, whether the
+ *   number came from the user or was filled in.
+ */
 export function matchupsFor(teams, settings, structure) {
   const shape = leagueShape(teams, structure);
+  const target = Math.max(1, settings.regularSeasonGames || 1);
+  const opp = {
+    division: Math.round(shape.divisionOpponents),
+    conference: Math.round(shape.conferenceOpponents),
+    nonConference: Math.round(shape.nonConferenceOpponents),
+  };
+
   if (settings.autoBalanceSchedule) {
-    return { shape, ...autoBalanceMatchups(shape, settings.regularSeasonGames) };
+    const auto = autoBalanceMatchups(shape, target);
+    const assigned = opp.division * auto.division + opp.conference * auto.conference
+      + opp.nonConference * auto.nonConference;
+    return {
+      shape, ...auto, opponents: opp, assigned, remaining: target - assigned,
+      sources: { division: 'auto', conference: 'auto', nonConference: 'auto' },
+    };
   }
-  const gamesPerTeam = Math.round(
-    shape.divisionOpponents * settings.divisionGames
-    + shape.conferenceOpponents * settings.conferenceGames
-    + shape.nonConferenceOpponents * settings.nonConferenceGames);
+
+  const given = {
+    division: spec(settings.divisionGames),
+    conference: spec(settings.conferenceGames),
+    nonConference: spec(settings.nonConferenceGames),
+  };
+  const keys = ['division', 'conference', 'nonConference'];
+  const fixedGames = keys.reduce(
+    (sum, k) => sum + (given[k] != null ? opp[k] * given[k] : 0), 0);
+
+  // Blank categories share whatever the specified ones left over, balanced
+  // among themselves by the same ordered search auto balance uses. Filling
+  // them greedily in priority order instead gave division rivals fourteen
+  // meetings each and left the rest of the league one apiece — technically the
+  // right total, and not a schedule anybody would want.
+  const blanks = keys.filter((k) => given[k] == null && opp[k] > 0);
+  const out = { ...given };
+  if (blanks.length) {
+    const subShape = {
+      divisionOpponents: blanks.includes('division') ? opp.division : 0,
+      conferenceOpponents: blanks.includes('conference') ? opp.conference : 0,
+      nonConferenceOpponents: blanks.includes('nonConference') ? opp.nonConference : 0,
+    };
+    const auto = autoBalanceMatchups(subShape, Math.max(1, target - fixedGames), true);
+    for (const k of blanks) out[k] = auto[k];
+  }
+  for (const k of keys) if (out[k] == null) out[k] = 0;
+
+  const assigned = keys.reduce((sum, k) => sum + opp[k] * out[k], 0);
   return {
     shape,
-    division: settings.divisionGames,
-    conference: settings.conferenceGames,
-    nonConference: settings.nonConferenceGames,
-    gamesPerTeam,
-    exact: gamesPerTeam === settings.regularSeasonGames,
+    division: out.division,
+    conference: out.conference,
+    nonConference: out.nonConference,
+    gamesPerTeam: assigned,
+    opponents: opp,
+    assigned,
+    // Positive: the generator has room to add games. Negative: the rules
+    // demand more than the season holds, which validation refuses.
+    remaining: target - assigned,
+    exact: assigned === target,
+    sources: Object.fromEntries(keys.map((k) => [k, given[k] != null ? 'user' : 'auto'])),
+    required: fixedGames,
   };
 }
 
@@ -238,6 +310,25 @@ export function validateSchedule(teams, settings, startYear, structure) {
       fix: { autoBalanceSchedule: true } });
   }
 
+  // Manually specified frequencies are constraints, and constraints that
+  // demand more games than the season holds are a contradiction rather than
+  // something to quietly trim. Reported in the user's own arithmetic.
+  if (!settings.autoBalanceSchedule && matchups.required > settings.regularSeasonGames) {
+    const parts = [];
+    for (const [k, label] of [['division', 'division'], ['conference', 'conference'],
+      ['nonConference', 'non-conference']]) {
+      if (matchups.sources[k] === 'user' && matchups.opponents[k]) {
+        parts.push(`${matchups.opponents[k]} ${label} opponent`
+          + `${matchups.opponents[k] === 1 ? '' : 's'} \u00d7 ${matchups[k]}`);
+      }
+    }
+    problems.push({ code: 'overspecified',
+      message: `Your opponent scheduling rules require at least ${matchups.required} games, `
+        + `which exceeds the ${settings.regularSeasonGames}-game regular season`
+        + (parts.length ? ` (${parts.join(' + ')})` : '') + '.',
+      fix: { regularSeasonGames: matchups.required } });
+  }
+
   // A team needs a gap of `rest` days between each of its games, so its season
   // occupies a minimum stretch of calendar whatever else is true.
   const needDays = G > 0 ? (G - 1) * (rest + 1) + 1 : 0;
@@ -266,6 +357,12 @@ export function validateSchedule(teams, settings, startYear, structure) {
   if (settings.homeAwayBalance === 'Balanced' && G % 2 === 1) {
     notes.push(`With ${G} games an even home and away split is impossible; every team `
       + 'will be within one game of even, which is the best the arithmetic allows.');
+  }
+  if (!settings.autoBalanceSchedule && matchups.remaining > 0
+      && matchups.required <= settings.regularSeasonGames) {
+    notes.push(`These rules assign ${matchups.assigned} of `
+      + `${settings.regularSeasonGames} games. The generator will distribute the remaining `
+      + `${matchups.remaining} across opponents itself.`);
   }
   if (!matchups.exact && settings.autoBalanceSchedule) {
     notes.push(`This league's shape cannot produce exactly ${settings.regularSeasonGames} games. `
@@ -375,6 +472,34 @@ export function autoFixSchedule(teams, settings, startYear, structure) {
       continue;
     }
 
+    // Over-specified rules are reduced in REVERSE priority — non-conference
+    // first, then conference, then division — because that is the order the
+    // user cared least about, and the league structure is never touched.
+    if (v.problems.some((p) => p.code === 'overspecified')) {
+      const m = v.plan.matchups;
+      let reduced = false;
+      for (const k of ['nonConference', 'conference', 'division']) {
+        const key = { nonConference: 'nonConferenceGames', conference: 'conferenceGames',
+          division: 'divisionGames' }[k];
+        if (m.sources[k] !== 'user' || !m.opponents[k] || !next[key]) continue;
+        const over = m.required - next.regularSeasonGames;
+        // Never reduced below one: dropping a category to zero would change
+        // what the user asked for from "fewer games" into "these teams never
+        // meet", which is a different instruction entirely.
+        const cut = Math.min(next[key] - 1, Math.ceil(over / m.opponents[k]));
+        if (cut <= 0) continue;
+        const label = { nonConference: 'Non-Conference', conference: 'Conference',
+          division: 'Division' }[k];
+        changes.push(`Games vs. Each ${label} Opponent reduced from ${next[key]} to `
+          + `${next[key] - cut}; the rules asked for ${m.required} games in a `
+          + `${next.regularSeasonGames}-game season.`);
+        next[key] = next[key] - cut;
+        reduced = true;
+        break;
+      }
+      if (reduced) continue;
+    }
+
     if (v.problems.some((p) => p.code === 'matchups')) {
       changes.push('Auto Balance Schedule switched on; the manual opponent counts produced '
         + 'no games.');
@@ -389,6 +514,59 @@ export function autoFixSchedule(teams, settings, startYear, structure) {
 /* ===========================================================================
  * SUMMARY
  * ======================================================================== */
+
+/**
+ * The live consequence of the current opponent rules, line by line.
+ *
+ * Recomputed from the league in front of it, so it follows teams, conferences,
+ * divisions and the season length as they change.
+ *
+ * @returns {{ structure: Array, lines: Array, assigned, target, remaining, over }}
+ */
+export function matchupBreakdown(teams, settings, structure) {
+  const resolved = resolveTeams(teams, structure);
+  const shape = leagueShape(teams, structure);
+  const m = matchupsFor(teams, settings, structure);
+  const divisions = new Set(resolved.map((t) => t.division).filter(Boolean));
+  const conferences = new Set(resolved.map((t) => t.conference).filter(Boolean));
+  const perDivision = divisions.size ? resolved.length / divisions.size : 0;
+
+  const structureLines = [
+    `${resolved.length} Teams`,
+    `${conferences.size || 1} Conference${(conferences.size || 1) === 1 ? '' : 's'}`,
+  ];
+  if (divisions.size) {
+    const perConf = conferences.size ? divisions.size / conferences.size : divisions.size;
+    structureLines.push(`${perConf % 1 ? perConf.toFixed(1) : perConf} Division`
+      + `${perConf === 1 ? '' : 's'} per Conference`);
+    structureLines.push(`${perDivision % 1 ? perDivision.toFixed(1) : perDivision} `
+      + `Teams per Division`);
+  }
+
+  const lines = [];
+  for (const [k, label] of [['division', 'Division Opponents'],
+    ['conference', 'Non-Division Conference Opponents'],
+    ['nonConference', 'Non-Conference Opponents']]) {
+    const o = m.opponents[k];
+    if (!o) continue;
+    lines.push({
+      label, opponents: o, games: m[k], total: o * m[k], source: m.sources[k],
+      text: `${o} \u00d7 ${m[k]} game${m[k] === 1 ? '' : 's'} = ${o * m[k]} games`,
+    });
+  }
+  const over = m.required > settings.regularSeasonGames;
+  return {
+    structure: structureLines,
+    lines,
+    // Over-specified rules are argued about in terms of what they REQUIRE, so
+    // the panel shows that number rather than a total that silently includes
+    // an auto-filled category the error message never mentions.
+    assigned: over ? m.required : m.assigned,
+    target: settings.regularSeasonGames,
+    remaining: m.remaining,
+    over,
+  };
+}
 
 /** The live one-line summary shown under the schedule settings. */
 export function scheduleSummary(teams, settings, startYear, structure) {

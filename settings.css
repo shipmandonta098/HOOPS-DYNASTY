@@ -178,3 +178,38 @@
 .pv-row b { color: var(--white); font-variant-numeric: tabular-nums; }
 .pv-game { color: var(--muted); font-size: 0.79rem; padding: 0.14rem 0; }
 .pv-note { color: var(--muted-2); font-size: 0.74rem; margin-top: 0.7rem; }
+
+/* --------------------------------------------- live matchup calculation
+   The arithmetic, not just the answer: what each opponent rule does to the
+   season, recomputed whenever the league or the game count changes. */
+.mx-panel {
+  margin-top: 0.9rem; padding: 0.85rem 0.95rem;
+  background: var(--inset); border: 1px solid var(--stroke-2); border-radius: 10px;
+}
+.mx-h {
+  color: var(--muted); font-size: 0.54rem; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0.2rem 0 0.45rem;
+}
+.mx-h + .mx-h, .mx-row + .mx-h { margin-top: 0.9rem; }
+.mx-struct { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-bottom: 0.2rem; }
+.mx-struct span { color: var(--white); font-size: 0.8rem; }
+.mx-row {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: baseline;
+  gap: 0.6rem; padding: 0.24rem 0; color: var(--muted); font-size: 0.8rem;
+}
+.mx-v { color: var(--white); font-variant-numeric: tabular-nums; }
+.mx-src {
+  font-size: 0.5rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted-2); border: 1px solid var(--stroke); border-radius: 999px;
+  padding: 0.08rem 0.4rem;
+}
+.mx-src.is-user { color: var(--brand-hi); border-color: var(--brand); }
+.mx-total {
+  display: flex; justify-content: space-between; margin-top: 0.55rem;
+  padding-top: 0.5rem; border-top: 1px solid var(--stroke-2);
+  color: var(--muted); font-size: 0.82rem;
+}
+.mx-total b { color: var(--white); font-variant-numeric: tabular-nums; }
+.mx-total.is-over b { color: #e0a49c; }
+.mx-rem { color: var(--muted-2); font-size: 0.76rem; margin-top: 0.35rem; }
+.mx-rem em { font-style: normal; }

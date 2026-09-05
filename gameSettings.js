@@ -84,19 +84,19 @@ export const GROUPS = [
     settings: [
       { key: 'autoBalanceSchedule', label: 'Auto Balance Schedule', type: 'toggle',
         def: true, applied: true,
-        help: 'Works out how often each kind of opponent should meet from your league\u2019s actual shape \u2014 team count, conferences, divisions \u2014 and the season length, so division rivals meet most and non-conference opponents least. Nothing about it assumes a 30-team league. Switch it off to set the three counts yourself.' },
-      { key: 'divisionGames', label: 'Division Opponent Games', type: 'number',
-        min: 0, max: 12, step: 1, def: 4, applied: true,
+        help: 'Works out how often each kind of opponent should meet from your league\u2019s actual shape \u2014 team count, conferences, divisions \u2014 and the season length, so division rivals meet most and non-conference opponents least. Nothing about it assumes a 30-team league. Switch it off to set any of the three counts yourself; each one you leave blank is still worked out for you.' },
+      { key: 'divisionGames', label: 'Games vs. Each Division Opponent', type: 'optnum',
+        min: 0, max: 12, step: 1, def: '', applied: true,
         dependsOn: { key: 'autoBalanceSchedule', value: false },
-        help: 'Meetings with each team in your own division.' },
-      { key: 'conferenceGames', label: 'Conference Opponent Games', type: 'number',
-        min: 0, max: 12, step: 1, def: 3, applied: true,
+        help: 'Number of games played against each team in the same division. Leave blank to give no special scheduling treatment to division opponents \u2014 blank is NOT zero, it hands those opponents to the general generator.' },
+      { key: 'conferenceGames', label: 'Games vs. Each Non-Division Conference Opponent',
+        type: 'optnum', min: 0, max: 12, step: 1, def: '', applied: true,
         dependsOn: { key: 'autoBalanceSchedule', value: false },
-        help: 'Meetings with each conference opponent outside your division.' },
-      { key: 'nonConferenceGames', label: 'Non-Conference Opponent Games', type: 'number',
-        min: 0, max: 12, step: 1, def: 2, applied: true,
+        help: 'Number of games versus other teams in the same conference but a different division. Leave blank to give no special scheduling treatment to conference games; blank is not zero.' },
+      { key: 'nonConferenceGames', label: 'Games vs. Each Non-Conference Opponent',
+        type: 'optnum', min: 0, max: 12, step: 1, def: '', applied: true,
         dependsOn: { key: 'autoBalanceSchedule', value: false },
-        help: 'Meetings with each team in the other conference. Zero in a single-conference league, where there are none.' },
+        help: 'Number of games played against each team outside your conference. Leave blank to let the schedule generator determine these matchups automatically.' },
     ],
   },
   {
@@ -336,6 +336,14 @@ export function normalize(raw) {
     else if (def.type === 'number') {
       const n = Number(v);
       out[k] = Number.isFinite(n) ? Math.max(def.min, Math.min(def.max, n)) : def.def;
+    } else if (def.type === 'optnum') {
+      // Blank is a real value here and must survive: it means "no special
+      // treatment", which is a different instruction from zero games.
+      if (v === '' || v == null) out[k] = '';
+      else {
+        const n = Number(v);
+        out[k] = Number.isFinite(n) ? Math.max(def.min, Math.min(def.max, Math.round(n))) : '';
+      }
     } else if (def.type === 'monthday') {
       // MM-DD, and a real day of a real month. Anything else falls back rather
       // than reaching the generator as a date that does not exist.
