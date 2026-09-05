@@ -430,11 +430,16 @@ export function tendencySummary(t) {
  * for the simulator to read when one exists, and are reported as stability
  * rather than as a habit.
  *
- * ON THE MAGNITUDES: rules 1 and 2 are written as points ("+5 to pullUp")
- * while rule 3 specifies the mechanism as `base x (1 + bias)`. Rule 3 is the
- * only statement about HOW, so it wins: "+5" is read as +5%, which also scales
- * the nudge with the propensity it is nudging. Switching to flat points is a
- * one-line change if that was the intent.
+ * ON THE MAGNITUDES: these are IN-GAME modifiers, so they are FLAT POINTS.
+ * "+5 to pullUp" adds five, whether he sits at 20 or at 85. That is the right
+ * shape for a within-game effect — a confident player takes the same few extra
+ * pull-ups regardless of how often he already shoots them, and a percentage
+ * would silently make the same trait worth four times as much to a heavy
+ * shooter as to a light one.
+ *
+ * The percentage mechanism belongs to the other timescale: growth, decline and
+ * system drift are season-to-season and compound, so they are proportional.
+ * See engine/playerDevelopment.js.
  * ======================================================================== */
 
 /** The situations a bias can belong to. `base` is always on. */
@@ -545,7 +550,7 @@ export function applyBias(base, player, opts = {}) {
   const priorities = per.priorities || per.careerPriorities;
 
   const m = flat(base);
-  const pct = {};              // key -> total proportional bias
+  const pts = {};              // key -> total modifier, in rating points
   const applied = [];          // human-readable record of what fired
 
   const num = (v) => (Number.isFinite(v) ? v : null);
@@ -564,7 +569,7 @@ export function applyBias(base, player, opts = {}) {
       return;
     }
     const value = amount < 0 && dampsNegatives ? amount * 0.9 : amount;
-    for (const k of [].concat(keys)) pct[k] = (pct[k] || 0) + value;
+    for (const k of [].concat(keys)) pts[k] = (pts[k] || 0) + value;
     applied.push({ why, amount: value, when, active: true, keys: [].concat(keys) });
   };
 
@@ -576,48 +581,62 @@ export function applyBias(base, player, opts = {}) {
   /* ------------------------------- mental ------------------------------- */
   // Confidence > 70 -> boost shot creation. Unconditional.
   if (confidence != null && confidence > 70) {
-    add(['pullUp', 'isoCreate'], 0.05, 'Confidence above 70 boosts shot creation');
+    add(['pullUp', 'isoCreate'], 5, 'Confidence above 70 boosts shot creation');
   }
   // Concentration < 70 -> late-game lapses. Conditional on the situation.
   if (concentration != null && concentration < 70) {
-    add(['pass'], -0.05, 'Concentration below 70 costs late-game decisions', 'lateGame');
-    add(DEFENSIVE, -0.05, 'Concentration below 70 costs late-game defence', 'lateGame');
+    add(['pass'], -5, 'Concentration below 70 costs late-game decisions', 'lateGame');
+    add(DEFENSIVE, -5, 'Concentration below 70 costs late-game defence', 'lateGame');
   }
 
   /* ----------------------------- personality ---------------------------- */
   if (hasTrait(traits, 'opportunity_seeking', 'Opportunity-Seeking')) {
-    add(['isoCreate'], 0.10, 'Opportunity-Seeking looks for his own shot');
-    add(['drive'], 0.05, 'Opportunity-Seeking attacks the gap');
+    add(['isoCreate'], 10, 'Opportunity-Seeking looks for his own shot');
+    add(['drive'], 5, 'Opportunity-Seeking attacks the gap');
   }
   if (hasTrait(traits, 'competitive', 'Competitive')) {
-    add(['shootThree', 'drive'], 0.10, 'Competitive presses when the game is getting away', 'trailing');
+    add(['shootThree', 'drive'], 10, 'Competitive presses when the game is getting away', 'trailing');
   }
   const contention = priorityRank(priorities, 'contention');
   const winning = priorityRank(priorities, 'winning');
   if (contention === 4 || winning === 4) {
-    add(['pass'], 0.05, 'Championship and winning priorities move the ball in the playoffs', 'playoffs');
-    add(['isoCreate'], -0.05, 'Championship and winning priorities cut isolation in the playoffs', 'playoffs');
+    add(['pass'], 5, 'Championship and winning priorities move the ball in the playoffs', 'playoffs');
+    add(['isoCreate'], -5, 'Championship and winning priorities cut isolation in the playoffs', 'playoffs');
   }
   const chemistry = priorityRank(priorities, 'chemistry');
   if (chemistry != null && chemistry >= 3) {
-    add(['pass'], 0.05, 'Team Chemistry priority moves the ball');
-    add(['isoCreate'], -0.05, 'Team Chemistry priority cuts isolation');
+    add(['pass'], 5, 'Team Chemistry priority moves the ball');
+    add(['isoCreate'], -5, 'Team Chemistry priority cuts isolation');
   }
 
   /* ------------- coachability aligns him with the team's system --------- */
   const system = opts.roster ? teamSystem(opts.roster) : null;
   if (coachability != null && coachability > 95 && system) {
-    // Pull 5% of the way toward what this roster actually does.
+    // Toward the system's SHAPE, not its LEVEL.
+    //
+    // Comparing raw against the roster mean looked right and was not: a good
+    // player sits above his teammates on nearly every tendency, so alignment
+    // read that as "out of system" and dragged all sixteen down by the cap.
+    // That is a talent difference, not a stylistic one. Both sides are centred
+    // on their own averages first, so what remains is the difference in STYLE
+    // — this team shoots more threes and posts up less than it does everything
+    // else — and only that is aligned.
+    const ALIGN = 5;
+    const mine = Object.values(m);
+    const myMid = mine.reduce((x, y) => x + y, 0) / mine.length;
+    const theirs = Object.values(system.means);
+    const theirMid = theirs.reduce((x, y) => x + y, 0) / theirs.length;
     for (const [k, mean] of Object.entries(system.means)) {
-      m[k] = m[k] + (mean - m[k]) * 0.05;
+      const gap = (mean - theirMid) - (m[k] - myMid);
+      pts[k] = (pts[k] || 0) + clamp(gap, -ALIGN, ALIGN);
     }
     applied.push({ why: `Coachability above 95 aligns him with a ${system.label} system`,
-      amount: 0.05, when: 'base', active: true, keys: Object.keys(system.means) });
+      amount: ALIGN, when: 'base', active: true, keys: Object.keys(system.means) });
   }
 
-  /* --------------------------- rule 3: apply ---------------------------- */
+  /* ---------------------------- apply, flat ----------------------------- */
   const out = {};
-  for (const [k, v] of Object.entries(m)) out[k] = v * (1 + (pct[k] || 0));
+  for (const [k, v] of Object.entries(m)) out[k] = v + (pts[k] || 0);
 
   /* ------------------------------ volatility ---------------------------- */
   // Spread, not level. Nothing consumes these yet; they are stated so that a

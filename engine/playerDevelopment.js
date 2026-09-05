@@ -20,6 +20,7 @@
 const { RNG } = require('./lib/rng');
 const { computeOverall, ATTRIBUTES } = require('./lib/ratings');
 const { classifyArchetype } = require('./lib/esm').load('playerArchetypes.js');
+const { teamSystem } = require('./lib/esm').load('playerTendencies.js');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 // Which attributes fade with age, and how fast (relative multiplier).
@@ -58,29 +59,110 @@ const DECLINE_SENSITIVITY = {
   defensiveRebound: 0.9,
 };
 
+/* A typical rating sits around 70, i.e. 45 points above the floor. The old
+   point magnitudes were tuned against players of about that size, so dividing
+   by it turns each one into the rate that reproduces the same movement for a
+   typical player while behaving sensibly at the extremes. */
+const REFERENCE = 45;
+
 function clampAttr(v) {
   return Math.max(25, Math.min(99, Math.round(v)));
 }
 
 /**
- * Apply a delta to a set of attributes, weighted by each attribute's list of
- * relative multipliers. `direction` is +1 (growth) or -1 (decline).
+ * Move a set of attributes, PROPORTIONALLY.
+ *
+ * Season-to-season change is a rate, not a fixed number of points, because it
+ * COMPOUNDS: a career is twenty of these applied one after another, and a flat
+ * step gives an absurd result at the ends of the scale — the same -1.5 a year
+ * takes a 40 to nothing while barely troubling a 95. Proportional change is
+ * also what decline actually looks like: an elite athlete has more to lose and
+ * loses more of it.
+ *
+ * (In-game modifiers are the opposite case and stay flat — see the note at the
+ * top of playerTendencies.js. The distinction is timescale: one applies once
+ * within a game, the other twenty times across a career.)
+ *
+ * `rate` is a fraction, so 0.02 is two percent. `direction` is +1 (growth) or
+ * -1 (decline). Attributes are measured against a 25 floor rather than zero,
+ * because that is where the scale actually bottoms out and a rating of 25 is
+ * "none of this skill", not "a quarter of it".
  */
-function nudgeAttributes(attrs, magnitude, weights, direction, rng) {
+const ATTR_FLOOR = 25;
+
+function nudgeAttributes(attrs, rate, weights, direction, rng) {
   for (const attr of ATTRIBUTES) {
     if (typeof attrs[attr] !== 'number') continue;
     const w = weights[attr] != null ? weights[attr] : 1;
-    // Add a little per-attribute noise so growth isn't perfectly uniform.
-    const change = direction * magnitude * w * rng.float(0.6, 1.4);
-    attrs[attr] = clampAttr(attrs[attr] + change);
+    // A little per-attribute noise so growth isn't perfectly uniform.
+    const pct = direction * rate * w * rng.float(0.6, 1.4);
+    const headroom = attrs[attr] - ATTR_FLOOR;
+    attrs[attr] = clampAttr(attrs[attr] + headroom * pct);
   }
+}
+
+/* Which attributes each style of play asks a player to work on, and which it
+   lets him neglect. Weights are relative within a style. */
+const SYSTEM_EMPHASIS = {
+  'Pace and Space': { threePoint: +1, freeThrow: +0.4, speed: +0.5, shotIQ: +0.5,
+                      postControl: -1, strength: -0.5, interiorDefense: -0.3 },
+  'Inside-Out':     { postControl: +1, strength: +0.7, interiorDefense: +0.5,
+                      offensiveRebound: +0.5, threePoint: -1, speed: -0.3 },
+  'Ball Movement':  { passing: +1, passingIQ: +0.8, shotIQ: +0.5,
+                      ballHandling: -0.4, postControl: -0.6 },
+  Balanced:         {},
+};
+
+/**
+ * A season inside a system leaves a mark: a player works on what his team asks
+ * of him and lets slide what it does not.
+ *
+ * PROPORTIONAL, because it is season-to-season and compounds across a career —
+ * a decade in one system should visibly reshape a player.
+ *
+ * NET-NEUTRAL ON OVERALL, and that is not a nicety. Coachability is a mental
+ * attribute, and mental attributes must never move a rating. So drift
+ * REDISTRIBUTES: what one attribute gains another gives up, and the player's
+ * overall is restored to what it was before. He has not got better or worse,
+ * he has become a different player — which is exactly what a system does to
+ * someone, and the only version of this that does not smuggle a mental
+ * attribute into Overall.
+ */
+function applySystemDrift(player, system, rng) {
+  if (!system) return false;
+  const emphasis = SYSTEM_EMPHASIS[system.label];
+  if (!emphasis || !Object.keys(emphasis).length) return false;
+  const attrs = player.attributes || {};
+  const coach = (player.mental && player.mental.coachability);
+  if (!Number.isFinite(coach)) return false;
+
+  // A coachable player absorbs the system; a stubborn one barely does.
+  const rate = 0.010 * Math.max(0, (coach - 50) / 49) * rng.float(0.6, 1.4);
+  if (rate <= 0) return false;
+
+  const before = computeOverall(player);
+  for (const [attr, w] of Object.entries(emphasis)) {
+    if (typeof attrs[attr] !== 'number') continue;
+    const headroom = attrs[attr] - ATTR_FLOOR;
+    attrs[attr] = clampAttr(attrs[attr] + headroom * rate * w);
+  }
+  // Put the overall back where it was: this reshapes a player, it does not
+  // rate him. A whole-block correction preserves the reshaping.
+  for (let i = 0; i < 8; i++) {
+    const gap = before - computeOverall(player);
+    if (gap === 0) break;
+    for (const attr of ATTRIBUTES) {
+      if (typeof attrs[attr] === 'number') attrs[attr] = clampAttr(attrs[attr] + gap * 0.6);
+    }
+  }
+  return true;
 }
 
 /**
  * Develop a single player one year. Mutates the passed player object (which is
  * already a clone owned by this module). Returns { retired: boolean, note }.
  */
-function developPlayer(player, rng) {
+function developPlayer(player, rng, system) {
   player.age = (player.age || 22) + 1;
   const age = player.age;
   const before = computeOverall(player);
@@ -96,28 +178,35 @@ function developPlayer(player, rng) {
     // name meant this factor was silently pinned at 50 for every player.
     const iq = ((attrs.shotIQ || 50) + (attrs.passingIQ || 50) + (attrs.defensiveIQ || 50)) / 3;
     const iqFactor = (iq - 50) / 100;                         // -0.25..+0.49
-    const magnitude = (0.15 + room * 0.06) * (1 + iqFactor) * rng.float(0.7, 1.5);
+    // Was a point magnitude; divided by the reference headroom it was
+    // implicitly assuming, so a typical season moves as far as it used to.
+    const rate = ((0.15 + room * 0.06) * (1 + iqFactor) * rng.float(0.7, 1.5)) / REFERENCE;
     // Growth spreads across all attributes but favors "trainable" skills.
-    nudgeAttributes(attrs, magnitude, {}, +1, rng);
+    nudgeAttributes(attrs, rate, {}, +1, rng);
     if (rng.chance(0.08 + iqFactor * 0.1)) {
       // Breakout year — a real leap.
-      nudgeAttributes(attrs, magnitude * 1.5, {}, +1, rng);
+      nudgeAttributes(attrs, rate * 1.5, {}, +1, rng);
       note = 'breakout';
     }
   } else if (age <= 28) {
     // PRIME: mostly stable, tiny random drift either way.
-    const drift = rng.float(-0.4, 0.5);
+    const drift = rng.float(-0.4, 0.5) / REFERENCE;
     nudgeAttributes(attrs, Math.abs(drift), {}, drift >= 0 ? +1 : -1, rng);
     note = 'prime';
   } else {
     // DECLINE: accelerates with age. Athletic attributes fall fastest.
     const yearsPastPrime = age - 28;
-    const magnitude = 0.5 + yearsPastPrime * 0.35;
-    nudgeAttributes(attrs, magnitude, DECLINE_SENSITIVITY, -1, rng);
+    const rate = (0.5 + yearsPastPrime * 0.35) / REFERENCE;
+    nudgeAttributes(attrs, rate, DECLINE_SENSITIVITY, -1, rng);
     note = 'decline';
   }
 
   player.attributes = attrs;
+  // A season in the team's system, after growth or decline and before the
+  // archetype is re-read, so a player reshaped by his system is re-labelled by
+  // the numbers that reshaping produced.
+  if (applySystemDrift(player, system, rng) && !note) note = 'system';
+
   const after = computeOverall(player);
   player.overall = after; // cache the derived overall for convenience/readers
   player.overallChange = after - before;
@@ -164,10 +253,19 @@ function playerDevelopment(inputLeague) {
   const devYear = league.meta.lastSimulatedSeason || league.meta.currentSeason - 1;
   const rng = RNG.forStream(league.meta.rngSeed, `development:${devYear}`);
 
+  // Each team's system is read off its roster ONCE, before anyone develops, so
+  // every player on a team drifts toward the same style rather than toward a
+  // target that moves as his teammates are processed.
+  const systemByTeam = {};
+  for (const team of league.teams || []) {
+    systemByTeam[team.id] = teamSystem(
+      league.players.filter((p) => p.teamId === team.id));
+  }
+
   const retirements = [];
   const survivors = [];
   for (const player of league.players) {
-    const { retired, note } = developPlayer(player, rng);
+    const { retired, note } = developPlayer(player, rng, systemByTeam[player.teamId] || null);
     if (retired) {
       retirements.push({
         playerId: player.id,
