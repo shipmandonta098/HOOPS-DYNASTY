@@ -463,7 +463,7 @@
     },
     "statsHistory": {
       "type": "array",
-      "description": "Per-season box-score lines, appended by simulateSeason.js.",
+      "description": "One entry per season played, appended by simulateSeason.js. Counting stats are SEASON TOTALS; the profile's Traditional and Per 36 views divide them rather than storing three copies. Every field is optional and a missing one renders as a dash \u2014 the career stats table never fills a cell it has no numbers for, so a partial line is shown honestly as a partial line.",
       "items": {
         "type": "object",
         "required": [
@@ -471,18 +471,67 @@
         ],
         "additionalProperties": true,
         "properties": {
-          "season": {
-            "type": "integer"
+          "season": { "type": "integer" },
+          "age": { "type": "integer", "description": "Optional; derived from birthDate and season when absent." },
+          "teamAbbr": { "type": "string", "description": "The club he played this season for. Not inferable from his current roster spot, so it is a dash when absent." },
+          "pos": { "type": "string", "description": "The position he played this season." },
+          "g": { "type": "integer" },
+          "gs": { "type": "integer" },
+          "mp": { "type": "number", "description": "Total minutes for the season." },
+          "fg": { "type": "number" },
+          "fga": { "type": "number" },
+          "fg3": { "type": "number" },
+          "fg3a": { "type": "number" },
+          "ft": { "type": "number" },
+          "fta": { "type": "number" },
+          "orb": { "type": "number" },
+          "drb": { "type": "number" },
+          "trb": { "type": "number", "description": "Optional; ORB + DRB when both are present." },
+          "ast": { "type": "number" },
+          "stl": { "type": "number" },
+          "blk": { "type": "number" },
+          "tov": { "type": "number" },
+          "pf": { "type": "number" },
+          "pts": { "type": "number" },
+          "awards": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Finishes as NAME-PLACE, e.g. 'ROY-1', 'MVP-4'. A place of 1 is a win and is shown in bold."
           },
-          "ppg": {
-            "type": "number"
+          "per": { "type": "number" },
+          "ows": { "type": "number" },
+          "dws": { "type": "number" },
+          "ws": { "type": "number", "description": "Optional; OWS + DWS when both are present." },
+          "obpm": { "type": "number" },
+          "dbpm": { "type": "number" },
+          "bpm": { "type": "number", "description": "Optional; OBPM + DBPM when both are present." },
+          "vorp": { "type": "number" },
+          "orbPct": { "type": "number" },
+          "drbPct": { "type": "number" },
+          "trbPct": { "type": "number" },
+          "astPct": { "type": "number" },
+          "stlPct": { "type": "number" },
+          "blkPct": { "type": "number" },
+          "tovPct": { "type": "number" },
+          "usgPct": { "type": "number", "description": "Rate stats need the team's and opponents' totals over the same minutes. Nothing computes them yet, so they are stored if a model ever does and dashed until then." },
+          "highs": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Best single game of the season, which only a game log can supply.",
+            "properties": {
+              "mp": { "type": "number" }, "pts": { "type": "number" },
+              "trb": { "type": "number" }, "ast": { "type": "number" },
+              "stl": { "type": "number" }, "blk": { "type": "number" },
+              "fg": { "type": "number" }, "fga": { "type": "number" },
+              "fg3": { "type": "number" }, "fg3a": { "type": "number" },
+              "ft": { "type": "number" }, "fta": { "type": "number" },
+              "orb": { "type": "number" }, "drb": { "type": "number" },
+              "tov": { "type": "number" }, "pf": { "type": "number" }
+            }
           },
-          "rpg": {
-            "type": "number"
-          },
-          "apg": {
-            "type": "number"
-          }
+          "ppg": { "type": "number", "description": "Legacy per-game points from saves made before a box score existed. Shown in the Traditional view only \u2014 a total needs games played and a per-36 needs minutes, neither of which such a save has." },
+          "rpg": { "type": "number", "description": "Legacy per-game rebounds. As ppg." },
+          "apg": { "type": "number", "description": "Legacy per-game assists. As ppg." }
         }
       }
     },

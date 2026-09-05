@@ -141,6 +141,25 @@ body.pm-open { overflow: hidden; }
 .ag-row .av { font-size: 0.78rem; font-weight: 800; text-align: right; }
 
 /* career stats */
+/* ------------------------------------------------------ career stats */
+/* Five views over the same seasons: Traditional, Totals, Per 36, Advanced,
+   Game Highs. Thirty columns do not fit any phone, so the table scrolls
+   inside its own box and the first column stays put. */
+.pm-statviews {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.9rem;
+}
+.pm-sv {
+  background: var(--panel-2); border: 1px solid var(--stroke); color: var(--muted);
+  border-radius: 999px; padding: 0.34rem 0.8rem; cursor: pointer;
+  font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; transition: color .12s, border-color .12s, background .12s;
+}
+.pm-sv:hover { color: var(--white); border-color: var(--stroke); }
+.pm-sv.is-active {
+  color: var(--white); background: rgba(207, 97, 39, 0.16);
+  border-color: var(--brand);
+}
+
 .pm-stats { overflow-x: auto; }
 .pm-stats table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
 .pm-stats th {
@@ -153,6 +172,29 @@ body.pm-open { overflow: hidden; }
 .pm-stats td {
   text-align: right; white-space: nowrap; padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--stroke-2); font-variant-numeric: tabular-nums;
+}
+.pm-stats th.is-left, .pm-stats td.is-left { text-align: left; }
+/* The season column is the row's label, so it survives a horizontal scroll.
+   The background has to be OPAQUE — --panel is translucent, and the scrolling
+   columns would read straight through it. */
+.pm-stats th:first-child, .pm-stats td:first-child {
+  position: sticky; left: 0; background: var(--ink-1); z-index: 1;
+}
+/* A column no season can fill is dimmed in the header — the table still shows
+   it, because it is part of the record, but it does not pretend to be data. */
+.pm-stats th.is-blank { opacity: 0.42; }
+.pm-stats .stat-na { color: var(--muted); opacity: 0.5; }
+.pm-stats tr.is-empty td { text-align: center; color: var(--muted); padding: 1.1rem; }
+.pm-stats tfoot td {
+  border-top: 1px solid var(--stroke); border-bottom: 0;
+  font-weight: 800; color: var(--white);
+}
+.pm-stats tfoot td:first-child { background: var(--ink-1); }
+/* Awards: the finish is shown as written, and a win is bold. */
+.pm-stats .aw { color: var(--muted); font-size: 0.74rem; }
+.pm-stats .aw.is-won { color: var(--white); font-weight: 800; }
+.pm-stat-note {
+  margin-top: 0.8rem; color: var(--muted); font-size: 0.78rem; line-height: 1.5;
 }
 
 /* ------------------------------------------------------ contract side */

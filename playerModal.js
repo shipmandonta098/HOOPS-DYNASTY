@@ -36,6 +36,10 @@ import { applyTeamTheme } from './teamTheme.js';
 import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import { pronouns } from './playerBio.js';
 import {
+  VIEWS as STAT_VIEWS, COLUMN as STAT_COLUMN,
+  seasonValues, careerValues, parseAward, filledColumns,
+} from './playerStats.js';
+import {
   TRAIT_BY_ID, PRIORITIES, priorityLevel, satisfaction, satisfactionLabel,
 } from './playerPersonality.js';
 import { formatPotential } from './gameSettings.js';
@@ -79,6 +83,12 @@ export function initPlayerModal(lg) {
       const tab = e.target.closest('[data-pm-tab]');
       if (!tab || tab.classList.contains('is-todo')) return;
       activeTab = tab.dataset.pmTab;
+      render();
+    });
+    root.addEventListener('click', (e) => {
+      const sv = e.target.closest('[data-pm-stat]');
+      if (!sv) return;
+      statView = sv.dataset.pmStat;
       render();
     });
     document.addEventListener('keydown', (e) => {
@@ -418,24 +428,81 @@ function satisfactionBlock(sat) {
  * is empty in a fresh league — that gets said plainly instead of being filled
  * with plausible-looking numbers. Columns are whatever the sim actually wrote.
  */
-const STAT_COLS = [
-  ['season', 'Season'], ['gp', 'GP'], ['gs', 'GS'], ['mpg', 'MPG'],
-  ['ppg', 'PPG'], ['rpg', 'RPG'], ['apg', 'APG'], ['spg', 'SPG'], ['bpg', 'BPG'],
-  ['fgPct', 'FG%'], ['threePct', '3P%'], ['ftPct', 'FT%'], ['tsPct', 'TS%'],
-];
+/** Which of the five stat views the Career Stats tab is showing. */
+let statView = 'traditional';
 
+/**
+ * Career stats: five views over the same stored season rows.
+ *
+ * The table always shows the FULL column set for the chosen view, whether or
+ * not anything can fill it. That is deliberate. A cell is filled only when the
+ * save holds the numbers it is made of (playerStats.js draws that line), so an
+ * empty column here is a true statement — no games have been played — rather
+ * than a gap papered over with a plausible-looking figure.
+ */
 function careerPane(p) {
   const rows = Array.isArray(p.statsHistory) ? p.statsHistory : [];
+  const switcher = `<div class="pm-statviews" role="tablist">${
+    STAT_VIEWS.map((v) => `<button class="pm-sv${v.id === statView ? ' is-active' : ''}"
+      data-pm-stat="${v.id}" role="tab" aria-selected="${v.id === statView}"
+      >${esc(v.label)}</button>`).join('')}</div>`;
+
   if (!rows.length) {
-    return `<p class="pm-empty">No games have been played yet. Career stats appear
-      here once a season has been simulated.</p>`;
+    return `${switcher}
+      <p class="pm-empty">No games have been played yet. Every column below fills
+      in from the box score once a season has been simulated — nothing is
+      estimated in the meantime.</p>
+      ${statTable(STAT_VIEWS.find((v) => v.id === statView), [], p)}`;
   }
-  const cols = STAT_COLS.filter(([k]) => rows.some((r) => r[k] != null));
+  const view = STAT_VIEWS.find((v) => v.id === statView) || STAT_VIEWS[0];
+  return switcher + statTable(view, rows, p);
+}
+
+/** One view's table: a header row always, a body row per season. */
+function statTable(view, rows, p) {
+  const season = league && league.meta ? league.meta.currentSeason : null;
+  const cells = rows.map((r) => seasonValues(view.id, r, p, season));
+  const career = rows.length > 1 ? careerValues(view.id, rows) : null;
+  const filled = filledColumns(view.id, rows, p, season);
+
+  const head = view.columns.map((k) => {
+    const c = STAT_COLUMN[k];
+    return `<th class="${c.align === 'left' ? 'is-left' : ''}${
+      filled.has(k) ? '' : ' is-blank'}" scope="col">${esc(c.label)}</th>`;
+  }).join('');
+
+  const body = cells.map((v) => `<tr>${view.columns.map((k) =>
+    cell(k, v[k])).join('')}</tr>`).join('');
+
+  const foot = career
+    ? `<tfoot><tr>${view.columns.map((k) => cell(k, career[k])).join('')}</tr></tfoot>`
+    : '';
+
+  const note = rows.length && filled.size <= 6
+    ? `<p class="pm-stat-note">Only the columns the save actually holds are
+       filled. The rest stay blank until the simulator records a full box
+       score.</p>`
+    : '';
+
   return `<div class="pm-stats"><table>
-    <thead><tr>${cols.map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((r) => `<tr>${cols.map(([k]) =>
-      `<td>${r[k] != null ? esc(r[k]) : '—'}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table></div>`;
+    <thead><tr>${head}</tr></thead>
+    <tbody>${body || `<tr class="is-empty"><td colspan="${view.columns.length}">—</td></tr>`}</tbody>
+    ${foot}
+  </table></div>${note}`;
+}
+
+/** A single cell. Awards render as chips, a win in bold; anything absent is a dash. */
+function cell(key, value) {
+  const c = STAT_COLUMN[key];
+  const left = c.align === 'left' ? ' class="is-left"' : '';
+  if (value == null) return `<td${left}><span class="stat-na">—</span></td>`;
+  if (key === 'awards' && Array.isArray(value)) {
+    return `<td class="is-left">${value.map((a) => {
+      const { text, won } = parseAward(a);
+      return `<span class="aw${won ? ' is-won' : ''}">${esc(text)}</span>`;
+    }).join(' ')}</td>`;
+  }
+  return `<td${left}>${esc(value)}</td>`;
 }
 
 /**
