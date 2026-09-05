@@ -20,7 +20,9 @@
 const { RNG } = require('./lib/rng');
 const { computeOverall, ATTRIBUTES } = require('./lib/ratings');
 const { classifyArchetype } = require('./lib/esm').load('playerArchetypes.js');
-const { teamSystem } = require('./lib/esm').load('playerTendencies.js');
+const {
+  teamSystem, evolveTendencies, computeTendencies,
+} = require('./lib/esm').load('playerTendencies.js');
 const { loadLeague, saveLeague, cloneLeague } = require('./saveLoad');
 
 // Which attributes fade with age, and how fast (relative multiplier).
@@ -106,9 +108,9 @@ function nudgeAttributes(attrs, rate, weights, direction, rng) {
 const SYSTEM_EMPHASIS = {
   'Pace and Space': { threePoint: +1, freeThrow: +0.4, speed: +0.5, shotIQ: +0.5,
                       postControl: -1, strength: -0.5, interiorDefense: -0.3 },
-  'Inside-Out':     { postControl: +1, strength: +0.7, interiorDefense: +0.5,
+  'Grit and Grind': { postControl: +1, strength: +0.7, interiorDefense: +0.5,
                       offensiveRebound: +0.5, threePoint: -1, speed: -0.3 },
-  'Ball Movement':  { passing: +1, passingIQ: +0.8, shotIQ: +0.5,
+  Motion:           { passing: +1, passingIQ: +0.8, shotIQ: +0.5,
                       ballHandling: -0.4, postControl: -0.6 },
   Balanced:         {},
 };
@@ -159,10 +161,28 @@ function applySystemDrift(player, system, rng) {
 }
 
 /**
+ * A player's role on his team last season, derived from where he actually
+ * ranked on it rather than from a field nobody sets.
+ *
+ * Rank is by overall on his own roster: the best player on a good team is its
+ * first option, the top five start, the rest come off the bench. Stored back
+ * onto the player each offseason so next year can see the CHANGE, which is
+ * what the promotion and demotion rules key on.
+ */
+function roleOf(player, roster) {
+  if (!roster || !roster.length) return null;
+  const ranked = roster.slice().sort((a, b) => computeOverall(b) - computeOverall(a));
+  const rank = ranked.findIndex((p) => p.id === player.id);
+  if (rank < 0) return null;
+  if (rank === 0 && computeOverall(player) >= 80) return 'star';
+  return rank < 5 ? 'starter' : 'bench';
+}
+
+/**
  * Develop a single player one year. Mutates the passed player object (which is
  * already a clone owned by this module). Returns { retired: boolean, note }.
  */
-function developPlayer(player, rng, system) {
+function developPlayer(player, rng, system, roster) {
   player.age = (player.age || 22) + 1;
   const age = player.age;
   const before = computeOverall(player);
@@ -226,6 +246,16 @@ function developPlayer(player, rng, system) {
     if (!note) note = 'archetype';
   }
 
+  // ---- Tendency evolution ----
+  // Habits move across a career in ways his ratings do not predict — age,
+  // role, the system he plays in, what worked last season. Unlike everything
+  // else about tendencies this cannot be derived, so it accumulates on the
+  // player and computeTendencies() adds it to the baseline.
+  const role = roleOf(player, roster);
+  const evolved = evolveTendencies(player, { system, role });
+  player.tendencyDrift = evolved.drift;
+  if (role) player.role = role;
+
   // ---- Retirement check ----
   // Risk rises with age and falls with remaining ability. A 40-year-old star
   // might hang on; a 34-year-old scrub is likely done.
@@ -265,7 +295,9 @@ function playerDevelopment(inputLeague) {
   const retirements = [];
   const survivors = [];
   for (const player of league.players) {
-    const { retired, note } = developPlayer(player, rng, systemByTeam[player.teamId] || null);
+    const { retired, note } = developPlayer(player, rng,
+      systemByTeam[player.teamId] || null,
+      league.players.filter((x) => x.teamId === player.teamId));
     if (retired) {
       retirements.push({
         playerId: player.id,

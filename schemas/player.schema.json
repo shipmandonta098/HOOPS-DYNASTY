@@ -128,6 +128,16 @@
       "maximum": 5,
       "description": "Seasons spent in college; 0 for a player who did not attend one. Entry age is derived from this, so the biography's chronology stays self-consistent."
     },
+    "tendencyDrift": {
+      "type": "object",
+      "additionalProperties": { "type": "number" },
+      "description": "Accumulated season-to-season tendency evolution, keyed by tendency id, in rating points. Added to the derived baseline by computeTendencies(). Absent or empty for a player who has not played a season, which reads identically to having no drift at all. Written each offseason by evolveTendencies()."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["bench", "starter", "star"],
+      "description": "Where the player ranked on his own roster last season, derived from overall rather than set by hand. Stored so the next offseason can detect a promotion or demotion."
+    },
     "secondaryPosition": {
       "type": [
         "string",

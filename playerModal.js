@@ -329,6 +329,37 @@ function mentalPane(p) {
 }
 
 /**
+ * How far a career has bent a player away from what his ratings alone predict.
+ *
+ * Shown as the difference from the pure baseline, because that is the only way
+ * to see it: the drift is already inside the numbers above.
+ */
+function careerDriftLine(p, pure, pn) {
+  const d = p.tendencyDrift;
+  if (!d || !Object.keys(d).length) return '';
+  const live = computeTendencies(p, { position: p.position, archetype: p.archetype });
+  const moved = [];
+  for (const g of TENDENCY_GROUPS) {
+    for (const [key, label] of g.parts) {
+      const delta = live[g.key][key] - pure[g.key][key];
+      if (delta) moved.push({ label, delta });
+    }
+  }
+  if (!moved.length) return '';
+  moved.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const top = moved.slice(0, 5)
+    .map((m) => `${esc(m.label.toLowerCase())} ${m.delta > 0 ? '+' : ''}${m.delta}`);
+  return `<div class="tg-bias">
+    <div class="tg-bias-h">Career Drift</div>
+    <p>Seasons played have moved ${pn.poss} habits away from what ${pn.poss}
+      ratings alone predict: ${top.join(', ')}. This accumulates each offseason
+      from ${pn.poss} age, role, team system and what worked, and it fades a
+      little each year, so a habit picked up in one system loosens after
+      ${pn.subj} leaves it.</p>
+  </div>`;
+}
+
+/**
  * Volatility is spread, not level, so it is reported rather than folded into a
  * number. Nothing simulates possessions yet, so this says what these
  * coefficients WILL govern instead of implying they already do.
@@ -557,6 +588,9 @@ function tendencyPane(p) {
   const t = biased.tendencies;
   const summary = tendencySummary(t);
   const pn = pronouns(p);
+  // What his ratings alone would say, so a career's accumulated habits are
+  // visible as the difference rather than silently baked in.
+  const pure = computeTendencies(p, { position: p.position, archetype: p.archetype, drift: false });
   const shifted = {};
   for (const g of TENDENCY_GROUPS) {
     for (const [key] of g.parts) shifted[key] = t[g.key][key] - base[g.key][key];
@@ -599,6 +633,8 @@ function tendencyPane(p) {
     </div>
 
     ${summary ? `<p class="pm-mental-sum">${esc(summary)}</p>` : ''}
+
+    ${careerDriftLine(p, pure, pn)}
 
     <div class="tg-bias">
       <div class="tg-bias-h">Mental &amp; Personality Bias</div>

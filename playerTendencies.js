@@ -204,8 +204,8 @@ export const TENDENCY_GROUPS = [
  *
  * @param {object} input  a player, or `{ attributes: {...} }` in either the
  *   flat 23-attribute shape or the grouped shape the JSON contract uses.
- * @param {object} [opts] `{ position, archetype }`; both optional, and both
- *   are omitted by a raw JSON payload, which then gets the stated rules alone.
+ * @param {object} [opts] `{ position, archetype, drift }`; all optional, and a
+ *   raw JSON payload supplies none of them, so it gets the stated rules alone.
  * @returns {{ offense, playmaking, defense, rebounding }} every value 0-100.
  */
 export function computeTendencies(input, opts = {}) {
@@ -345,6 +345,23 @@ export function computeTendencies(input, opts = {}) {
   // Last, and after the tilts as well: a stated rule holds no matter what was
   // layered on top of it.
   for (const [k, b] of Object.entries(bands)) t[k] = clamp(t[k], b.lo, b.hi);
+
+  // CAREER DRIFT, applied after the bands rather than inside them.
+  //
+  // The bands describe the BASELINE mapping — what a player's ratings say his
+  // habits should be, and what the raw JSON contract returns. A career of
+  // offseasons is a different thing layered on top: a shooter who spends five
+  // years in a post-up system genuinely shoots fewer threes than his jumper
+  // alone predicts, and clamping that back into the band would be refusing to
+  // let evolution mean anything. Drift is stored per player (evolveTendencies)
+  // and is zero for anyone who has not played a season.
+  // `drift: false` asks for the pure baseline — what his ratings alone say —
+  // which is how the profile shows what a career has changed.
+  const drift = opts.drift === false ? null
+    : (opts.drift || (input && input.tendencyDrift) || null);
+  if (drift) for (const [k, d] of Object.entries(drift)) {
+    if (Number.isFinite(d) && t[k] != null) t[k] += d;
+  }
 
   return {
     offense: {
@@ -493,8 +510,8 @@ export function teamSystem(roster) {
   const means = {};
   for (const [k, v] of Object.entries(sums)) means[k] = v / players.length;
   const label = means.shootThree >= 55 && means.postUp <= 35 ? 'Pace and Space'
-    : means.postUp >= 45 ? 'Inside-Out'
-    : means.pass >= 55 ? 'Ball Movement'
+    : means.postUp >= 45 ? 'Grit and Grind'
+    : means.pass >= 55 ? 'Motion'
     : 'Balanced';
   return { label, means };
 }
@@ -709,5 +726,282 @@ function biasSummary(mental, per, applied, system, situation) {
       ? `${cap(perBits.join('; '))}.`
       : 'No personality trait or priority applies in this situation.') + pendingNote,
     situation: (SITUATIONS.find((s) => s.id === situation) || {}).label || situation,
+  };
+}
+
+/* ===========================================================================
+ * SEASON-TO-SEASON EVOLUTION
+ * ---------------------------------------------------------------------------
+ * Habits change over a career. A thirty-four-year-old who used to attack the
+ * rim passes instead; a bench shooter promoted to first option starts creating;
+ * five years in one system leaves a mark. None of that follows from a player's
+ * ratings alone, so unlike everything above it CANNOT be derived — it has to
+ * accumulate and be stored.
+ *
+ * So a player carries `tendencyDrift`: the running total of every offseason's
+ * adjustment. computeTendencies() adds it to the baseline, which means the
+ * ratings still drive the shape and the career bends it. A player who has
+ * never played a season has no drift and reads exactly as before.
+ *
+ * WHAT IS AND IS NOT AVAILABLE. Performance feedback needs a box score, and the
+ * simulator writes three per-game numbers. So those rules read the real fields,
+ * fire when they are there, and are reported as skipped when they are not —
+ * never estimated from what is missing. Same discipline as the stats table.
+ * ======================================================================== */
+
+/** Shot creation, for the confidence rule. */
+const SHOT_CREATION = ['pullUp', 'isoCreate', 'drive'];
+/** What a player leans on with the game on the line, for the composure rule. */
+const CLUTCH = ['pullUp', 'isoCreate', 'shootThree'];
+/** The spec's "shooting" and "defense" groups, spelled out. */
+const SHOOTING = ['shootThree', 'shootMidRange', 'catchAndShoot', 'pullUp'];
+
+/** Team systems, in the caller's vocabulary, and what each asks for. */
+const SYSTEM_SHIFT = {
+  'Pace and Space': { shootThree: +5, catchAndShoot: +3, postUp: -3 },
+  'Grit and Grind': { shootMidRange: +5, paintDefense: +3, crashBoards: +3 },
+  // "offBall" is not one of the sixteen; catch-and-shoot is the tendency that
+  // describes playing off the ball, so it takes that share.
+  Motion:           { pass: +5, catchAndShoot: +3, isoCreate: -3 },
+  Balanced:         {},
+};
+
+const ROLE_SHIFT = {
+  'bench->starter': { isoCreate: +5, drive: +3 },
+  'starter->bench': { isoCreate: -5, catchAndShoot: +5 },
+  star:             { isoCreate: +10, pullUp: +5, shootThree: +5, pass: -5 },
+};
+
+/**
+ * How far accumulated drift is allowed to run, and how fast it fades.
+ *
+ * The stated per-offseason amounts are large — confidence alone contributes
+ * +confidence/20, so a 71 adds 3.6 EVERY YEAR — and applied without limit they
+ * pin every veteran at 0 or 100 within a decade, which erases exactly the
+ * variety the module exists to create. Two bounds keep a career's worth of
+ * change meaningful:
+ *
+ *   FADE   each offseason, existing drift decays a little toward zero, so a
+ *          habit picked up in one system loosens when a player leaves it.
+ *   CAP    total drift on any one tendency is bounded, so a career bends a
+ *          player without erasing what his ratings say he is.
+ *
+ * Set FADE to 0 and CAP to Infinity for the literal unbounded reading.
+ */
+export const DRIFT_FADE = 0.12;
+export const DRIFT_CAP = 25;
+
+const num = (v) => (Number.isFinite(v) ? v : null);
+
+/** Median of a player's own tendencies, for the "strengths / weaknesses" rule. */
+function ownMedian(vals) {
+  const a = vals.slice().sort((x, y) => x - y);
+  return a[Math.floor(a.length / 2)];
+}
+
+/**
+ * One offseason of tendency evolution.
+ *
+ * @param {object} player   needs attributes; reads mental, personality, age,
+ *   statsHistory, tendencyDrift and role when present.
+ * @param {object} [ctx]    `{ system, role, roster }`
+ *   system  from teamSystem(); null skips the system rules.
+ *   role    'bench' | 'starter' | 'star' for the season just finished. Compared
+ *           against the player's stored role to detect a change.
+ * @returns {{ drift, changes, role, skipped }}
+ *   drift    the new accumulated offsets, to store on the player
+ *   changes  every rule that fired, with its amount, for the summary
+ *   skipped  rules that could not run, and why
+ */
+export function evolveTendencies(player, ctx = {}) {
+  const mental = player.mental || {};
+  const per = player.personality || {};
+  const priorities = per.priorities || per.careerPriorities;
+  const age = num(player.age);
+  const changes = [];
+  const skipped = [];
+
+  const delta = {};
+  const bump = (keys, amount, why) => {
+    if (!amount) return;
+    for (const k of [].concat(keys)) delta[k] = (delta[k] || 0) + amount;
+    changes.push({ keys: [].concat(keys), amount, why });
+  };
+
+  /* ------------------------------ 1. mental ----------------------------- */
+  const confidence = num(mental.confidence);
+  if (confidence != null) bump(SHOT_CREATION, confidence / 20, `Confidence ${confidence}`);
+  const composure = num(mental.composure);
+  if (composure != null) bump(CLUTCH, composure / 30, `Composure ${composure}`);
+  const coachability = num(mental.coachability);
+  const system = ctx.system || null;
+  if (coachability != null && system && SYSTEM_SHIFT[system.label]) {
+    // Toward the system, by the stated amount, in the direction the system
+    // asks for — so a coachable player in a pace-and-space team shoots more
+    // threes rather than simply having every tendency raised.
+    const step = coachability / 25;
+    const shift = SYSTEM_SHIFT[system.label];
+    for (const [k, dir] of Object.entries(shift)) {
+      bump(k, Math.sign(dir) * step, `Coachability ${coachability} in a ${system.label} system`);
+    }
+  } else if (coachability != null && !system) {
+    skipped.push('Coachability alignment: the team has no identifiable system.');
+  }
+
+  /* --------------------------- 2. personality --------------------------- */
+  if (hasTrait(per.traits, 'opportunity_seeking', 'Opportunity-Seeking')) {
+    bump('isoCreate', +2, 'Opportunity-Seeking');
+    bump('drive', +1, 'Opportunity-Seeking');
+    bump('pass', -1, 'Opportunity-Seeking');
+  }
+  if (hasTrait(per.traits, 'competitive', 'Competitive')) {
+    bump('shootThree', +2, 'Competitive');
+    bump('drive', +2, 'Competitive');
+    bump('perimeterPressure', +1, 'Competitive');
+  }
+  if ((priorityRank(priorities, 'chemistry') || 0) >= 3) {
+    bump('pass', +2, 'Team Chemistry priority');
+    bump('isoCreate', -2, 'Team Chemistry priority');
+    bump('contestShots', +1, 'Team Chemistry priority');
+  }
+  if ((priorityRank(priorities, 'recognition') || 0) >= 3) {
+    bump('pullUp', +2, 'Individual Recognition priority');
+    bump('catchAndShoot', +1, 'Individual Recognition priority');
+  }
+
+  /* ----------------------------- 3. age curve --------------------------- */
+  if (age != null) {
+    if (age <= 24) {
+      bump('drive', +3, 'Age 18-24');
+      bump('isoCreate', +3, 'Age 18-24');
+      bump('gambleSteals', +2, 'Age 18-24');
+    } else if (age <= 29) {
+      // "Strengths" and "weaknesses" are relative to the player himself: the
+      // habits he already leans on get more pronounced, the ones he does not
+      // fade further. A prime player becomes more himself.
+      const base = ctx.base || computeTendencies(player,
+        { position: player.position, archetype: player.archetype });
+      const f = flat(base);
+      const mid = ownMedian(Object.values(f));
+      for (const [k, v] of Object.entries(f)) {
+        bump(k, v >= mid ? +2 : -1, 'Age 25-29 sharpens what he already does');
+      }
+    } else if (age <= 34) {
+      bump(SHOOTING, +5, 'Age 30-34');
+      bump('drive', -3, 'Age 30-34');
+      bump('isoCreate', -2, 'Age 30-34');
+      bump('pass', +2, 'Age 30-34');
+    } else {
+      bump('pass', +5, 'Age 35+');
+      bump('catchAndShoot', +5, 'Age 35+');
+      bump('drive', -5, 'Age 35+');
+      bump(DEFENSIVE, -3, 'Age 35+');
+    }
+  }
+
+  /* ------------------------- 4. performance ----------------------------- */
+  const season = lastSeason(player);
+  if (!season) {
+    skipped.push('Performance feedback: no season on record.');
+  } else {
+    const fga = num(season.fga), fta = num(season.fta), pts = num(season.pts);
+    const ts = pts != null && fga != null && fta != null && (fga + 0.44 * fta) > 0
+      ? pts / (2 * (fga + 0.44 * fta)) : null;
+    if (ts == null) {
+      skipped.push('Shooting-efficiency feedback: the season has no shot totals.');
+    } else if (ts >= 0.58) {
+      bump('shootThree', +2, `True shooting ${ts.toFixed(3)}`);
+      bump('pullUp', +2, `True shooting ${ts.toFixed(3)}`);
+    } else if (ts <= 0.50) {
+      bump('shootThree', -2, `True shooting ${ts.toFixed(3)}`);
+      bump('pass', +2, `True shooting ${ts.toFixed(3)}`);
+    }
+
+    const tov = num(season.tov), mp = num(season.mp);
+    if (tov == null || !mp) {
+      skipped.push('Turnover feedback: the season has no turnover or minute totals.');
+    } else if (tov * 36 / mp >= 3.2) {
+      bump('isoCreate', -3, `${(tov * 36 / mp).toFixed(1)} turnovers per 36`);
+      bump('pass', +3, `${(tov * 36 / mp).toFixed(1)} turnovers per 36`);
+    }
+
+    const stl = num(season.stl), blk = num(season.blk);
+    if (stl == null || blk == null || !mp) {
+      skipped.push('Defensive feedback: the season has no steal or block totals.');
+    } else if ((stl + blk) * 36 / mp >= 3.0) {
+      bump('perimeterPressure', +2, 'Strong defensive season');
+      bump('contestShots', +2, 'Strong defensive season');
+    }
+  }
+
+  /* ---------------------------- 5. team system -------------------------- */
+  if (system && SYSTEM_SHIFT[system.label]) {
+    for (const [k, d] of Object.entries(SYSTEM_SHIFT[system.label])) {
+      bump(k, d, `${system.label} system`);
+    }
+  }
+
+  /* ------------------------------ 6. role ------------------------------- */
+  const wasRole = player.role || null;
+  const role = ctx.role || wasRole;
+  if (role === 'star') {
+    for (const [k, d] of Object.entries(ROLE_SHIFT.star)) bump(k, d, 'First option');
+  } else if (wasRole && role && wasRole !== role) {
+    const key = `${wasRole}->${role}`;
+    if (ROLE_SHIFT[key]) {
+      for (const [k, d] of Object.entries(ROLE_SHIFT[key])) {
+        bump(k, d, `Role change: ${wasRole} to ${role}`);
+      }
+    }
+  }
+
+  /* ------------------ resilience damps the whole season ----------------- */
+  const resilience = num(mental.resilience);
+  const steadiness = resilience != null ? resilience / 1000 : 0;
+  if (steadiness) {
+    for (const k of Object.keys(delta)) delta[k] *= (1 - steadiness);
+    changes.push({ keys: [], amount: -steadiness,
+      why: `Resilience ${resilience} steadies him, damping the whole season by ${(steadiness * 100).toFixed(1)}%` });
+  }
+
+  /* --------------------- accumulate, fade and cap ----------------------- */
+  const prior = player.tendencyDrift || {};
+  const out = {};
+  const keys = new Set([...Object.keys(prior), ...Object.keys(delta)]);
+  for (const k of keys) {
+    const carried = (num(prior[k]) || 0) * (1 - DRIFT_FADE);
+    out[k] = clamp(carried + (delta[k] || 0), -DRIFT_CAP, DRIFT_CAP);
+    out[k] = Math.round(out[k] * 100) / 100;
+  }
+  return { drift: out, changes, role: role || null, skipped };
+}
+
+/** The most recent season on record, or null. */
+function lastSeason(player) {
+  const h = player && player.statsHistory;
+  return Array.isArray(h) && h.length ? h[h.length - 1] : null;
+}
+
+/**
+ * A readable account of one offseason: the tendencies that moved most, and the
+ * rules that could not run.
+ */
+export function evolutionSummary(before, after, result) {
+  const b = flat(before), a = flat(after);
+  const moved = [];
+  for (const g of TENDENCY_GROUPS) {
+    for (const [k, label] of g.parts) {
+      const d = a[k] - b[k];
+      if (d) moved.push({ label, d });
+    }
+  }
+  moved.sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  const top = moved.slice(0, 4)
+    .map((m) => `${m.label.toLowerCase()} ${m.d > 0 ? '+' : ''}${m.d}`);
+  const reasons = [...new Set(result.changes.filter((c) => c.keys.length).map((c) => c.why))];
+  return {
+    headline: top.length ? `${cap(top.join(', '))}.` : 'Habits unchanged this offseason.',
+    drivers: reasons.length ? reasons.join('; ') + '.' : 'Nothing applied.',
+    unavailable: result.skipped.length ? result.skipped.join(' ') : null,
   };
 }
