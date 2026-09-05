@@ -36,6 +36,10 @@ import { applyTeamTheme } from './teamTheme.js';
 import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import { pronouns } from './playerBio.js';
 import {
+  TENDENCY_GROUPS, computeTendencies, tendencyBand, TENDENCY_BAND_LABEL,
+  tendencySummary,
+} from './playerTendencies.js';
+import {
   VIEWS as STAT_VIEWS, COLUMN as STAT_COLUMN,
   seasonValues, careerValues, parseAward, filledColumns,
 } from './playerStats.js';
@@ -205,6 +209,7 @@ function render() {
       <div class="pm-tabs">
         ${tab('bio', 'Bio', true)}
         ${tab('attributes', 'Attributes', true)}
+        ${tab('tendencies', 'Tendencies', true)}
         ${p.mental ? tab('mental', 'Mental', true) : ''}
         ${p.personality ? tab('personality', 'Personality', true) : ''}
         ${tab('contract', 'Contract', true)}
@@ -215,6 +220,7 @@ function render() {
         activeTab === 'bio' ? bioPane(p)
         : activeTab === 'contract' ? contractPane(p, meta)
         : activeTab === 'career' ? careerPane(p)
+        : activeTab === 'tendencies' ? tendencyPane(p)
         : activeTab === 'mental' ? mentalPane(p)
         : activeTab === 'personality' ? personalityPane(p)
         : attrPane(p)}</div>
@@ -503,6 +509,53 @@ function cell(key, value) {
     }).join(' ')}</td>`;
   }
   return `<td${left}>${esc(value)}</td>`;
+}
+
+/**
+ * Tendencies: what he TRIES to do, as against what he is able to do.
+ *
+ * Derived from his attributes, position and archetype every time this renders
+ * — never stored — so they follow his ratings as he develops and cannot drift
+ * out of step with them. And because they are computed from `attributes` and
+ * write nothing back, they cannot reach Overall even in principle.
+ */
+function tendencyPane(p) {
+  if (!p.attributes) {
+    return `<p class="pm-empty">This save predates the attribute model, so there
+      is nothing to derive tendencies from.</p>`;
+  }
+  const t = computeTendencies(p, { position: p.position, archetype: p.archetype });
+  const summary = tendencySummary(t);
+  const pn = pronouns(p);
+
+  return `<div class="pm-tend">
+    <p class="pm-mental-note">How often ${pn.subj} does each of these, not how
+      well. A tendency is a habit, not a rating — a high number is neither good
+      nor bad on its own, and none of it affects ${pn.poss} Overall. These are
+      read off ${pn.poss} attributes, position and archetype, so they move as
+      ${pn.subj} develops.</p>
+
+    <div class="pm-tend-groups">
+      ${TENDENCY_GROUPS.map((g) => `<div class="tg">
+        <div class="tg-h">${esc(g.label)}</div>
+        ${g.parts.map(([key, label, blurb]) => {
+          const v = t[g.key][key];
+          const band = tendencyBand(v);
+          return `<div class="tg-row">
+            <div class="tg-head">
+              <span class="tg-label">${esc(label)}</span>
+              <span class="tg-val t-${band}">${v}</span>
+            </div>
+            <div class="tg-track"><span class="tg-fill t-${band}" style="width:${v}%"></span></div>
+            <div class="tg-blurb">${esc(blurb)}</div>
+            <div class="tg-band t-${band}">${esc(TENDENCY_BAND_LABEL[band])}</div>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}
+    </div>
+
+    ${summary ? `<p class="pm-mental-sum">${esc(summary)}</p>` : ''}
+  </div>`;
 }
 
 /**

@@ -290,6 +290,45 @@ body.pm-open { overflow: hidden; }
   color: var(--muted); font-size: 0.8rem;
 }
 
+/* ------------------------------------------------------ tendencies
+   Behaviour, not ability, so it is coloured on its OWN scale — frequency from
+   rarely to constantly — rather than borrowing the green-to-red rating bands.
+   A high tendency is not a good tendency, and the colours must not imply it
+   is. */
+.pm-tend-groups {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: 1.5rem 2rem;
+}
+.tg-h {
+  color: var(--muted); font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 0.7rem;
+}
+.tg-row { margin-bottom: 0.95rem; }
+.tg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; }
+.tg-label { font-size: 0.82rem; color: var(--white); }
+.tg-val { font-size: 0.9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tg-track {
+  height: 6px; border-radius: 3px; background: var(--inset);
+  overflow: hidden; margin: 0.35rem 0 0.3rem;
+}
+.tg-fill { display: block; height: 100%; border-radius: 3px; }
+.tg-blurb { color: var(--muted-2); font-size: 0.72rem; line-height: 1.45; }
+.tg-band {
+  font-size: 0.56rem; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; margin-top: 0.2rem;
+}
+/* One hue, five steps: how OFTEN, never how good. */
+.t-very-high { color: #d8b26a; }
+.t-high      { color: #b9a077; }
+.t-medium    { color: #96938c; }
+.t-low       { color: #77746e; }
+.t-very-low  { color: #5d5b57; }
+.tg-fill.t-very-high { background: #d8b26a; }
+.tg-fill.t-high      { background: #a48a5e; }
+.tg-fill.t-medium    { background: #7d7973; }
+.tg-fill.t-low       { background: #5c5954; }
+.tg-fill.t-very-low  { background: #46443f; }
+
 /* ------------------------------------------------------ personality
    Layer three. Styled apart from ability and mental because it answers a
    different question — how is this player to manage, not how good is he. */
