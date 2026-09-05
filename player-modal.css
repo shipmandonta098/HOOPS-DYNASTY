@@ -329,6 +329,20 @@ body.pm-open { overflow: hidden; }
 .tg-fill.t-low       { background: #5c5954; }
 .tg-fill.t-very-low  { background: #46443f; }
 
+.tg-d { font-size: 0.66rem; font-weight: 800; margin-left: 0.3rem; font-style: normal; }
+.tg-d.up { color: #7fb069; }
+.tg-d.down { color: #b06a5c; }
+.tg-bias {
+  margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid var(--stroke-2);
+}
+.tg-bias-h {
+  color: var(--muted); font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.13em; text-transform: uppercase; margin-bottom: 0.6rem;
+}
+.tg-bias p { color: var(--muted); font-size: 0.78rem; line-height: 1.55; margin-bottom: 0.5rem; }
+.tg-bias p b { color: var(--white); font-weight: 700; }
+.tg-vol { color: var(--muted-2) !important; }
+
 /* ------------------------------------------------------ personality
    Layer three. Styled apart from ability and mental because it answers a
    different question — how is this player to manage, not how good is he. */

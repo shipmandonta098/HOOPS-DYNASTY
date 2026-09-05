@@ -37,7 +37,7 @@ import { MENTAL_ATTRS, mentalSummary } from './playerMental.js';
 import { pronouns } from './playerBio.js';
 import {
   TENDENCY_GROUPS, computeTendencies, tendencyBand, TENDENCY_BAND_LABEL,
-  tendencySummary,
+  tendencySummary, applyBias, SITUATIONS,
 } from './playerTendencies.js';
 import {
   VIEWS as STAT_VIEWS, COLUMN as STAT_COLUMN,
@@ -93,6 +93,12 @@ export function initPlayerModal(lg) {
       const sv = e.target.closest('[data-pm-stat]');
       if (!sv) return;
       statView = sv.dataset.pmStat;
+      render();
+    });
+    root.addEventListener('click', (e) => {
+      const sit = e.target.closest('[data-pm-sit]');
+      if (!sit) return;
+      tendSituation = sit.dataset.pmSit;
       render();
     });
     document.addEventListener('keydown', (e) => {
@@ -323,6 +329,22 @@ function mentalPane(p) {
 }
 
 /**
+ * Volatility is spread, not level, so it is reported rather than folded into a
+ * number. Nothing simulates possessions yet, so this says what these
+ * coefficients WILL govern instead of implying they already do.
+ */
+function volatilityLine(v, pn) {
+  const bits = [];
+  if (v.afterMissDamping) bits.push(`negative swings damped ${Math.round(v.afterMissDamping * 100)}% after a miss`);
+  if (v.spikeSuppression) bits.push('no tendency spikes under pressure');
+  if (v.lateGameSwing) bits.push(`${Math.round(v.lateGameSwing * 100)}% more late-game variance`);
+  if (!bits.length) return `Nothing in ${pn.poss} profile changes how steady ${pn.subj} is.`;
+  const text = bits.join('; ');
+  return `${text[0].toUpperCase()}${text.slice(1)}. These govern how much ${pn.poss} behaviour varies `
+    + 'possession to possession, so they take effect once games are simulated.';
+}
+
+/**
  * Personality — layer three. Traits are who the player is; priorities are what
  * currently matters to him and are derived from those traits plus his age and
  * standing, so they move as his career does.
@@ -437,6 +459,9 @@ function satisfactionBlock(sat) {
 /** Which of the five stat views the Career Stats tab is showing. */
 let statView = 'traditional';
 
+/** Which game situation the Tendencies tab is showing. */
+let tendSituation = 'base';
+
 /**
  * Career stats: five views over the same stored season rows.
  *
@@ -524,16 +549,33 @@ function tendencyPane(p) {
     return `<p class="pm-empty">This save predates the attribute model, so there
       is nothing to derive tendencies from.</p>`;
   }
-  const t = computeTendencies(p, { position: p.position, archetype: p.archetype });
+  const base = computeTendencies(p, { position: p.position, archetype: p.archetype });
+  // His own teammates, so the coachability rule aligns him with a system read
+  // off a real roster rather than an assumed one.
+  const roster = (league && league.players || []).filter((x) => x.teamId && x.teamId === p.teamId);
+  const biased = applyBias(base, p, { situation: tendSituation, roster });
+  const t = biased.tendencies;
   const summary = tendencySummary(t);
   const pn = pronouns(p);
+  const shifted = {};
+  for (const g of TENDENCY_GROUPS) {
+    for (const [key] of g.parts) shifted[key] = t[g.key][key] - base[g.key][key];
+  }
+
+  const sits = `<div class="pm-statviews" role="tablist">${
+    SITUATIONS.map((sv) => `<button class="pm-sv${sv.id === tendSituation ? ' is-active' : ''}"
+      data-pm-sit="${sv.id}" role="tab" aria-selected="${sv.id === tendSituation}"
+      >${esc(sv.label)}</button>`).join('')}</div>`;
 
   return `<div class="pm-tend">
     <p class="pm-mental-note">How often ${pn.subj} does each of these, not how
       well. A tendency is a habit, not a rating — a high number is neither good
       nor bad on its own, and none of it affects ${pn.poss} Overall. These are
-      read off ${pn.poss} attributes, position and archetype, so they move as
-      ${pn.subj} develops.</p>
+      read off ${pn.poss} attributes, position and archetype, then shifted by
+      ${pn.poss} mental profile and personality, which change what ${pn.subj}
+      <b>does</b> and never what ${pn.subj} <b>can do</b>.</p>
+
+    ${sits}
 
     <div class="pm-tend-groups">
       ${TENDENCY_GROUPS.map((g) => `<div class="tg">
@@ -541,10 +583,12 @@ function tendencyPane(p) {
         ${g.parts.map(([key, label, blurb]) => {
           const v = t[g.key][key];
           const band = tendencyBand(v);
+          const d = shifted[key];
           return `<div class="tg-row">
             <div class="tg-head">
               <span class="tg-label">${esc(label)}</span>
-              <span class="tg-val t-${band}">${v}</span>
+              <span class="tg-val t-${band}">${v}${d ? `<em class="tg-d ${
+                d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</em>` : ''}</span>
             </div>
             <div class="tg-track"><span class="tg-fill t-${band}" style="width:${v}%"></span></div>
             <div class="tg-blurb">${esc(blurb)}</div>
@@ -555,6 +599,13 @@ function tendencyPane(p) {
     </div>
 
     ${summary ? `<p class="pm-mental-sum">${esc(summary)}</p>` : ''}
+
+    <div class="tg-bias">
+      <div class="tg-bias-h">Mental &amp; Personality Bias</div>
+      <p><b>Mental.</b> ${esc(biased.biasSummary.mentalInfluence)}</p>
+      <p><b>Personality.</b> ${esc(biased.biasSummary.personalityInfluence)}</p>
+      <p class="tg-vol"><b>Stability.</b> ${esc(volatilityLine(biased.volatility, pn))}</p>
+    </div>
   </div>`;
 }
 

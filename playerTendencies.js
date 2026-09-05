@@ -400,3 +400,295 @@ export function tendencySummary(t) {
   return `Leans hardest on ${top.map((x) => x.label.toLowerCase()).join(', ')};`
     + ` least inclined to ${bottom.label.toLowerCase()}.`;
 }
+
+/* ===========================================================================
+ * MENTAL AND PERSONALITY BIAS
+ * ---------------------------------------------------------------------------
+ * The first time either layer influences ANYTHING, and it is worth being
+ * precise about why that is consistent rather than a reversal.
+ *
+ * The standing rule is that mental attributes and personality never affect
+ * Overall or Potential. They still do not: this module reads them and writes
+ * tendencies, tendencies are derived rather than stored, and computeOverall()
+ * reads `attributes` alone. What mental and personality touch here is
+ * BEHAVIOUR, which is exactly what they are for — a confident player taking
+ * more pull-ups is not a better player, he is a different one. Ability is
+ * untouched; only the habits move.
+ *
+ * SITUATION IS NOT BASELINE. Five of the supplied rules are conditional on
+ * game state — trailing by more than ten, a playoff game, late in a game,
+ * immediately after a miss. None of that state exists yet, and folding those
+ * rules into the profile's numbers would print a losing-by-ten-in-the-playoffs
+ * tendency as though it were how the player normally plays. So a bias declares
+ * the situation it belongs to, the profile shows the base one, and the others
+ * are computed on demand for a simulator that knows the score.
+ *
+ * VOLATILITY IS NOT A LEVEL. "Stabilise tendencies after misses" and "no
+ * tendency spikes under pressure" describe the SPREAD of a player's behaviour
+ * around his tendency, not the tendency itself. Nudging a displayed number
+ * would be answering a different question, so those two produce coefficients
+ * for the simulator to read when one exists, and are reported as stability
+ * rather than as a habit.
+ *
+ * ON THE MAGNITUDES: rules 1 and 2 are written as points ("+5 to pullUp")
+ * while rule 3 specifies the mechanism as `base x (1 + bias)`. Rule 3 is the
+ * only statement about HOW, so it wins: "+5" is read as +5%, which also scales
+ * the nudge with the propensity it is nudging. Switching to flat points is a
+ * one-line change if that was the intent.
+ * ======================================================================== */
+
+/** The situations a bias can belong to. `base` is always on. */
+export const SITUATIONS = [
+  { id: 'base', label: 'Any Situation' },
+  { id: 'lateGame', label: 'Late Game' },
+  { id: 'trailing', label: 'Trailing by 10+' },
+  { id: 'playoffs', label: 'Playoffs' },
+];
+
+const DEFENSIVE = ['perimeterPressure', 'paintDefense', 'gambleSteals', 'contestShots'];
+
+/** Flatten the grouped tendency object to { key: value }. */
+function flat(t) {
+  const out = {};
+  for (const g of TENDENCY_GROUPS) for (const [k] of g.parts) out[k] = t[g.key][k];
+  return out;
+}
+
+/** Rebuild the grouped shape from a flat map. */
+function group(m) {
+  const out = {};
+  for (const g of TENDENCY_GROUPS) {
+    out[g.key] = {};
+    for (const [k] of g.parts) out[g.key][k] = round(m[k]);
+  }
+  return out;
+}
+
+/**
+ * A team's playing style, DERIVED from what its roster actually does.
+ *
+ * The coachability rule says to align a player with the team system and gives
+ * pace-and-space as an example. No such field exists, and hard-coding the
+ * example would assert that every team plays that way. Instead the system is
+ * read off the roster's own mean tendencies, which is real stored data, and
+ * alignment pulls the player toward those means — so a team of shooters
+ * produces the rule's example on its own rather than by assumption.
+ *
+ * @param {Array} roster players on the team
+ * @returns {{ label: string, means: object }|null} null for an unknown roster
+ */
+export function teamSystem(roster) {
+  const players = (roster || []).filter((p) => p && p.attributes);
+  if (players.length < 3) return null;
+  const sums = {};
+  for (const p of players) {
+    const f = flat(computeTendencies(p, { position: p.position, archetype: p.archetype }));
+    for (const [k, v] of Object.entries(f)) sums[k] = (sums[k] || 0) + v;
+  }
+  const means = {};
+  for (const [k, v] of Object.entries(sums)) means[k] = v / players.length;
+  const label = means.shootThree >= 55 && means.postUp <= 35 ? 'Pace and Space'
+    : means.postUp >= 45 ? 'Inside-Out'
+    : means.pass >= 55 ? 'Ball Movement'
+    : 'Balanced';
+  return { label, means };
+}
+
+const LEVEL_RANK = { very_low: 0, low: 1, medium: 2, high: 3, very_high: 4 };
+
+/** A priority's level, from either the stored 0-100 number or a written label. */
+function priorityRank(priorities, key) {
+  const v = priorities ? priorities[key] : undefined;
+  if (Number.isFinite(v)) return LEVEL_RANK[priorityLevelKey(v)];
+  if (typeof v === 'string') {
+    const k = v.toLowerCase().replace(/[\s-]+/g, '_');
+    return LEVEL_RANK[k] != null ? LEVEL_RANK[k] : null;
+  }
+  return null;
+}
+
+/** Mirrors playerPersonality.priorityLevel without importing it, to stay dependency-free. */
+function priorityLevelKey(v) {
+  if (v >= 80) return 'very_high';
+  if (v >= 63) return 'high';
+  if (v >= 42) return 'medium';
+  if (v >= 25) return 'low';
+  return 'very_low';
+}
+
+/** Traits arrive as stored ids, or as the labels a hand-written payload uses. */
+function hasTrait(traits, id, label) {
+  if (!Array.isArray(traits)) return false;
+  return traits.some((t) => {
+    const s = String(t).toLowerCase().replace(/[\s-]+/g, '_');
+    return s === id || s === String(label).toLowerCase().replace(/[\s-]+/g, '_');
+  });
+}
+
+/**
+ * Apply the mental and personality biases to a set of base tendencies.
+ *
+ * @param {object} base      grouped tendencies from computeTendencies()
+ * @param {object} player    the player, or `{ mental, personality }`
+ * @param {object} [opts]    `{ situation, roster }`
+ *   situation  one of SITUATIONS[].id; defaults to 'base', which applies only
+ *              the unconditional biases.
+ *   roster     the player's teammates, for the coachability alignment. Absent,
+ *              that rule is a documented no-op rather than a guess.
+ * @returns {{ tendencies, biasSummary, volatility, applied }}
+ */
+export function applyBias(base, player, opts = {}) {
+  const situation = opts.situation || 'base';
+  const mental = (player && player.mental) || {};
+  const per = (player && player.personality) || {};
+  const traits = per.traits;
+  const priorities = per.priorities || per.careerPriorities;
+
+  const m = flat(base);
+  const pct = {};              // key -> total proportional bias
+  const applied = [];          // human-readable record of what fired
+
+  const num = (v) => (Number.isFinite(v) ? v : null);
+  const resilience = num(mental.resilience);
+
+  // "Reduce negative modifiers by 10%" means each NEGATIVE MODIFIER, so the
+  // damping has to happen as each one is added. Applying it to the summed bias
+  // instead — which only bites when the total happens to come out negative —
+  // is a different rule, and it left resilience doing nothing at all for any
+  // player whose positives outweighed his negatives, which is most of them.
+  const dampsNegatives = resilience != null && resilience > 80;
+
+  const add = (keys, amount, why, when = 'base') => {
+    if (when !== 'base' && when !== situation) {
+      applied.push({ why, amount, when, active: false });
+      return;
+    }
+    const value = amount < 0 && dampsNegatives ? amount * 0.9 : amount;
+    for (const k of [].concat(keys)) pct[k] = (pct[k] || 0) + value;
+    applied.push({ why, amount: value, when, active: true, keys: [].concat(keys) });
+  };
+
+  const concentration = num(mental.concentration);
+  const confidence = num(mental.confidence);
+  const composure = num(mental.composure);
+  const coachability = num(mental.coachability);
+
+  /* ------------------------------- mental ------------------------------- */
+  // Confidence > 70 -> boost shot creation. Unconditional.
+  if (confidence != null && confidence > 70) {
+    add(['pullUp', 'isoCreate'], 0.05, 'Confidence above 70 boosts shot creation');
+  }
+  // Concentration < 70 -> late-game lapses. Conditional on the situation.
+  if (concentration != null && concentration < 70) {
+    add(['pass'], -0.05, 'Concentration below 70 costs late-game decisions', 'lateGame');
+    add(DEFENSIVE, -0.05, 'Concentration below 70 costs late-game defence', 'lateGame');
+  }
+
+  /* ----------------------------- personality ---------------------------- */
+  if (hasTrait(traits, 'opportunity_seeking', 'Opportunity-Seeking')) {
+    add(['isoCreate'], 0.10, 'Opportunity-Seeking looks for his own shot');
+    add(['drive'], 0.05, 'Opportunity-Seeking attacks the gap');
+  }
+  if (hasTrait(traits, 'competitive', 'Competitive')) {
+    add(['shootThree', 'drive'], 0.10, 'Competitive presses when the game is getting away', 'trailing');
+  }
+  const contention = priorityRank(priorities, 'contention');
+  const winning = priorityRank(priorities, 'winning');
+  if (contention === 4 || winning === 4) {
+    add(['pass'], 0.05, 'Championship and winning priorities move the ball in the playoffs', 'playoffs');
+    add(['isoCreate'], -0.05, 'Championship and winning priorities cut isolation in the playoffs', 'playoffs');
+  }
+  const chemistry = priorityRank(priorities, 'chemistry');
+  if (chemistry != null && chemistry >= 3) {
+    add(['pass'], 0.05, 'Team Chemistry priority moves the ball');
+    add(['isoCreate'], -0.05, 'Team Chemistry priority cuts isolation');
+  }
+
+  /* ------------- coachability aligns him with the team's system --------- */
+  const system = opts.roster ? teamSystem(opts.roster) : null;
+  if (coachability != null && coachability > 95 && system) {
+    // Pull 5% of the way toward what this roster actually does.
+    for (const [k, mean] of Object.entries(system.means)) {
+      m[k] = m[k] + (mean - m[k]) * 0.05;
+    }
+    applied.push({ why: `Coachability above 95 aligns him with a ${system.label} system`,
+      amount: 0.05, when: 'base', active: true, keys: Object.keys(system.means) });
+  }
+
+  /* --------------------------- rule 3: apply ---------------------------- */
+  const out = {};
+  for (const [k, v] of Object.entries(m)) out[k] = v * (1 + (pct[k] || 0));
+
+  /* ------------------------------ volatility ---------------------------- */
+  // Spread, not level. Nothing consumes these yet; they are stated so that a
+  // simulator can, rather than being smuggled into a displayed number.
+  const volatility = {
+    afterMissDamping: dampsNegatives ? 0.10 : 0,
+    spikeSuppression: composure != null && composure > 90,
+    lateGameSwing: concentration != null && concentration < 70 ? 0.05 : 0,
+  };
+
+  return {
+    tendencies: group(out),
+    biasSummary: biasSummary(mental, per, applied, system, situation),
+    volatility,
+    applied,
+  };
+}
+
+/** Sentence case for a generated clause. */
+const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+
+/** "a, b and c" rather than "a and b and c". */
+function joinList(items) {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/** Plain-language account of what the two layers did, and what they did not. */
+function biasSummary(mental, per, applied, system, situation) {
+  const on = applied.filter((a) => a.active);
+  const off = applied.filter((a) => !a.active);
+
+  const mentalBits = [];
+  if (Number.isFinite(mental.confidence) && mental.confidence > 70) {
+    mentalBits.push(`confidence ${mental.confidence} adds to shot creation`);
+  }
+  if (Number.isFinite(mental.resilience) && mental.resilience > 80) {
+    mentalBits.push(`resilience ${mental.resilience} damps negative swings by 10% and steadies him after a miss`);
+  }
+  if (Number.isFinite(mental.composure) && mental.composure > 90) {
+    mentalBits.push(`composure ${mental.composure} suppresses pressure spikes`);
+  }
+  if (Number.isFinite(mental.concentration) && mental.concentration < 70) {
+    mentalBits.push(`concentration ${mental.concentration} costs him passing and defence late in games`);
+  }
+  if (Number.isFinite(mental.coachability) && mental.coachability > 95) {
+    mentalBits.push(system
+      ? `coachability ${mental.coachability} pulls him toward the team's ${system.label} system`
+      : `coachability ${mental.coachability} would align him to the team system, which is not defined here`);
+  }
+
+  // One clause per source, not per tendency: a trait that moves two habits is
+  // still one reason, and lower-casing the first word turned trait names into
+  // "opportunity-Seeking".
+  const perBits = [];
+  for (const a of on) {
+    if (/^(Confidence|Concentration|Resilience|Composure|Coachability)/.test(a.why)) continue;
+    const source = a.why.split(/ (?:looks|attacks|presses|move|cut|moves|cuts)/)[0];
+    if (!perBits.some((b) => b.startsWith(source))) perBits.push(a.why);
+  }
+  const pending = [...new Set(off.map((a) => a.when))]
+    .map((w) => ((SITUATIONS.find((s) => s.id === w) || {}).label || w).toLowerCase());
+  const pendingNote = pending.length ? ` Held for ${joinList(pending)}.` : '';
+
+  return {
+    mentalInfluence: mentalBits.length
+      ? `${cap(mentalBits.join('; '))}.`
+      : 'No mental attribute crosses a threshold, so nothing is applied.',
+    personalityInfluence: (perBits.length
+      ? `${cap(perBits.join('; '))}.`
+      : 'No personality trait or priority applies in this situation.') + pendingNote,
+    situation: (SITUATIONS.find((s) => s.id === situation) || {}).label || situation,
+  };
+}
