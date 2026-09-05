@@ -24,6 +24,7 @@ import { makeRNG, hashString } from './leagueConfig.js';
 
 import { matchupsFor, seasonCalendar, resolveTeams } from './scheduleRules.js';
 import { restDaysOf } from './gameSettings.js';
+import { rebalanceSchedule } from './scheduleRebalance.js';
 
 /* ===========================================================================
  * BUILDING A SEASON
@@ -372,9 +373,73 @@ export function buildSchedule(league, season, settingsOverride, structure) {
     awayScore: null,
   }));
 
+  // ---------------------------------------------------------- rest pass
+  // The placer spends each club's back-to-back budget first-come, first-served,
+  // and because it fills the calendar from the opening night it spends the lot
+  // in the first fortnight: a measured season put ninety per cent of its
+  // back-to-backs in October and none at all after December, with clubs playing
+  // thirteen nights running. The budget is a cap, not a rate, and nothing in
+  // the placer spreads it.
+  //
+  // Rather than rewrite placement, the finished fixture list is repaired: games
+  // move off the nights that are stacked and onto nights with room. Only dates
+  // change, so every matchup, host and game count survives untouched — which
+  // the pass checks rather than assumes.
+  const b2bCap = Math.round((matchups.gamesPerTeam || 0)
+    * (B2B_RATE[rules.backToBackFrequency] != null
+        ? B2B_RATE[rules.backToBackFrequency] : 0.18));
+  const balanced = rebalanceSchedule(
+    { games },
+    {
+      // A run limit of one game means no back-to-backs at all. That is what a
+      // minimum rest day asks for, and it is also what a back-to-back budget of
+      // zero asks for — "Relaxed" sets the frequency to None without setting a
+      // rest day, and leaving the run limit at two there would have the two
+      // rules contradict: pairs permitted by one, forbidden by the other. The
+      // stricter reading wins, so the repair drives on the run rule rather than
+      // grinding against a budget it is structurally allowed to break.
+      maxConsecutiveGames: (restDaysOf(rules) >= 1 || b2bCap === 0) ? 1 : 2,
+      maxBackToBacksPerTeam: b2bCap,
+      minRestDaysBetweenGames: restDaysOf(rules),
+      // The legal calendar, not just the nights the placer happened to use.
+      // seasonCalendar already drops the All-Star break, so spreading into the
+      // empty days between fixtures cannot land a game inside it.
+      nights: cal.dates,
+    },
+  );
+  // Opening night and the finale are facts about the season's first and last
+  // nights, so they are re-derived once games have moved: a fixture that shifted
+  // onto the closing night is part of the finale, and one that shifted off it is
+  // not. The flagged games themselves are pinned, so neither night can empty.
+  const settled = balanced.integrity.ok ? balanced.games : games;
+  // The first and last nights are re-read from the FINAL fixture list. The rest
+  // pass can spread games onto legal calendar dates the placer never used, so a
+  // season can now open or close on a night that did not exist before it ran —
+  // deriving the flags from the pre-pass dates left them describing a schedule
+  // that no longer existed.
+  const settledDates = settled.map((g) => g.date).sort();
+  const openDate = settledDates[0];
+  const closeDate = settledDates[settledDates.length - 1];
+  const finalGames = settled.map((g) => {
+    const out = { ...g };
+    delete out.openingNight;
+    delete out.finale;
+    if (rules.openingNight && g.date === openDate) out.openingNight = true;
+    if (rules.seasonFinale && g.date === closeDate) out.finale = true;
+    return out;
+  });
+
   return {
     season: year,
-    games,
+    games: finalGames,
+    rest: {
+      moves: balanced.integrity.ok ? balanced.moves.length : 0,
+      before: balanced.before,
+      after: balanced.integrity.ok ? balanced.after : balanced.before,
+      // A repair that failed its own integrity check is discarded, and says so.
+      applied: balanced.integrity.ok,
+      issues: balanced.integrity.notes,
+    },
     plan: {
       matchups,
       gamesPerTeam: matchups.gamesPerTeam,
