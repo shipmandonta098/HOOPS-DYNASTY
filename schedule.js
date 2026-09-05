@@ -16,155 +16,294 @@
  * empty. Nothing here invents a result, a venue, a broadcaster or a tip-off
  * time.
  *
- * Deterministic from the league's own seed, so the same league always produces
- * the same season and the schedule survives a reload without being stored twice.
+ * Deterministic: the same league, settings and seed always produce the same
+ * season, and a user-entered Schedule Seed reproduces one exactly.
  */
 
 import { makeRNG, hashString } from './leagueConfig.js';
 
-/**
- * How many times a pair of teams meets, by how closely related they are.
- * Same division most often, then the rest of the conference, then everyone
- * else — the shape almost every real league uses.
- */
-export const MEETINGS = { division: 4, conference: 3, interConference: 2 };
+import { matchupsFor, seasonCalendar, resolveTeams } from './scheduleRules.js';
+import { restDaysOf } from './gameSettings.js';
 
-/** The season runs from late October to mid-April, like a real one. */
-const SEASON_START = { month: 9, day: 22 };    // month is 0-based: October
-const SEASON_END = { month: 3, day: 12 };      // April
-
-/**
- * Which division and conference each team belongs to, from whichever fields
- * the save actually carries. Older leagues store only a conference.
- */
-function alignmentOf(league) {
-  const map = {};
-  for (const t of league.teams || []) {
-    map[t.id] = {
-      conference: t.conference || t.conferenceId || null,
-      division: t.division || t.divisionId || null,
-    };
-  }
-  return map;
-}
-
-/** How many times these two should meet. */
-function meetingsFor(a, b, align) {
-  const x = align[a], y = align[b];
-  if (!x || !y) return MEETINGS.interConference;
-  if (x.division && y.division && x.division === y.division) return MEETINGS.division;
-  if (x.conference && y.conference && x.conference === y.conference) return MEETINGS.conference;
-  return MEETINGS.interConference;
-}
-
-/**
- * Every game of the season as an unordered pairing turned into home and away.
+/* ===========================================================================
+ * BUILDING A SEASON
+ * ---------------------------------------------------------------------------
+ * Constraint-based, not hard-coded. The builder is handed a league of whatever
+ * shape and a set of rules, and it places games on dates while checking each
+ * one against every constraint that applies to the two teams involved. Nothing
+ * in it knows how many teams a league "should" have.
  *
- * An even number of meetings splits exactly. An odd number cannot, so the extra
- * game alternates by a stable hash of the two ids — which means the imbalance
- * is spread across the league rather than always falling on the same teams, and
- * it is the same every time this runs.
+ * Constraints, all read from settings:
+ *   rest          days a team is guaranteed between games
+ *   back-to-back  how willingly consecutive days are allowed
+ *   homestands    the longest run of home or road games
+ *   idle          how long a team may go without playing
+ *   calendar      the season window, with the All-Star break cut out of it
+ * ======================================================================== */
+
+/** How often a back-to-back is allowed when the rules permit any at all. */
+const B2B_RATE = { None: 0, Rare: 0.06, Normal: 0.18, Frequent: 0.34 };
+/** How willingly the builder extends a road trip or homestand. */
+const TRIP_BIAS = { Rare: 0.1, Normal: 0.42, Frequent: 0.72 };
+/** How much the ordering is shuffled from season to season. */
+const VARIATION = { Low: 0.25, Normal: 0.6, High: 1 };
+
+/**
+ * A style preset overrides the individual rules it speaks for. Custom sets
+ * nothing, which is what makes it custom.
  */
-function buildPairings(teams, align, rng) {
+const STYLE = {
+  Balanced:   { backToBackFrequency: 'Rare', roadTripFrequency: 'Rare',
+                maxConsecutiveHome: 4, maxConsecutiveAway: 4 },
+  Realistic:  { backToBackFrequency: 'Normal', roadTripFrequency: 'Frequent',
+                maxConsecutiveHome: 6, maxConsecutiveAway: 6 },
+  Compressed: { backToBackFrequency: 'Frequent', roadTripFrequency: 'Normal',
+                maxConsecutiveHome: 7, maxConsecutiveAway: 7 },
+  Relaxed:    { backToBackFrequency: 'None', roadTripFrequency: 'Rare',
+                maxConsecutiveHome: 3, maxConsecutiveAway: 3 },
+  Custom:     {},
+};
+
+/** Settings with the chosen style folded in. */
+export function effectiveRules(settings) {
+  return { ...settings, ...(STYLE[settings.scheduleStyle] || {}) };
+}
+
+/**
+ * Every game of the season as a home/away pairing.
+ *
+ * An even number of meetings splits exactly. An odd one cannot, so the extra
+ * game's host is fixed by a stable hash of the two ids — the imbalance lands
+ * across the league rather than always on the same teams, and it is the same
+ * every time this runs.
+ */
+function buildPairings(teams, matchups, rules, rng) {
+  const confOf = (t) => t.conference;
+  const divOf = (t) => t.division;
   const games = [];
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
-      const a = teams[i].id, b = teams[j].id;
-      const n = meetingsFor(a, b, align);
+      const a = teams[i], b = teams[j];
+      const n = divOf(a) && divOf(a) === divOf(b) ? matchups.division
+        : confOf(a) && confOf(a) === confOf(b) ? matchups.conference
+        : matchups.nonConference;
+      if (!n) continue;
+      if (rules.homeAwayBalance === 'Random') {
+        for (let k = 0; k < n; k++) {
+          games.push(rng.next() < 0.5 ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
+        }
+        continue;
+      }
       const half = Math.floor(n / 2);
-      for (let k = 0; k < half; k++) games.push({ home: a, away: b });
-      for (let k = 0; k < half; k++) games.push({ home: b, away: a });
+      for (let k = 0; k < half; k++) games.push({ home: a.id, away: b.id });
+      for (let k = 0; k < half; k++) games.push({ home: b.id, away: a.id });
       if (n % 2) {
-        // The odd game's host, fixed by the pair rather than by chance.
-        const aHosts = hashString(`${a}|${b}`) % 2 === 0;
-        games.push(aHosts ? { home: a, away: b } : { home: b, away: a });
+        const aHosts = rules.homeAwayBalance === 'Mostly Balanced'
+          ? rng.next() < 0.5
+          : hashString(`${a.id}|${b.id}`) % 2 === 0;
+        games.push(aHosts ? { home: a.id, away: b.id } : { home: b.id, away: a.id });
       }
     }
-  }
-  // Shuffle so the season is not played in team-id order.
-  for (let i = games.length - 1; i > 0; i--) {
-    const j = Math.floor(rng.next() * (i + 1));
-    [games[i], games[j]] = [games[j], games[i]];
   }
   return games;
 }
 
 /**
- * Deal the games into rounds where no team appears twice, so a team never plays
- * itself into two games on one date.
+ * Place the games on dates, checking each against the rules.
  *
- * Greedy, which does not produce a perfect round-robin, but a schedule only has
- * to be legal and reasonably spread — and greedy over a shuffled list gives
- * both without the machinery a perfect one needs.
+ * DATE-MAJOR, then progressively relaxed. The builder walks the calendar in
+ * order and fills each date from the pool, preferring whichever teams most
+ * need a game — games still owed divided by dates still available. Walking the
+ * calendar rather than the game list is what spreads a season evenly; placing
+ * each game at its own earliest legal date instead front-loaded October and
+ * left a quarter of the fixtures with nowhere to go.
+ *
+ * Each later pass drops the softest remaining constraint and re-walks the
+ * calendar with what is left. The last enforces only the rule that is not a
+ * preference — a team cannot play twice in a day — so the fixture list always
+ * comes out complete and legal, and the constraints degrade in the order a
+ * manager would give them up.
  */
-function buildRounds(games) {
-  const remaining = games.slice();
-  const rounds = [];
-  while (remaining.length) {
-    const used = new Set();
-    const round = [];
-    for (let i = 0; i < remaining.length;) {
-      const g = remaining[i];
-      if (used.has(g.home) || used.has(g.away)) { i++; continue; }
-      used.add(g.home); used.add(g.away);
-      round.push(g);
-      remaining.splice(i, 1);
-    }
-    rounds.push(round);
-  }
-  return rounds;
-}
+const PASSES = [
+  { rest: true, b2b: true, trips: true, streaks: true },
+  { rest: true, b2b: true, trips: false, streaks: true },
+  { rest: true, b2b: false, trips: false, streaks: true },
+  { rest: false, b2b: false, trips: false, streaks: true },
+  { rest: false, b2b: false, trips: false, streaks: false },
+];
 
-/** Every date the season can be played on, evenly covering the window. */
-function seasonDates(startYear, count) {
-  const start = new Date(Date.UTC(startYear, SEASON_START.month, SEASON_START.day));
-  const end = new Date(Date.UTC(startYear + 1, SEASON_END.month, SEASON_END.day));
-  const span = Math.round((end - start) / 86400000);
-  const dates = [];
-  for (let i = 0; i < count; i++) {
-    const offset = count === 1 ? 0 : Math.round((i * span) / (count - 1));
-    const d = new Date(start.getTime() + offset * 86400000);
-    dates.push(d.toISOString().slice(0, 10));
+function place(games, dates, teams, rules, rng) {
+  const rest = restDaysOf(rules);
+  const rate = B2B_RATE[rules.backToBackFrequency] != null
+    ? B2B_RATE[rules.backToBackFrequency] : 0.18;
+  const trip = TRIP_BIAS[rules.roadTripFrequency] != null
+    ? TRIP_BIAS[rules.roadTripFrequency] : 0.42;
+  const maxHome = Math.max(1, rules.maxConsecutiveHome || 6);
+  const maxAway = Math.max(1, rules.maxConsecutiveAway || 6);
+
+  // Back-to-backs are a BUDGET per team, not a coin flip per attempt. A rate
+  // of 0.18 then means about 18% of a team's games follow one the day before,
+  // which is what "frequency" should mean; rolling a die at each placement
+  // made the outcome depend on how often the builder happened to ask.
+  const owed = {};
+  for (const g of games) {
+    owed[g.home] = (owed[g.home] || 0) + 1;
+    owed[g.away] = (owed[g.away] || 0) + 1;
   }
-  return dates;
+  const state = {};
+  for (const t of teams) {
+    state[t.id] = {
+      lastIdx: -Infinity, streak: 0, streakHome: null,
+      owed: owed[t.id] || 0, b2b: 0, b2bMax: Math.round((owed[t.id] || 0) * rate),
+    };
+  }
+
+  const busyByDate = dates.map(() => new Set());
+  const countByDate = dates.map(() => 0);
+  const capacity = Math.floor(teams.length / 2);
+  let remaining = games.slice();
+  const placed = [];
+
+  const legal = (g, di, pass) => {
+    if (busyByDate[di].has(g.home) || busyByDate[di].has(g.away)) return false;
+    if (countByDate[di] >= capacity) return false;
+    const h = state[g.home], a = state[g.away];
+    const gapH = di - h.lastIdx, gapA = di - a.lastIdx;
+    if (pass.rest && rest > 0 && (gapH <= rest || gapA <= rest)) return false;
+    if (pass.b2b) {
+      if (gapH === 1 && h.b2b >= h.b2bMax) return false;
+      if (gapA === 1 && a.b2b >= a.b2bMax) return false;
+    }
+    if (pass.streaks) {
+      if (h.streakHome === true && h.streak >= maxHome) return false;
+      if (a.streakHome === false && a.streak >= maxAway) return false;
+    }
+    if (pass.trips) {
+      // EXTENDING a run is what road-trip frequency governs. Breaking one is
+      // the default and is never gated — gating it was the bug that made a
+      // quarter of a season unplaceable, because a team could then barely host
+      // a game the day after playing away.
+      if (h.streakHome === true && h.streak > 0 && rng.next() > trip) return false;
+      if (a.streakHome === false && a.streak > 0 && rng.next() > trip) return false;
+    }
+    return true;
+  };
+
+  const commit = (g, di) => {
+    busyByDate[di].add(g.home); busyByDate[di].add(g.away);
+    countByDate[di]++;
+    placed.push({ ...g, date: dates[di] });
+    for (const [id, isHome] of [[g.home, true], [g.away, false]]) {
+      const st = state[id];
+      if (di - st.lastIdx === 1) st.b2b++;
+      st.streak = st.streakHome === isHome ? st.streak + 1 : 1;
+      st.streakHome = isHome;
+      st.lastIdx = di;
+      st.owed--;
+    }
+  };
+
+  for (const pass of PASSES) {
+    if (!remaining.length) break;
+    for (let di = 0; di < dates.length && remaining.length; di++) {
+      const left = dates.length - di;
+      // Urgency: games still owed against dates still available. The team
+      // furthest behind gets first refusal, which is what keeps anyone from
+      // disappearing from the schedule for weeks.
+      const urgency = (g) =>
+        Math.max(state[g.home].owed, state[g.away].owed) / Math.max(1, left);
+      const order = remaining
+        .map((g, i) => ({ g, i, u: urgency(g) }))
+        .sort((x, y) => y.u - x.u);
+      // Preferring the best-rested pair here was tried and made things worse:
+      // it packed the season into 141 of 167 dates and opened month-long gaps,
+      // without improving the back-to-back rate at all. Urgency alone spreads
+      // the calendar, and the back-to-back squeeze is a window problem that
+      // validation reports rather than one the ordering can solve.
+
+      const taken = new Set();
+      for (const { g, i } of order) {
+        if (countByDate[di] >= capacity) break;
+        if (!legal(g, di, pass)) continue;
+        commit(g, di);
+        taken.add(i);
+      }
+      if (taken.size) remaining = remaining.filter((_, i) => !taken.has(i));
+    }
+  }
+  return { placed, unplaced: remaining.length };
 }
 
 /**
- * Build a season's fixture list.
+ * Build a season's fixture list from the league and its schedule rules.
  *
- * @param {object} league  needs `teams` and `meta.rngSeed`
+ * @param {object} league   needs `teams`, `meta.rngSeed`, `settings`
  * @param {number} [season] the season year; defaults to the league's current
- * @returns {{ season, games: Array }} each game
- *   `{ id, date, home, away, played:false, homeScore:null, awayScore:null }`
+ * @returns {{ season, games, plan }}
  */
-export function buildSchedule(league, season) {
-  const teams = (league.teams || []).filter((t) => t && t.id);
+export function buildSchedule(league, season, settingsOverride, structure) {
+  // Resolved once, so the pairing maths and the matchup maths see the same
+  // conferences whether they came off the team or off the league structure.
+  const teams = resolveTeams(league.teams, structure || league.structure);
   const year = season || (league.meta && league.meta.currentSeason) || 2026;
-  if (teams.length < 2) return { season: year, games: [] };
+  const rules = effectiveRules(settingsOverride || league.settings || {});
+  if (teams.length < 2) return { season: year, games: [], plan: null };
 
-  const rng = makeRNG(hashString(`schedule:${league.meta && league.meta.rngSeed}:${year}`));
-  const align = alignmentOf(league);
-  const rounds = buildRounds(buildPairings(teams, align, rng));
-  const dates = seasonDates(year - 1, rounds.length);
+  // A user seed reproduces a schedule exactly; blank derives one from the
+  // league, and the season year keeps each year's schedule different.
+  const seedSource = rules.scheduleSeed
+    ? `seed:${rules.scheduleSeed}:${year}`
+    : `schedule:${league.meta && league.meta.rngSeed}:${year}`;
+  const rng = makeRNG(hashString(seedSource));
 
-  const games = [];
-  rounds.forEach((round, i) => {
-    round.forEach((g, j) => {
-      games.push({
-        id: `g_${year}_${String(i).padStart(3, '0')}_${String(j).padStart(2, '0')}`,
-        date: dates[i],
-        home: g.home,
-        away: g.away,
-        // A fixture is a plan. Everything below is a fact about a game that
-        // has been played, and stays empty until the simulator fills it in.
-        played: false,
-        homeScore: null,
-        awayScore: null,
-      });
-    });
-  });
-  games.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  return { season: year, games };
+  const matchups = matchupsFor(teams, rules);   // already resolved
+  const cal = seasonCalendar(rules, year - 1);
+  const pairs = buildPairings(teams, matchups, rules, rng);
+
+  // Variation shuffles how the season is dealt. Low keeps the ordering close to
+  // the pairing order, High reorders it freely — every season differs either
+  // way, because the seed carries the year.
+  const amount = VARIATION[rules.scheduleVariation] != null
+    ? VARIATION[rules.scheduleVariation] : 0.6;
+  for (let i = pairs.length - 1; i > 0; i--) {
+    if (rng.next() > amount) continue;
+    const j = Math.floor(rng.next() * (i + 1));
+    [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+  }
+
+  const { placed, unplaced } = place(pairs, cal.dates, teams, rules, rng);
+  placed.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  const firstDate = placed.length ? placed[0].date : null;
+  const lastDate = placed.length ? placed[placed.length - 1].date : null;
+
+  const games = placed.map((g, i) => ({
+    id: `g_${year}_${String(i).padStart(4, '0')}`,
+    date: g.date,
+    home: g.home,
+    away: g.away,
+    // Marked dates, which are facts about the fixture list rather than results.
+    ...(rules.openingNight && g.date === firstDate ? { openingNight: true } : {}),
+    ...(rules.seasonFinale && g.date === lastDate ? { finale: true } : {}),
+    // A fixture is a plan. Everything below is a fact about a game that has
+    // been played, and stays empty until the simulator fills it in.
+    played: false,
+    homeScore: null,
+    awayScore: null,
+  }));
+
+  return {
+    season: year,
+    games,
+    plan: {
+      matchups,
+      gamesPerTeam: matchups.gamesPerTeam,
+      dates: cal.dates.length,
+      breakDates: cal.blocked,
+      unplaced,
+      seed: seedSource,
+    },
+  };
 }
 
 /* ===========================================================================
@@ -173,6 +312,58 @@ export function buildSchedule(league, season) {
  * Everything below derives from games ACTUALLY PLAYED. With none played, every
  * one of these returns an empty record rather than a plausible-looking one.
  * ======================================================================== */
+
+/**
+ * What a generated schedule ACTUALLY came out as.
+ *
+ * Measured from the fixture list rather than predicted from the settings,
+ * because the settings are targets and the generator relaxes them when the
+ * calendar is too tight. The preview shows these so a user sees the schedule
+ * they will get, not the one they asked for.
+ */
+export function scheduleStats(schedule, teams) {
+  const games = schedule.games || [];
+  const ids = (teams || []).map((t) => t.id);
+  const byTeam = {};
+  for (const id of ids) byTeam[id] = [];
+  for (const g of games) {
+    if (byTeam[g.home]) byTeam[g.home].push({ date: g.date, home: true });
+    if (byTeam[g.away]) byTeam[g.away].push({ date: g.date, home: false });
+  }
+  let b2b = 0, played = 0, maxGap = 0, maxHome = 0, maxAway = 0;
+  let minGames = Infinity, maxGames = 0, worstBalance = 0;
+  for (const id of ids) {
+    const list = byTeam[id].sort((a, b) => (a.date < b.date ? -1 : 1));
+    minGames = Math.min(minGames, list.length);
+    maxGames = Math.max(maxGames, list.length);
+    const h = list.filter((x) => x.home).length;
+    worstBalance = Math.max(worstBalance, Math.abs(h - (list.length - h)));
+    let hs = 0, as = 0;
+    for (let i = 0; i < list.length; i++) {
+      played++;
+      if (i) {
+        const gap = (new Date(list[i].date) - new Date(list[i - 1].date)) / 86400000;
+        if (gap === 1) b2b++;
+        if (gap > maxGap) maxGap = gap;
+      }
+      if (list[i].home) { hs++; as = 0; } else { as++; hs = 0; }
+      if (hs > maxHome) maxHome = hs;
+      if (as > maxAway) maxAway = as;
+    }
+  }
+  const dates = new Set(games.map((g) => g.date));
+  return {
+    games: games.length,
+    gamesPerTeam: minGames === maxGames ? minGames : `${minGames}\u2013${maxGames}`,
+    dates: dates.size,
+    backToBackPct: played ? Math.round((b2b / played) * 100) : 0,
+    longestGap: maxGap,
+    longestHomestand: maxHome,
+    longestRoadTrip: maxAway,
+    homeAwayGap: worstBalance,
+    unplaced: (schedule.plan && schedule.plan.unplaced) || 0,
+  };
+}
 
 /** One team's games, in date order, with the view from that team's side. */
 export function teamGames(schedule, teamId) {

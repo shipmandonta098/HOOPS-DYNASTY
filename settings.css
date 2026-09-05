@@ -135,3 +135,46 @@
 }
 .sc select:disabled, .sc input:disabled { cursor: not-allowed; }
 .sw:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ------------------------------------------------- schedule summary bar
+   Sits under the groups and answers the question the schedule settings raise:
+   given THIS league, do these rules produce a season, and what does it look
+   like? Everything in it is computed from the League Structure draft, so it
+   follows the teams, conferences and divisions actually being built. */
+.sched-bar {
+  margin-top: 1.4rem; padding: 1.1rem 1.2rem;
+  background: var(--panel-2); border: 1px solid var(--stroke); border-radius: 12px;
+}
+.sb-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.5rem; }
+.sb-k {
+  color: var(--muted); font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase;
+}
+.sb-status {
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 0.16rem 0.5rem; border-radius: 999px;
+}
+.sb-status.is-ok { color: #6cc070; background: rgba(108, 192, 112, 0.14); }
+.sb-status.is-bad { color: #c9564a; background: rgba(201, 86, 74, 0.16); }
+.sb-line { color: var(--white); font-size: 0.94rem; font-weight: 700; }
+.sb-sub { color: var(--muted-2); font-size: 0.76rem; margin-top: 0.2rem; }
+.sb-problems, .sb-notes { margin: 0.8rem 0 0; padding-left: 1.1rem; }
+.sb-problems li { color: #e0a49c; font-size: 0.8rem; line-height: 1.5; margin-bottom: 0.35rem; }
+.sb-notes li { color: var(--muted); font-size: 0.78rem; line-height: 1.5; margin-bottom: 0.35rem; }
+.sb-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.sb-preview {
+  margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--stroke-2);
+}
+.pv-h {
+  color: var(--muted); font-size: 0.56rem; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; margin: 0.6rem 0 0.5rem;
+}
+.pv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.3rem 1.2rem; }
+.pv-row {
+  display: flex; justify-content: space-between; gap: 0.8rem;
+  padding: 0.28rem 0; border-bottom: 1px solid var(--stroke-2);
+  color: var(--muted); font-size: 0.8rem;
+}
+.pv-row b { color: var(--white); font-variant-numeric: tabular-nums; }
+.pv-game { color: var(--muted); font-size: 0.79rem; padding: 0.14rem 0; }
+.pv-note { color: var(--muted-2); font-size: 0.74rem; margin-top: 0.7rem; }

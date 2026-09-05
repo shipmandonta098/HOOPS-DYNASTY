@@ -60,6 +60,118 @@ export const GROUPS = [
     ],
   },
   {
+    id: 'schedSeason', label: 'Schedule — Season Structure',
+    settings: [
+      { key: 'regularSeasonGames', label: 'Regular Season Games', type: 'number',
+        min: 4, max: 120, step: 1, def: 82, applied: true,
+        help: 'How many games each team plays. The generator works to this as a TARGET: the matchup maths for your league\u2019s shape rarely lands on a round number, so it gets as close as it can and the preview tells you what it actually produced.' },
+      { key: 'seasonStart', label: 'Season Start', type: 'monthday', def: '10-20', applied: true,
+        help: 'When the regular season begins. A season that crosses New Year simply runs into the next calendar year.' },
+      { key: 'seasonEnd', label: 'Season End', type: 'monthday', def: '04-12', applied: true,
+        after: 'seasonStart',
+        help: 'The target end of the regular season. Validation checks that enough calendar sits between the two dates for the games and rest you have asked for.' },
+      { key: 'gamesPerWeek', label: 'Games Per Week', type: 'choice',
+        options: ['Light', 'Normal', 'Heavy', 'Custom'], def: 'Normal', applied: true,
+        help: 'A scheduling TARGET, not a rule: Light is 2\u20133 a week, Normal 3\u20134, Heavy 4\u20135. Individual weeks vary around it, which is what real schedules do.' },
+      { key: 'gamesPerWeekCustom', label: 'Games Per Week (Custom)', type: 'number',
+        min: 1, max: 7, step: 1, def: 4, applied: true,
+        dependsOn: { key: 'gamesPerWeek', value: 'Custom' },
+        help: 'Your own weekly target, used when Games Per Week is Custom.' },
+    ],
+  },
+  {
+    id: 'schedOpponents', label: 'Schedule — Opponent Scheduling',
+    settings: [
+      { key: 'autoBalanceSchedule', label: 'Auto Balance Schedule', type: 'toggle',
+        def: true, applied: true,
+        help: 'Works out how often each kind of opponent should meet from your league\u2019s actual shape \u2014 team count, conferences, divisions \u2014 and the season length, so division rivals meet most and non-conference opponents least. Nothing about it assumes a 30-team league. Switch it off to set the three counts yourself.' },
+      { key: 'divisionGames', label: 'Division Opponent Games', type: 'number',
+        min: 0, max: 12, step: 1, def: 4, applied: true,
+        dependsOn: { key: 'autoBalanceSchedule', value: false },
+        help: 'Meetings with each team in your own division.' },
+      { key: 'conferenceGames', label: 'Conference Opponent Games', type: 'number',
+        min: 0, max: 12, step: 1, def: 3, applied: true,
+        dependsOn: { key: 'autoBalanceSchedule', value: false },
+        help: 'Meetings with each conference opponent outside your division.' },
+      { key: 'nonConferenceGames', label: 'Non-Conference Opponent Games', type: 'number',
+        min: 0, max: 12, step: 1, def: 2, applied: true,
+        dependsOn: { key: 'autoBalanceSchedule', value: false },
+        help: 'Meetings with each team in the other conference. Zero in a single-conference league, where there are none.' },
+    ],
+  },
+  {
+    id: 'schedHomeAway', label: 'Schedule — Home & Away',
+    settings: [
+      { key: 'homeAwayBalance', label: 'Home/Away Balance', type: 'choice',
+        options: ['Balanced', 'Mostly Balanced', 'Random'], def: 'Balanced', applied: true,
+        help: 'Balanced splits every team\u2019s games as evenly as the arithmetic allows \u2014 with an odd number of games the best possible is a one-game difference. Random lets the split fall where it falls.' },
+      { key: 'maxConsecutiveHome', label: 'Max Consecutive Home Games', type: 'number',
+        min: 1, max: 15, step: 1, def: 6, applied: true,
+        help: 'The longest homestand the generator will build.' },
+      { key: 'maxConsecutiveAway', label: 'Max Consecutive Road Games', type: 'number',
+        min: 1, max: 15, step: 1, def: 6, applied: true,
+        help: 'The longest road trip the generator will build. This is what stops a league producing a fifteen-game road trip.' },
+      { key: 'roadTripFrequency', label: 'Road Trip Frequency', type: 'choice',
+        options: ['Rare', 'Normal', 'Frequent'], def: 'Normal', applied: true,
+        help: 'How willingly the generator strings road games together rather than alternating. Frequent produces recognisable trips and homestands; Rare keeps games alternating.' },
+    ],
+  },
+  {
+    id: 'schedRest', label: 'Schedule — Rest & Back-to-Backs',
+    settings: [
+      { key: 'backToBackFrequency', label: 'Back-to-Back Frequency', type: 'choice',
+        options: ['None', 'Rare', 'Normal', 'Frequent'], def: 'Normal', applied: true,
+        help: 'How often a team plays on consecutive days. None asks the generator to always leave a day between games, which needs enough calendar to be possible. Back-to-backs are what the fatigue system will read once games are simulated.' },
+      { key: 'minRestDays', label: 'Minimum Rest Between Games', type: 'choice',
+        options: ['No Minimum', '1 Day', '2 Days', 'Custom'], def: 'No Minimum', applied: true,
+        help: 'Days off a team is guaranteed between games. Anything above No Minimum rules back-to-backs out entirely, and needs a long enough season to fit.' },
+      { key: 'minRestCustom', label: 'Minimum Rest (Custom)', type: 'number',
+        min: 0, max: 7, step: 1, def: 2, applied: true,
+        dependsOn: { key: 'minRestDays', value: 'Custom' },
+        help: 'Your own minimum, in days off between games.' },
+      { key: 'maxDaysWithoutGame', label: 'Maximum Days Without a Game', type: 'number',
+        min: 2, max: 30, step: 1, def: 7, applied: true,
+        help: 'Stops a team disappearing from the schedule for weeks. The generator favours whoever has been idle longest, so this is a ceiling it works to rather than a guarantee it can always meet.' },
+    ],
+  },
+  {
+    id: 'schedSpecial', label: 'Schedule — Special Dates',
+    settings: [
+      { key: 'allStarBreak', label: 'All-Star Break', type: 'toggle', def: true, applied: true,
+        help: 'Blocks out a mid-season stretch with no regular-season games on it.' },
+      { key: 'allStarBreakDate', label: 'All-Star Break Date', type: 'monthday',
+        def: '02-14', applied: true, after: 'seasonStart',
+        dependsOn: { key: 'allStarBreak', value: true },
+        help: 'The day the break starts.' },
+      { key: 'allStarBreakLength', label: 'Break Length (Days)', type: 'number',
+        min: 1, max: 14, step: 1, def: 5, applied: true,
+        dependsOn: { key: 'allStarBreak', value: true },
+        help: 'How many days the break runs. Those dates carry no games at all.' },
+      { key: 'openingNight', label: 'Opening Night', type: 'toggle', def: true, applied: true,
+        help: 'Marks the season\u2019s first date as opening night. Nothing yet treats it differently on the ice, but the schedule records it.' },
+      { key: 'holidayGames', label: 'Holiday Games', type: 'toggle', def: true, applied: true,
+        help: 'Guarantees games are scheduled on the calendar\u2019s notable dates inside the season window rather than leaving them empty.' },
+      { key: 'rivalryGames', label: 'Rivalry Games', type: 'toggle', def: true, applied: false,
+        help: 'Would place division rivals on marquee dates. There is no rivalry system in the save yet, so this is recorded and not acted on.' },
+      { key: 'seasonFinale', label: 'Season Finale', type: 'toggle', def: true, applied: true,
+        help: 'Marks the season\u2019s last date as the finale.' },
+    ],
+  },
+  {
+    id: 'schedAdvanced', label: 'Schedule — Advanced',
+    settings: [
+      { key: 'scheduleStyle', label: 'Schedule Style', type: 'choice',
+        options: ['Balanced', 'Realistic', 'Compressed', 'Relaxed', 'Custom'],
+        def: 'Balanced', applied: true,
+        help: 'A shortcut that sets the rest, back-to-back and road-trip rules together. Balanced spaces games evenly; Realistic allows back-to-backs, trips and homestands; Compressed packs a season into a short calendar; Relaxed adds rest. Custom leaves every rule exactly as you set it.' },
+      { key: 'scheduleVariation', label: 'Schedule Variation', type: 'choice',
+        options: ['Low', 'Normal', 'High'], def: 'Normal', applied: true,
+        help: 'How much the generator shuffles dates, opponent order and trips. Every season regenerates regardless, so no two are identical; this controls how far apart they are.' },
+      { key: 'scheduleSeed', label: 'Schedule Seed', type: 'text', def: '', applied: true,
+        help: 'Leave blank to derive the seed from the league. Enter your own and the same seed with the same league and settings reproduces exactly the same schedule.' },
+    ],
+  },
+  {
     id: 'development', label: 'Development',
     settings: [
       { key: 'dynamicDevelopment', label: 'Dynamic Player Development', type: 'toggle',
@@ -187,6 +299,22 @@ export function isRelevant(setting, settings) {
 export const ALL_SETTINGS = GROUPS.flatMap((g) => g.settings);
 const BY_KEY = Object.fromEntries(ALL_SETTINGS.map((s) => [s.key, s]));
 
+/** Minimum days off between games, resolved from the choice plus its custom. */
+export function restDaysOf(settings) {
+  const map = { 'No Minimum': 0, '1 Day': 1, '2 Days': 2 };
+  const v = settings && settings.minRestDays;
+  if (v === 'Custom') return Number(settings.minRestCustom) || 0;
+  return map[v] != null ? map[v] : 0;
+}
+
+/** Weekly game target, resolved from the choice plus its custom. */
+export function gamesPerWeekOf(settings) {
+  const map = { Light: 2.5, Normal: 3.5, Heavy: 4.5 };
+  const v = settings && settings.gamesPerWeek;
+  if (v === 'Custom') return Number(settings.gamesPerWeekCustom) || 3.5;
+  return map[v] != null ? map[v] : 3.5;
+}
+
 /** A fresh set of defaults. */
 export function defaults() {
   return Object.fromEntries(ALL_SETTINGS.map((s) => [s.key, s.def]));
@@ -208,6 +336,16 @@ export function normalize(raw) {
     else if (def.type === 'number') {
       const n = Number(v);
       out[k] = Number.isFinite(n) ? Math.max(def.min, Math.min(def.max, n)) : def.def;
+    } else if (def.type === 'monthday') {
+      // MM-DD, and a real day of a real month. Anything else falls back rather
+      // than reaching the generator as a date that does not exist.
+      const m = /^(\d{2})-(\d{2})$/.exec(String(v || ''));
+      const mo = m && Number(m[1]), da = m && Number(m[2]);
+      const ok = m && mo >= 1 && mo <= 12 && da >= 1
+        && da <= new Date(Date.UTC(2001, mo, 0)).getUTCDate();
+      out[k] = ok ? v : def.def;
+    } else if (def.type === 'text') {
+      out[k] = String(v == null ? '' : v).slice(0, 64);
     }
   }
   // Cross-setting rules that a per-field clamp cannot express.
@@ -219,6 +357,13 @@ export function normalize(raw) {
   if (out.luxuryTaxThreshold < out.salaryCap) out.luxuryTaxThreshold = out.salaryCap;
   // Priorities are derived from traits, so they cannot outlive them.
   if (!out.personalityTraits) out.dynamicPriorities = false;
+  // A minimum rest of a day or more rules out back-to-backs by definition, so
+  // the two cannot disagree on screen.
+  if (restDaysOf(out) >= 1) out.backToBackFrequency = 'None';
+  // A ceiling below the floor is incoherent.
+  if (out.maxDaysWithoutGame <= restDaysOf(out)) {
+    out.maxDaysWithoutGame = restDaysOf(out) + 2;
+  }
   return out;
 }
 

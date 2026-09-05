@@ -12,6 +12,9 @@ import {
   GROUPS, ALL_SETTINGS, defaults, normalize, isRelevant, loadSettings, saveSettings,
   listRulePresets, saveRulePreset, getRulePreset, deleteRulePreset,
 } from './gameSettings.js';
+import { scheduleSummary, autoFixSchedule } from './scheduleRules.js';
+import { buildSchedule, scheduleStats } from './schedule.js';
+import { loadDraft } from './leagueConfig.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -32,6 +35,24 @@ function controlHTML(s, off) {
   if (s.type === 'choice') {
     return `<select data-key="${s.key}" aria-label="${esc(s.label)}"${dis}>${
       s.options.map((o) => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  }
+  if (s.type === 'monthday') {
+    // A season crosses New Year, so only the month and day mean anything. The
+    // date input needs a year, so it borrows a leap year (keeping Feb 29
+    // selectable) and the year is discarded on the way back out. A field marked
+    // `after` another shows the FOLLOWING year when its month is earlier, so a
+    // season ending in April does not read as four months before it began.
+    let year = 2024;
+    if (s.after && settings[s.after]) {
+      const startMonth = Number(String(settings[s.after]).slice(0, 2));
+      if (Number(String(v).slice(0, 2)) < startMonth) year = 2025;
+    }
+    return `<input type="date" data-key="${s.key}" data-monthday="1"
+      value="${year}-${esc(v)}" aria-label="${esc(s.label)}"${dis} />`;
+  }
+  if (s.type === 'text') {
+    return `<input type="text" data-key="${s.key}" value="${esc(v)}"
+      placeholder="auto" aria-label="${esc(s.label)}"${dis} />`;
   }
   return `<input type="number" data-key="${s.key}" value="${v}" min="${s.min}" max="${s.max}"
     step="${s.step || 1}" aria-label="${esc(s.label)}"${dis} />`;
@@ -85,6 +106,99 @@ function commit() {
   settings = normalize(settings);
   saveSettings(settings);
   render();
+  renderScheduleBar();
+}
+
+/* ------------------------------ schedule bar ------------------------------ */
+
+/**
+ * The teams the schedule will actually be built for.
+ *
+ * The League Structure draft is the source of truth while a league is being
+ * set up — that is where teams, conferences and divisions are edited — so the
+ * validation and the preview both read it rather than assuming a shape.
+ */
+function draftLeague() {
+  try {
+    const d = loadDraft();
+    return { teams: (d && d.teams) || [], structure: (d && d.structure) || null };
+  } catch (_) { return { teams: [], structure: null }; }
+}
+
+let previewOpen = false;
+
+function renderScheduleBar() {
+  const bar = el('schedBar');
+  if (!bar) return;
+  const { teams, structure } = draftLeague();
+  if (teams.length < 2) {
+    bar.innerHTML = `<div class="sb-line">Add at least two teams in League Structure to
+      validate the schedule.</div>`;
+    return;
+  }
+  const sum = scheduleSummary(teams, settings, new Date().getFullYear(), structure);
+  const problems = sum.problems.map((p) => `<li>${esc(p.message)}</li>`).join('');
+  const notes = sum.notes.map((n) => `<li>${esc(n)}</li>`).join('');
+
+  bar.innerHTML = `
+    <div class="sb-head">
+      <span class="sb-k">Schedule</span>
+      <span class="sb-status ${sum.valid ? 'is-ok' : 'is-bad'}">${
+        sum.valid ? 'Valid' : 'Cannot be generated'}</span>
+    </div>
+    <div class="sb-line">${esc(sum.text)}</div>
+    <div class="sb-sub">${teams.length} teams · ${sum.plan.totalGames} games total</div>
+    ${problems ? `<ul class="sb-problems">${problems}</ul>` : ''}
+    ${notes ? `<ul class="sb-notes">${notes}</ul>` : ''}
+    <div class="sb-actions">
+      <button class="mini" id="autoFixBtn"${sum.valid ? ' disabled' : ''}>Auto Fix Schedule</button>
+      <button class="mini" id="previewBtn">Preview Generated Schedule</button>
+    </div>
+    <div class="sb-preview" id="schedPreview"${previewOpen ? '' : ' hidden'}></div>`;
+}
+
+/**
+ * Build a throwaway schedule from the current settings and report what it
+ * actually produced — measured, not predicted, because the settings are
+ * targets and a tight calendar makes the generator relax them.
+ */
+function renderPreview() {
+  const { teams, structure } = draftLeague();
+  const box = el('schedPreview');
+  if (!box || teams.length < 2) return;
+  const year = new Date().getFullYear() + 1;
+  const league = { meta: { currentSeason: year, rngSeed: 1 }, teams, settings, structure };
+  const sch = buildSchedule(league, year, settings, structure);
+  const st = scheduleStats(sch, teams);
+  const m = sch.plan.matchups;
+
+  const row = (k, v) => `<div class="pv-row"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`;
+  const sample = sch.games.slice(0, 6).map((g) => {
+    const nm = (id) => {
+      const t = teams.find((x) => x.id === id);
+      return t ? `${t.city || ''} ${t.name || ''}`.trim() || id : id;
+    };
+    return `<div class="pv-game">${esc(g.date)} — ${esc(nm(g.away))} @ ${esc(nm(g.home))}</div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="pv-h">What these settings actually produce</div>
+    <div class="pv-grid">
+      ${row('Games per team', st.gamesPerTeam)}
+      ${row('Total games', st.games)}
+      ${row('Playing dates', st.dates)}
+      ${row('Matchups (div / conf / non)', `${m.division} / ${m.conference} / ${m.nonConference}`)}
+      ${row('Back-to-backs', `${st.backToBackPct}% of games`)}
+      ${row('Longest gap', `${st.longestGap} days`)}
+      ${row('Longest homestand', `${st.longestHomestand} games`)}
+      ${row('Longest road trip', `${st.longestRoadTrip} games`)}
+      ${row('Home/away difference', `${st.homeAwayGap} game${st.homeAwayGap === 1 ? '' : 's'}`)}
+      ${st.unplaced ? row('Could not place', `${st.unplaced} games`) : ''}
+    </div>
+    <div class="pv-h">First games</div>
+    ${sample}
+    <p class="pv-note">A sample only — nothing is saved, and the real schedule is
+      generated when the career starts.</p>`;
 }
 
 /* -------------------------------- presets -------------------------------- */
@@ -104,6 +218,27 @@ async function refreshPresets(selectId) {
 
 render();
 refreshPresets();
+renderScheduleBar();
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#autoFixBtn')) {
+    const { teams, structure } = draftLeague();
+    const fixed = autoFixSchedule(teams, settings, new Date().getFullYear(), structure);
+    if (!fixed.changes.length) { flash('Nothing could be adjusted automatically'); return; }
+    settings = fixed.settings;
+    commit();
+    alert(`Auto Fix made ${fixed.changes.length} change${fixed.changes.length === 1 ? '' : 's'}:
+
+`
+      + fixed.changes.map((c) => `\u2022 ${c}`).join('\n'));
+    return;
+  }
+  if (e.target.closest('#previewBtn')) {
+    previewOpen = !previewOpen;
+    renderScheduleBar();
+    if (previewOpen) renderPreview();
+  }
+});
 
 el('groups').addEventListener('click', (e) => {
   const head = e.target.closest('[data-group]');
@@ -129,7 +264,8 @@ el('groups').addEventListener('click', (e) => {
 el('groups').addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.key;
   if (!k) return;
-  settings[k] = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
+  if (e.target.dataset.monthday) settings[k] = e.target.value.slice(5);  // drop the year
+  else settings[k] = e.target.type === 'number' ? Number(e.target.value) : e.target.value;
   commit();
 });
 
