@@ -125,6 +125,14 @@
 .sg-spread.is-fav { color: #6cc070; border-color: rgba(108, 192, 112, 0.35); }
 .sg-spread.is-dog { color: #c9564a; border-color: rgba(201, 86, 74, 0.35); }
 .sg-spread.is-pk { color: var(--muted-2); }
+/* No rest. A fact about the fixture list, so it reads as a marker rather than
+   as one of the projected numbers beside it. */
+.sg-b2b {
+  display: inline-block; margin-left: 0.45rem; padding: 0.08rem 0.28rem;
+  border-radius: 3px; background: rgba(224, 168, 74, 0.16);
+  color: #e0a84a; font-size: 0.56rem; font-weight: 800; letter-spacing: 0.06em;
+  vertical-align: middle;
+}
 .sched-note {
   margin: 0.9rem 0 0; color: var(--muted-2); font-size: 0.72rem; line-height: 1.6;
 }

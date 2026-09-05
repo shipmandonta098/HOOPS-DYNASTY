@@ -31,6 +31,7 @@ import {
   leagueGamesOn, gamesPerDate, leagueDates,
 } from './schedule.js';
 import { spreadModel, formatLine } from './powerRanking.js';
+import { detectBackToBacks } from './scheduleFatigue.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -56,6 +57,12 @@ let allDates = [];
  * this screen to know about them.
  */
 let model = null;
+/**
+ * Which fixtures each club arrives at on no rest, rebuilt alongside the spread
+ * model. Flags the SECOND night of a pair — the game the tiredness is carried
+ * into, not the one it was earned in.
+ */
+let rest = null;
 
 const teamById = (id) => (league.teams || []).find((t) => t.id === id) || null;
 const teamName = (id) => {
@@ -91,6 +98,7 @@ async function ensureSchedule() {
 
 function render() {
   model = spreadModel(league);
+  rest = detectBackToBacks(league.schedule);
   const games = teamGames(league.schedule, viewTeam);
   const record = teamRecord(games);
   const records = runningRecords(games);
@@ -164,14 +172,21 @@ function renderControls() {
   // tooltip nobody opens. Which rating it used matters, so it names that too.
   const noteEl = el('spreadNote');
   if (noteEl) {
-    noteEl.innerHTML = model && model.mode === 'playoff'
+    const t = rest && rest.byTeam.get(viewTeam);
+    const freq = t && t.total
+      ? ` <b>${esc(shortName(viewTeam))}</b> play <b>${t.backToBack}</b> back-to-back${
+          t.backToBack === 1 ? '' : 's'} in ${t.total} games — ${
+          (t.backToBack / t.total * 100).toFixed(1)}% of the schedule, marked B2B on the
+          second night.`
+      : '';
+    noteEl.innerHTML = (model && model.mode === 'playoff'
       ? `<b>Spread</b> is a projection from <b>playoff</b> power ratings — rotations
          shorten and the best players play more, so top-heavy teams rate higher than
          they did in the regular season. A negative number means favoured. Played
          games show their score instead.`
       : `<b>Spread</b> is a projection from power ratings, weighted down each team's
          rotation. A negative number means favoured, positive means underdog. It moves
-         with the rosters, and played games show their score instead.`;
+         with the rosters, and played games show their score instead.`) + freq;
   }
   el('viewGroup').hidden = scope === 'league';
   el('leagueDay').hidden = scope !== 'league';
@@ -204,6 +219,20 @@ const LEAGUE_HEAD = `<tr><th>Away</th><th></th><th>Home</th>
  * fixture the model cannot rate (a club with nobody on it) shows a dash rather
  * than a number, because "no opinion" is a real answer.
  */
+/**
+ * The no-rest marker for one side of one fixture.
+ *
+ * A fact about the fixture list, not a projection: the schedule says this club
+ * played yesterday. It is shown because it is the thing that explains a soft
+ * night, and it is shown on the second game rather than both, which is the
+ * game the tiredness is actually carried into.
+ */
+function b2b(gameId, which) {
+  const f = rest && rest.flags.get(gameId);
+  if (!f || !f[which]) return '';
+  return `<span class="sg-b2b" title="Back-to-back — this team played yesterday.">B2B</span>`;
+}
+
 function spreadCell(homeId, awayId, forTeam, played) {
   const none = '<span class="na">--</span>';
   if (played) return none;
@@ -238,13 +267,13 @@ function renderLeagueDay() {
   el('gamesBody').innerHTML = games.map((g) => {
     const away = teamById(g.away), home = teamById(g.home);
     const mine = g.home === viewTeam || g.away === viewTeam;
-    const side = (t, won) => `<span class="sg-side${won ? ' is-won' : ''}">
+    const side = (t, won, which) => `<span class="sg-side${won ? ' is-won' : ''}">
       <span class="sg-crest">${t ? crestHTML(t, 24) : ''}</span>
-      <span>${esc(teamName(t && t.id))}</span></span>`;
+      <span>${esc(teamName(t && t.id))}</span>${b2b(g.id, which)}</span>`;
     return `<tr class="${mine ? 'is-mine' : ''}">
-      <td>${side(away, g.winner === 'away')}</td>
+      <td>${side(away, g.winner === 'away', 'away')}</td>
       <td class="sg-at">@</td>
-      <td>${side(home, g.winner === 'home')}</td>
+      <td>${side(home, g.winner === 'home', 'home')}</td>
       <td>${spreadCell(g.home, g.away, g.home, !!g.winner)}</td>
       <td>${g.winner
         ? `<span class="sg-res is-w">Final</span>`
@@ -279,7 +308,8 @@ function renderTable(games, records) {
     const opp = teamById(g.opponent);
     return `<tr class="${g.id === nextId ? 'is-next' : ''}${
       g.date === selectedDate ? ' is-selected' : ''}">
-      <td class="sg-date">${esc(formatGameDate(g.date))}</td>
+      <td class="sg-date">${esc(formatGameDate(g.date))}${
+        b2b(g.id, g.home ? 'home' : 'away')}</td>
       <td class="sg-opp">
         <span class="sg-crest">${opp ? crestHTML(opp, 24) : ''}</span>
         <span>${g.home ? '' : '@ '}${esc(teamName(g.opponent))}</span>
