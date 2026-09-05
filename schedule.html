@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — Schedule</title>
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./gm-dashboard.css" />
+  <link rel="stylesheet" href="./roster.css" />
+  <link rel="stylesheet" href="./schedule.css" />
+</head>
+<body>
+
+  <div class="arena-rings" aria-hidden="true"></div>
+  <div class="app">
+
+    <aside class="sidebar">
+      <a class="brand" href="./index.html" style="text-decoration:none;display:block">
+        <span class="h">Hoops</span><span class="d">Dynasty</span>
+        <span class="sub">Basketball GM Simulator</span>
+        <span class="tr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg></span>
+      </a>
+      <nav class="nav"><!-- shell.js --></nav>
+    </aside>
+
+    <main class="main">
+
+      <div class="topbar roster-top">
+        <div class="rt-left">
+          <h1>Schedule</h1>
+          <!-- Preseason and Playoffs are marked not-built rather than shown
+               empty: neither exists in the save, and a tab that opens onto
+               invented fixtures would be worse than one that says so. -->
+          <div class="tabs" id="tabs">
+            <button class="tab is-active" data-tab="regular">Regular Season</button>
+            <button class="tab is-todo" disabled title="Not built yet">Preseason</button>
+            <button class="tab is-todo" disabled title="Not built yet">Playoffs</button>
+          </div>
+        </div>
+        <div class="gm team-switch">
+          <div class="avatar" id="teamChipLogo">🏀</div>
+          <div class="who">
+            <label class="sr-only" for="teamSel">Viewing team</label>
+            <select id="teamSel" aria-label="Viewing team"><!-- scheduleView.js --></select>
+            <div class="t"><span id="teamChipSub">—</span><span class="own-tag" id="ownTag" hidden>Your Team</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary strip. Every figure is counted from games actually played,
+           so in an unsimulated league these read as dashes, not as zeros. -->
+      <div class="card strip-card">
+        <div class="strip" id="strip"><!-- scheduleView.js --></div>
+      </div>
+
+      <div class="sched-grid">
+        <section class="card sched-main">
+          <div class="sched-controls">
+            <div class="sc-group">
+              <label>Season</label>
+              <div class="stepper">
+                <button id="seasonPrev" aria-label="Previous season">‹</button>
+                <span id="seasonLabel">—</span>
+                <button id="seasonNext" aria-label="Next season">›</button>
+              </div>
+            </div>
+            <div class="sc-group">
+              <label>Month</label>
+              <div class="stepper">
+                <button id="monthPrev" aria-label="Previous month">‹</button>
+                <span id="monthLabel">—</span>
+                <button id="monthNext" aria-label="Next month">›</button>
+              </div>
+            </div>
+            <div class="sc-group">
+              <label for="viewSel">View</label>
+              <select id="viewSel">
+                <option value="all">All Games</option>
+                <option value="home">Home Only</option>
+                <option value="away">Away Only</option>
+                <option value="played">Played</option>
+                <option value="upcoming">Upcoming</option>
+              </select>
+            </div>
+            <button class="mini" id="exportBtn">Export Schedule</button>
+          </div>
+
+          <div class="sched-table-wrap">
+            <table class="sched-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Opponent</th><th>Location</th>
+                  <th>Result</th><th>Score</th><th>Record</th>
+                </tr>
+              </thead>
+              <tbody id="gamesBody"><!-- scheduleView.js --></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="sched-side">
+          <section class="card next-card" id="nextCard"><!-- scheduleView.js --></section>
+          <section class="card cal-card">
+            <div class="cal-head">
+              <button id="calPrev" aria-label="Previous month">‹</button>
+              <span id="calLabel">—</span>
+              <button id="calNext" aria-label="Next month">›</button>
+            </div>
+            <div class="cal-grid" id="calGrid"><!-- scheduleView.js --></div>
+            <div class="cal-key">
+              <span><i class="k-win"></i>Win</span>
+              <span><i class="k-loss"></i>Loss</span>
+              <span><i class="k-up"></i>Upcoming</span>
+              <span><i class="k-sel"></i>Selected</span>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <div id="noCareer" hidden></div>
+    </main>
+  </div>
+
+  <script type="module" src="./scheduleView.js"></script>
+</body>
+</html>

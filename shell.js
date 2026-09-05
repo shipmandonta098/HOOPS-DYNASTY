@@ -17,7 +17,7 @@ export const NAV = [
   { id: 'players',    label: 'Players',         icon: '🏀' },
   { id: 'teamMgmt',   label: 'Team Management', icon: '🗂️' },
   { id: 'teamStats',  label: 'Team Stats',      icon: '📊' },
-  { id: 'schedule',   label: 'Schedule',        icon: '📅' },
+  { id: 'schedule',   label: 'Schedule',        icon: '📅', href: './schedule.html' },
   { id: 'standings',  label: 'Standings',       icon: '🏆' },
   { id: 'playoffs',   label: 'Playoffs',        icon: '🏅' },
   { id: 'finances',   label: 'Finances',        icon: '💰' },

@@ -89,6 +89,29 @@
       "description": "Current draft class + order. See draft.schema.json.",
       "$ref": "draft.schema.json"
     },
+    "schedule": {
+      "type": "object",
+      "description": "The season's fixture list, built by schedule.js from the league's own teams and seed. A fixture is a PLAN \u2014 who plays whom, where and when. Results are not: every game starts played:false with null scores and stays that way until the season simulator writes one back, which is why the Schedule screen shows dashes rather than zeros in an unsimulated league.",
+      "properties": {
+        "season": { "type": "integer" },
+        "games": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "date", "home", "away"],
+            "properties": {
+              "id": { "type": "string" },
+              "date": { "type": "string", "description": "ISO date, YYYY-MM-DD." },
+              "home": { "type": "string", "description": "Home team id." },
+              "away": { "type": "string", "description": "Away team id." },
+              "played": { "type": "boolean" },
+              "homeScore": { "type": ["integer", "null"] },
+              "awayScore": { "type": ["integer", "null"] }
+            }
+          }
+        }
+      }
+    },
     "history": {
       "description": "Permanent league record. See history.schema.json.",
       "$ref": "history.schema.json"
