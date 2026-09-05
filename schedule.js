@@ -236,6 +236,35 @@ export function runningRecords(games) {
   });
 }
 
+/**
+ * Every game in the league on one date, for the league-wide day view.
+ *
+ * Sorted by home team so a day reads in a stable order rather than in whatever
+ * order the fixture builder happened to deal them.
+ */
+export function leagueGamesOn(schedule, date) {
+  return (schedule.games || [])
+    .filter((g) => g.date === date)
+    .map((g) => {
+      const result = g.played && g.homeScore != null && g.awayScore != null
+        ? (g.homeScore > g.awayScore ? 'home' : 'away') : null;
+      return { ...g, winner: result };
+    })
+    .sort((a, b) => (a.home < b.home ? -1 : a.home > b.home ? 1 : 0));
+}
+
+/** How many games the league plays on each date, keyed by date. */
+export function gamesPerDate(schedule) {
+  const counts = new Map();
+  for (const g of schedule.games || []) counts.set(g.date, (counts.get(g.date) || 0) + 1);
+  return counts;
+}
+
+/** Every date the league plays on, in order. */
+export function leagueDates(schedule) {
+  return [...new Set((schedule.games || []).map((g) => g.date))].sort();
+}
+
 /** The next game that has not been played, or null once the season is over. */
 export function nextGame(games) {
   return games.find((g) => !g.played) || null;

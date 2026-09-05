@@ -28,6 +28,7 @@ import { crestHTML } from './leagueConfig.js';
 import {
   buildSchedule, teamGames, teamRecord, runningRecords, nextGame,
   scheduleMonths, formatGameDate, formatLongDate, toCSV,
+  leagueGamesOn, gamesPerDate, leagueDates,
 } from './schedule.js';
 
 const el = (id) => document.getElementById(id);
@@ -41,6 +42,10 @@ let months = [];
 let monthIdx = 0;
 let filter = 'all';
 let selectedDate = null;
+/** 'team' shows one club's season; 'league' shows every game on one date. */
+let scope = 'team';
+let dayIdx = 0;
+let allDates = [];
 
 const teamById = (id) => (league.teams || []).find((t) => t.id === id) || null;
 const teamName = (id) => {
@@ -80,11 +85,14 @@ function render() {
   const records = runningRecords(games);
   const next = nextGame(games);
 
+  // The whole screen carries the viewed club's colours, so the accents below
+  // follow the team switcher rather than being pinned to one hue.
   applyTeamTheme(teamById(viewTeam), document.body);
   renderTeamChip();
   renderStrip(record, next);
   renderControls();
-  renderTable(games, records);
+  if (scope === 'league') renderLeagueDay();
+  else renderTable(games, records);
   renderNext(next);
   renderCalendar(games);
 }
@@ -135,6 +143,61 @@ function renderControls() {
   el('monthNext').disabled = monthIdx >= months.length - 1;
   el('calLabel').textContent = m ? m.label.toUpperCase() : '—';
   el('viewSel').value = filter;
+
+  for (const btn of el('scopeSeg').querySelectorAll('button')) {
+    btn.classList.toggle('is-active', btn.dataset.scope === scope);
+  }
+  // The home/away filter is about one club's season, so it has no meaning
+  // against a day of league-wide fixtures.
+  el('viewGroup').hidden = scope === 'league';
+  el('leagueDay').hidden = scope !== 'league';
+  if (scope === 'league') {
+    const date = allDates[dayIdx];
+    el('dayLabel').textContent = date ? formatLongDate(date) : '—';
+    el('dayPrev').disabled = dayIdx <= 0;
+    el('dayNext').disabled = dayIdx >= allDates.length - 1;
+    const n = date ? (gamesPerDate(league.schedule).get(date) || 0) : 0;
+    el('dayCount').textContent = n ? `${n} game${n === 1 ? '' : 's'}` : '';
+  }
+}
+
+const TEAM_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
+  <th>Result</th><th>Score</th><th>Record</th></tr>`;
+const LEAGUE_HEAD = `<tr><th>Away</th><th></th><th>Home</th>
+  <th>Result</th><th>Score</th></tr>`;
+
+/**
+ * Every game in the league on one date.
+ *
+ * The viewed team's own game is marked, which is the only reason the team
+ * switcher still matters here — it is the row a manager is looking for in a
+ * page of fixtures that are mostly not his.
+ */
+function renderLeagueDay() {
+  el('gamesHead').innerHTML = LEAGUE_HEAD;
+  const date = allDates[dayIdx];
+  const games = date ? leagueGamesOn(league.schedule, date) : [];
+  if (!games.length) {
+    el('gamesBody').innerHTML =
+      `<tr class="sg-empty"><td colspan="5">No games on this date.</td></tr>`;
+    return;
+  }
+  el('gamesBody').innerHTML = games.map((g) => {
+    const away = teamById(g.away), home = teamById(g.home);
+    const mine = g.home === viewTeam || g.away === viewTeam;
+    const side = (t, won) => `<span class="sg-side${won ? ' is-won' : ''}">
+      <span class="sg-crest">${t ? crestHTML(t, 24) : ''}</span>
+      <span>${esc(teamName(t && t.id))}</span></span>`;
+    return `<tr class="${mine ? 'is-mine' : ''}">
+      <td>${side(away, g.winner === 'away')}</td>
+      <td class="sg-at">@</td>
+      <td>${side(home, g.winner === 'home')}</td>
+      <td>${g.winner
+        ? `<span class="sg-res is-w">Final</span>`
+        : '<span class="na">--</span>'}</td>
+      <td>${g.winner ? `${g.awayScore} - ${g.homeScore}` : '<span class="na">--</span>'}</td>
+    </tr>`;
+  }).join('');
 }
 
 function passesFilter(g) {
@@ -146,6 +209,7 @@ function passesFilter(g) {
 }
 
 function renderTable(games, records) {
+  el('gamesHead').innerHTML = TEAM_HEAD;
   const m = months[monthIdx];
   const rows = games
     .map((g, i) => ({ g, record: records[i] }))
@@ -230,16 +294,30 @@ function renderCalendar(games) {
   const head = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     .map((d) => `<div class="cal-dow">${d}</div>`).join('');
 
+  // In the league-wide view every date is selectable, not only the ones the
+  // viewed team plays on.
+  const counts = gamesPerDate(league.schedule);
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push('<div class="cal-cell is-blank"></div>');
   for (let d = 1; d <= days; d++) {
     const iso = `${m.year}-${String(m.month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const g = byDate.get(iso);
+    const leagueCount = counts.get(iso) || 0;
+    const clickable = scope === 'league' ? leagueCount > 0 : !!g;
     const cls = ['cal-cell'];
     if (g) cls.push(g.result === 'W' ? 'is-win' : g.result === 'L' ? 'is-loss' : 'is-up');
+    else if (scope === 'league' && leagueCount) cls.push('is-league');
     if (iso === selectedDate) cls.push('is-sel');
-    cells.push(`<div class="${cls.join(' ')}"${g ? ` data-date="${iso}" role="button" tabindex="0"
-      title="${esc(g.home ? 'vs ' : '@ ')}${esc(teamName(g.opponent))}"` : ''}>${d}</div>`);
+    // The opponent's crest, which is what makes a month readable at a glance —
+    // the day number moves to the corner rather than being replaced.
+    const opp = g ? teamById(g.opponent) : null;
+    const inner = opp
+      ? `<span class="cal-n">${d}</span><span class="cal-crest">${crestHTML(opp, 20)}</span>`
+      : `<span class="cal-d">${d}</span>${
+          scope === 'league' && leagueCount ? `<span class="cal-c">${leagueCount}</span>` : ''}`;
+    cells.push(`<div class="${cls.join(' ')}"${clickable ? ` data-date="${iso}" role="button"
+      tabindex="0" title="${g ? esc(`${g.home ? 'vs ' : '@ '}${teamName(g.opponent)}`)
+        : `${leagueCount} games`}"` : ''}>${inner}</div>`);
   }
   el('calGrid').innerHTML = head + cells.join('');
 }
@@ -262,8 +340,39 @@ function bind() {
   el('calGrid').addEventListener('click', (e) => {
     const cell = e.target.closest('[data-date]');
     if (!cell) return;
-    selectedDate = selectedDate === cell.dataset.date ? null : cell.dataset.date;
+    const date = cell.dataset.date;
+    if (scope === 'league') {
+      // In the day view a calendar click IS the navigation.
+      const i = allDates.indexOf(date);
+      if (i >= 0) dayIdx = i;
+      selectedDate = date;
+    } else {
+      selectedDate = selectedDate === date ? null : date;
+    }
     render();
+  });
+  el('scopeSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-scope]');
+    if (!btn || btn.dataset.scope === scope) return;
+    scope = btn.dataset.scope;
+    if (scope === 'league') {
+      // Open on the day already selected, else the viewed team's next game.
+      const next = nextGame(teamGames(league.schedule, viewTeam));
+      const target = selectedDate || (next && next.date) || allDates[0];
+      const i = allDates.indexOf(target);
+      dayIdx = i >= 0 ? i : 0;
+      selectedDate = allDates[dayIdx] || null;
+      syncMonthToDay();
+    }
+    render();
+  });
+  el('dayPrev').addEventListener('click', () => {
+    if (dayIdx > 0) { dayIdx--; selectedDate = allDates[dayIdx]; syncMonthToDay(); render(); }
+  });
+  el('dayNext').addEventListener('click', () => {
+    if (dayIdx < allDates.length - 1) {
+      dayIdx++; selectedDate = allDates[dayIdx]; syncMonthToDay(); render();
+    }
   });
   el('exportBtn').addEventListener('click', () => {
     const games = teamGames(league.schedule, viewTeam);
@@ -275,6 +384,14 @@ function bind() {
     a.click();
     URL.revokeObjectURL(url);
   });
+}
+
+/** Keep the calendar on the month the selected day belongs to. */
+function syncMonthToDay() {
+  const date = allDates[dayIdx];
+  if (!date) return;
+  const i = months.findIndex((m) => m.key === date.slice(0, 7));
+  if (i >= 0) monthIdx = i;
 }
 
 /* ----------------------------------------------------------------- boot */
@@ -302,6 +419,7 @@ function bind() {
       >${esc(teamName(t.id))}</option>`).join('');
 
   months = scheduleMonths(league.schedule.games);
+  allDates = leagueDates(league.schedule);
   // Open on the month the next game falls in, which is where a manager is.
   const next = nextGame(teamGames(league.schedule, viewTeam));
   const idx = next ? months.findIndex((m) => m.key === next.date.slice(0, 7)) : 0;

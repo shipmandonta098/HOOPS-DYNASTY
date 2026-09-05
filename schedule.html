@@ -73,6 +73,13 @@
               </div>
             </div>
             <div class="sc-group">
+              <label>Show</label>
+              <div class="seg" id="scopeSeg" role="tablist">
+                <button class="is-active" data-scope="team" role="tab">My Team</button>
+                <button data-scope="league" role="tab">League Day</button>
+              </div>
+            </div>
+            <div class="sc-group" id="viewGroup">
               <label for="viewSel">View</label>
               <select id="viewSel">
                 <option value="all">All Games</option>
@@ -85,14 +92,19 @@
             <button class="mini" id="exportBtn">Export Schedule</button>
           </div>
 
+          <!-- The league-wide day view has its own header row: one date, every
+               game on it, so the columns are the two clubs rather than one
+               team's opponent. -->
+          <div class="league-day" id="leagueDay" hidden>
+            <button class="stepper-btn" id="dayPrev" aria-label="Previous game day">‹</button>
+            <div class="ld-date" id="dayLabel">—</div>
+            <button class="stepper-btn" id="dayNext" aria-label="Next game day">›</button>
+            <span class="ld-count" id="dayCount"></span>
+          </div>
+
           <div class="sched-table-wrap">
             <table class="sched-table">
-              <thead>
-                <tr>
-                  <th>Date</th><th>Opponent</th><th>Location</th>
-                  <th>Result</th><th>Score</th><th>Record</th>
-                </tr>
-              </thead>
+              <thead id="gamesHead"><!-- scheduleView.js --></thead>
               <tbody id="gamesBody"><!-- scheduleView.js --></tbody>
             </table>
           </div>

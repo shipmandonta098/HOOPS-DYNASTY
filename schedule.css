@@ -87,14 +87,24 @@
 }
 .sg-res.is-w { background: rgba(108, 192, 112, 0.18); color: #6cc070; }
 .sg-res.is-l { background: rgba(201, 86, 74, 0.18); color: #c9564a; }
-/* The next unplayed game is the row a manager is looking for. */
+/* The next unplayed game is the row a manager is looking for, and it carries
+   the viewed club's colour. --team-* comes from teamTheme.js, which has already
+   contrast-corrected it against this surface, so a team whose real colour is
+   too dark or too pale to read still gets a legible accent. The fallback is the
+   brand orange, for a save with no colours on its teams. */
 .sched-table tr.is-next td {
-  background: rgba(207, 97, 39, 0.07);
-  border-top: 1px solid var(--brand); border-bottom: 1px solid var(--brand);
+  background: var(--team-softer, rgba(207, 97, 39, 0.07));
+  border-top: 1px solid var(--team-line, var(--brand));
+  border-bottom: 1px solid var(--team-line, var(--brand));
 }
-.sched-table tr.is-next td:first-child { border-left: 1px solid var(--brand); }
-.sched-table tr.is-next td:last-child { border-right: 1px solid var(--brand); }
-.sched-table tr.is-selected td { background: rgba(255, 255, 255, 0.05); }
+.sched-table tr.is-next td:first-child { border-left: 1px solid var(--team-line, var(--brand)); }
+.sched-table tr.is-next td:last-child { border-right: 1px solid var(--team-line, var(--brand)); }
+.sched-table tr.is-selected td { background: var(--team-soft, rgba(255, 255, 255, 0.05)); }
+/* In the league-wide day view, the viewed club's own game. */
+.sched-table tr.is-mine td {
+  background: var(--team-softer, rgba(255, 255, 255, 0.04));
+  box-shadow: inset 3px 0 0 var(--team-primary, var(--brand));
+}
 .sg-empty td { text-align: center; color: var(--muted); padding: 2rem; }
 
 /* --------------------------------------------------------------- next game */
@@ -142,15 +152,32 @@
   text-align: center; padding-bottom: 0.3rem; text-transform: uppercase;
 }
 .cal-cell {
-  aspect-ratio: 1; display: grid; place-items: center; border-radius: 6px;
-  color: var(--muted); font-size: 0.76rem; font-variant-numeric: tabular-nums;
+  position: relative; aspect-ratio: 1; display: grid; place-items: center;
+  border-radius: 6px; color: var(--muted); font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
 }
 .cal-cell.is-blank { visibility: hidden; }
 .cal-cell[data-date] { cursor: pointer; color: var(--white); }
-.cal-cell.is-up { background: rgba(255, 255, 255, 0.06); }
+/* An upcoming game is tinted with the viewed club's colour; a PLAYED one keeps
+   the semantic green and red, because win and loss mean the same thing on every
+   team and must not be repainted by whose page this is. */
+.cal-cell.is-up { background: var(--team-softer, rgba(255, 255, 255, 0.06)); }
+.cal-cell.is-league { background: rgba(255, 255, 255, 0.045); }
 .cal-cell.is-win { background: rgba(108, 192, 112, 0.22); color: #a9dcab; }
 .cal-cell.is-loss { background: rgba(201, 86, 74, 0.22); color: #e0a49c; }
-.cal-cell.is-sel { outline: 1px solid var(--brand); outline-offset: -1px; }
+.cal-cell.is-sel { outline: 1px solid var(--team-primary, var(--brand)); outline-offset: -1px; }
+
+/* A game day shows the opponent's crest with the date tucked into the corner,
+   which is what makes a month readable without reading it. */
+.cal-crest { display: flex; line-height: 0; }
+.cal-n {
+  position: absolute; top: 2px; left: 4px; font-size: 0.52rem;
+  color: var(--muted); font-weight: 700;
+}
+.cal-c {
+  position: absolute; bottom: 2px; right: 4px; font-size: 0.5rem;
+  color: var(--muted-2); font-weight: 800;
+}
 .cal-key {
   display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; margin-top: 0.9rem;
   color: var(--muted); font-size: 0.68rem;
@@ -160,7 +187,55 @@
 .k-win { background: #6cc070; }
 .k-loss { background: #c9564a; }
 .k-up { background: rgba(255, 255, 255, 0.28); }
-.k-sel { border-radius: 2px !important; border: 1px solid var(--brand); }
+.k-sel { border-radius: 2px !important; border: 1px solid var(--team-primary, var(--brand)); }
 
 .tab.is-todo { color: var(--muted-2); cursor: not-allowed; }
 .nc-note { display: block; margin-top: 0.5rem; color: var(--muted-2); font-size: 0.72rem; }
+
+/* --------------------------------------------------- team-coloured accents */
+/* The strip's Next Game cell is the one figure that is about the club rather
+   than about the league, so it takes the accent. Record, Streak and Last 10
+   keep the semantic colours — a win streak is green on every team's page. */
+.s-cell:last-child { box-shadow: inset 2px 0 0 var(--team-primary, var(--brand)); }
+.sched-main { border-top: 2px solid var(--team-line, transparent); }
+
+/* --------------------------------------------------------- scope control */
+.seg {
+  display: inline-flex; background: var(--panel-2); border: 1px solid var(--stroke);
+  border-radius: 8px; padding: 2px;
+}
+.seg button {
+  background: none; border: 0; color: var(--muted); cursor: pointer;
+  padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.76rem; font-weight: 700;
+}
+.seg button:hover { color: var(--white); }
+.seg button.is-active {
+  background: var(--team-soft, rgba(207, 97, 39, 0.16));
+  color: var(--white); box-shadow: inset 0 0 0 1px var(--team-line, var(--brand));
+}
+
+/* ------------------------------------------------------- league day view */
+.league-day {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.85rem 0 0.2rem;
+}
+/* `display:flex` on the class beats the [hidden] attribute's display:none, so
+   hiding these two by setting .hidden left them on screen — the day header sat
+   above the My Team table and the home/away filter stayed up in the league
+   view. Both need the attribute spelled out. */
+.league-day[hidden], .sc-group[hidden] { display: none; }
+.ld-date { color: var(--white); font-size: 0.92rem; font-weight: 700; }
+.ld-count {
+  margin-left: auto; color: var(--muted); font-size: 0.72rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.stepper-btn {
+  background: var(--panel-2); border: 1px solid var(--stroke); color: var(--muted);
+  border-radius: 6px; cursor: pointer; font-size: 0.95rem; line-height: 1;
+  padding: 0.28rem 0.5rem;
+}
+.stepper-btn:hover:not(:disabled) { color: var(--white); }
+.stepper-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.sg-side { display: inline-flex; align-items: center; gap: 0.55rem; }
+.sg-side.is-won { font-weight: 800; }
+.sg-at { color: var(--muted-2); text-align: center; width: 24px; }
