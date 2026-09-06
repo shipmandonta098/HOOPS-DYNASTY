@@ -17,7 +17,7 @@
  *   AUTO FIX      change the fewest settings that make it possible.
  */
 
-import { restDaysOf, gamesPerWeekOf } from './gameSettings.js';
+import { restDaysOf, gamesPerWeekOf, backToBackRules } from './gameSettings.js';
 
 /* ===========================================================================
  * LEAGUE SHAPE
@@ -370,28 +370,41 @@ export function validateSchedule(teams, settings, startYear, structure) {
       + `(${matchups.division} against each division rival, ${matchups.conference} in `
       + `conference, ${matchups.nonConference} outside it).`);
   }
-  // A back-to-back budget implies a minimum season length of its own: every
-  // game that is NOT a back-to-back needs at least two days. When the window is
-  // tighter than that, the generator has to exceed the requested frequency, and
-  // saying so beforehand is better than the user discovering it in the preview.
-  const B2B_RATE = { None: 0, Rare: 0.06, Normal: 0.18, Frequent: 0.34 };
-  const b2bRate = rest > 0 ? 0 : (B2B_RATE[settings.backToBackFrequency] ?? 0.18);
+  // A back-to-back target implies a minimum season length of its own: every
+  // game that is NOT a back-to-back needs a clear day either side. When the
+  // window is tighter than that, the generator physically cannot hit the
+  // target, and saying so beforehand is better than the user finding out from
+  // the summary. A target of zero gets its own wording, because "avoid
+  // consecutive days entirely" is the case most likely to be impossible and the
+  // one the user most needs warned about rather than quietly overridden.
+  const b2b = backToBackRules(settings, G);
   if (G > 1) {
-    const b2bGames = Math.round(G * b2bRate);
-    const minSpan = (G - 1 - b2bGames) * 2 + b2bGames + 1;
+    const minSpan = (G - 1 - b2b.max) * 2 + b2b.max + 1;
     if (minSpan > cal.dates.length) {
-      const how = settings.backToBackFrequency === 'None'
-        ? 'no back-to-backs' : `${settings.backToBackFrequency.toLowerCase()} back-to-backs`;
-      notes.push(`${G} games with ${how} `
-        + `needs about ${minSpan} days and the window has ${cal.dates.length}, so the `
-        + 'generator will schedule more consecutive-day games than requested. A longer '
-        + 'season window or a higher Back-to-Back Frequency would remove the squeeze.');
+      notes.push(b2b.max === 0
+        ? `${G} games with no back-to-backs at all needs about ${minSpan} days and the `
+          + `window has ${cal.dates.length}. The generator cannot avoid consecutive-day `
+          + 'games in a window this tight, so some teams will finish above zero. A longer '
+          + 'season, fewer games, or a target above zero would make it achievable.'
+        : `${G} games with an average of ${b2b.target} back-to-back${
+            b2b.target === 1 ? '' : 's'} per team needs about ${minSpan} days and the `
+          + `window has ${cal.dates.length}, so teams will finish above the target. A `
+          + 'longer season window or a higher target would remove the squeeze.');
     }
   }
-
-  if (rest >= 1 && settings.backToBackFrequency !== 'None') {
+  // Scaling is silent unless it actually moved the number, in which case the
+  // user typed one thing and the generator will work to another.
+  if (b2b.scaled && b2b.target !== b2b.typed) {
+    notes.push(`Scale With Season Length turns the typed target of ${b2b.typed} into `
+      + `${b2b.target} for a ${G}-game season. Turn the toggle off to hold ${b2b.typed}.`);
+  }
+  if (rest >= 1 && Number(settings.b2bTarget) > 0) {
     notes.push('A minimum rest of a day or more rules back-to-backs out entirely, '
-      + 'so the back-to-back setting has nothing to do.');
+      + 'so the back-to-back target has nothing to do.');
+  }
+  if (b2b.allowThreeInThree && b2b.target === 0) {
+    notes.push('Allowing three games in three days has no effect while the back-to-back '
+      + 'target is zero, since a third consecutive night needs a second one first.');
   }
   // A short season in a long window cannot avoid long idle stretches, whatever
   // the maximum says — there is simply more calendar than there are games.
@@ -578,7 +591,7 @@ export function scheduleSummary(teams, settings, startYear, structure) {
     `${settings.homeAwayBalance} Home/Away`,
     restDaysOf(settings) > 0
       ? `${restDaysOf(settings)}-Day Minimum Rest`
-      : `${settings.backToBackFrequency} Back-to-Backs`,
+      : `~${backToBackRules(settings, v.plan.gamesPerTeam).target} Back-to-Backs`,
     settings.allStarBreak
       ? `All-Star Break ${settings.allStarBreakLength} Days`
       : 'No All-Star Break',

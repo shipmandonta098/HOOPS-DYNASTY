@@ -172,12 +172,19 @@ function renderControls() {
   // tooltip nobody opens. Which rating it used matters, so it names that too.
   const noteEl = el('spreadNote');
   if (noteEl) {
+    // The club's own count, then the league's, so the number the settings asked
+    // for can be checked against the season that was actually built.
+    const rep = league.schedule && league.schedule.rest && league.schedule.rest.backToBacks;
+    const leagueLine = rep && rep.teams
+      ? ` League average <b>${rep.average.toFixed(1)}</b>, lowest <b>${rep.lowest}</b>,
+          highest <b>${rep.highest}</b>.`
+      : '';
     const t = rest && rest.byTeam.get(viewTeam);
     const freq = t && t.total
       ? ` <b>${esc(shortName(viewTeam))}</b> play <b>${t.backToBack}</b> back-to-back${
           t.backToBack === 1 ? '' : 's'} in ${t.total} games — ${
           (t.backToBack / t.total * 100).toFixed(1)}% of the schedule, marked B2B on the
-          second night.`
+          second night.${leagueLine}`
       : '';
     noteEl.innerHTML = (model && model.mode === 'playoff'
       ? `<b>Spread</b> is a projection from <b>playoff</b> power ratings — rotations

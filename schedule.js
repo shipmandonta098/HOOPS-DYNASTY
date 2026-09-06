@@ -23,8 +23,8 @@
 import { makeRNG, hashString } from './leagueConfig.js';
 
 import { matchupsFor, seasonCalendar, resolveTeams } from './scheduleRules.js';
-import { restDaysOf } from './gameSettings.js';
-import { rebalanceSchedule } from './scheduleRebalance.js';
+import { restDaysOf, backToBackRules } from './gameSettings.js';
+import { rebalanceSchedule, backToBackReport } from './scheduleRebalance.js';
 
 /* ===========================================================================
  * BUILDING A SEASON
@@ -43,7 +43,7 @@ import { rebalanceSchedule } from './scheduleRebalance.js';
  * ======================================================================== */
 
 /** How often a back-to-back is allowed when the rules permit any at all. */
-const B2B_RATE = { None: 0, Rare: 0.06, Normal: 0.18, Frequent: 0.34 };
+
 /** How willingly the builder extends a road trip or homestand. */
 const TRIP_BIAS = { Rare: 0.1, Normal: 0.42, Frequent: 0.72 };
 /** How much the ordering is shuffled from season to season. */
@@ -53,14 +53,21 @@ const VARIATION = { Low: 0.25, Normal: 0.6, High: 1 };
  * A style preset overrides the individual rules it speaks for. Custom sets
  * nothing, which is what makes it custom.
  */
+// Targets are quoted for an 82-game season; backToBackRules scales them to the
+// season actually being played, so "Realistic" means the same thing in a
+// 58-game league as in an 82-game one.
 const STYLE = {
-  Balanced:   { backToBackFrequency: 'Rare', roadTripFrequency: 'Rare',
+  Balanced:   { b2bTarget: 8,  b2bVariance: 2, allowThreeInThree: false,
+                roadTripFrequency: 'Rare',
                 maxConsecutiveHome: 4, maxConsecutiveAway: 4 },
-  Realistic:  { backToBackFrequency: 'Normal', roadTripFrequency: 'Frequent',
+  Realistic:  { b2bTarget: 14, b2bVariance: 2, allowThreeInThree: false,
+                roadTripFrequency: 'Frequent',
                 maxConsecutiveHome: 6, maxConsecutiveAway: 6 },
-  Compressed: { backToBackFrequency: 'Frequent', roadTripFrequency: 'Normal',
+  Compressed: { b2bTarget: 22, b2bVariance: 3, allowThreeInThree: true,
+                roadTripFrequency: 'Normal',
                 maxConsecutiveHome: 7, maxConsecutiveAway: 7 },
-  Relaxed:    { backToBackFrequency: 'None', roadTripFrequency: 'Rare',
+  Relaxed:    { b2bTarget: 2,  b2bVariance: 2, allowThreeInThree: false,
+                roadTripFrequency: 'Rare',
                 maxConsecutiveHome: 3, maxConsecutiveAway: 3 },
   Custom:     {},
 };
@@ -214,8 +221,11 @@ const PASSES = [
 
 function place(games, dates, teams, rules, rng) {
   const rest = restDaysOf(rules);
-  const rate = B2B_RATE[rules.backToBackFrequency] != null
-    ? B2B_RATE[rules.backToBackFrequency] : 0.18;
+  // The placer's own budget is a rough ceiling only — the rest pass afterwards
+  // is what actually hits the target band, so this just stops placement from
+  // running wildly past it before the repair gets a look.
+  const b2b = backToBackRules(rules, rules.regularSeasonGames);
+  const rate = b2b.games > 0 ? Math.min(1, (b2b.max + 2) / b2b.games) : 0;
   const trip = TRIP_BIAS[rules.roadTripFrequency] != null
     ? TRIP_BIAS[rules.roadTripFrequency] : 0.42;
   const maxHome = Math.max(1, rules.maxConsecutiveHome || 6);
@@ -385,32 +395,35 @@ export function buildSchedule(league, season, settingsOverride, structure) {
   // move off the nights that are stacked and onto nights with room. Only dates
   // change, so every matchup, host and game count survives untouched — which
   // the pass checks rather than assumes.
-  const b2bCap = Math.round((matchups.gamesPerTeam || 0)
-    * (B2B_RATE[rules.backToBackFrequency] != null
-        ? B2B_RATE[rules.backToBackFrequency] : 0.18));
+  // The band comes from one resolver shared with the settings screen and the
+  // validator, so what the user typed and what the generator works to cannot
+  // drift apart. Note it is resolved against the REAL per-team game count, not
+  // the setting, so season-length scaling follows the schedule that actually
+  // got built rather than the one that was asked for.
+  const b2bRules = backToBackRules(rules, matchups.gamesPerTeam);
   const balanced = rebalanceSchedule(
     { games },
     {
-      // A run limit of one game means no back-to-backs at all. That is what a
-      // minimum rest day asks for, and it is also what a back-to-back budget of
-      // zero asks for — "Relaxed" sets the frequency to None without setting a
-      // rest day, and leaving the run limit at two there would have the two
-      // rules contradict: pairs permitted by one, forbidden by the other. The
-      // stricter reading wins, so the repair drives on the run rule rather than
-      // grinding against a budget it is structurally allowed to break.
-      maxConsecutiveGames: (restDaysOf(rules) >= 1 || b2bCap === 0) ? 1 : 2,
-      maxBackToBacksPerTeam: b2bCap,
-      minRestDaysBetweenGames: restDaysOf(rules),
+      // Three in three is its own switch, and a guaranteed rest day tightens
+      // the run limit to a single game — which is what "no back-to-backs"
+      // means. backToBackRules has already reconciled the three.
+      maxConsecutiveGames: b2bRules.maxConsecutiveGames,
+      // A BAND, not a ceiling. A club under the floor is as far from the
+      // requested schedule as one over the roof, so the repair pulls both ways
+      // and the league lands on a spread around the target rather than being
+      // shaved flat against a cap.
+      targetBackToBacks: b2bRules.target,
+      minBackToBacksPerTeam: b2bRules.min,
+      maxBackToBacksPerTeam: b2bRules.max,
+      minRestDaysBetweenGames: b2bRules.minRestDays,
+      // How far the per-club targets are dealt either side of the league one.
+      b2bVariance: b2bRules.variance,
       // The legal calendar, not just the nights the placer happened to use.
       // seasonCalendar already drops the All-Star break, so spreading into the
       // empty days between fixtures cannot land a game inside it.
       nights: cal.dates,
     },
   );
-  // Opening night and the finale are facts about the season's first and last
-  // nights, so they are re-derived once games have moved: a fixture that shifted
-  // onto the closing night is part of the finale, and one that shifted off it is
-  // not. The flagged games themselves are pinned, so neither night can empty.
   const settled = balanced.integrity.ok ? balanced.games : games;
   // The first and last nights are re-read from the FINAL fixture list. The rest
   // pass can spread games onto legal calendar dates the placer never used, so a
@@ -439,6 +452,11 @@ export function buildSchedule(league, season, settingsOverride, structure) {
       // A repair that failed its own integrity check is discarded, and says so.
       applied: balanced.integrity.ok,
       issues: balanced.integrity.notes,
+      // What was asked for, so the summary can be checked against it rather
+      // than taken on trust.
+      rules: b2bRules,
+      backToBacks: backToBackReport(
+        balanced.integrity.ok ? balanced.games : games, b2bRules),
     },
     plan: {
       matchups,

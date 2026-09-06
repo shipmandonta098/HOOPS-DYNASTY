@@ -119,9 +119,23 @@ export const GROUPS = [
   {
     id: 'schedRest', label: 'Schedule — Rest & Back-to-Backs',
     settings: [
-      { key: 'backToBackFrequency', label: 'Back-to-Back Frequency', type: 'choice',
-        options: ['None', 'Rare', 'Normal', 'Frequent'], def: 'Normal', applied: true,
-        help: 'How often a team plays on consecutive days. None asks the generator to always leave a day between games, which needs enough calendar to be possible. Back-to-backs are what the fatigue system will read once games are simulated.' },
+      // A back-to-back is a SET, not a pair of games: Monday plus Tuesday is
+      // one back-to-back, and a team on 14 plays on consecutive days about
+      // fourteen times. The old Rare/Normal/Frequent dropdown could not say
+      // that, and could not be checked against a finished schedule; a number
+      // can be, and the summary under the preview does exactly that.
+      { key: 'b2bTarget', label: 'Average Back-to-Backs Per Team', type: 'number',
+        min: 0, max: 60, step: 1, def: 14, applied: true,
+        help: 'Target average number of back-to-back sets each team will play during the regular season. Individual teams may finish above or below this number.' },
+      { key: 'b2bVariance', label: 'Back-to-Back Variance', type: 'number',
+        min: 0, max: 20, step: 1, def: 2, applied: true,
+        help: 'Controls how far individual teams may vary from the league\u2019s target number of back-to-backs. A target of 14 with a variance of 2 asks for every team between 12 and 16.' },
+      { key: 'b2bScaleWithSeason', label: 'Scale With Season Length', type: 'toggle',
+        def: true, applied: true,
+        help: 'Scales the target with the number of regular-season games, taking 14 in an 82-game season as the reference. A 41-game season then targets about 7. Turn this off to hold the number you typed whatever the season length.' },
+      { key: 'allowThreeInThree', label: 'Allow 3 Games in 3 Days', type: 'toggle',
+        def: false, applied: true,
+        help: 'Three consecutive game days is a harder ask than a back-to-back, so it is governed separately. Off means a team is never scheduled on three days running, however many back-to-backs the target allows.' },
       { key: 'minRestDays', label: 'Minimum Rest Between Games', type: 'choice',
         options: ['No Minimum', '1 Day', '2 Days', 'Custom'], def: 'No Minimum', applied: true,
         help: 'Days off a team is guaranteed between games. Anything above No Minimum rules back-to-backs out entirely, and needs a long enough season to fit.' },
@@ -164,6 +178,15 @@ export const GROUPS = [
         options: ['Balanced', 'Realistic', 'Compressed', 'Relaxed', 'Custom'],
         def: 'Balanced', applied: true,
         help: 'A shortcut that sets the rest, back-to-back and road-trip rules together. Balanced spaces games evenly; Realistic allows back-to-backs, trips and homestands; Compressed packs a season into a short calendar; Relaxed adds rest. Custom leaves every rule exactly as you set it.' },
+      // Blank means Auto — derived from the target and variance. An explicit
+      // number overrides that, which is the whole point of putting them here
+      // rather than beside the target: they are the escape hatch, not the dial.
+      { key: 'b2bMin', label: 'Minimum Back-to-Backs Per Team', type: 'optnum',
+        min: 0, max: 60, step: 1, def: '', applied: true,
+        help: 'Leave blank for Auto, which is the target minus the variance. Set a number to pin the floor yourself.' },
+      { key: 'b2bMax', label: 'Maximum Back-to-Backs Per Team', type: 'optnum',
+        min: 0, max: 60, step: 1, def: '', applied: true,
+        help: 'Leave blank for Auto, which is the target plus the variance. Set a number to pin the ceiling yourself.' },
       { key: 'scheduleVariation', label: 'Schedule Variation', type: 'choice',
         options: ['Low', 'Normal', 'High'], def: 'Normal', applied: true,
         help: 'How much the generator shuffles dates, opponent order and trips. Every season regenerates regardless, so no two are identical; this controls how far apart they are.' },
@@ -307,6 +330,66 @@ export function restDaysOf(settings) {
   return map[v] != null ? map[v] : 0;
 }
 
+/**
+ * The back-to-back rules, resolved from the five settings that govern them.
+ *
+ * ONE RESOLVER, so the settings screen, the validator, the generator and the
+ * summary under the preview cannot drift apart — every one of them reads this
+ * rather than re-deriving the arithmetic and getting it slightly different.
+ *
+ * A back-to-back is a SET: Monday plus Tuesday is one. The target is a league
+ * AVERAGE, never a quota — a league on 14 is expected to contain teams on 12
+ * and teams on 16, and forcing every club onto the same number would be a
+ * flatter, less believable season than the one asked for.
+ *
+ * @param {object} settings
+ * @param {number} [gamesPerTeam]  the real per-team game count, when known;
+ *   falls back to the regular-season setting.
+ */
+export const B2B_REFERENCE = { games: 82, target: 14 };
+
+export function backToBackRules(settings, gamesPerTeam) {
+  const s = settings || {};
+  const rest = restDaysOf(s);
+  const games = Number(gamesPerTeam) > 0
+    ? Number(gamesPerTeam)
+    : (Number(s.regularSeasonGames) || B2B_REFERENCE.games);
+
+  // Scaling takes 14 in 82 games as the reference, so a half-length season
+  // targets about half as many. Rounding is to the nearest whole set, because
+  // half a back-to-back is not a thing a schedule can contain.
+  const typed = Math.max(0, Number(s.b2bTarget) || 0);
+  const scaled = s.b2bScaleWithSeason === false
+    ? typed
+    : Math.round(typed * (games / B2B_REFERENCE.games));
+  // A guaranteed rest day means no consecutive games at all, whatever was typed.
+  const target = rest >= 1 ? 0 : scaled;
+  const variance = rest >= 1 ? 0 : Math.max(0, Number(s.b2bVariance) || 0);
+
+  // Blank means Auto: the band is the target either side of the variance.
+  const autoMin = Math.max(0, target - variance);
+  const autoMax = target + variance;
+  const minSet = s.b2bMin !== '' && s.b2bMin != null && Number.isFinite(Number(s.b2bMin));
+  const maxSet = s.b2bMax !== '' && s.b2bMax != null && Number.isFinite(Number(s.b2bMax));
+  let min = minSet ? Math.max(0, Number(s.b2bMin)) : autoMin;
+  let max = maxSet ? Math.max(0, Number(s.b2bMax)) : autoMax;
+  if (min > max) min = max;
+
+  return {
+    target, variance, min, max, games,
+    // Three in three is its own rule. Off caps a run at two games — one
+    // back-to-back — and on allows a third night. A guaranteed rest day caps
+    // it at one game, which is what "no back-to-backs" means.
+    maxConsecutiveGames: rest >= 1 ? 1 : (s.allowThreeInThree ? 3 : 2),
+    allowThreeInThree: rest >= 1 ? false : !!s.allowThreeInThree,
+    minRestDays: rest,
+    scaled: s.b2bScaleWithSeason !== false && games !== B2B_REFERENCE.games,
+    typed,
+    autoMin: minSet ? null : autoMin,
+    autoMax: maxSet ? null : autoMax,
+  };
+}
+
 /** Weekly game target, resolved from the choice plus its custom. */
 export function gamesPerWeekOf(settings) {
   const map = { Light: 2.5, Normal: 3.5, Heavy: 4.5 };
@@ -366,8 +449,16 @@ export function normalize(raw) {
   // Priorities are derived from traits, so they cannot outlive them.
   if (!out.personalityTraits) out.dynamicPriorities = false;
   // A minimum rest of a day or more rules out back-to-backs by definition, so
-  // the two cannot disagree on screen.
-  if (restDaysOf(out) >= 1) out.backToBackFrequency = 'None';
+  // the target cannot disagree with it on screen.
+  if (restDaysOf(out) >= 1) {
+    out.b2bTarget = 0;
+    out.b2bVariance = 0;
+    out.allowThreeInThree = false;
+  }
+  // An explicit floor above an explicit ceiling is incoherent; the floor gives.
+  if (out.b2bMin !== '' && out.b2bMax !== '' && out.b2bMin > out.b2bMax) {
+    out.b2bMin = out.b2bMax;
+  }
   // A ceiling below the floor is incoherent.
   if (out.maxDaysWithoutGame <= restDaysOf(out)) {
     out.maxDaysWithoutGame = restDaysOf(out) + 2;

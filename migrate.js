@@ -327,6 +327,26 @@ export function migrateLeague(league) {
   if (!league || !Array.isArray(league.players)) return { league, changed: 0 };
   // Settings first: the backfills below have to know which layers this league
   // is supposed to have before they decide whether to add them.
+  // The Back-to-Back Frequency dropdown became a numeric target. A save made
+  // before that carries the old key and none of the new ones, so the old choice
+  // is translated into the target it meant rather than silently dropped and
+  // replaced by the default — a league set to "None" must not come back as 14.
+  // Rates are the ones the old generator used, against an 82-game reference.
+  if (league.settings && league.settings.backToBackFrequency != null
+      && league.settings.b2bTarget == null) {
+    const rate = { None: 0, Rare: 0.06, Normal: 0.18, Frequent: 0.34 }[
+      league.settings.backToBackFrequency];
+    if (rate != null) {
+      const games = Number(league.settings.regularSeasonGames) || 82;
+      league.settings.b2bTarget = Math.round(games * rate);
+      // Held at the translated number: scaling it again would apply the season
+      // length twice, since the rate already accounted for it.
+      league.settings.b2bScaleWithSeason = false;
+      league.settings.b2bVariance = 2;
+      league.settings.allowThreeInThree = false;
+    }
+    delete league.settings.backToBackFrequency;
+  }
   league.settings = { ...normalizeSettings(league.settings), ...(league.settings || {}) };
   league.settings = { ...league.settings, ...normalizeSettings(league.settings) };
   const rules = league.settings;

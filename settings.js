@@ -204,6 +204,43 @@ function renderScheduleBar() {
  * actually produced — measured, not predicted, because the settings are
  * targets and a tight calendar makes the generator relax them.
  */
+/**
+ * What the generated schedule actually did about back-to-backs.
+ *
+ * The point of a numeric target is that it can be CHECKED, so this reads the
+ * finished fixture list rather than restating the setting: the league average,
+ * the lowest and highest club, and whether anyone fell outside the band. A
+ * spread of exactly zero would mean every club got the same number, which is
+ * the thing the settings explicitly do not ask for, so the spread is shown too.
+ */
+function b2bSummary(sch) {
+  const r = sch.rest && sch.rest.backToBacks;
+  const band = sch.rest && sch.rest.rules;
+  if (!r || !r.teams) return '';
+  const row = (k, v, cls) => `<div class="pv-row"><span>${esc(k)}</span>
+    <b class="${cls || ''}">${esc(String(v))}</b></div>`;
+  const asked = band
+    ? `${band.target} \u00b1 ${band.variance} (${band.min}\u2013${band.max})`
+    : '\u2014';
+  const miss = r.outside.length
+    ? `${r.outside.length} team${r.outside.length === 1 ? '' : 's'} outside`
+    : 'All teams inside';
+  const t = r.types || {};
+  return `<div class="pv-h">Back-to-backs</div>
+    <div class="pv-grid">
+      ${row('Target band', asked)}
+      ${row('League average', r.average.toFixed(1))}
+      ${row('Lowest / highest', `${r.lowest} / ${r.highest}`)}
+      ${row('Spread', `${r.spread} set${r.spread === 1 ? '' : 's'}`)}
+      ${row('Within band', miss, r.withinBand ? 'is-ok' : 'is-warn')}
+      ${row('Home\u2192Home / Home\u2192Away', `${t.homeHome || 0} / ${t.homeAway || 0}`)}
+      ${row('Away\u2192Home / Away\u2192Away', `${t.awayHome || 0} / ${t.awayAway || 0}`)}
+    </div>
+    ${r.outside.length ? `<p class="pv-note">Outside the band:
+      ${esc(r.outside.map((o) => `${o.team} (${o.backToBacks})`).join(', '))}. The
+      generator could not fit every club inside it on this calendar.</p>` : ''}`;
+}
+
 function renderPreview() {
   const { teams, structure } = draftLeague();
   const box = el('schedPreview');
@@ -237,6 +274,7 @@ function renderPreview() {
       ${row('Home/away difference', `${st.homeAwayGap} game${st.homeAwayGap === 1 ? '' : 's'}`)}
       ${st.unplaced ? row('Could not place', `${st.unplaced} games`) : ''}
     </div>
+    ${b2bSummary(sch)}
     <div class="pv-h">First games</div>
     ${sample}
     <p class="pv-note">A sample only — nothing is saved, and the real schedule is

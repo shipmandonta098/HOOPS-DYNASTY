@@ -54,7 +54,21 @@
 export const DEFAULT_RULES = {
   /** Longest run of consecutive game-nights a team may have. */
   maxConsecutiveGames: 2,
-  /** Cap on second-nights across a season. Null derives it from the schedule. */
+  /**
+   * The band each club's back-to-back count should land in.
+   *
+   * A BAND, NOT A CEILING, and that distinction is the whole feature. Asking
+   * for "14 back-to-backs" is asking for a league AVERAGE around 14, not a
+   * quota of exactly 14 each — a real season has clubs on 12 and clubs on 16.
+   * So a club under the floor is scored as far from the requested schedule as
+   * one over the roof, and the repair pulls in both directions. Score only the
+   * ceiling and the repair shaves every club down to it, which produces a
+   * flatter, more artificial season than the one that was asked for.
+   *
+   * Null on the maximum derives a band from the schedule itself.
+   */
+  targetBackToBacks: null,
+  minBackToBacksPerTeam: 0,
   maxBackToBacksPerTeam: null,
   /** Nights off required between games that are not a back-to-back. */
   minRestDaysBetweenGames: 1,
@@ -94,10 +108,83 @@ export const DEFAULT_RULES = {
 };
 
 /** How badly each kind of breach counts. Runs are the hard rule, so they cost more. */
-const COST = { run: 100, budget: 12 };
+// Breaching the run limit is a hard rule and costs most. Missing the band is a
+// target, so it costs less — and overshooting costs a shade more than
+// undershooting, because a tired club is a worse outcome than a rested one.
+const COST = { run: 100, over: 12, under: 8, drift: 1 };
 
 /** How many blocked-but-useful nights a fixture will look for a swap partner on. */
 const SWAP_NIGHTS = 6;
+
+/**
+ * The band a repair works to, from whatever the caller supplied.
+ *
+ * A caller that says nothing gets a band derived from the schedule, which keeps
+ * the module usable on a bare fixture list. A caller that names a target and a
+ * band gets exactly that.
+ */
+/**
+ * A per-club target for each team, spread around the league's.
+ *
+ * WHY THIS EXISTS. A single league-wide target plus a pull towards it produces
+ * a league where every club has exactly that number — measured, not feared: a
+ * target of 14 gave thirty clubs on 14, spread zero. That is the one outcome
+ * the setting explicitly rules out, because a league average of 14 is supposed
+ * to mean clubs on 12 and clubs on 16, not thirty identical schedules.
+ *
+ * So the clubs are dealt their own numbers around the league target, in
+ * symmetric pairs so the pairs cancel and the LEAGUE average still lands on
+ * what was typed. Offsets reach out to the variance and no further, and stop
+ * early at whichever edge of the band arrives first, so an off-centre band
+ * (an explicit minimum or maximum) never drags the average off the target.
+ *
+ * The deal is by a hash of the club's id, so it is stable for a given league
+ * and arbitrary-looking rather than alphabetical — the same league always
+ * produces the same schedule, which is the rule everywhere else here too.
+ */
+function perTeamTargets(teams, band, variance) {
+  const reach = variance != null
+    ? Math.max(0, variance)
+    : Math.max(0, Math.min(band.target - band.min, band.max - band.target));
+  const base = Math.min(band.max, Math.max(band.min, band.target));
+  // Pairs kept adjacent so a team count that does not divide evenly breaks at
+  // most one pair, rather than skewing the whole deal one way.
+  const offsets = [0];
+  for (let k = 1; k <= reach; k++) {
+    if (base - k < band.min || base + k > band.max) break;
+    offsets.push(-k, k);
+  }
+  const order = [...teams].sort((a, b) => {
+    const ha = hash(String(a)), hb = hash(String(b));
+    return ha - hb || (a < b ? -1 : 1);
+  });
+  const out = new Map();
+  order.forEach((t, i) => {
+    out.set(t, { min: band.min, max: band.max, target: base + offsets[i % offsets.length] });
+  });
+  return out;
+}
+
+/** FNV-1a, so the deal is stable without importing the league's RNG. */
+function hash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function resolveBand(r, gamesPerTeam) {
+  const max = r.maxBackToBacksPerTeam != null
+    ? Math.max(0, r.maxBackToBacksPerTeam)
+    : Math.max(0, Math.round(gamesPerTeam * 0.18));
+  const min = Math.min(max, Math.max(0, r.minBackToBacksPerTeam || 0));
+  const target = r.targetBackToBacks != null
+    ? Math.max(0, r.targetBackToBacks)
+    : Math.round((min + max) / 2);
+  return { min, max, target };
+}
 
 const dayNumber = (iso) => {
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
@@ -223,9 +310,7 @@ export function feasibility(schedule, rules = {}) {
   const span = dayNumber(dates[dates.length - 1]) - dayNumber(dates[0]) + 1;
   const profiles = teamProfiles(schedule, r);
   const perTeam = Math.max(...[...profiles.values()].map((p) => p.games));
-  const cap = r.maxBackToBacksPerTeam != null
-    ? r.maxBackToBacksPerTeam
-    : Math.max(0, Math.round(perTeam * 0.18));
+  const cap = resolveBand(r, perTeam).max;
   // A run limit of one game means every game needs a night off before it,
   // whatever the stated minimum rest says — otherwise the two disagree and the
   // arithmetic below quietly reports a cap as reachable when it is not.
@@ -249,17 +334,16 @@ export function feasibility(schedule, rules = {}) {
 /* --------------------------------------------------------------- rebalance */
 
 /** What a team's date list costs, in breaches. Used for reporting. */
-function teamCost(dates, r, cap) {
+function teamCost(dates, r, band) {
   const runs = runsOf(dates);
-  let cost = 0, b2b = 0;
+  let pen = 0, b2b = 0;
   for (const run of runs) {
     b2b += run.length - 1;
     if (run.length > r.maxConsecutiveGames) {
-      cost += (run.length - r.maxConsecutiveGames) * COST.run;
+      pen += (run.length - r.maxConsecutiveGames) * COST.run;
     }
   }
-  if (b2b > cap) cost += (b2b - cap) * COST.budget;
-  return cost;
+  return totalOf(pen, b2b, band);
 }
 
 /**
@@ -308,7 +392,7 @@ function addDelta(days, day, maxRun) {
 }
 
 /** A club's whole cost, read once off its day-number Set. */
-function costFromDays(days, maxRun, cap) {
+function costFromDays(days, maxRun, band) {
   let pen = 0, b2b = 0;
   for (const d of days) {
     // Score each run once, at its first night.
@@ -317,11 +401,33 @@ function costFromDays(days, maxRun, cap) {
     while (days.has(d + len)) len++;
     pen += runPenalty(len, maxRun);
   }
-  return { pen, b2b, total: pen + (b2b > cap ? (b2b - cap) * COST.budget : 0) };
+  return { pen, b2b, total: totalOf(pen, b2b, band) };
 }
 
-/** The cost of a club whose penalty and back-to-back totals are already known. */
-const totalOf = (pen, b2b, cap) => pen + (b2b > cap ? (b2b - cap) * COST.budget : 0);
+/**
+ * The cost of a club whose penalty and back-to-back totals are already known.
+ *
+ * `band` is `{ min, max }`. Being under the floor costs, being over the roof
+ * costs more, and anywhere between the two costs nothing at all — which is what
+ * lets the league spread naturally across the band instead of piling onto one
+ * number.
+ */
+const totalOf = (pen, b2b, band) => pen
+  + (b2b > band.max ? (b2b - band.max) * COST.over : 0)
+  + (b2b < band.min ? (band.min - b2b) * COST.under : 0)
+  // A WEAK PULL TOWARDS THE TARGET, inside the band as well as outside it.
+  //
+  // Without it the repair stops the moment every club clears the floor, and
+  // since it can only ever reduce back-to-backs it stops there: a league asked
+  // for 14 measured 12.4, sitting on the bottom of its own band. The target is
+  // an average the user typed, so the league should centre on it.
+  //
+  // The weight is deliberately an order below the band penalties. Strong enough
+  // to pull the average up off the floor, far too weak to be worth breaking a
+  // run limit or a band for — and weak enough that clubs still settle a set or
+  // two either side rather than collapsing onto one number, which is the whole
+  // reason the setting is an average and not a quota.
+  + Math.abs(b2b - band.target) * COST.drift;
 
 /**
  * Move fixtures between nights until the rest rules hold.
@@ -374,18 +480,18 @@ export function rebalanceSchedule(schedule, rules = {}) {
 
   const profiles = teamProfiles(schedule, r);
   const perTeam = Math.max(...[...profiles.values()].map((p) => p.games));
-  const cap = r.maxBackToBacksPerTeam != null
-    ? r.maxBackToBacksPerTeam
-    : Math.max(0, Math.round(perTeam * 0.18));
+  const leagueBand = resolveBand(r, perTeam);
+  const bands = perTeamTargets(teams, leagueBand, r.b2bVariance != null ? r.b2bVariance : null);
+  const bandOf = (t) => bands.get(t) || leagueBand;
 
   // Each club's running penalty and back-to-back total, carried forward by the
   // same deltas that score the moves, so nothing is recomputed wholesale.
   const pen = new Map(), b2b = new Map();
   for (const t of teams) {
-    const c = costFromDays(days.get(t), maxRun, cap);
+    const c = costFromDays(days.get(t), maxRun, bandOf(t));
     pen.set(t, c.pen); b2b.set(t, c.b2b);
   }
-  const cost = (t) => totalOf(pen.get(t), b2b.get(t), cap);
+  const cost = (t) => totalOf(pen.get(t), b2b.get(t), bandOf(t));
 
   const moves = [];
 
@@ -393,7 +499,7 @@ export function rebalanceSchedule(schedule, rules = {}) {
   const recost = (clubs) => {
     let total = 0;
     for (const t of clubs) {
-      const c = costFromDays(days.get(t), maxRun, cap);
+      const c = costFromDays(days.get(t), maxRun, bandOf(t));
       pen.set(t, c.pen); b2b.set(t, c.b2b);
       total += c.total;
     }
@@ -440,7 +546,7 @@ export function rebalanceSchedule(schedule, rules = {}) {
 
     const clubs = [a.home, a.away, b.home, b.away];
     const snapshot = clubs.map((t) => [pen.get(t), b2b.get(t)]);
-    const before = clubs.reduce((sum, t) => sum + totalOf(pen.get(t), b2b.get(t), cap), 0);
+    const before = clubs.reduce((sum, t) => sum + totalOf(pen.get(t), b2b.get(t), bandOf(t)), 0);
     moveGame(i, bi); moveGame(j, ai);
     const after = recost(clubs);
     moveGame(j, bi); moveGame(i, ai);
@@ -488,7 +594,7 @@ export function rebalanceSchedule(schedule, rules = {}) {
 
       const basePenH = pen.get(home), baseB2BH = b2b.get(home);
       const basePenA = pen.get(away), baseB2BA = b2b.get(away);
-      const baseline = totalOf(basePenH, baseB2BH, cap) + totalOf(basePenA, baseB2BA, cap);
+      const baseline = totalOf(basePenH, baseB2BH, bandOf(home)) + totalOf(basePenA, baseB2BA, bandOf(away));
       const midPenH = basePenH + hOut.pen, midB2BH = baseB2BH + hOut.b2b;
       const midPenA = basePenA + aOut.pen, midB2BA = baseB2BA + aOut.b2b;
 
@@ -503,8 +609,8 @@ export function rebalanceSchedule(schedule, rules = {}) {
         const toDay = nightDay[j];
         const hIn = addDelta(hDays, toDay, maxRun);
         const aIn = addDelta(aDays, toDay, maxRun);
-        const after = totalOf(midPenH + hIn.pen, midB2BH + hIn.b2b, cap)
-                    + totalOf(midPenA + aIn.pen, midB2BA + aIn.b2b, cap);
+        const after = totalOf(midPenH + hIn.pen, midB2BH + hIn.b2b, bandOf(home))
+                    + totalOf(midPenA + aIn.pen, midB2BA + aIn.b2b, bandOf(away));
         const gain = baseline - after;
         if (gain <= 0) continue;
 
@@ -572,11 +678,11 @@ export function rebalanceSchedule(schedule, rules = {}) {
     moves,
     sweeps,
     stats,
-    rules: { ...r, maxBackToBacksPerTeam: cap },
-    before: profileSummary(schedule, r, cap),
-    after: profileSummary(adjusted, r, cap),
+    rules: { ...r, ...leagueBand },
+    before: profileSummary(schedule, r, leagueBand),
+    after: profileSummary(adjusted, r, leagueBand),
     integrity: checkIntegrity(games, adjusted),
-    feasibility: feasibility(schedule, { ...r, maxBackToBacksPerTeam: cap }),
+    feasibility: feasibility(schedule, { ...r, ...leagueBand }),
   };
 }
 
@@ -585,7 +691,7 @@ function emptyResult(games, r) {
     integrity: { ok: true, notes: ['empty schedule'] }, feasibility: { feasible: true } };
 }
 
-function profileSummary(schedule, r, cap) {
+function profileSummary(schedule, r, band) {
   const p = teamProfiles(schedule, r);
   const rows = [...p.values()];
   return {
@@ -593,7 +699,14 @@ function profileSummary(schedule, r, cap) {
     totalBackToBacks: rows.reduce((s, x) => s + x.backToBacks, 0),
     worstRun: rows.reduce((m, x) => Math.max(m, x.longestRun), 0),
     teamsOverRunLimit: rows.filter((x) => x.longestRun > r.maxConsecutiveGames).length,
-    teamsOverB2BCap: rows.filter((x) => x.backToBacks > cap).length,
+    teamsOverB2BCap: rows.filter((x) => x.backToBacks > band.max).length,
+    teamsUnderB2BFloor: rows.filter((x) => x.backToBacks < band.min).length,
+    teamsInBand: rows.filter((x) => x.backToBacks >= band.min && x.backToBacks <= band.max).length,
+    averageBackToBacks: rows.length
+      ? Math.round((rows.reduce((s2, x) => s2 + x.backToBacks, 0) / rows.length) * 10) / 10 : 0,
+    lowestBackToBacks: rows.length ? Math.min(...rows.map((x) => x.backToBacks)) : 0,
+    highestBackToBacks: rows.length ? Math.max(...rows.map((x) => x.backToBacks)) : 0,
+    band: { min: band.min, max: band.max, target: band.target },
     maxBackToBacks: rows.reduce((m, x) => Math.max(m, x.backToBacks), 0),
     overloadSegments: rows.reduce((s, x) => s + x.overloads, 0),
   };
@@ -699,5 +812,120 @@ export function rebalanceReport(schedule, team, rules = {}) {
       restDaysAdded: freed.length,
       compliance,
     },
+  };
+}
+
+
+/* ------------------------------------------------------- back-to-back types */
+
+/**
+ * The four shapes a back-to-back can take, and what each one asks of a club.
+ *
+ * These are tracked because they are not equivalent. Two road games on
+ * consecutive nights means a flight between them; two home games means a night
+ * in your own bed. The weights say so, and they feed the difficulty figure
+ * below rather than any user setting — nobody is asked to tune them, and
+ * nothing about them changes a club's Overall.
+ */
+export const B2B_TYPES = {
+  homeHome: { label: 'Home \u2192 Home', weight: 1.0 },
+  homeAway: { label: 'Home \u2192 Away', weight: 1.3 },
+  awayHome: { label: 'Away \u2192 Home', weight: 1.15 },
+  awayAway: { label: 'Away \u2192 Away', weight: 1.5 },
+};
+
+const typeKey = (firstHome, secondHome) => (firstHome
+  ? (secondHome ? 'homeHome' : 'homeAway')
+  : (secondHome ? 'awayHome' : 'awayAway'));
+
+/**
+ * Every club's back-to-backs, broken down by shape, with a difficulty figure.
+ *
+ * Difficulty is the weighted count: a club with four away-to-away sets is
+ * carrying more than a club with four at home, even though both read "4" in the
+ * summary. It exists so fairness can be judged on what the back-to-backs
+ * actually are rather than on how many there are.
+ */
+export function backToBackTypes(schedule) {
+  const games = normalise(schedule);
+  const byTeam = new Map();
+  for (const g of games) {
+    for (const [team, home] of [[g.home, true], [g.away, false]]) {
+      if (!byTeam.has(team)) byTeam.set(team, []);
+      byTeam.get(team).push({ day: dayNumber(g.date), date: g.date, home });
+    }
+  }
+  const out = new Map();
+  for (const [team, list] of byTeam) {
+    list.sort((a, b) => a.day - b.day);
+    const counts = { homeHome: 0, homeAway: 0, awayHome: 0, awayAway: 0 };
+    const sets = [];
+    let difficulty = 0;
+    for (let i = 1; i < list.length; i++) {
+      if (list[i].day - list[i - 1].day !== 1) continue;
+      const key = typeKey(list[i - 1].home, list[i].home);
+      counts[key]++;
+      difficulty += B2B_TYPES[key].weight;
+      sets.push({ type: key, first: list[i - 1].date, second: list[i].date });
+    }
+    out.set(team, {
+      team,
+      backToBacks: sets.length,
+      counts,
+      sets,
+      difficulty: Math.round(difficulty * 100) / 100,
+    });
+  }
+  return out;
+}
+
+/**
+ * The summary a user checks a generated schedule against.
+ *
+ * Every figure here is counted off the finished fixture list, so it is a
+ * measurement of what was built rather than a restatement of what was asked
+ * for. `withinBand` is therefore a real answer: it can say no.
+ */
+export function backToBackReport(schedule, rules = {}) {
+  const types = backToBackTypes(schedule);
+  const rows = [...types.values()].sort((a, b) => a.backToBacks - b.backToBacks
+    || (a.team < b.team ? -1 : 1));
+  if (!rows.length) {
+    return { teams: 0, average: 0, lowest: 0, highest: 0, spread: 0,
+      band: null, withinBand: true, outside: [], byTeam: {}, types: null };
+  }
+  const counts = rows.map((r) => r.backToBacks);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const band = rules.min != null && rules.max != null
+    ? { min: rules.min, max: rules.max, target: rules.target }
+    : null;
+  const outside = band
+    ? rows.filter((r) => r.backToBacks < band.min || r.backToBacks > band.max)
+      .map((r) => ({ team: r.team, backToBacks: r.backToBacks }))
+    : [];
+  const totals = { homeHome: 0, homeAway: 0, awayHome: 0, awayAway: 0 };
+  for (const r of rows) for (const k in totals) totals[k] += r.counts[k];
+  const diffs = rows.map((r) => r.difficulty);
+
+  return {
+    teams: rows.length,
+    average: Math.round((total / rows.length) * 10) / 10,
+    lowest: Math.min(...counts),
+    highest: Math.max(...counts),
+    spread: Math.max(...counts) - Math.min(...counts),
+    band,
+    withinBand: !outside.length,
+    outside,
+    types: totals,
+    // The hardest and easiest schedules by weighted difficulty, which is what
+    // "is this fair" actually turns on.
+    difficulty: {
+      lowest: Math.round(Math.min(...diffs) * 10) / 10,
+      highest: Math.round(Math.max(...diffs) * 10) / 10,
+      average: Math.round((diffs.reduce((a, b) => a + b, 0) / diffs.length) * 10) / 10,
+    },
+    byTeam: Object.fromEntries(rows.map((r) => [r.team, {
+      backToBacks: r.backToBacks, counts: r.counts, difficulty: r.difficulty,
+    }])),
   };
 }

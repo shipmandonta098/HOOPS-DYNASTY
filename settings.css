@@ -178,6 +178,10 @@
 .pv-row b { color: var(--white); font-variant-numeric: tabular-nums; }
 .pv-game { color: var(--muted); font-size: 0.79rem; padding: 0.14rem 0; }
 .pv-note { color: var(--muted-2); font-size: 0.74rem; margin-top: 0.7rem; }
+/* A target that was met reads differently from one that was missed, because the
+   whole point of a numeric target is that the answer can be no. */
+.pv-row b.is-ok { color: #6cc070; }
+.pv-row b.is-warn { color: #e0a84a; }
 
 /* --------------------------------------------- live matchup calculation
    The arithmetic, not just the answer: what each opponent rule does to the
