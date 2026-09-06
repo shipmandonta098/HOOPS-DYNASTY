@@ -18,7 +18,7 @@ export const NAV = [
   { id: 'teamMgmt',   label: 'Team Management', icon: '🗂️' },
   { id: 'teamStats',  label: 'Team Stats',      icon: '📊' },
   { id: 'schedule',   label: 'Schedule',        icon: '📅', href: './schedule.html' },
-  { id: 'standings',  label: 'Standings',       icon: '🏆' },
+  { id: 'standings',  label: 'Standings',       icon: '🏆', href: './standings.html' },
   { id: 'playoffs',   label: 'Playoffs',        icon: '🏅' },
   { id: 'finances',   label: 'Finances',        icon: '💰' },
   { id: 'draft',      label: 'Draft',           icon: '🎯' },

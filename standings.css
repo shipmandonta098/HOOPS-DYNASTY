@@ -1,0 +1,142 @@
+/* standings.css — the standings table.
+
+   Laid out from the reference: a coloured rail down the left of every row for
+   playoff status, a seed number, the team with its crest, then the numeric
+   columns, with a dashed cut line under the last qualifying seed. */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.na { color: var(--muted-2); }
+
+/* ------------------------------------------------------------------ header */
+.st-title { display: flex; align-items: center; gap: 0.75rem; }
+.st-title h1 { margin: 0; }
+/* The league's own badge, where the reference puts a real-world mark. */
+.st-badge {
+  display: grid; place-items: center; min-width: 34px; height: 34px; padding: 0 0.4rem;
+  border-radius: 7px; border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  color: var(--silver); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em;
+}
+
+.st-controls { display: flex; align-items: center; gap: 0.7rem; }
+.st-season {
+  display: flex; align-items: center; gap: 0.55rem;
+  border: 1px solid var(--stroke); border-radius: 8px;
+  background: var(--panel-2); padding: 0.3rem 0.5rem 0.3rem 0.7rem;
+}
+.st-sk {
+  color: var(--muted); font-size: 0.56rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+.st-season select {
+  background: none; border: 0; color: var(--white); font: inherit;
+  font-size: 0.84rem; padding: 0.25rem 0.2rem;
+}
+.st-phase { min-width: 230px; }
+.st-phase button { padding: 0 0.55rem; }
+.st-phase span { flex: 1; text-align: center; font-size: 0.8rem; }
+
+/* ------------------------------------------------------------------ legend */
+.st-legend {
+  display: flex; flex-wrap: wrap; gap: 1.1rem; justify-content: flex-end;
+  padding: 0 0.2rem 0.7rem;
+}
+.st-key {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  color: var(--muted); font-size: 0.68rem;
+}
+.st-key i { width: 14px; height: 3px; border-radius: 2px; }
+
+/* Playoff status, one palette shared by the legend and the row rail. */
+.is-berth  { background: #4cae4f; }
+.is-playin { background: #e0a84a; }
+.is-out    { background: #5a5c60; }
+
+/* ------------------------------------------------------------------- note */
+.st-empty {
+  border: 1px solid var(--stroke); border-left: 3px solid var(--brand);
+  border-radius: 10px; background: var(--panel);
+  padding: 0.9rem 1.1rem; margin-bottom: 1rem;
+  color: var(--muted); font-size: 0.82rem; line-height: 1.6; max-width: 90ch;
+}
+.st-empty b { color: var(--white); }
+
+/* ------------------------------------------------------------------ groups */
+.st-group { padding: 0; overflow: hidden; margin-bottom: 1rem; }
+.st-head {
+  display: flex; align-items: baseline; gap: 0.8rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--stroke);
+  /* The reference tints each conference banner. This uses the app's own
+     surface plus a brand hairline, so a league with eight conferences does not
+     need eight invented colours. */
+  background: linear-gradient(90deg, var(--panel-2), transparent 70%);
+}
+.st-head h2 {
+  margin: 0; font-size: 0.82rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--white);
+}
+.st-sub {
+  color: var(--muted-2); font-size: 0.62rem; letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: 700;
+}
+.st-count { margin-left: auto; color: var(--muted-2); font-size: 0.7rem; }
+
+/* ------------------------------------------------------------------- table */
+.st-wrap { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.st-table th {
+  text-align: right; white-space: nowrap; padding: 0.6rem 0.7rem;
+  color: var(--muted); font-size: 0.55rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  border-bottom: 1px solid var(--stroke);
+}
+.st-table td {
+  padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--stroke-2);
+  color: var(--white); white-space: nowrap; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.st-table tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+.st-table tbody tr:last-child td { border-bottom: 0; }
+
+/* The status rail: a 3px bar hugging the left edge of every row. */
+th.st-rail, td.st-rail { width: 10px; padding: 0 0 0 0.5rem; }
+td.st-rail i { display: block; width: 3px; height: 22px; border-radius: 2px; }
+
+th.st-seed, td.st-seed { width: 34px; text-align: left; color: var(--muted); }
+th.st-team, td.st-team { text-align: left; width: 100%; }
+td.st-team { display: flex; align-items: center; gap: 0.6rem; }
+.st-crest { display: inline-flex; }
+.st-name { color: var(--white); }
+.st-own {
+  padding: 0.06rem 0.34rem; border-radius: 3px;
+  background: var(--brand); color: #fff;
+  font-size: 0.52rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.st-n.is-w { color: #6cc070; font-weight: 700; }
+.st-n.is-l { color: #c9564a; font-weight: 700; }
+
+/* The user's own club, marked the way it is on every other screen. */
+.st-table tr.is-mine td { background: rgba(207, 97, 39, 0.07); }
+.st-table tr.is-mine td.st-rail { box-shadow: inset 3px 0 0 var(--brand); }
+
+/* The playoff cut. A dashed rule under the last qualifying seed, which is
+   where the reference draws it too. */
+.st-table tr.is-cut td { border-bottom: 1px dashed rgba(224, 168, 74, 0.55); }
+
+/* ------------------------------------------------------------------ narrow */
+@media (max-width: 1000px) {
+  .st-controls { width: 100%; justify-content: space-between; }
+  .st-legend { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .st-title h1 { font-size: 1.6rem; }
+  /* The table scrolls rather than the page: the numeric columns are the point,
+     and squeezing them into a phone width would make every one unreadable. */
+  .st-table { font-size: 0.8rem; }
+  .st-table th, .st-table td { padding: 0.55rem 0.5rem; }
+  .st-name { max-width: 148px; overflow: hidden; text-overflow: ellipsis; }
+}

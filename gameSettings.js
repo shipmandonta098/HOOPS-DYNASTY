@@ -155,6 +155,20 @@ export const GROUPS = [
     ],
   },
   {
+    id: 'postseason', label: 'Playoffs',
+    settings: [
+      // The standings screen draws two lines with these, and both are clamped
+      // to the size of the group they are drawn in — a six-team conference
+      // cannot send eight clubs to the playoffs.
+      { key: 'playoffBerths', label: 'Guaranteed Playoff Seeds', type: 'number',
+        min: 0, max: 16, step: 1, def: 6, applied: true,
+        help: 'How many seeds in each group qualify outright. On the Standings screen these are the teams above the green line.' },
+      { key: 'playInSlots', label: 'Play-In Seeds', type: 'number',
+        min: 0, max: 8, step: 1, def: 4, applied: true,
+        help: 'How many seeds below the guaranteed ones compete for the remaining places. Set it to zero for a league with no play-in.' },
+    ],
+  },
+  {
     id: 'schedPreseason', label: 'Schedule — Preseason',
     settings: [
       { key: 'preseason', label: 'Preseason', type: 'toggle', def: true, applied: true,
