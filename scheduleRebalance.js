@@ -104,6 +104,16 @@ export const DEFAULT_RULES = {
    * generator does.
    */
   nights: null,
+  /**
+   * How many games each night should carry, as a Map of date to count.
+   *
+   * Scored, not enforced. Without it the repair flattens the week: it moves
+   * games wherever a rest rule is cheapest and has no opinion about Friday
+   * versus Monday, so a shaped placement comes out level again. With it the
+   * shape is one more thing a move is judged on — heavily enough to hold the
+   * week together, far too lightly to be worth breaking a rest rule for.
+   */
+  nightTargets: null,
   maxPasses: 40,
 };
 
@@ -111,7 +121,7 @@ export const DEFAULT_RULES = {
 // Breaching the run limit is a hard rule and costs most. Missing the band is a
 // target, so it costs less — and overshooting costs a shade more than
 // undershooting, because a tired club is a worse outcome than a rested one.
-const COST = { run: 100, over: 12, under: 8, drift: 1 };
+const COST = { run: 100, over: 12, under: 8, drift: 1, shape: 3 };
 
 /** How many blocked-but-useful nights a fixture will look for a swap partner on. */
 const SWAP_NIGHTS = 6;
@@ -493,6 +503,20 @@ export function rebalanceSchedule(schedule, rules = {}) {
   }
   const cost = (t) => totalOf(pen.get(t), b2b.get(t), bandOf(t));
 
+  // What a night costs at a given load. Absent targets make this free, which
+  // leaves the repair behaving exactly as it did before the shape existed.
+  const wanted = r.nightTargets instanceof Map ? r.nightTargets : null;
+  const nightCost = (date, at2) => (wanted
+    ? Math.abs(at2 - (wanted.get(date) != null ? wanted.get(date) : at2)) * COST.shape
+    : 0);
+  /** What moving one game off `from` and onto `to` does to the weekly shape. */
+  const shapeGain = (from, to) => {
+    if (!wanted) return 0;
+    const lf = load.get(from), lt = load.get(to);
+    return (nightCost(from, lf) + nightCost(to, lt))
+         - (nightCost(from, lf - 1) + nightCost(to, lt + 1));
+  };
+
   const moves = [];
 
   /** Recost a set of clubs from scratch, and write the result back. */
@@ -599,7 +623,7 @@ export function rebalanceSchedule(schedule, rules = {}) {
       const midPenA = basePenA + aOut.pen, midB2BA = baseB2BA + aOut.b2b;
 
       let best = null;
-      const wanted = [];   // nights that would help but are occupied or full
+      const wantedNights = [];   // nights that would help but are occupied or full
       const w = r.moveWindow == null ? nights.length : r.moveWindow;
       const lo = Math.max(0, fromIdx - w);
       const hi = Math.min(nights.length - 1, fromIdx + w);
@@ -611,12 +635,15 @@ export function rebalanceSchedule(schedule, rules = {}) {
         const aIn = addDelta(aDays, toDay, maxRun);
         const after = totalOf(midPenH + hIn.pen, midB2BH + hIn.b2b, bandOf(home))
                     + totalOf(midPenA + aIn.pen, midB2BA + aIn.b2b, bandOf(away));
-        const gain = baseline - after;
+        // A move is judged on rest AND on the weekly shape. A swap is not: it
+        // leaves both nights carrying exactly what they carried, so it cannot
+        // change the shape and is scored on rest alone.
+        const gain = baseline - after + shapeGain(fromDate, to);
         if (gain <= 0) continue;
 
         const bset = busy.get(to);
         const blocked = load.get(to) >= capacity || bset.has(home) || bset.has(away);
-        if (blocked) { wanted.push({ j, gain }); continue; }
+        if (blocked) { wantedNights.push({ j, gain }); continue; }
 
         // Ties go to the smallest displacement, so a repaired season still
         // looks like the one that was generated.
@@ -639,13 +666,13 @@ export function rebalanceSchedule(schedule, rules = {}) {
       //
       // Only nights that would actually help are considered, and only when no
       // plain move was found that beats them, so the cost stays bounded.
-      if (!wanted.length) stats.noWanted++;
-      if (wanted.length) {
-        wanted.sort((x, y) => y.gain - x.gain);
-        const tryTop = Math.min(wanted.length, SWAP_NIGHTS);
+      if (!wantedNights.length) stats.noWanted++;
+      if (wantedNights.length) {
+        wantedNights.sort((x, y) => y.gain - x.gain);
+        const tryTop = Math.min(wantedNights.length, SWAP_NIGHTS);
         for (let k = 0; k < tryTop; k++) {
-          const { j } = wanted[k];
-          if (best && best.gain >= wanted[k].gain) break;   // a move already beats it
+          const { j } = wantedNights[k];
+          if (best && best.gain >= wantedNights[k].gain) break;   // a move already beats it
           for (const other of onNight[j]) {
             const h = games[other];
             if (h.pinned) continue;

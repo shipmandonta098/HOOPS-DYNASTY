@@ -73,6 +73,12 @@ export const GROUPS = [
       { key: 'gamesPerWeek', label: 'Games Per Week', type: 'choice',
         options: ['Light', 'Normal', 'Heavy', 'Custom'], def: 'Normal', applied: true,
         help: 'A scheduling TARGET, not a rule: Light is 2\u20133 a week, Normal 3\u20134, Heavy 4\u20135. Individual weeks vary around it, which is what real schedules do.' },
+      // Games per week is a TEAM's workload; this is the LEAGUE's night. The two
+      // are different axes and both matter: a team can play three games in a
+      // week whether the league stages four games that Monday or twelve.
+      { key: 'dayOfWeekVariation', label: 'Games Per Day Variation', type: 'choice',
+        options: ['Off', 'Low', 'Normal', 'High'], def: 'Normal', applied: true,
+        help: 'How much the size of a night\u2019s card depends on the day of the week. Normal makes Friday and Saturday the heavy nights and Monday and Thursday the light ones, the way a real season runs. Off spreads games evenly across every day, which is flatter than any real schedule.' },
       { key: 'gamesPerWeekCustom', label: 'Games Per Week (Custom)', type: 'number',
         min: 1, max: 7, step: 1, def: 4, applied: true,
         dependsOn: { key: 'gamesPerWeek', value: 'Custom' },

@@ -18,6 +18,7 @@
  */
 
 import { restDaysOf, gamesPerWeekOf, backToBackRules } from './gameSettings.js';
+import { nightTargets, impliedBackToBacks } from './dayShape.js';
 
 /* ===========================================================================
  * LEAGUE SHAPE
@@ -390,6 +391,25 @@ export function validateSchedule(teams, settings, startYear, structure) {
             b2b.target === 1 ? '' : 's'} per team needs about ${minSpan} days and the `
           + `window has ${cal.dates.length}, so teams will finish above the target. A `
           + 'longer season window or a higher target would remove the squeeze.');
+    }
+  }
+  // Two heavy nights running force back-to-backs by arithmetic alone, and the
+  // day-of-week shape can therefore contradict the back-to-back target. Which
+  // one gives is not a coin toss — rest wins and the shape flattens — but the
+  // user should hear it here rather than deduce it from a light-looking
+  // Saturday.
+  if (teams.length >= 2 && cal.dates.length > 1 && G > 1) {
+    const shape = nightTargets(cal.dates, Math.round(teams.length * G / 2),
+      Math.floor(teams.length / 2), { variation: settings.dayOfWeekVariation });
+    const forced = impliedBackToBacks(cal.dates, shape.targets, teams.length);
+    if (forced.perTeam > b2b.max) {
+      notes.push(`A ${String(settings.dayOfWeekVariation || 'Normal').toLowerCase()} `
+        + `games-per-day variation puts enough games on consecutive nights to force about `
+        + `${forced.perTeam} back-to-backs per team on its own, which is above the `
+        + `maximum of ${b2b.max}. The generator keeps the back-to-back target and `
+        + 'flattens the busy nights instead, so the heaviest days will come out lighter '
+        + `than the shape asks for. Raising the target above ${Math.ceil(forced.perTeam)} `
+        + 'or lowering Games Per Day Variation would let both settings hold.');
     }
   }
   // Scaling is silent unless it actually moved the number, in which case the

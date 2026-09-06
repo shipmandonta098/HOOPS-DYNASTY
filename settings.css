@@ -182,6 +182,15 @@
    whole point of a numeric target is that the answer can be no. */
 .pv-row b.is-ok { color: #6cc070; }
 .pv-row b.is-warn { color: #e0a84a; }
+/* Games per night by weekday. A bar chart because the shape of the week is the
+   point, and seven numbers in a column do not show a shape. */
+.wd-grid { display: grid; gap: 0.3rem; margin-top: 0.2rem; }
+.wd-row { display: grid; grid-template-columns: 34px 1fr 34px 48px; align-items: center; gap: 0.6rem; }
+.wd-d { color: var(--muted); font-size: 0.72rem; font-weight: 700; }
+.wd-bar { background: rgba(255, 255, 255, 0.05); border-radius: 3px; height: 10px; overflow: hidden; }
+.wd-bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+.wd-n { color: var(--white); font-size: 0.76rem; font-variant-numeric: tabular-nums; text-align: right; }
+.wd-r { color: var(--muted-2); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
 
 /* --------------------------------------------- live matchup calculation
    The arithmetic, not just the answer: what each opponent rule does to the

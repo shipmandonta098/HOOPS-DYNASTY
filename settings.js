@@ -241,6 +241,35 @@ function b2bSummary(sch) {
       generator could not fit every club inside it on this calendar.</p>` : ''}`;
 }
 
+/**
+ * The size of a night's card, by day of the week.
+ *
+ * Counted off the finished fixture list, because the shape is a target the
+ * generator is scored against rather than a cap it is fenced in by — so the
+ * only way to know what a season did is to count it. The spread between the
+ * heaviest and lightest weekday is shown because a flat week is exactly the
+ * thing this is meant to prevent, and a spread near zero says it did not work.
+ */
+function weekdaySummary(sch) {
+  const w = sch.rest && sch.rest.weekdays;
+  if (!w || !w.nights) return '';
+  const bar = (r) => {
+    const pct = w.busiest ? Math.round((r.average / w.busiest) * 100) : 0;
+    return `<div class="wd-row">
+      <span class="wd-d">${esc(r.day)}</span>
+      <span class="wd-bar"><i style="width:${pct}%"></i></span>
+      <b class="wd-n">${r.average.toFixed(1)}</b>
+      <span class="wd-r">${r.low}\u2013${r.high}</span>
+    </div>`;
+  };
+  return `<div class="pv-h">Games per night, by day</div>
+    <div class="wd-grid">${w.byDay.map(bar).join('')}</div>
+    <p class="pv-note">Average ${w.average.toFixed(1)} a night across ${w.nights} nights,
+      from ${w.lightest} on the lightest to ${w.busiest} on the busiest. The gap between
+      the heaviest and lightest weekday is ${w.weekdaySpread.toFixed(1)} games \u2014 a
+      figure near zero would mean the week has no shape at all.</p>`;
+}
+
 function renderPreview() {
   const { teams, structure } = draftLeague();
   const box = el('schedPreview');
@@ -275,6 +304,7 @@ function renderPreview() {
       ${st.unplaced ? row('Could not place', `${st.unplaced} games`) : ''}
     </div>
     ${b2bSummary(sch)}
+    ${weekdaySummary(sch)}
     <div class="pv-h">First games</div>
     ${sample}
     <p class="pv-note">A sample only — nothing is saved, and the real schedule is

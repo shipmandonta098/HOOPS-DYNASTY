@@ -25,6 +25,7 @@ import { makeRNG, hashString } from './leagueConfig.js';
 import { matchupsFor, seasonCalendar, resolveTeams } from './scheduleRules.js';
 import { restDaysOf, backToBackRules } from './gameSettings.js';
 import { rebalanceSchedule, backToBackReport } from './scheduleRebalance.js';
+import { nightTargets, weekdayProfile } from './dayShape.js';
 
 /* ===========================================================================
  * BUILDING A SEASON
@@ -212,14 +213,14 @@ function buildPairings(teams, matchups, rules, rng, season) {
  * manager would give them up.
  */
 const PASSES = [
-  { rest: true, b2b: true, trips: true, streaks: true },
-  { rest: true, b2b: true, trips: false, streaks: true },
-  { rest: true, b2b: false, trips: false, streaks: true },
-  { rest: false, b2b: false, trips: false, streaks: true },
-  { rest: false, b2b: false, trips: false, streaks: false },
+  { rest: true, b2b: true, trips: true, streaks: true, shape: true },
+  { rest: true, b2b: true, trips: false, streaks: true, shape: true },
+  { rest: true, b2b: false, trips: false, streaks: true, shape: true },
+  { rest: false, b2b: false, trips: false, streaks: true, shape: true },
+  { rest: false, b2b: false, trips: false, streaks: false, shape: false },
 ];
 
-function place(games, dates, teams, rules, rng) {
+function place(games, dates, teams, rules, rng, nightCaps) {
   const rest = restDaysOf(rules);
   // The placer's own budget is a rough ceiling only — the rest pass afterwards
   // is what actually hits the target band, so this just stops placement from
@@ -250,13 +251,20 @@ function place(games, dates, teams, rules, rng) {
 
   const busyByDate = dates.map(() => new Set());
   const countByDate = dates.map(() => 0);
-  const capacity = Math.floor(teams.length / 2);
+  const hardCap = Math.floor(teams.length / 2);
+  // A night's ceiling follows the weekly shape rather than being flat, so
+  // Friday starts out able to hold more games than Monday. The last relaxation
+  // pass drops back to the physical limit: a shape is worth having, but never
+  // worth leaving fixtures unplaced for.
+  const capOf = (di, pass) => (pass.shape && nightCaps
+    ? Math.min(hardCap, nightCaps[di] != null ? nightCaps[di] : hardCap)
+    : hardCap);
   let remaining = games.slice();
   const placed = [];
 
   const legal = (g, di, pass) => {
     if (busyByDate[di].has(g.home) || busyByDate[di].has(g.away)) return false;
-    if (countByDate[di] >= capacity) return false;
+    if (countByDate[di] >= capOf(di, pass)) return false;
     const h = state[g.home], a = state[g.away];
     const gapH = di - h.lastIdx, gapA = di - a.lastIdx;
     if (pass.rest && rest > 0 && (gapH <= rest || gapA <= rest)) return false;
@@ -313,7 +321,9 @@ function place(games, dates, teams, rules, rng) {
 
       const taken = new Set();
       for (const { g, i } of order) {
-        if (countByDate[di] >= capacity) break;
+        // This night's ceiling for this pass — the weekly shape early on, the
+        // physical limit once the passes start relaxing.
+        if (countByDate[di] >= capOf(di, pass)) break;
         if (!legal(g, di, pass)) continue;
         commit(g, di);
         taken.add(i);
@@ -362,7 +372,15 @@ export function buildSchedule(league, season, settingsOverride, structure) {
     [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
   }
 
-  const { placed, unplaced } = place(pairs, cal.dates, teams, rules, rng);
+  // The weekly shape, sized to this league's own calendar and game count —
+  // never to an assumed thirty teams or an assumed 82 games.
+  const shape = nightTargets(cal.dates, pairs.length, Math.floor(teams.length / 2), {
+    variation: rules.dayOfWeekVariation,
+    seed: seedSource,
+    finaleDate: rules.seasonFinale && cal.dates.length
+      ? cal.dates[cal.dates.length - 1] : null,
+  });
+  const { placed, unplaced } = place(pairs, cal.dates, teams, rules, rng, shape.caps);
   placed.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
   const firstDate = placed.length ? placed[0].date : null;
@@ -422,6 +440,10 @@ export function buildSchedule(league, season, settingsOverride, structure) {
       // seasonCalendar already drops the All-Star break, so spreading into the
       // empty days between fixtures cannot land a game inside it.
       nights: cal.dates,
+      // What each night should carry. The repair is scored against this as
+      // well as against rest, so spreading back-to-backs out does not flatten
+      // the week back into a straight line on the way.
+      nightTargets: shape.byDate,
     },
   );
   const settled = balanced.integrity.ok ? balanced.games : games;
@@ -455,6 +477,9 @@ export function buildSchedule(league, season, settingsOverride, structure) {
       // What was asked for, so the summary can be checked against it rather
       // than taken on trust.
       rules: b2bRules,
+      // What the season actually did about the weekly shape, counted off the
+      // finished fixture list rather than restated from the setting.
+      weekdays: weekdayProfile(balanced.integrity.ok ? balanced.games : games),
       backToBacks: backToBackReport(
         balanced.integrity.ok ? balanced.games : games, b2bRules),
     },
