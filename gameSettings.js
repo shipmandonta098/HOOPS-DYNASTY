@@ -155,6 +155,17 @@ export const GROUPS = [
     ],
   },
   {
+    id: 'gameRules', label: 'Game Rules',
+    settings: [
+      // The Rotations screen hands out five players' worth of this, so a
+      // forty-minute league has 200 minutes to give rather than 240. Nothing
+      // assumes the number.
+      { key: 'gameMinutes', label: 'Game Length (Minutes)', type: 'number',
+        min: 20, max: 60, step: 1, def: 48, applied: true,
+        help: 'How long a game runs. Rotations allocate five players\u2019 worth of this \u2014 48 minutes gives 240 to distribute, 40 gives 200.' },
+    ],
+  },
+  {
     id: 'postseason', label: 'Playoffs',
     settings: [
       // The standings screen draws two lines with these, and both are clamped

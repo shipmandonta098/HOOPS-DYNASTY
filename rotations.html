@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — Rotations</title>
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./gm-dashboard.css" />
+  <link rel="stylesheet" href="./roster.css" />
+  <link rel="stylesheet" href="./rotations.css" />
+</head>
+<body>
+
+  <div class="arena-rings" aria-hidden="true"></div>
+  <div class="app">
+
+    <aside class="sidebar">
+      <a class="brand" href="./index.html" style="text-decoration:none;display:block">
+        <span class="h">Hoops</span><span class="d">Dynasty</span>
+        <span class="sub">Basketball GM Simulator</span>
+        <span class="tr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg></span>
+      </a>
+      <nav class="nav"><!-- shell.js --></nav>
+    </aside>
+
+    <main class="main">
+
+      <div class="topbar rot-top">
+        <div class="rt-crest" id="crest">🏀</div>
+        <div class="rt-id">
+          <div class="rt-city" id="city">—</div>
+          <h1 id="teamName">—</h1>
+          <!-- The reference prints a record and a conference place here. Both
+               are results, and nothing has been simulated, so this reports what
+               the save actually knows. -->
+          <div class="rt-rec" id="record">—</div>
+        </div>
+        <div class="rt-when">
+          <span id="season">—</span><i>|</i><span id="phase">—</span>
+        </div>
+        <div class="rt-preset">
+          <label class="sr-only" for="presetSel">Rotation preset</label>
+          <span class="rt-pk">Rotation Presets</span>
+          <select id="presetSel"><!-- rotationsView.js --></select>
+        </div>
+        <div class="rt-actions">
+          <button class="btn-primary" id="saveBtn" disabled>Save Rotation</button>
+          <button class="btn-ghost" id="revertBtn" disabled>Revert</button>
+        </div>
+      </div>
+
+      <div class="tabs rot-tabs" id="tabs">
+        <button class="tab is-active" data-tab="rotations">Rotations</button>
+        <button class="tab is-todo" disabled title="Not built yet">Lineups</button>
+        <button class="tab is-todo" disabled title="Not built yet">Minutes</button>
+        <button class="tab is-todo" disabled title="Not built yet">Strategy</button>
+      </div>
+
+      <div class="rot-grid">
+        <section class="card rot-main">
+          <div class="rot-wrap">
+            <table class="rot-table">
+              <thead id="rotHead"><!-- rotationsView.js --></thead>
+              <tbody id="rotBody"><!-- rotationsView.js --></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="rot-side">
+          <section class="card" id="minutesInfo"><!-- rotationsView.js --></section>
+          <section class="card" id="quickActions"><!-- rotationsView.js --></section>
+          <section class="card rot-tips">
+            <div class="rot-h"><i>i</i>Rotation Tips</div>
+            <p>Drag a slider, or type into the minutes box, to set playing time.
+               The total has to come out exactly right before a rotation can be saved.</p>
+            <p>Roles below are read off the minutes you set, so they move as you
+               move the sliders. Positions are shown but not enforced — the save has
+               no data on who can cover which spot, so it does not pretend to.</p>
+          </section>
+        </aside>
+      </div>
+
+      <div id="noCareer" hidden></div>
+    </main>
+  </div>
+
+  <script type="module" src="./rotationsView.js"></script>
+</body>
+</html>

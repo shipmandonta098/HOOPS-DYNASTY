@@ -1,0 +1,214 @@
+/* rotations.css — the rotations table.
+   Laid out from the reference: identity block, tabs, a wide table whose middle
+   is a minutes slider, and a side rail carrying the totals and quick actions. */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.na { color: var(--muted-2); }
+
+/* ----------------------------------------------------------------- topbar */
+.rot-top { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
+.rt-crest { flex: 0 0 auto; display: flex; }
+.rt-id { display: grid; gap: 0.05rem; }
+.rt-city { color: var(--muted); font-size: 0.8rem; }
+.rt-id h1 { margin: 0; line-height: 1; }
+.rt-rec { color: var(--silver); font-size: 0.78rem; margin-top: 0.25rem; }
+.rt-seed { color: var(--muted); }
+
+.rt-when {
+  display: flex; align-items: center; gap: 0.8rem; margin-left: auto;
+  color: var(--muted); font-size: 0.86rem;
+}
+.rt-when i { color: var(--stroke); font-style: normal; }
+
+.rt-preset {
+  display: grid; gap: 0.25rem;
+  border: 1px solid var(--stroke); border-radius: 9px;
+  background: var(--panel-2); padding: 0.5rem 0.7rem;
+}
+.rt-pk {
+  color: var(--muted); font-size: 0.56rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+.rt-preset select {
+  background: none; border: 0; color: var(--white); font: inherit;
+  font-size: 0.85rem; min-width: 168px;
+}
+.rt-actions { display: flex; gap: 0.55rem; }
+.btn-primary, .btn-ghost {
+  border-radius: 8px; padding: 0.72rem 1.15rem; cursor: pointer;
+  font: inherit; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.02em;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+.btn-primary {
+  border: 0; background: var(--team-primary, var(--brand));
+  color: var(--team-on-primary, #fff);
+}
+.btn-ghost {
+  border: 1px solid var(--stroke); background: var(--panel-2); color: var(--silver);
+}
+.btn-primary:hover:not(:disabled), .btn-ghost:hover:not(:disabled) { filter: brightness(1.15); }
+.btn-primary:disabled, .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.rot-tabs { margin: 0.2rem 0 1rem; }
+
+/* ------------------------------------------------------------------ shell */
+.rot-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+.rot-main { padding: 0; overflow: hidden; }
+.rot-side { display: grid; gap: 1rem; }
+.rot-h {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: var(--white); font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 0.85rem;
+}
+.rot-h i {
+  display: grid; place-items: center; width: 17px; height: 17px; border-radius: 4px;
+  background: var(--team-soft, rgba(207, 97, 39, 0.16));
+  color: var(--team-primary, var(--brand)); font-style: normal; font-size: 0.62rem;
+}
+
+/* ------------------------------------------------------------------ table */
+.rot-wrap { overflow-x: auto; }
+.rot-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.rot-table th {
+  text-align: left; white-space: nowrap; padding: 0.7rem 0.7rem;
+  color: var(--muted); font-size: 0.55rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  border-bottom: 1px solid var(--stroke);
+}
+.rot-table td {
+  padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--stroke-2);
+  color: var(--white); white-space: nowrap;
+}
+.rot-table tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+/* A player on no minutes is still on the roster, so the row stays readable —
+   dimmed, not hidden. */
+.rot-table tr.is-off td { color: var(--muted); }
+.rot-table tr.is-off .rt-name { color: var(--muted); }
+
+.rt-band td { padding: 0.75rem 0.7rem 0.35rem; border-bottom: 0; }
+.rt-badge {
+  display: inline-block; padding: 0.16rem 0.5rem; border-radius: 5px;
+  font-size: 0.54rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+  background: var(--team-soft, rgba(207, 97, 39, 0.18));
+  color: var(--team-primary, var(--brand));
+}
+.rt-badge.is-bench { background: rgba(255, 255, 255, 0.07); color: var(--silver); }
+.rt-badge.is-reserves { background: rgba(255, 255, 255, 0.04); color: var(--muted); }
+
+.rt-num {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 5px;
+  background: var(--panel-2); border: 1px solid var(--stroke);
+  color: var(--muted); font-size: 0.68rem; font-variant-numeric: tabular-nums;
+}
+td.rt-player { display: flex; align-items: center; gap: 0.6rem; width: 100%; }
+.rt-name { color: var(--white); }
+.rt-tag {
+  display: inline-grid; place-items: center; min-width: 34px; padding: 0.14rem 0.3rem;
+  border: 1px solid var(--stroke); border-radius: 5px;
+  background: var(--panel-2); color: var(--silver);
+  font-size: 0.64rem; font-weight: 700;
+}
+.rt-ovr b { font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+.rt-ovr .is-elite { color: var(--rating-elite, #3fca7d); }
+.rt-ovr .is-good  { color: var(--rating-good, #5fb06b); }
+.rt-ovr .is-ok    { color: #b9c93e; }
+.rt-ovr .is-low   { color: var(--muted); }
+
+/* Minutes: a number you can type into, beside a slider you can drag. Both
+   drive the same value, because a rotation is easier to nudge with one and
+   easier to set exactly with the other. */
+.rt-input {
+  width: 56px; padding: 0.32rem 0.4rem; text-align: right;
+  border: 1px solid var(--stroke); border-radius: 6px;
+  background: var(--inset); color: var(--white); font: inherit;
+  font-size: 0.86rem; font-variant-numeric: tabular-nums;
+}
+.rt-input:focus { outline: 2px solid var(--team-line, var(--brand)); outline-offset: 1px; }
+
+th.rt-slider { width: 34%; min-width: 240px; }
+.rt-scale { display: flex; justify-content: space-between; color: var(--muted-2); }
+.rt-scale i { font-style: normal; font-size: 0.55rem; }
+.rt-range {
+  width: 100%; min-width: 200px; height: 6px; -webkit-appearance: none; appearance: none;
+  background: var(--inset); border-radius: 4px; outline: none; cursor: pointer;
+}
+.rt-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--white); border: 2px solid var(--team-primary, var(--brand));
+  cursor: grab;
+}
+.rt-range::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--team-primary, var(--brand));
+  background: var(--white); cursor: grab;
+}
+.rt-range:focus-visible { outline: 2px solid var(--team-secondary, var(--gold)); outline-offset: 3px; }
+
+.rt-r {
+  display: inline-block; padding: 0.12rem 0.45rem; border-radius: 5px;
+  font-size: 0.68rem; font-weight: 700;
+  background: rgba(255, 255, 255, 0.05); color: var(--silver);
+}
+.rt-r.is-start { background: var(--team-soft, rgba(207, 97, 39, 0.18)); color: var(--team-primary, var(--brand)); }
+.rt-r.is-six   { background: rgba(212, 175, 55, 0.16); color: var(--gold); }
+.rt-r.is-rot   { background: rgba(91, 141, 214, 0.14); color: var(--blue); }
+.rt-r.is-sit   { background: rgba(255, 255, 255, 0.05); color: var(--muted); }
+.rt-r.is-off   { background: transparent; color: var(--muted-2); }
+
+td.rt-age, td.rt-con { color: var(--muted); font-variant-numeric: tabular-nums; }
+.rt-empty { text-align: center; color: var(--muted); padding: 2.5rem; }
+
+/* ------------------------------------------------------------- side rail */
+.mi-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0.4rem 0; border-bottom: 1px solid var(--stroke-2);
+  color: var(--muted); font-size: 0.8rem;
+}
+.mi-row:last-of-type { border-bottom: 0; }
+.mi-row b { color: var(--white); font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+.mi-row b.is-ok { color: #6cc070; }
+.mi-row b.is-warn { color: #e0a84a; }
+
+.mi-state {
+  display: flex; gap: 0.6rem; margin-top: 0.8rem; padding-top: 0.8rem;
+  border-top: 1px solid var(--stroke-2); font-size: 0.8rem;
+}
+.mi-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 0.32rem; flex: 0 0 auto; }
+.mi-state.is-ok .mi-dot { background: #6cc070; }
+.mi-state.is-warn .mi-dot { background: #e0a84a; }
+.mi-state.is-ok b { color: #6cc070; }
+.mi-state.is-warn b { color: #e0a84a; }
+.mi-state ul { margin: 0.4rem 0 0; padding-left: 1rem; color: var(--muted); line-height: 1.5; }
+
+.qa {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%;
+  padding: 0.7rem 0.8rem; margin-bottom: 0.45rem;
+  border: 1px solid var(--stroke); border-radius: 8px;
+  background: var(--panel-2); color: var(--silver);
+  font: inherit; font-size: 0.82rem; text-align: left; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.qa:last-child { margin-bottom: 0; }
+.qa:hover { border-color: var(--team-line, var(--brand)); background: var(--team-softer, rgba(255,255,255,0.04)); }
+.qa-ic { width: 18px; text-align: center; }
+
+.rot-tips p { margin: 0 0 0.6rem; color: var(--muted); font-size: 0.78rem; line-height: 1.55; }
+.rot-tips p:last-child { margin-bottom: 0; }
+
+/* ----------------------------------------------------------------- narrow */
+@media (max-width: 1180px) {
+  .rot-grid { grid-template-columns: 1fr; }
+  .rot-side { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .rot-top { gap: 0.7rem; }
+  .rt-when { margin-left: 0; width: 100%; }
+  .rt-preset, .rt-actions { width: 100%; }
+  .rt-actions button { flex: 1; }
+  /* The table scrolls rather than the page: a slider squeezed to phone width
+     cannot be dragged accurately, which defeats the point of it. */
+  .rot-table { min-width: 820px; }
+}
