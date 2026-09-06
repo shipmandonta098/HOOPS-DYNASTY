@@ -32,6 +32,7 @@ import {
 } from './schedule.js';
 import { spreadModel, formatLine } from './powerRanking.js';
 import { detectBackToBacks } from './scheduleFatigue.js';
+import { preseasonGames } from './preseason.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -63,6 +64,13 @@ let model = null;
  * into, not the one it was earned in.
  */
 let rest = null;
+/**
+ * 'regular' or 'preseason'. The two read DIFFERENT fixture lists — exhibitions
+ * live in `schedule.preseason.games` and never in `schedule.games` — so this
+ * switch changes the data source, not a filter over one list. That is what
+ * keeps a preseason game from ever reaching a record or a rating.
+ */
+let phase = 'regular';
 
 const teamById = (id) => (league.teams || []).find((t) => t.id === id) || null;
 const teamName = (id) => {
@@ -96,12 +104,25 @@ async function ensureSchedule() {
 
 /* ---------------------------------------------------------------- render */
 
+/** The exhibition slate, or null when the league has none. */
+const preseason = () => (league.schedule && league.schedule.preseason) || null;
+
 function render() {
   model = spreadModel(league);
+  // Rest and records are properties of the SEASON, so they read the regular
+  // fixture list whichever tab is open. An exhibition never becomes a
+  // back-to-back a fatigue system would charge for.
   rest = detectBackToBacks(league.schedule);
-  const games = teamGames(league.schedule, viewTeam);
-  const record = teamRecord(games);
-  const records = runningRecords(games);
+
+  const pre = phase === 'preseason';
+  const games = pre
+    ? preseasonGames(preseason(), viewTeam)
+    : teamGames(league.schedule, viewTeam);
+  // A preseason record is not a record. Exhibitions are shown with their
+  // result and counted into nothing, so the strip keeps reporting the season.
+  const seasonGames = teamGames(league.schedule, viewTeam);
+  const record = teamRecord(seasonGames);
+  const records = pre ? games.map(() => null) : runningRecords(games);
   const next = nextGame(games);
 
   // The whole screen carries the viewed club's colours, so the accents below
@@ -110,10 +131,31 @@ function render() {
   renderTeamChip();
   renderStrip(record, next);
   renderControls();
-  if (scope === 'league') renderLeagueDay();
+  if (scope === 'league' && !pre) renderLeagueDay();
   else renderTable(games, records);
   renderNext(next);
   renderCalendar(games);
+}
+
+/**
+ * Reseat the month stepper on whichever fixture list the open tab reads.
+ *
+ * The two phases live in different months — the preseason runs before opening
+ * night — so a month index from one is meaningless in the other.
+ */
+function syncMonths() {
+  const pre = phase === 'preseason';
+  const list = pre
+    ? ((preseason() && preseason().games) || [])
+    : (league.schedule.games || []);
+  months = scheduleMonths(list);
+  const mine = pre
+    ? preseasonGames(preseason(), viewTeam)
+    : teamGames(league.schedule, viewTeam);
+  // Open on the month the next game falls in, which is where a manager is.
+  const next = nextGame(mine) || mine[0];
+  const idx = next ? months.findIndex((m) => m.key === next.date.slice(0, 7)) : 0;
+  monthIdx = idx >= 0 ? idx : 0;
 }
 
 function renderTeamChip() {
@@ -145,9 +187,15 @@ function renderStrip(r, next) {
     cell('Away', r.away ? esc(r.away.replace('-', ' - ')) : none),
     cell('Streak', r.streak ? esc(r.streak) : none, '', streakClass),
     cell('Last 10', r.last10 ? esc(r.last10.replace('-', ' - ')) : none),
+    // Every cell to the left of this one counts the SEASON, so when the
+    // preseason tab is open the label says which fixture list this one is
+    // reading. A next-game cell quietly switching lists under a season heading
+    // would read as a season game.
     // "vs" is wrong for a road game, and the fixture already knows which it is.
-    cell('Next Game', next ? `${next.home ? 'vs' : '@'} ${esc(shortName(next.opponent))}` : none,
-      next ? esc(formatGameDate(next.date)) : 'season complete'),
+    cell(phase === 'preseason' ? 'Next Preseason' : 'Next Game',
+      next ? `${next.home ? 'vs' : '@'} ${esc(shortName(next.opponent))}` : none,
+      next ? esc(formatGameDate(next.date))
+        : (phase === 'preseason' ? 'preseason complete' : 'season complete')),
   ].join('');
 }
 
@@ -163,15 +211,32 @@ function renderControls() {
   el('calLabel').textContent = m ? m.label.toUpperCase() : '—';
   el('viewSel').value = filter;
 
+  for (const btn of document.querySelectorAll('#tabs .tab[data-tab]')) {
+    btn.classList.toggle('is-active', btn.dataset.tab === phase);
+  }
   for (const btn of el('scopeSeg').querySelectorAll('button')) {
     btn.classList.toggle('is-active', btn.dataset.scope === scope);
   }
+  // The league-day view reads the season's fixture list, so it has nothing to
+  // show while the preseason tab is open.
+  el('scopeSeg').closest('.sc-group').hidden = phase === 'preseason';
   // The home/away filter is about one club's season, so it has no meaning
   // against a day of league-wide fixtures.
   // What the Spread column is, said once under the table rather than in a
   // tooltip nobody opens. Which rating it used matters, so it names that too.
   const noteEl = el('spreadNote');
-  if (noteEl) {
+  if (noteEl && phase === 'preseason') {
+    const pre = preseason();
+    const p = pre && pre.plan;
+    noteEl.innerHTML = p
+      ? `<b>Preseason</b> games are exhibitions. They carry a result but count towards
+         nothing — not records, not standings, not ratings, not back-to-backs — because
+         they are kept in a separate fixture list from the season. This league plays
+         <b>${pre.games.length}</b> of them across <b>${pre.window.days}</b> days,
+         averaging <b>${p.average.toFixed(1)}</b> per club (lowest ${p.lowest},
+         highest ${p.highest}).`
+      : '';
+  } else if (noteEl) {
     // The club's own count, then the league's, so the number the settings asked
     // for can be checked against the season that was actually built.
     const rep = league.schedule && league.schedule.rest && league.schedule.rest.backToBacks;
@@ -210,6 +275,19 @@ function renderControls() {
 const TEAM_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
   <th>Spread<span class="th-tag">proj</span></th>
   <th>Result</th><th>Score</th><th>Record</th></tr>`;
+/**
+ * The preseason table drops two columns, and both omissions are deliberate.
+ *
+ * There is no Record, because an exhibition does not produce one — printing a
+ * running W-L beside games that count for nothing would be inventing a record.
+ * There is no Spread either: a projection built from rotation-weighted ratings
+ * assumes the rotation plays, and the one thing everyone knows about a
+ * preseason game is that it does not. A number that is wrong by construction is
+ * worse than no number.
+ */
+const PRESEASON_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
+  <th>Result</th><th>Score</th></tr>`;
+
 // In the league-wide view the line is quoted for the home side — the club the
 // column sits next to — so the header says so rather than leaving it to a
 // tooltip.
@@ -299,15 +377,17 @@ function passesFilter(g) {
 }
 
 function renderTable(games, records) {
-  el('gamesHead').innerHTML = TEAM_HEAD;
+  const pre = phase === 'preseason';
+  el('gamesHead').innerHTML = pre ? PRESEASON_HEAD : TEAM_HEAD;
   const m = months[monthIdx];
   const rows = games
     .map((g, i) => ({ g, record: records[i] }))
     .filter(({ g }) => (!m || g.date.slice(0, 7) === m.key) && passesFilter(g));
 
   if (!rows.length) {
-    el('gamesBody').innerHTML =
-      `<tr class="sg-empty"><td colspan="7">No games match this filter.</td></tr>`;
+    el('gamesBody').innerHTML = `<tr class="sg-empty"><td colspan="${pre ? 5 : 7}">${
+      pre ? 'No preseason games match this filter.' : 'No games match this filter.'
+    }</td></tr>`;
     return;
   }
   const nextId = (nextGame(games) || {}).id;
@@ -322,13 +402,13 @@ function renderTable(games, records) {
         <span>${g.home ? '' : '@ '}${esc(teamName(g.opponent))}</span>
       </td>
       <td>${g.home ? 'Home' : 'Away'}</td>
-      <td>${spreadCell(g.home ? viewTeam : g.opponent,
-                       g.home ? g.opponent : viewTeam, viewTeam, !!g.result)}</td>
+      ${pre ? '' : `<td>${spreadCell(g.home ? viewTeam : g.opponent,
+                       g.home ? g.opponent : viewTeam, viewTeam, !!g.result)}</td>`}
       <td>${g.result
         ? `<span class="sg-res is-${g.result === 'W' ? 'w' : 'l'}">${g.result}</span>`
         : '<span class="na">--</span>'}</td>
       <td>${g.result ? `${g.forScore} - ${g.againstScore}` : '<span class="na">--</span>'}</td>
-      <td>${record ? esc(record.replace('-', ' - ')) : '<span class="na">--</span>'}</td>
+      ${pre ? '' : `<td>${record ? esc(record.replace('-', ' - ')) : '<span class="na">--</span>'}</td>`}
     </tr>`;
   }).join('');
 }
@@ -368,6 +448,34 @@ function spreadBlock(sp, homeId, awayId) {
  * two clubs, the date and which of them is at home — all of which are real.
  */
 function renderNext(next) {
+  if (phase === 'preseason') {
+    // No projected line here: see PRESEASON_HEAD. The card still says what the
+    // next exhibition is, which is a fact about the fixture list.
+    if (!next) {
+      el('nextCard').innerHTML = `<div class="nc-h">Next Preseason Game</div>
+        <p class="nc-empty">Every preseason game has been played.</p>`;
+      return;
+    }
+    const me = teamById(viewTeam), them = teamById(next.opponent);
+    const side = (t) => `<div class="nc-team">
+      <div class="nc-crest">${t ? crestHTML(t, 62) : ''}</div>
+      <div class="nc-name">${esc(teamName(t && t.id))}</div>
+      <div class="nc-rec"><span class="na">exhibition</span></div>
+    </div>`;
+    el('nextCard').innerHTML = `
+      <div class="nc-h">Next Preseason Game</div>
+      <div class="nc-date">${esc(formatLongDate(next.date))}</div>
+      <div class="nc-matchup">
+        ${side(me)}<div class="nc-vs">VS</div>${side(them)}
+      </div>
+      <div class="nc-meta">
+        <b>${next.home ? 'Home' : 'Away'} game.</b>
+        ${esc(teamName(next.home ? viewTeam : next.opponent))} hosts.
+        <span class="nc-note">No projected line: a spread assumes the rotation plays,
+          and in an exhibition it does not.</span>
+      </div>`;
+    return;
+  }
   if (!next) {
     el('nextCard').innerHTML = `<div class="nc-h">Next Game</div>
       <p class="nc-empty">Every game on the schedule has been played.</p>`;
@@ -453,8 +561,20 @@ function renderCalendar(games) {
 
 function bind() {
   el('teamSel').addEventListener('change', (e) => {
-    viewTeam = e.target.value; selectedDate = null; render();
+    viewTeam = e.target.value; selectedDate = null; syncMonths(); render();
   });
+  // Switching phase switches which fixture list is on screen, so the month
+  // stepper has to be reseated: the preseason's months are not the season's.
+  for (const btn of document.querySelectorAll('#tabs .tab[data-tab]')) {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      phase = btn.dataset.tab;
+      selectedDate = null;
+      if (phase === 'preseason') scope = 'team';
+      syncMonths();
+      render();
+    });
+  }
   el('monthPrev').addEventListener('click', () => { if (monthIdx > 0) { monthIdx--; render(); } });
   el('monthNext').addEventListener('click', () => {
     if (monthIdx < months.length - 1) { monthIdx++; render(); }
@@ -545,12 +665,20 @@ function syncMonthToDay() {
     .map((t) => `<option value="${esc(t.id)}"${t.id === viewTeam ? ' selected' : ''}
       >${esc(teamName(t.id))}</option>`).join('');
 
-  months = scheduleMonths(league.schedule.games);
   allDates = leagueDates(league.schedule);
-  // Open on the month the next game falls in, which is where a manager is.
-  const next = nextGame(teamGames(league.schedule, viewTeam));
-  const idx = next ? months.findIndex((m) => m.key === next.date.slice(0, 7)) : 0;
-  monthIdx = idx >= 0 ? idx : 0;
+  // A league with no preseason has no tab to open; the button says so rather
+  // than sitting there dead.
+  const preTab = el('tabPreseason');
+  const pre = preseason();
+  if (preTab) {
+    const has = !!(pre && pre.games && pre.games.length);
+    preTab.disabled = !has;
+    preTab.classList.toggle('is-todo', !has);
+    preTab.title = has
+      ? `${pre.games.length} exhibition games — they do not count towards records.`
+      : 'Preseason is switched off for this league.';
+  }
+  syncMonths();
 
   bind();
   render();

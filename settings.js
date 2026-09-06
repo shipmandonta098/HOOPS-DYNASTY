@@ -270,6 +270,34 @@ function weekdaySummary(sch) {
       figure near zero would mean the week has no shape at all.</p>`;
 }
 
+/**
+ * The exhibition slate, if the league has one.
+ *
+ * The league-wide total is DERIVED from the per-team setting and the size of
+ * the league, so it is reported rather than set — and `meetsMinimum` is a
+ * measurement of the slate that was built, which is why it can say no.
+ */
+function preseasonSummary(sch) {
+  const pre = sch.preseason;
+  if (!pre) return `<div class="pv-h">Preseason</div>
+    <p class="pv-note">Switched off \u2014 the league goes straight into the season.</p>`;
+  const p = pre.plan;
+  const row = (k, v, cls) => `<div class="pv-row"><span>${esc(k)}</span>
+    <b class="${cls || ''}">${esc(String(v))}</b></div>`;
+  return `<div class="pv-h">Preseason</div>
+    <div class="pv-grid">
+      ${row('Total games', pre.games.length)}
+      ${row('Per team', `${p.average.toFixed(1)} avg (${p.lowest}\u2013${p.highest})`)}
+      ${row('Window', `${p.min}\u2013${p.max} target band, ${pre.window.days} days`)}
+      ${row('Minimum met', p.meetsMinimum ? 'Every club' : 'No \u2014 window too short',
+        p.meetsMinimum ? 'is-ok' : 'is-warn')}
+      ${p.unplaced ? row('Could not place', `${p.unplaced} games`, 'is-warn') : ''}
+    </div>
+    <p class="pv-note">${esc(pre.window.start)} to ${esc(pre.window.end)}, ending a clear
+      day before opening night. Exhibitions are stored separately from the season and
+      count towards no record, standing or rating.</p>`;
+}
+
 function renderPreview() {
   const { teams, structure } = draftLeague();
   const box = el('schedPreview');
@@ -305,6 +333,7 @@ function renderPreview() {
     </div>
     ${b2bSummary(sch)}
     ${weekdaySummary(sch)}
+    ${preseasonSummary(sch)}
     <div class="pv-h">First games</div>
     ${sample}
     <p class="pv-note">A sample only — nothing is saved, and the real schedule is

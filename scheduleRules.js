@@ -19,6 +19,7 @@
 
 import { restDaysOf, gamesPerWeekOf, backToBackRules } from './gameSettings.js';
 import { nightTargets, impliedBackToBacks } from './dayShape.js';
+import { preseasonCounts, preseasonWindow, PRESEASON_LIMITS } from './preseason.js';
 
 /* ===========================================================================
  * LEAGUE SHAPE
@@ -425,6 +426,34 @@ export function validateSchedule(teams, settings, startYear, structure) {
   if (b2b.allowThreeInThree && b2b.target === 0) {
     notes.push('Allowing three games in three days has no effect while the back-to-back '
       + 'target is zero, since a third consecutive night needs a second one first.');
+  }
+  // The preseason window has to be long enough to hold the slate. Each club
+  // needs a night per game, and the league can only stage half its clubs' worth
+  // of games a night, so both bounds are checked — a window that fails either
+  // will drop fixtures, and the user should hear that here rather than find
+  // clubs below the minimum in the summary.
+  if (settings.preseason && teams.length >= 2) {
+    const win = preseasonWindow(cal.dates[0], settings.preseasonWindow);
+    const plan = preseasonCounts(teams.map((t) => t.id), {
+      target: settings.preseasonGamesPerTeam, variance: settings.preseasonVariance,
+    });
+    const nightsNeeded = Math.max(
+      plan.hi,                                                   // one club's own games
+      Math.ceil(plan.games / Math.max(1, Math.floor(teams.length / 2))),
+    );
+    if (win.dates.length < nightsNeeded) {
+      notes.push(`A ${win.dates.length}-day preseason window is too short for `
+        + `${plan.games} exhibition games at up to ${plan.hi} per club — it needs at `
+        + `least ${nightsNeeded} days, and more than that to avoid clubs playing on `
+        + 'consecutive nights. Some fixtures will go unplaced and some clubs will finish '
+        + `below the minimum of ${PRESEASON_LIMITS.min}. Lengthen the window or lower `
+        + 'Preseason Games Per Team.');
+    } else if (win.dates.length < plan.hi * 2 - 1) {
+      notes.push(`A ${win.dates.length}-day preseason window fits `
+        + `${plan.games} exhibition games but not with a night off between every one, so `
+        + `some clubs will play on consecutive days. ${plan.hi * 2 - 1} days would avoid `
+        + 'it entirely.');
+    }
   }
   // A short season in a long window cannot avoid long idle stretches, whatever
   // the maximum says — there is simply more calendar than there are games.

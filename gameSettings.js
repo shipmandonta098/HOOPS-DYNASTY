@@ -155,6 +155,25 @@ export const GROUPS = [
     ],
   },
   {
+    id: 'schedPreseason', label: 'Schedule — Preseason',
+    settings: [
+      { key: 'preseason', label: 'Preseason', type: 'toggle', def: true, applied: true,
+        help: 'Exhibition games in the weeks before opening night. They appear on their own tab in the Schedule screen and never count towards records, standings or any rating \u2014 they are kept in a separate fixture list precisely so they cannot.' },
+      { key: 'preseasonGamesPerTeam', label: 'Preseason Games Per Team', type: 'number',
+        min: 4, max: 8, step: 1, def: 4, applied: true,
+        dependsOn: { key: 'preseason', value: true },
+        help: 'The usual number of exhibition games a club plays. Four is the common case; four is also the floor and eight the ceiling. The league-wide total follows from this and the size of the league rather than being set separately.' },
+      { key: 'preseasonVariance', label: 'Preseason Variance', type: 'number',
+        min: 0, max: 4, step: 1, def: 1, applied: true,
+        dependsOn: { key: 'preseason', value: true },
+        help: 'How far individual clubs vary from that number. Zero gives every club the same slate, which no real preseason has.' },
+      { key: 'preseasonWindow', label: 'Preseason Length (Days)', type: 'number',
+        min: 3, max: 45, step: 1, def: 14, applied: true,
+        dependsOn: { key: 'preseason', value: true },
+        help: 'How many days the exhibition window runs for, counting back from the day before opening night. The window always ends a clear day before the season starts, so nobody opens the season on no rest.' },
+    ],
+  },
+  {
     id: 'schedSpecial', label: 'Schedule — Special Dates',
     settings: [
       { key: 'allStarBreak', label: 'All-Star Break', type: 'toggle', def: true, applied: true,

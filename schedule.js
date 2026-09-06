@@ -26,6 +26,7 @@ import { matchupsFor, seasonCalendar, resolveTeams } from './scheduleRules.js';
 import { restDaysOf, backToBackRules } from './gameSettings.js';
 import { rebalanceSchedule, backToBackReport } from './scheduleRebalance.js';
 import { nightTargets, weekdayProfile } from './dayShape.js';
+import { buildPreseason } from './preseason.js';
 
 /* ===========================================================================
  * BUILDING A SEASON
@@ -464,9 +465,16 @@ export function buildSchedule(league, season, settingsOverride, structure) {
     return out;
   });
 
+  // The exhibition slate, built from the same league and seed but kept in its
+  // own list. Nothing that computes a record, a rating or a projection reads
+  // it, which is the whole reason it is not in `games`.
+  const preseason = buildPreseason(league, year, rules, structure || league.structure,
+    cal.dates.length ? cal.dates[0] : null);
+
   return {
     season: year,
     games: finalGames,
+    preseason,
     rest: {
       moves: balanced.integrity.ok ? balanced.moves.length : 0,
       before: balanced.before,
