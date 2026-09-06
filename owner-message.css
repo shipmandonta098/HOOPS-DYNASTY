@@ -1,0 +1,188 @@
+/* owner-message.css — the welcome letter takeover.
+   Two panels: the club on the left, the letter on the right, the way the
+   reference lays it out. The left panel is colour and crest rather than a
+   photograph, because the game has no photography and a wrong skyline would be
+   worse than none. */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--ink-2) 0%, var(--ink-1) 45%, var(--ink-0) 100%);
+  color: var(--white);
+  font-family: var(--font-body);
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.5rem;
+}
+
+.om-stage { width: min(1180px, 100%); display: grid; gap: 0.9rem; }
+
+.om-card {
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) 1fr;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+/* ------------------------------------------------------------------- club */
+.om-brand {
+  position: relative;
+  padding: 2.6rem 1.8rem;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  border-right: 1px solid var(--stroke);
+  /* The club's own colours, top to bottom, standing in for the reference's
+     city photograph. --team-raw-* is the real palette: a crest panel should
+     show a team's actual colours, not a contrast-corrected version of them. */
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--team-raw-primary, #cf6127) 42%, #0b0c0e) 0%,
+      color-mix(in srgb, var(--team-raw-tertiary, #0d1e34) 55%, #0b0c0e) 58%,
+      #08090a 100%);
+}
+/* A faint court arc, so the panel is not a flat wash. */
+.om-brand::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(80% 46% at 50% 100%, rgba(255, 255, 255, 0.09), transparent 70%),
+    radial-gradient(60% 40% at 50% 0%, rgba(0, 0, 0, 0.45), transparent 60%);
+}
+.om-brand-inner { position: relative; z-index: 1; display: grid; justify-items: center; gap: 0.1rem; }
+
+.om-city {
+  font-size: 0.72rem; letter-spacing: 0.42em; text-indent: 0.42em;
+  text-transform: uppercase; color: rgba(255, 255, 255, 0.82); font-weight: 700;
+}
+.om-nick {
+  font-family: var(--font-display);
+  font-size: clamp(2.1rem, 4.4vw, 3.2rem);
+  line-height: 1.02; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--team-raw-secondary, var(--gold));
+  margin: 0.35rem 0 1.3rem;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+}
+.om-crest { margin-bottom: 1.4rem; filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.55)); }
+.om-rule {
+  width: 74px; height: 2px; margin-bottom: 1.25rem; border-radius: 2px;
+  background: linear-gradient(90deg, transparent,
+    var(--team-raw-secondary, var(--gold)), transparent);
+}
+.om-facts { display: grid; gap: 0.6rem; justify-items: center; }
+.om-fact { display: grid; gap: 0.12rem; }
+.om-fk {
+  font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5); font-weight: 800;
+}
+.om-fv { font-size: 0.8rem; color: rgba(255, 255, 255, 0.92); }
+
+/* ----------------------------------------------------------------- letter */
+.om-letter { padding: 2.1rem 2.3rem 1.9rem; display: grid; align-content: start; }
+
+.om-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1.5rem; margin-bottom: 1.5rem;
+}
+.om-eyebrow, .om-stamp span {
+  font-size: 0.6rem; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--muted); font-weight: 800;
+}
+.om-stamp { display: grid; gap: 0.3rem; text-align: right; }
+.om-stamp span { color: var(--muted-2); letter-spacing: 0.14em; }
+
+.om-h { margin: 0; display: grid; gap: 0.35rem; }
+.om-kicker {
+  font-size: 0.86rem; letter-spacing: 0.34em; text-indent: 0.34em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.om-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 3.9vw, 3rem);
+  line-height: 1; letter-spacing: 0.02em; text-transform: uppercase;
+  display: flex; flex-wrap: wrap; gap: 0 0.4rem;
+}
+.om-t1 { color: var(--white); font-weight: 400; }
+.om-t2 { color: var(--team-secondary, var(--gold)); font-weight: 400; }
+
+/* The two-tone rule under the headline, in the club's own colours. */
+.om-bar {
+  height: 3px; border-radius: 2px; margin: 0.9rem 0 1.5rem;
+  max-width: 460px;
+  background: linear-gradient(90deg,
+    var(--team-primary, var(--brand)) 0%,
+    var(--team-primary, var(--brand)) 34%,
+    var(--team-secondary, var(--gold)) 34%,
+    transparent 100%);
+}
+
+.om-body { display: grid; gap: 0.85rem; max-width: 62ch; }
+.om-body p { margin: 0; font-size: 0.93rem; line-height: 1.62; color: var(--silver); }
+.om-dear { color: var(--white) !important; }
+
+/* ---------------------------------------------------------------- sign-off */
+.om-sign {
+  margin-top: 1.9rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 1rem 1.5rem;
+}
+.om-sign-rule {
+  grid-column: 1 / -1; height: 1px; width: 250px;
+  background: linear-gradient(90deg, var(--stroke), transparent);
+}
+.om-sign-txt { display: grid; gap: 0.28rem; }
+.om-sk, .om-sv {
+  font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 800;
+}
+.om-sk { color: var(--muted-2); }
+.om-sv { color: var(--muted); }
+
+.om-go {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  min-width: 210px; padding: 0.95rem 1.6rem;
+  border: 0; border-radius: 8px; cursor: pointer;
+  background: var(--team-primary, var(--brand));
+  color: var(--team-on-primary, #fff);
+  font: inherit; font-size: 0.82rem; font-weight: 800;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.om-go:hover { filter: brightness(1.1); box-shadow: 0 0 0 3px var(--team-softer, transparent); }
+.om-go:active { transform: translateY(1px); }
+.om-go:focus-visible { outline: 2px solid var(--team-secondary, var(--gold)); outline-offset: 3px; }
+
+/* ----------------------------------------------------------------- footer */
+.om-foot {
+  display: flex; align-items: center; gap: 1.2rem;
+  padding: 0 0.4rem;
+  font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--muted-2); font-weight: 700;
+}
+.om-foot i { flex: 1; height: 1px; background: var(--stroke-2); }
+
+/* --------------------------------------------------------------- narrow */
+@media (max-width: 880px) {
+  body { padding: 1rem; place-items: start center; }
+  .om-card { grid-template-columns: 1fr; }
+  .om-brand { border-right: 0; border-bottom: 1px solid var(--stroke); padding: 2rem 1.4rem 1.7rem; }
+  /* On a phone the club panel is a header, not half the screen, so the fact
+     chips move to a row and the crest comes down a size. */
+  .om-facts { grid-auto-flow: column; grid-auto-columns: max-content; gap: 1.1rem; }
+  .om-nick { margin-bottom: 1rem; }
+  .om-crest { margin-bottom: 1rem; }
+  .om-letter { padding: 1.5rem 1.3rem 1.4rem; }
+  .om-top { flex-direction: column; gap: 0.5rem; }
+  .om-stamp { text-align: left; grid-auto-flow: column; grid-auto-columns: max-content; gap: 0.9rem; flex-wrap: wrap; }
+  .om-sign { grid-template-columns: 1fr; }
+  .om-go { width: 100%; }
+}
+@media (max-width: 520px) {
+  .om-facts { grid-auto-flow: row; justify-items: center; gap: 0.5rem; }
+  .om-stamp { grid-auto-flow: row; gap: 0.25rem; }
+}

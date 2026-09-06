@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — A Message From The Owner</title>
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./owner-message.css" />
+</head>
+<body>
+  <div class="arena-rings" aria-hidden="true"></div>
+
+  <!-- The reference is a full-bleed takeover with no navigation: this screen
+       sits between creating a career and entering it, and the only way on is
+       the Continue button. -->
+  <main class="om-stage">
+    <article class="om-card" id="card"><!-- ownerMessage.js --></article>
+    <footer class="om-foot" id="foot"><!-- ownerMessage.js --></footer>
+  </main>
+
+  <div id="noCareer" hidden></div>
+  <script type="module" src="./ownerMessage.js"></script>
+</body>
+</html>

@@ -515,7 +515,9 @@ function initFooter() {
       for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
       await saveLeague(id, league);
       try { localStorage.setItem('activeLeagueId', id); } catch (_) {}
-      location.href = './gm-dashboard.html?id=' + encodeURIComponent(id);
+      // The owner's letter sits between creating a career and entering it, and
+      // its Continue button carries on to the dashboard.
+      location.href = './owner-message.html?id=' + encodeURIComponent(id);
     } catch (err) {
       console.error('Failed to create league:', err);
       label.textContent = original;

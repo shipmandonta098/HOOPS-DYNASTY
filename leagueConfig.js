@@ -276,7 +276,10 @@ export function newDraft() {
   const structure = defaultStructure();
   const teams = autoAlign(defaultTeams(), structure);
   return {
-    leagueName: 'National Basketball League',
+    // Fictional, deliberately. "National Basketball League" is a real league
+    // name in more than one country and reads as a thin variant of a bigger
+    // one, which is exactly the real-world branding this game does not use.
+    leagueName: 'Dynasty Basketball League',
     season: 2026,
     difficulty: 'normal',
     teamId: teams[0].id,

@@ -58,7 +58,7 @@ function fmtPlayed(iso) {
   };
 }
 
-/** Initials for a league badge, e.g. "National Basketball League" -> "NBL". */
+/** Initials for a league badge, e.g. "Dynasty Basketball League" -> "DBL". */
 function initials(name) {
   const words = String(name || '').split(/\s+/).filter(Boolean);
   let s = words.map((w) => w[0]).join('').toUpperCase();
