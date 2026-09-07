@@ -33,6 +33,8 @@ import {
 import { spreadModel, formatLine } from './powerRanking.js';
 import { detectBackToBacks } from './scheduleFatigue.js';
 import { preseasonGames } from './preseason.js';
+import { simulateGame, applyResult } from './gameSim.js';
+import { watchLive } from './liveGame.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -274,7 +276,34 @@ function renderControls() {
 
 const TEAM_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
   <th>Spread<span class="th-tag">proj</span></th>
-  <th>Result</th><th>Score</th><th>Record</th></tr>`;
+  <th>Result</th><th>Score</th><th>Record</th><th>Play</th></tr>`;
+/**
+ * Simulate and Watch Live, for a fixture that has not been played.
+ *
+ * A played game shows nothing here: the result exists, and re-running it would
+ * either overwrite a score that already happened or produce the same one again,
+ * since the simulator is seeded from the fixture. Neither is a button worth
+ * having.
+ */
+function actionCell(gameId, played) {
+  if (played) return '<span class="na">--</span>';
+  return `<span class="sg-acts">
+    <button class="sg-act" data-sim="${esc(gameId)}" title="Play this game out and show the result">Sim</button>
+    <button class="sg-act is-live" data-live="${esc(gameId)}" title="Watch it unfold play by play">Watch</button>
+  </span>`;
+}
+
+/** Find a fixture in whichever list is open. */
+function fixtureById(id) {
+  const pre = preseason();
+  return (league.schedule.games || []).find((g) => g.id === id)
+    || ((pre && pre.games) || []).find((g) => g.id === id) || null;
+}
+
+async function persist() {
+  try { await saveLeague(leagueId, league); } catch (_) { /* read-only is fine */ }
+}
+
 /**
  * The preseason table drops two columns, and both omissions are deliberate.
  *
@@ -286,14 +315,14 @@ const TEAM_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
  * worse than no number.
  */
 const PRESEASON_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
-  <th>Result</th><th>Score</th></tr>`;
+  <th>Result</th><th>Score</th><th>Play</th></tr>`;
 
 // In the league-wide view the line is quoted for the home side — the club the
 // column sits next to — so the header says so rather than leaving it to a
 // tooltip.
 const LEAGUE_HEAD = `<tr><th>Away</th><th></th><th>Home</th>
   <th>Home Spread<span class="th-tag">proj</span></th>
-  <th>Result</th><th>Score</th></tr>`;
+  <th>Result</th><th>Score</th><th>Play</th></tr>`;
 
 /**
  * The projected line for one fixture, from one team's point of view.
@@ -346,7 +375,7 @@ function renderLeagueDay() {
   const games = date ? leagueGamesOn(league.schedule, date) : [];
   if (!games.length) {
     el('gamesBody').innerHTML =
-      `<tr class="sg-empty"><td colspan="6">No games on this date.</td></tr>`;
+      `<tr class="sg-empty"><td colspan="7">No games on this date.</td></tr>`;
     return;
   }
   el('gamesBody').innerHTML = games.map((g) => {
@@ -364,6 +393,7 @@ function renderLeagueDay() {
         ? `<span class="sg-res is-w">Final</span>`
         : '<span class="na">--</span>'}</td>
       <td>${g.winner ? `${g.awayScore} - ${g.homeScore}` : '<span class="na">--</span>'}</td>
+      <td class="sg-play">${actionCell(g.id, !!g.winner)}</td>
     </tr>`;
   }).join('');
 }
@@ -385,7 +415,7 @@ function renderTable(games, records) {
     .filter(({ g }) => (!m || g.date.slice(0, 7) === m.key) && passesFilter(g));
 
   if (!rows.length) {
-    el('gamesBody').innerHTML = `<tr class="sg-empty"><td colspan="${pre ? 5 : 7}">${
+    el('gamesBody').innerHTML = `<tr class="sg-empty"><td colspan="${pre ? 6 : 8}">${
       pre ? 'No preseason games match this filter.' : 'No games match this filter.'
     }</td></tr>`;
     return;
@@ -409,6 +439,7 @@ function renderTable(games, records) {
         : '<span class="na">--</span>'}</td>
       <td>${g.result ? `${g.forScore} - ${g.againstScore}` : '<span class="na">--</span>'}</td>
       ${pre ? '' : `<td>${record ? esc(record.replace('-', ' - ')) : '<span class="na">--</span>'}</td>`}
+      <td class="sg-play">${actionCell(g.id, !!g.result)}</td>
     </tr>`;
   }).join('');
 }
@@ -559,7 +590,40 @@ function renderCalendar(games) {
 
 /* ----------------------------------------------------------------- wire */
 
+/**
+ * Play a fixture out.
+ *
+ * The result is written to the save straight away, so the record, the
+ * standings, the streak and the back-to-back analysis all move the moment the
+ * table redraws — which is what every one of those screens has been promising.
+ */
+async function simulate(id) {
+  const g = fixtureById(id);
+  if (!g || g.played) return;
+  const result = simulateGame(league, g);
+  if (!result) return;
+  applyResult(g, result);
+  await persist();
+  render();
+}
+
+function bindPlayButtons() {
+  const onClick = async (e) => {
+    const sim = e.target.closest('[data-sim]');
+    if (sim) { sim.disabled = true; await simulate(sim.dataset.sim); return; }
+    const live = e.target.closest('[data-live]');
+    if (!live) return;
+    const g = fixtureById(live.dataset.live);
+    if (!g || g.played) return;
+    // The overlay commits the result itself, at the buzzer and not before, so
+    // walking out at half time leaves the fixture unplayed.
+    watchLive(league, g, async () => { await persist(); render(); });
+  };
+  el('gamesBody').addEventListener('click', onClick);
+}
+
 function bind() {
+  bindPlayButtons();
   el('teamSel').addEventListener('change', (e) => {
     viewTeam = e.target.value; selectedDate = null; syncMonths(); render();
   });

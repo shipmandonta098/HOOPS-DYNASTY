@@ -295,3 +295,117 @@
 .sg-side { display: inline-flex; align-items: center; gap: 0.55rem; }
 .sg-side.is-won { font-weight: 800; }
 .sg-at { color: var(--muted-2); text-align: center; width: 24px; }
+
+/* ------------------------------------------------------------- play buttons */
+/* Sim and Watch sit on unplayed fixtures only. A played game has a result, and
+   re-running it would either overwrite what happened or, because the simulator
+   is seeded from the fixture, produce the identical score again. */
+.sg-acts { display: inline-flex; gap: 0.3rem; }
+.sg-act {
+  border: 1px solid var(--stroke); border-radius: 5px;
+  background: var(--panel-2); color: var(--silver);
+  font: inherit; font-size: 0.68rem; font-weight: 700;
+  padding: 0.24rem 0.5rem; cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+.sg-act:hover { border-color: var(--team-line, var(--brand)); color: var(--white); }
+.sg-act.is-live {
+  border-color: rgba(207, 97, 39, 0.4);
+  color: var(--team-primary, var(--brand));
+}
+.sg-act.is-live:hover { background: var(--team-softer, rgba(207, 97, 39, 0.1)); }
+.sg-act:disabled { opacity: 0.4; cursor: progress; }
+
+/* ---------------------------------------------------------------- live game */
+.lg-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(4, 5, 6, 0.78);
+  display: grid; place-items: center; padding: 1.5rem;
+  backdrop-filter: blur(3px);
+}
+.lg {
+  width: min(760px, 100%); max-height: min(760px, 92vh);
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid var(--stroke); border-radius: 14px;
+  background: var(--card); overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.lg-score {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem;
+  align-items: center; padding: 1.1rem 1.2rem;
+  border-bottom: 1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+}
+.lg-team { display: grid; justify-items: center; gap: 0.3rem; }
+.lg-tn { color: var(--muted); font-size: 0.72rem; text-align: center; }
+.lg-pts {
+  font-family: var(--font-display); font-size: 2.4rem; line-height: 1;
+  color: var(--white); font-variant-numeric: tabular-nums;
+}
+.lg-clock { display: grid; justify-items: center; gap: 0.15rem; position: relative; }
+.lg-per {
+  color: var(--team-primary, var(--brand)); font-size: 0.6rem; font-weight: 800;
+  letter-spacing: 0.18em; text-transform: uppercase;
+}
+.lg-time {
+  color: var(--white); font-size: 1.15rem; font-variant-numeric: tabular-nums;
+}
+.lg-x {
+  position: absolute; top: -0.7rem; right: -3.2rem;
+  border: 0; background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.95rem; padding: 0.3rem;
+}
+.lg-x:hover { color: var(--white); }
+
+.lg-feed { overflow-y: auto; padding: 0.5rem 0.4rem; }
+.lg-play {
+  display: grid; grid-template-columns: 46px 1fr auto; gap: 0.7rem;
+  align-items: baseline; padding: 0.38rem 0.8rem;
+  border-left: 2px solid transparent;
+  font-size: 0.82rem; color: var(--silver);
+  animation: lgIn 0.18s ease-out;
+}
+@keyframes lgIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lg-play { animation: none; } }
+.lg-when { color: var(--muted-2); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+.lg-run { color: var(--muted-2); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.lg-play.is-home { border-left-color: var(--team-line, var(--brand)); }
+.lg-play.is-away { border-left-color: rgba(255, 255, 255, 0.14); }
+.lg-play.is-make .lg-txt { color: var(--white); }
+.lg-play.is-tov .lg-txt, .lg-play.is-blk .lg-txt { color: #c9564a; }
+.lg-play.is-period, .lg-play.is-final {
+  background: rgba(255, 255, 255, 0.04); border-left-color: transparent;
+  color: var(--white); font-weight: 700; margin: 0.35rem 0;
+}
+.lg-play.is-final { color: var(--gold); }
+
+.lg-bar {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.8rem 1.1rem; border-top: 1px solid var(--stroke);
+}
+.lg-btn {
+  border: 0; border-radius: 7px; padding: 0.55rem 0.95rem; cursor: pointer;
+  background: var(--team-primary, var(--brand)); color: var(--team-on-primary, #fff);
+  font: inherit; font-size: 0.76rem; font-weight: 700;
+}
+.lg-btn.is-ghost {
+  background: var(--panel-2); border: 1px solid var(--stroke); color: var(--silver);
+}
+.lg-btn:disabled { opacity: 0.4; cursor: default; }
+.lg-speed { display: inline-flex; border: 1px solid var(--stroke); border-radius: 7px; overflow: hidden; }
+.lg-speed button {
+  border: 0; background: none; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 0.72rem; padding: 0.45rem 0.6rem;
+}
+.lg-speed button.is-on { background: var(--team-soft, rgba(207, 97, 39, 0.18)); color: var(--white); }
+.lg-prog { flex: 1; height: 4px; border-radius: 3px; background: var(--inset); overflow: hidden; }
+.lg-prog i { display: block; height: 100%; width: 0; background: var(--team-primary, var(--brand)); }
+
+@media (max-width: 640px) {
+  .lg-backdrop { padding: 0.6rem; }
+  .lg-pts { font-size: 1.8rem; }
+  .lg-x { right: -1.6rem; top: -0.9rem; }
+  .lg-bar { flex-wrap: wrap; }
+  .lg-prog { order: 3; flex-basis: 100%; }
+}
