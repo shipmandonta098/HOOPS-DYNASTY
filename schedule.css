@@ -483,3 +483,15 @@
 }
 .adv-done b { color: var(--white); }
 .adv-done a { color: var(--brand); }
+
+/* ---------------------------------------------------------- playoff rows */
+.sg-round { line-height: 1.25; }
+.sg-round i {
+  display: block; color: var(--muted-2); font-style: normal; font-size: 0.66rem;
+}
+.sg-series { font-variant-numeric: tabular-nums; color: var(--silver); }
+.sg-series b {
+  margin-left: 0.35rem; color: var(--gold); font-size: 0.62rem;
+  font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+#spreadNote a { color: var(--brand); }

@@ -33,6 +33,7 @@ import {
 import { spreadModel, formatLine } from './powerRanking.js';
 import { detectBackToBacks } from './scheduleFatigue.js';
 import { preseasonGames } from './preseason.js';
+import { playoffTeamGames, playoffFixtures } from './playoffs.js';
 import { simulateGame, applyResult } from './gameSim.js';
 import { watchLive } from './liveGame.js';
 import {
@@ -111,6 +112,10 @@ async function ensureSchedule() {
 
 /** The exhibition slate, or null when the league has none. */
 const preseason = () => (league.schedule && league.schedule.preseason) || null;
+/** The postseason, once one has been played. */
+const postseason = () => (league.playoffs
+  && league.playoffs.season === (league.meta && league.meta.currentSeason))
+  ? league.playoffs : null;
 
 function render() {
   model = spreadModel(league);
@@ -120,14 +125,19 @@ function render() {
   rest = detectBackToBacks(league.schedule);
 
   const pre = phase === 'preseason';
-  const games = pre
-    ? preseasonGames(preseason(), viewTeam)
-    : teamGames(league.schedule, viewTeam);
+  const post = phase === 'playoffs';
+  const games = post
+    ? playoffTeamGames(league, viewTeam)
+    : pre
+      ? preseasonGames(preseason(), viewTeam)
+      : teamGames(league.schedule, viewTeam);
   // A preseason record is not a record. Exhibitions are shown with their
   // result and counted into nothing, so the strip keeps reporting the season.
   const seasonGames = teamGames(league.schedule, viewTeam);
   const record = teamRecord(seasonGames);
-  const records = pre ? games.map(() => null) : runningRecords(games);
+  // Neither exhibitions nor playoff games produce a regular-season record, so
+  // the Record column is empty on both and the strip keeps reporting the season.
+  const records = (pre || post) ? games.map(() => null) : runningRecords(games);
   const next = nextGame(games);
 
   // The whole screen carries the viewed club's colours, so the accents below
@@ -136,7 +146,7 @@ function render() {
   renderTeamChip();
   renderStrip(record, next);
   renderControls();
-  if (scope === 'league' && !pre) renderLeagueDay();
+  if (scope === 'league' && !pre && !post) renderLeagueDay();
   else renderTable(games, records);
   renderNext(next);
   renderCalendar(games);
@@ -151,13 +161,18 @@ function render() {
  */
 function syncMonths() {
   const pre = phase === 'preseason';
-  const list = pre
-    ? ((preseason() && preseason().games) || [])
-    : (league.schedule.games || []);
+  const post = phase === 'playoffs';
+  // Each phase has its own months, and they do not overlap: the preseason runs
+  // before opening night and the postseason after the finale. Carrying one
+  // phase's month index into another leaves the table filtering April games
+  // through an October window and showing nothing.
+  const list = post ? playoffFixtures(league)
+    : pre ? ((preseason() && preseason().games) || [])
+      : (league.schedule.games || []);
   months = scheduleMonths(list);
-  const mine = pre
-    ? preseasonGames(preseason(), viewTeam)
-    : teamGames(league.schedule, viewTeam);
+  const mine = post ? playoffTeamGames(league, viewTeam)
+    : pre ? preseasonGames(preseason(), viewTeam)
+      : teamGames(league.schedule, viewTeam);
   // Open on the month the next game falls in, which is where a manager is.
   const next = nextGame(mine) || mine[0];
   const idx = next ? months.findIndex((m) => m.key === next.date.slice(0, 7)) : 0;
@@ -231,7 +246,20 @@ function renderControls() {
   // What the Spread column is, said once under the table rather than in a
   // tooltip nobody opens. Which rating it used matters, so it names that too.
   const noteEl = el('spreadNote');
-  if (noteEl && phase === 'preseason') {
+  if (noteEl && phase === 'playoffs') {
+    const po = postseason();
+    const n = po ? playoffFixtures(league).length : 0;
+    const mine = playoffTeamGames(league, viewTeam).length;
+    noteEl.innerHTML = po
+      ? `<b>Postseason.</b> ${n} game${n === 1 ? '' : 's'} across the bracket, shown by
+         round with the series score after each one. Playoff games carry a result but
+         no regular-season record, and no projected line \u2014 they have already been
+         played. ${mine
+           ? `<b>${esc(shortName(viewTeam))}</b> played <b>${mine}</b> of them.`
+           : `<b>${esc(shortName(viewTeam))}</b> did not make the playoffs.`}
+         The full bracket is on the <a href="./playoffs.html">Playoffs</a> screen.`
+      : '';
+  } else if (noteEl && phase === 'preseason') {
     const pre = preseason();
     const p = pre && pre.plan;
     noteEl.innerHTML = p
@@ -407,6 +435,18 @@ async function persist() {
 const PRESEASON_HEAD = `<tr><th>Date</th><th>Opponent</th><th>Location</th>
   <th>Result</th><th>Score</th><th>Play</th></tr>`;
 
+/**
+ * The playoff table trades two columns for the two that matter in a series.
+ *
+ * No projected spread, for the same reason the preseason has none: these games
+ * are already played, and a forecast beside a result reads as the same kind of
+ * fact. No running Record either — a postseason does not produce one — and in
+ * its place the round, the game number and the series score after it, which is
+ * what a playoff fixture actually means.
+ */
+const PLAYOFF_HEAD = `<tr><th>Date</th><th>Round</th><th>Opponent</th><th>Location</th>
+  <th>Result</th><th>Score</th><th>Series</th></tr>`;
+
 // In the league-wide view the line is quoted for the home side — the club the
 // column sits next to — so the header says so rather than leaving it to a
 // tooltip.
@@ -498,15 +538,23 @@ function passesFilter(g) {
 
 function renderTable(games, records) {
   const pre = phase === 'preseason';
-  el('gamesHead').innerHTML = pre ? PRESEASON_HEAD : TEAM_HEAD;
+  const post = phase === 'playoffs';
+  el('gamesHead').innerHTML = post ? PLAYOFF_HEAD : pre ? PRESEASON_HEAD : TEAM_HEAD;
   const m = months[monthIdx];
   const rows = games
     .map((g, i) => ({ g, record: records[i] }))
     .filter(({ g }) => (!m || g.date.slice(0, 7) === m.key) && passesFilter(g));
 
   if (!rows.length) {
-    el('gamesBody').innerHTML = `<tr class="sg-empty"><td colspan="${pre ? 6 : 8}">${
-      pre ? 'No preseason games match this filter.' : 'No games match this filter.'
+    // "No games match this filter" is the wrong reason when a club simply did
+    // not qualify, and sending a manager off to check their filters for a team
+    // that never played a postseason game is worse than saying nothing.
+    const noneAtAll = post && games.length === 0;
+    el('gamesBody').innerHTML = `<tr class="sg-empty"><td colspan="${post ? 7 : pre ? 6 : 8}">${
+      noneAtAll
+        ? `${esc(teamName(viewTeam))} did not reach the playoffs.`
+        : post ? 'No playoff games in this month.'
+          : pre ? 'No preseason games match this filter.' : 'No games match this filter.'
     }</td></tr>`;
     return;
   }
@@ -516,20 +564,23 @@ function renderTable(games, records) {
     return `<tr class="${g.id === nextId ? 'is-next' : ''}${
       g.date === selectedDate ? ' is-selected' : ''}">
       <td class="sg-date">${esc(formatGameDate(g.date))}${
-        b2b(g.id, g.home ? 'home' : 'away')}</td>
+        post ? '' : b2b(g.id, g.home ? 'home' : 'away')}</td>
+      ${post ? `<td class="sg-round">${esc(g.round)}<i>Game ${g.gameNo}</i></td>` : ''}
       <td class="sg-opp">
         <span class="sg-crest">${opp ? crestHTML(opp, 24) : ''}</span>
         <span>${g.home ? '' : '@ '}${esc(teamName(g.opponent))}</span>
       </td>
       <td>${g.home ? 'Home' : 'Away'}</td>
-      ${pre ? '' : `<td>${spreadCell(g.home ? viewTeam : g.opponent,
+      ${(pre || post) ? '' : `<td>${spreadCell(g.home ? viewTeam : g.opponent,
                        g.home ? g.opponent : viewTeam, viewTeam, !!g.result)}</td>`}
       <td>${g.result
         ? `<span class="sg-res is-${g.result === 'W' ? 'w' : 'l'}">${g.result}</span>`
         : '<span class="na">--</span>'}</td>
       <td>${g.result ? `${g.forScore} - ${g.againstScore}` : '<span class="na">--</span>'}</td>
-      ${pre ? '' : `<td>${record ? esc(record.replace('-', ' - ')) : '<span class="na">--</span>'}</td>`}
-      <td class="sg-play">${actionCell(g.id, !!g.result)}</td>
+      ${post ? `<td class="sg-series">${esc(g.seriesScore)}${
+          g.clincher ? ' <b>series</b>' : ''}</td>`
+        : pre ? '' : `<td>${record ? esc(record.replace('-', ' - ')) : '<span class="na">--</span>'}</td>`}
+      ${post ? '' : `<td class="sg-play">${actionCell(g.id, !!g.result)}</td>`}
     </tr>`;
   }).join('');
 }
@@ -728,7 +779,7 @@ function bind() {
       if (btn.disabled) return;
       phase = btn.dataset.tab;
       selectedDate = null;
-      if (phase === 'preseason') scope = 'team';
+      if (phase !== 'regular') scope = 'team';
       syncMonths();
       render();
     });
@@ -835,6 +886,21 @@ function syncMonthToDay() {
     preTab.title = has
       ? `${pre.games.length} exhibition games — they do not count towards records.`
       : 'Preseason is switched off for this league.';
+  }
+  // The Playoffs tab is live once a postseason has been played. Before that it
+  // is disabled and says WHY rather than sitting there inert — "not built yet"
+  // was true when it was written and stopped being true when the bracket
+  // shipped, which is exactly how a tab ends up showing nothing.
+  const poTab = el('tabPlayoffs');
+  const po = postseason();
+  if (poTab) {
+    const hasPo = !!(po && po.brackets);
+    poTab.disabled = !hasPo;
+    poTab.classList.toggle('is-todo', !hasPo);
+    poTab.title = hasPo
+      ? 'Every postseason game, by round.'
+      : 'No postseason has been played yet. Finish the regular season, then play it '
+        + 'out on the Playoffs screen.';
   }
   syncMonths();
 

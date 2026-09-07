@@ -197,6 +197,50 @@ export function playSeries(league, series) {
   return series;
 }
 
+/* ------------------------------------------------------------------ dates */
+
+const dayNum = (iso) => {
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+};
+const isoOf = (n) => new Date(n * 86400000).toISOString().slice(0, 10);
+
+/** The day after the last regular-season fixture, plus a few days off. */
+export function postseasonStart(league) {
+  const games = ((league.schedule || {}).games) || [];
+  if (!games.length) return null;
+  const last = games.map((g) => g.date).sort().pop();
+  return isoOf(dayNum(last) + 3);
+}
+
+/** A game every other day within a series, which is what a playoff week is. */
+const GAME_GAP = 2;
+/** Rest between rounds. */
+const ROUND_GAP = 3;
+
+/**
+ * Give a round's games real dates.
+ *
+ * Playoff games had no date at all, which was fine for a bracket and useless
+ * for the Schedule screen — a fixture with no date cannot appear on a calendar,
+ * be advanced past, or be found by the month stepper. Rounds run in parallel
+ * across conferences, as they do in reality, so every series in a round starts
+ * on the same day and the round ends when its longest one does.
+ */
+function dateRound(seriesList, start) {
+  let end = start;
+  for (const s of seriesList) {
+    if (!s || !s.games.length) continue;
+    s.games.forEach((g, i) => {
+      g.date = isoOf(dayNum(start) + i * GAME_GAP);
+      end = g.date > end ? g.date : end;
+    });
+    s.start = s.games[0].date;
+    s.end = s.games[s.games.length - 1].date;
+  }
+  return isoOf(dayNum(end) + ROUND_GAP);
+}
+
 /** Move a completed round's winners into the next one. */
 function promote(bracket, roundIdx, byId) {
   const from = bracket.rounds[roundIdx];
@@ -228,12 +272,21 @@ export function playPostseason(league, bracket) {
   }
   const byId = (id) => seedOf.get(id) || { id, seed: 99, name: id };
 
-  for (const b of bracket.brackets) {
-    for (let r = 0; r < b.rounds.length; r++) {
-      for (const s of b.rounds[r]) playSeries(league, s);
-      promote(b, r, byId);
+  // Rounds advance together across every bracket, so a round's games all sit
+  // in the same stretch of calendar rather than one conference finishing its
+  // whole side before the other starts.
+  let cursor = postseasonStart(league);
+  const depth = Math.max(...bracket.brackets.map((b) => b.rounds.length));
+  for (let r = 0; r < depth; r++) {
+    const inRound = [];
+    for (const b of bracket.brackets) {
+      if (!b.rounds[r]) continue;
+      for (const s of b.rounds[r]) { playSeries(league, s); inRound.push(s); }
     }
+    if (cursor) cursor = dateRound(inRound, cursor);
+    for (const b of bracket.brackets) if (b.rounds[r]) promote(b, r, byId);
   }
+  bracket.start = postseasonStart(league);
 
   if (bracket.final) {
     const champs = bracket.brackets
@@ -247,7 +300,9 @@ export function playPostseason(league, bracket) {
       bracket.final.high = { id: high.id, seed: high.seed, name: high.name, wins: 0 };
       bracket.final.low = { id: low.id, seed: low.seed, name: low.name, wins: 0 };
       playSeries(league, bracket.final);
+      if (cursor) cursor = dateRound([bracket.final], cursor);
       bracket.champion = bracket.final.winner;
+      bracket.end = bracket.final.end || null;
     }
   } else if (bracket.brackets.length === 1) {
     const last = bracket.brackets[0].rounds[bracket.brackets[0].rounds.length - 1][0];
@@ -275,4 +330,71 @@ export function seriesLine(series, nameOf) {
   }
   if (series.games.length) return `${h} ${series.high.wins}-${series.low.wins} ${l}`;
   return `${h} vs ${l}`;
+}
+
+
+/* --------------------------------------------------------------- fixtures */
+
+/**
+ * Every playoff game as a flat fixture list.
+ *
+ * The Schedule screen reads fixtures, not brackets, so this presents the
+ * postseason in the same shape as the regular season: a dated game with two
+ * clubs and a score. The round and the series state ride along, because "Game
+ * 5, Conference Finals, series tied 2-2" is the thing worth knowing about a
+ * playoff fixture and a bare date is not.
+ */
+export function playoffFixtures(league) {
+  const po = league && league.playoffs;
+  if (!po) return [];
+  const all = [...po.brackets.flatMap((b) => b.rounds.flat()), po.final].filter(Boolean);
+  const out = [];
+  for (const s of all) {
+    if (!s.high || !s.low) continue;
+    // The series score AFTER each game, tallied as the games go. Reading it off
+    // s.high.wins would put the final score on every row — Game 1 of a series
+    // that ended 4-2 would read 4-2, which is the one number it definitely was
+    // not at the time.
+    let hw = 0, lw = 0;
+    s.games.forEach((g, i) => {
+      if ((g.homeScore > g.awayScore) === (g.home === s.high.id)) hw++; else lw++;
+      out.push({
+        ...g,
+        phase: 'playoffs',
+        played: true,
+        round: s.label,
+        seriesId: s.id,
+        gameNo: i + 1,
+        seriesLength: s.length,
+        high: s.high, low: s.low,
+        highWins: hw, lowWins: lw,
+        seriesDone: s.done,
+        clincher: s.done && i === s.games.length - 1,
+      });
+    });
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** One club's playoff games, in the shape the schedule table renders. */
+export function playoffTeamGames(league, teamId) {
+  return playoffFixtures(league)
+    .filter((g) => g.home === teamId || g.away === teamId)
+    .map((g) => {
+      const home = g.home === teamId;
+      const forScore = home ? g.homeScore : g.awayScore;
+      const againstScore = home ? g.awayScore : g.homeScore;
+      // The running series score after this game, from this club's side.
+      return {
+        ...g,
+        home,
+        opponent: home ? g.away : g.home,
+        forScore,
+        againstScore,
+        result: forScore > againstScore ? 'W' : 'L',
+        seriesLabel: `${g.round} · Game ${g.gameNo}`,
+        seriesScore: g.high.id === teamId
+          ? `${g.highWins}-${g.lowWins}` : `${g.lowWins}-${g.highWins}`,
+      };
+    });
 }
