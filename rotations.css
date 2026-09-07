@@ -55,6 +55,11 @@
 .rot-tabs { margin: 0.2rem 0 1rem; }
 
 /* ------------------------------------------------------------------ shell */
+/* `display: grid` on a class outranks the `hidden` attribute, so a hidden pane
+   stays on screen — the same trap that once left the schedule's day header
+   visible. Every pane root needs this, not just the grid ones. */
+#paneRotations[hidden], #paneLineups[hidden],
+#paneMinutes[hidden], #paneStrategy[hidden] { display: none !important; }
 .rot-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
 .rot-main { padding: 0; overflow: hidden; }
 .rot-side { display: grid; gap: 1rem; }
@@ -211,4 +216,112 @@ td.rt-age, td.rt-con { color: var(--muted); font-variant-numeric: tabular-nums; 
   /* The table scrolls rather than the page: a slider squeezed to phone width
      cannot be dragged accurately, which defeats the point of it. */
   .rot-table { min-width: 820px; }
+}
+
+/* ==================================================================== LINEUPS */
+.lu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; }
+.lu-blurb { margin: -0.4rem 0 0.9rem; color: var(--muted); font-size: 0.78rem; }
+.lu-seats { display: grid; gap: 0.35rem; margin-bottom: 0.8rem; }
+.lu-seat { display: grid; grid-template-columns: 20px 1fr; align-items: center; gap: 0.5rem; }
+.lu-n { color: var(--muted-2); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+.lu-seat select {
+  width: 100%; background: var(--inset); color: var(--white);
+  border: 1px solid var(--stroke); border-radius: 6px;
+  font: inherit; font-size: 0.78rem; padding: 0.35rem 0.4rem;
+}
+.lu-seat select:focus { outline: 2px solid var(--team-line, var(--brand)); outline-offset: 1px; }
+
+/* Position coverage is reported, never enforced — the save has no data on who
+   can cover which spot, so three centres is flagged rather than refused. */
+.lu-pos { display: flex; gap: 0.35rem; margin-bottom: 0.85rem; flex-wrap: wrap; }
+.lu-p {
+  padding: 0.14rem 0.42rem; border-radius: 5px; font-size: 0.62rem; font-weight: 700;
+  background: rgba(255, 255, 255, 0.06); color: var(--silver);
+}
+.lu-p.is-none { background: transparent; border: 1px dashed var(--stroke); color: var(--muted-2); }
+.lu-p.is-dup { background: rgba(224, 168, 74, 0.16); color: #e0a84a; }
+
+.lu-bars { display: grid; gap: 0.3rem; }
+.lu-bar { display: grid; grid-template-columns: 92px 1fr 26px; align-items: center; gap: 0.55rem; }
+.lu-bk { color: var(--muted); font-size: 0.68rem; }
+.lu-track { height: 6px; border-radius: 3px; background: var(--inset); overflow: hidden; }
+.lu-track i { display: block; height: 100%; background: var(--team-primary, var(--brand)); }
+.lu-bar b { color: var(--white); font-size: 0.72rem; font-variant-numeric: tabular-nums; text-align: right; }
+.lu-read {
+  margin: 0.9rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--stroke-2);
+  color: var(--silver); font-size: 0.78rem; line-height: 1.5;
+}
+.rot-note { color: var(--muted-2); font-size: 0.74rem; line-height: 1.6; margin: 1rem 0 0; max-width: 88ch; }
+
+/* ==================================================================== MINUTES */
+.mn-wrap-outer { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+.mn-wrap-outer > * { min-width: 0; }
+.mn-side { display: grid; gap: 1rem; }
+.mn-card { padding-bottom: 0.4rem; }
+.mn-wrap { overflow-x: auto; }
+.mn-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.mn-table th {
+  text-align: right; padding: 0.5rem 0.6rem; color: var(--muted);
+  font-size: 0.55rem; font-weight: 800; letter-spacing: 0.13em; text-transform: uppercase;
+  border-bottom: 1px solid var(--stroke); white-space: nowrap;
+}
+.mn-table th.mn-p, .mn-table td.mn-p { text-align: left; width: 100%; }
+.mn-table th.mn-q.is-bad { color: #e0a84a; }
+.mn-table td {
+  padding: 0.34rem 0.6rem; border-bottom: 1px solid var(--stroke-2);
+  color: var(--white); text-align: right; font-variant-numeric: tabular-nums;
+}
+td.mn-p { display: flex; align-items: center; gap: 0.55rem; }
+.mn-table tr.is-off td { color: var(--muted); }
+.mn-table tr.is-bad td { background: rgba(224, 168, 74, 0.07); }
+.mn-tot { color: var(--muted); }
+.mn-in {
+  width: 52px; padding: 0.26rem 0.35rem; text-align: right;
+  border: 1px solid var(--stroke); border-radius: 5px;
+  background: var(--inset); color: var(--white); font: inherit;
+  font-size: 0.8rem; font-variant-numeric: tabular-nums;
+}
+.mn-in:focus { outline: 2px solid var(--team-line, var(--brand)); outline-offset: 1px; }
+.mn-sum.is-ok { color: #6cc070; }
+.mn-sum.is-warn { color: #e0a84a; }
+.mn-table tfoot td {
+  border-bottom: 0; border-top: 1px solid var(--stroke);
+  color: var(--muted); font-size: 0.74rem; font-weight: 700;
+}
+.mn-foot.is-ok { color: #6cc070; }
+.mn-foot.is-warn { color: #e0a84a; }
+.mn-auto { margin-top: 0.9rem; }
+
+/* =================================================================== STRATEGY */
+.st-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+.st-grid > * { min-width: 0; }
+.st-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.st-opts { display: grid; gap: 0.4rem; }
+.st-opt {
+  display: grid; gap: 0.15rem; text-align: left; width: 100%;
+  padding: 0.6rem 0.75rem; cursor: pointer;
+  border: 1px solid var(--stroke); border-radius: 8px;
+  background: var(--panel-2); color: var(--silver); font: inherit;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.st-opt b { color: var(--white); font-size: 0.82rem; }
+.st-opt span { color: var(--muted); font-size: 0.72rem; line-height: 1.4; }
+.st-opt:hover { border-color: var(--team-line, var(--brand)); }
+.st-opt.is-on {
+  border-color: var(--team-primary, var(--brand));
+  background: var(--team-softer, rgba(207, 97, 39, 0.1));
+}
+.st-opt.is-on b { color: var(--team-primary, var(--brand)); }
+.st-side { display: grid; gap: 1rem; }
+.st-note { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--stroke-2); }
+
+@media (max-width: 1180px) {
+  /* minmax(0, 1fr), not 1fr: a plain 1fr track refuses to shrink below its
+     content, so the scrolling table pushed the whole page sideways instead of
+     scrolling inside its own wrapper. */
+  .mn-wrap-outer, .st-grid { grid-template-columns: minmax(0, 1fr); }
+  .mn-side, .st-side { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .mn-table { min-width: 620px; }
 }

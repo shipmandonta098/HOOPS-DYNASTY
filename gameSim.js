@@ -32,6 +32,7 @@ import { makeRNG, hashString } from './leagueConfig.js';
 import { ovr } from './playerRatings.js';
 import { computeTendencies } from './playerTendencies.js';
 import { gameMinutes, ON_COURT, depthOrder, reconcile } from './rotation.js';
+import { strategyEffects } from './strategy.js';
 
 /** Possessions per team in a regulation game, before pace adjustments. */
 const BASE_PACE = 102;
@@ -147,9 +148,14 @@ export function simulateGame(league, game) {
   const away = teamOf(game.away);
   if (!home || !away) return null;
 
+  // Each side brings its own coaching instructions. They change how a team
+  // plays and never who its players are — no attribute, rating or Overall is
+  // touched by anything on the Strategy screen.
   const sides = [
-    { team: away, at: 'away', rows: lineup(away, rosterOf(away.id), settings) },
-    { team: home, at: 'home', rows: lineup(home, rosterOf(home.id), settings) },
+    { team: away, at: 'away', rows: lineup(away, rosterOf(away.id), settings),
+      st: strategyEffects(away.strategy) },
+    { team: home, at: 'home', rows: lineup(home, rosterOf(home.id), settings),
+      st: strategyEffects(home.strategy) },
   ];
   if (sides.some((s) => !s.rows.length)) return null;
 
@@ -182,7 +188,9 @@ export function simulateGame(league, game) {
 
     // Turnover, from ball handling against pressure.
     const handler = pick(rng, rows, (r) => r.share * (0.5 + r.tend.pass / 200));
-    const tovChance = clamp(0.122 + (def.def.steal - q(handler.player.attributes.ballHandling)) * 0.18, 0.05, 0.28);
+    const tovChance = clamp((0.122 + off.st.tov)
+      + (def.def.steal * def.st.steal - q(handler.player.attributes.ballHandling)) * 0.18,
+      0.04, 0.34);
     if (rng.next() < tovChance) {
       off.box.get(handler.player.id).tov++;
       const stealer = pick(rng, def.rows, (r) => r.share * (0.4 + r.tend.gambleSteals / 120));
@@ -197,7 +205,7 @@ export function simulateGame(league, game) {
     // A foul away from the shot — a reach, a hold, a loose ball. Most of a
     // team's fouls are these rather than shooting fouls, and without them a
     // box score comes out at a quarter of a real one.
-    if (rng.next() < 0.105) {
+    if (rng.next() < 0.105 * def.st.foul) {
       const fouler = pick(rng, def.rows, (r) => r.share * (0.5 + r.tend.perimeterPressure / 120));
       def.box.get(fouler.player.id).pf++;
       log(period, clock, def, `${fouler.player.name} is called for a foul.`, 'foul');
@@ -209,8 +217,9 @@ export function simulateGame(league, game) {
       + r.tend.isoCreate / 260));
     const t = shooter.tend;
     const a = shooter.player.attributes || {};
-    const w = { [SHOT.THREE]: t.shootThree * 1.32, [SHOT.MID]: t.shootMidRange * 0.8,
-      [SHOT.RIM]: (t.drive + t.postUp) * 0.62 };
+    const w = { [SHOT.THREE]: t.shootThree * 1.32 * off.st.three,
+      [SHOT.MID]: t.shootMidRange * 0.8,
+      [SHOT.RIM]: (t.drive + t.postUp) * 0.62 * off.st.rim };
     const totalW = w.three + w.mid + w.rim;
     let roll = rng.next() * totalW;
     const type = (roll -= w.three) <= 0 ? SHOT.THREE : (roll -= w.mid) <= 0 ? SHOT.MID : SHOT.RIM;
@@ -225,9 +234,9 @@ export function simulateGame(league, game) {
     // coefficient that looks reasonable per player lands far too high per
     // league. These land the season near 46% and 36%.
     const spec = {
-      [SHOT.THREE]: { base: 0.330, attr: 'threePoint', d: def.def.perimeter, pts: 3 },
-      [SHOT.MID]:   { base: 0.402, attr: 'midRange',   d: def.def.perimeter, pts: 2 },
-      [SHOT.RIM]:   { base: 0.580, attr: 'layup',      d: def.def.interior,  pts: 2 },
+      [SHOT.THREE]: { base: 0.330, attr: 'threePoint', d: def.def.perimeter * def.st.defPerim, pts: 3 },
+      [SHOT.MID]:   { base: 0.402, attr: 'midRange',   d: def.def.perimeter * def.st.defPerim, pts: 2 },
+      [SHOT.RIM]:   { base: 0.580, attr: 'layup',      d: def.def.interior * def.st.defRim,  pts: 2 },
     }[type];
     let p = spec.base + (q(a[spec.attr]) - 0.5) * 0.24 - (spec.d - 0.5) * 0.20 + edge;
     // Shot IQ is shot SELECTION, so it moves the quality of the look rather
@@ -238,7 +247,7 @@ export function simulateGame(league, game) {
     // A foul on the shot, more likely at the rim.
     // Shooting fouls. At the first rates a team took nine free throws a game
     // against a real twenty-two, so these are set from that measurement.
-    const foulRate = type === SHOT.RIM ? 0.275 : type === SHOT.MID ? 0.085 : 0.055;
+    const foulRate = (type === SHOT.RIM ? 0.275 : type === SHOT.MID ? 0.085 : 0.055) * def.st.foul;
     const fouled = rng.next() < foulRate;
 
     // A block, only at the rim and in the mid-range.
@@ -318,7 +327,7 @@ export function simulateGame(league, game) {
   const rebound = (off, def, period, clock, blocked) => {
     // Offensive rebounds are the exception, so the defence is favoured heavily.
     const offReb = clamp(0.26 + (avgTend(off.rows, 'crashBoards') - 50) / 500
-      - (def.def.reb - 0.5) * 0.18, 0.10, 0.42);
+      - (def.def.reb - 0.5) * 0.18 + off.st.crash - def.st.crash * 0.5, 0.06, 0.50);
     const offensive = rng.next() < offReb;
     const side = offensive ? off : def;
     const r = pick(rng, side.rows, (row) => row.share
@@ -339,7 +348,9 @@ export function simulateGame(league, game) {
   // Pace: a fast team and a slow one meet somewhere in between, so both sides
   // get the same number of possessions, which is what actually happens.
   const paceOf = (s) => 1 + (avgTend(s.rows, 'drive') - 50) / 600 - (avgTend(s.rows, 'postUp') - 50) / 900;
-  const pace = (paceOf(sides[0]) + paceOf(sides[1])) / 2;
+  // Possessions are shared, so two teams that disagree about pace meet in the
+  // middle — which is what happens on a real floor.
+  const pace = (paceOf(sides[0]) * sides[0].st.pace + paceOf(sides[1]) * sides[1].st.pace) / 2;
   const perQuarter = Math.max(4, Math.round((BASE_PACE * pace) / periods));
 
   const clockAt = (i, n, minutes) => {

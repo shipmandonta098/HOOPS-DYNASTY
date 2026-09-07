@@ -27,6 +27,12 @@ import { ovr } from './playerRatings.js';
 /** Players on the floor at once. Not a setting — it is what basketball is. */
 export const ON_COURT = 5;
 
+/** Periods in a game. Four quarters is what the Minutes grid splits across. */
+export const PERIODS = 4;
+
+/** Minutes in one period. */
+export const periodMinutes = (settings) => gameMinutes(settings) / PERIODS;
+
 /** Minutes in a game, from settings, so a shorter game means fewer to give. */
 export function gameMinutes(settings) {
   const n = Number(settings && settings.gameMinutes);
@@ -238,4 +244,120 @@ export function validate(roster, minutes, settings) {
     starters, bench, inactive: order.length - playing,
     playing,
   };
+}
+
+
+/* ------------------------------------------------------- minutes by period */
+
+/**
+ * A player's minutes split across the quarters.
+ *
+ * The Rotations tab says how many minutes a player gets; this says WHEN. The
+ * two have to agree — a player on 34 minutes must have 34 across the four
+ * quarters — and each quarter has to field exactly five players for its whole
+ * length, which is the constraint that makes the grid a puzzle rather than a
+ * form.
+ */
+export function spreadPeriods(minutes, roster, settings) {
+  const per = periodMinutes(settings);
+  const need = ON_COURT * per;                 // minutes a quarter must contain
+  const order = depthOrder(roster);
+  const left = new Map(order.map((p) => [p.id, Math.max(0, Number(minutes[p.id]) || 0)]));
+  const out = {};
+  for (const p of order) out[p.id] = new Array(PERIODS).fill(0);
+
+  // ALLOCATE BY QUARTER, NOT BY PLAYER. Spreading each player's own total
+  // evenly is the obvious approach and it does not work: the quarters come out
+  // at 62, 58, 63 and 57 of a required 60, because nothing in a per-player
+  // spread knows about the five-on-the-floor constraint. A fresh team then
+  // opened on this tab already invalid, with a "Spread Evenly" button that
+  // could not fix it either. Filling each quarter to exactly what it needs,
+  // from whoever has the most minutes still to place, satisfies both sides.
+  for (let qi = 0; qi < PERIODS; qi++) {
+    const remainingQuarters = PERIODS - qi;
+    let room = need;
+    // First pass: each player's fair share of this quarter, capped by the
+    // quarter length and by what they have left.
+    for (const p of order) {
+      if (room <= 0) break;
+      const total = left.get(p.id);
+      if (total <= 0) continue;
+      const share = Math.min(per, Math.round(total / remainingQuarters), total, room);
+      if (share <= 0) continue;
+      out[p.id][qi] = share;
+      left.set(p.id, total - share);
+      room -= share;
+    }
+    // Second pass: whatever the rounding left over goes to whoever still has
+    // minutes and space in this quarter, most-remaining first.
+    let guard = 0;
+    while (room !== 0 && guard++ < 2000) {
+      const pool = order
+        .filter((p) => (room > 0
+          ? left.get(p.id) > 0 && out[p.id][qi] < per
+          : out[p.id][qi] > 0))
+        .sort((a, b) => (room > 0
+          ? left.get(b.id) - left.get(a.id)
+          : out[b.id][qi] - out[a.id][qi]));
+      if (!pool.length) break;
+      const p = pool[0];
+      const step = room > 0 ? 1 : -1;
+      out[p.id][qi] += step;
+      left.set(p.id, left.get(p.id) - step);
+      room -= step;
+    }
+  }
+  return out;
+}
+
+/** Stored period minutes where they still agree with the totals, spread where not. */
+export function reconcilePeriods(stored, minutes, roster, settings) {
+  const order = depthOrder(roster);
+  const per = periodMinutes(settings);
+  if (!stored) return spreadPeriods(minutes, roster, settings);
+  const out = {};
+  let agrees = true;
+  for (const p of order) {
+    const row = Array.isArray(stored[p.id]) ? stored[p.id].slice(0, PERIODS) : null;
+    if (!row) { agrees = false; break; }
+    const filled = [...row, ...new Array(PERIODS).fill(0)].slice(0, PERIODS)
+      .map((v) => clampPeriod(v, per));
+    if (filled.reduce((a, b) => a + b, 0) !== (Number(minutes[p.id]) || 0)) agrees = false;
+    out[p.id] = filled;
+  }
+  // A stored split that no longer matches the totals is stale, not a user's
+  // work to preserve — the totals are what they last edited.
+  return agrees ? out : spreadPeriods(minutes, roster, settings);
+}
+
+const clampPeriod = (v, per) => Math.max(0, Math.min(per, Math.round(Number(v) || 0)));
+
+/** Is the period grid playable? Reported, per period, so the fix is obvious. */
+export function validatePeriods(periods, minutes, roster, settings) {
+  const per = periodMinutes(settings);
+  const order = depthOrder(roster);
+  const need = ON_COURT * per;
+  const problems = [];
+
+  const byPeriod = new Array(PERIODS).fill(0);
+  for (const p of order) {
+    const row = periods[p.id] || new Array(PERIODS).fill(0);
+    const sum = row.reduce((a, b) => a + b, 0);
+    const total = Number(minutes[p.id]) || 0;
+    if (sum !== total) {
+      problems.push(`${p.name} has ${sum} minutes across the quarters but ${total} in total.`);
+    }
+    row.forEach((v, i) => { byPeriod[i] += v; });
+  }
+  const periodRows = byPeriod.map((v, i) => ({
+    period: i + 1, minutes: v, need, ok: v === need,
+  }));
+  for (const r of periodRows) {
+    if (!r.ok) {
+      const d = need - r.minutes;
+      problems.push(`Q${r.period} is ${Math.abs(d)} minute${Math.abs(d) === 1 ? '' : 's'} `
+        + `${d > 0 ? 'short of' : 'over'} the ${need} it needs.`);
+    }
+  }
+  return { ok: problems.length === 0, problems, periods: periodRows, need };
 }

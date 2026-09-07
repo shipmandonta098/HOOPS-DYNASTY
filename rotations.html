@@ -51,12 +51,14 @@
 
       <div class="tabs rot-tabs" id="tabs">
         <button class="tab is-active" data-tab="rotations">Rotations</button>
-        <button class="tab is-todo" disabled title="Not built yet">Lineups</button>
-        <button class="tab is-todo" disabled title="Not built yet">Minutes</button>
-        <button class="tab is-todo" disabled title="Not built yet">Strategy</button>
+        <button class="tab" data-tab="lineups">Lineups</button>
+        <button class="tab" data-tab="minutes">Minutes</button>
+        <button class="tab" data-tab="strategy">Strategy</button>
       </div>
 
-      <div class="rot-grid">
+      <!-- One page, four panes. The team header, preset picker and Save button
+           are shared, because all four tabs edit the same team. -->
+      <div class="rot-grid" id="paneRotations">
         <section class="card rot-main">
           <div class="rot-wrap">
             <table class="rot-table">
@@ -79,6 +81,10 @@
           </section>
         </aside>
       </div>
+
+      <div id="paneLineups" hidden><!-- rotationsView.js --></div>
+      <div id="paneMinutes" hidden><!-- rotationsView.js --></div>
+      <div id="paneStrategy" hidden><!-- rotationsView.js --></div>
 
       <div id="noCareer" hidden></div>
     </main>

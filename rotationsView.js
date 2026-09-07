@@ -31,10 +31,12 @@ import { applyTeamTheme } from './teamTheme.js';
 import { ovr, initials, POSITION_NAME } from './playerRatings.js';
 import { standings } from './standings.js';
 import {
-  ON_COURT, PRESETS, gameMinutes, totalMinutes, reconcile, depthOrder,
-  applyPreset, autoMinutes, evenMinutes, resetMinutes, balanceMinutes,
-  roleOf, validate,
+  ON_COURT, PERIODS, PRESETS, gameMinutes, totalMinutes, periodMinutes, reconcile,
+  depthOrder, applyPreset, autoMinutes, evenMinutes, resetMinutes, balanceMinutes,
+  roleOf, validate, spreadPeriods, reconcilePeriods, validatePeriods,
 } from './rotation.js';
+import { UNIT_SLOTS, UNIT_SIZE, unitRatings, unitSummary, reconcileUnits } from './lineups.js';
+import { STRATEGY, reconcileStrategy, strategyEffects, strategySummary } from './strategy.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -47,6 +49,14 @@ let roster = [];
 let minutes = {};
 let saved = {};
 let presetName = null;
+let units = {};
+let periods = {};
+let strat = {};
+let savedUnits = {};
+let savedPeriods = {};
+let savedStrat = {};
+/** Which of the four tabs is on screen. */
+let tab = 'rotations';
 
 const settings = () => (league && league.settings) || {};
 const money = (m) => (m == null ? null : `$${Number(m).toFixed(1)}M`);
@@ -72,11 +82,33 @@ function contractLine(p) {
 
 /* ---------------------------------------------------------------- render */
 
+const PANES = ['rotations', 'lineups', 'minutes', 'strategy'];
+
 function render() {
+  for (const name of PANES) {
+    const pane = el(`pane${name[0].toUpperCase()}${name.slice(1)}`);
+    if (pane) pane.hidden = name !== tab;
+  }
+  for (const btn of el('tabs').querySelectorAll('.tab[data-tab]')) {
+    btn.classList.toggle('is-active', btn.dataset.tab === tab);
+  }
+  if (tab === 'lineups') renderLineups();
+  else if (tab === 'minutes') renderMinutes();
+  else if (tab === 'strategy') renderStrategy();
+  else renderRotations();
+
+  const v = validate(roster, minutes, settings());
+  const pv = validatePeriods(periods, minutes, roster, settings());
+  // Save is gated on BOTH, because they are one rotation: a valid minute total
+  // split wrongly across the quarters is not a rotation anyone can play.
+  el('saveBtn').disabled = !(v.ok && pv.ok) || !changed();
+  el('revertBtn').disabled = !changed();
+}
+
+function renderRotations() {
   const cap = gameMinutes(settings());
   const order = depthOrder(roster);
   const v = validate(roster, minutes, settings());
-
   el('rotHead').innerHTML = `<tr>
     <th class="rt-slot">Slot</th>
     <th class="rt-player">Player</th>
@@ -136,8 +168,6 @@ function render() {
 
   renderInfo(v);
   renderActions();
-  el('saveBtn').disabled = !v.ok || !changed();
-  el('revertBtn').disabled = !changed();
 }
 
 const ovrClass = (n) => (n >= 80 ? 'is-elite' : n >= 70 ? 'is-good' : n >= 60 ? 'is-ok' : 'is-low');
@@ -181,7 +211,195 @@ function renderActions() {
     </button>`).join('')}`;
 }
 
-const changed = () => JSON.stringify(minutes) !== JSON.stringify(saved);
+/** Anything unsaved, on any tab — one Save button covers all four. */
+/* --------------------------------------------------------------- lineups */
+
+const BARS = [
+  ['overall', 'Overall'], ['shooting', 'Shooting'], ['spacing', 'Spacing'],
+  ['finishing', 'Finishing'], ['playmaking', 'Playmaking'],
+  ['perimeterD', 'Perimeter D'], ['rimProtection', 'Rim Protection'],
+  ['rebounding', 'Rebounding'], ['athleticism', 'Athleticism'],
+];
+
+/**
+ * The five-man units.
+ *
+ * Each unit's ratings are DERIVED from the five players in it. What is not
+ * here is how a unit has performed — minutes together, net rating, plus-minus
+ * by combination. Real games produce those and the simulator does not track
+ * which five were on the floor for each possession, so there is nothing honest
+ * to report and nothing is reported.
+ */
+function renderLineups() {
+  const order = depthOrder(roster);
+  const byId = new Map(roster.map((p) => [p.id, p]));
+
+  el('paneLineups').innerHTML = `<div class="lu-grid">${UNIT_SLOTS.map((slot) => {
+    const ids = units[slot.key] || [];
+    const players = ids.map((id) => byId.get(id)).filter(Boolean);
+    const r = unitRatings(players);
+    const picked = new Set(ids);
+
+    const seats = ids.map((id, i) => {
+      const p = byId.get(id);
+      return `<div class="lu-seat">
+        <span class="lu-n">${i + 1}</span>
+        <select data-unit="${esc(slot.key)}" data-seat="${i}"
+          aria-label="Player ${i + 1} in ${esc(slot.label)}">
+          ${order.map((o) => `<option value="${esc(o.id)}"${o.id === id ? ' selected' : ''}${
+            picked.has(o.id) && o.id !== id ? ' disabled' : ''}
+            >${esc(o.position || '')} · ${esc(o.name)} (${ovr(o)})</option>`).join('')}
+        </select>
+      </div>`;
+    }).join('');
+
+    const bars = r ? BARS.map(([k, label]) => `<div class="lu-bar">
+      <span class="lu-bk">${esc(label)}</span>
+      <span class="lu-track"><i style="width:${Math.max(2, Math.min(100, r[k]))}%"></i></span>
+      <b>${r[k]}</b>
+    </div>`).join('') : '';
+
+    const pos = r ? `<div class="lu-pos">${
+      Object.entries(r.positions.counts).map(([k, n]) =>
+        `<span class="lu-p${n === 0 ? ' is-none' : n > 1 ? ' is-dup' : ''}">${esc(k)}${
+          n > 1 ? ` ×${n}` : ''}</span>`).join('')}</div>` : '';
+
+    return `<section class="card lu-card">
+      <div class="rot-h"><i>V</i>${esc(slot.label)}</div>
+      <p class="lu-blurb">${esc(slot.blurb)}</p>
+      <div class="lu-seats">${seats}</div>
+      ${pos}
+      <div class="lu-bars">${bars}</div>
+      <p class="lu-read">${esc(unitSummary(r))}</p>
+    </section>`;
+  }).join('')}</div>
+  <p class="rot-note">Unit ratings are worked out from the five players in them.
+    How a unit has actually performed together — minutes, net rating, plus-minus —
+    is not shown, because the simulator does not record which five were on the floor
+    for each possession, so there is nothing real to report.</p>`;
+}
+
+/* --------------------------------------------------------------- minutes */
+
+/**
+ * The same minutes, split across the quarters.
+ *
+ * The Rotations tab says how many; this says when. Both have to hold before a
+ * rotation can be saved: a player's quarters must add up to his total, and
+ * every quarter must field exactly five players for its whole length.
+ */
+function renderMinutes() {
+  const order = depthOrder(roster);
+  const per = periodMinutes(settings());
+  const v = validatePeriods(periods, minutes, roster, settings());
+
+  const head = `<tr><th class="mn-p">Player</th><th>Total</th>
+    ${v.periods.map((r) => `<th class="mn-q ${r.ok ? '' : 'is-bad'}">Q${r.period}</th>`).join('')}
+    <th>Split</th></tr>`;
+
+  const rows = order.map((p) => {
+    const row = periods[p.id] || new Array(PERIODS).fill(0);
+    const total = Number(minutes[p.id]) || 0;
+    const sum = row.reduce((a, b) => a + b, 0);
+    return `<tr class="${total ? '' : 'is-off'}${sum === total ? '' : ' is-bad'}">
+      <td class="mn-p"><span class="av">${esc(initials(p.name))}</span>
+        <span class="rt-name">${esc(p.name)}</span></td>
+      <td class="mn-tot">${total}</td>
+      ${row.map((v2, i) => `<td><input class="mn-in" type="number" min="0" max="${per}"
+        step="1" value="${v2}" data-pid="${esc(p.id)}" data-q="${i}"
+        aria-label="${esc(p.name)} minutes in quarter ${i + 1}" /></td>`).join('')}
+      <td class="mn-sum ${sum === total ? 'is-ok' : 'is-warn'}">${sum}</td>
+    </tr>`;
+  }).join('');
+
+  el('paneMinutes').innerHTML = `
+    <div class="mn-wrap-outer">
+      <section class="card mn-card">
+        <div class="rot-h"><i>⏱</i>Minutes By Quarter</div>
+        <div class="mn-wrap"><table class="mn-table">
+          <thead>${head}</thead><tbody>${rows}</tbody>
+          <tfoot><tr><td class="mn-p">On the floor</td><td></td>
+            ${v.periods.map((r) => `<td class="mn-foot ${r.ok ? 'is-ok' : 'is-warn'}"
+              >${r.minutes}/${r.need}</td>`).join('')}
+            <td></td></tr></tfoot>
+        </table></div>
+      </section>
+      <aside class="mn-side">
+        <section class="card">
+          <div class="rot-h"><i>≡</i>Quarter Check</div>
+          <div class="mi-state ${v.ok ? 'is-ok' : 'is-warn'}">
+            <span class="mi-dot"></span>
+            <div><b>${v.ok ? 'Every quarter is covered' : 'Quarters do not add up'}</b>
+            ${v.ok ? '' : `<ul>${v.problems.slice(0, 6).map((x) =>
+              `<li>${esc(x)}</li>`).join('')}</ul>`}</div>
+          </div>
+          <button class="qa mn-auto" id="mnSpread">
+            <span class="qa-ic">↔</span>
+            <span class="qa-t">Spread Evenly</span>
+          </button>
+        </section>
+        <section class="card rot-tips">
+          <div class="rot-h"><i>i</i>How This Works</div>
+          <p>Each quarter needs ${ON_COURT} players on the floor for all ${per}
+             minutes, which is ${ON_COURT * per} minutes a quarter.</p>
+          <p>A player's four quarters have to add up to the total you set on the
+             Rotations tab. Change a total there and the split is redrawn here.</p>
+        </section>
+      </aside>
+    </div>`;
+}
+
+/* -------------------------------------------------------------- strategy */
+
+/**
+ * The coaching instructions.
+ *
+ * Every control here reaches the simulator — the panel on the right shows the
+ * exact numbers the current choices feed into it. A strategy screen whose
+ * dropdowns only remember themselves is decoration, so this one states what it
+ * does and the effect is measurable in a simulated season.
+ */
+function renderStrategy() {
+  const chosen = reconcileStrategy(strat);
+  const rows = strategySummary(strat);
+
+  el('paneStrategy').innerHTML = `
+    <div class="st-grid">
+      <div class="st-groups">
+        ${Object.entries(STRATEGY).map(([key, group]) => `
+          <section class="card st-card">
+            <div class="rot-h"><i>⚙</i>${esc(group.label)}</div>
+            <p class="lu-blurb">${esc(group.blurb)}</p>
+            <div class="st-opts">
+              ${Object.entries(group.options).map(([name, opt]) => `
+                <button class="st-opt${name === chosen[key] ? ' is-on' : ''}"
+                  data-group="${esc(key)}" data-opt="${esc(name)}">
+                  <b>${esc(name)}</b>
+                  <span>${esc(opt.blurb || '')}</span>
+                </button>`).join('')}
+            </div>
+          </section>`).join('')}
+      </div>
+      <aside class="st-side">
+        <section class="card">
+          <div class="rot-h"><i>Σ</i>What This Does</div>
+          ${rows.length
+            ? rows.map((r) => `<div class="mi-row"><span>${esc(r.label)}</span>
+                <b>${esc(r.value)}</b></div>`).join('')
+            : '<p class="lu-blurb">Every dial is on its neutral setting, so nothing '
+              + 'is changed from how the team would play anyway.</p>'}
+          <p class="rot-note st-note">These are the actual multipliers the game
+            simulator reads. Nothing here changes a player \u2014 no attribute, rating,
+            potential or Overall is touched by a coaching instruction.</p>
+        </section>
+      </aside>
+    </div>`;
+}
+
+const changed = () => JSON.stringify(minutes) !== JSON.stringify(saved)
+  || JSON.stringify(units) !== JSON.stringify(savedUnits)
+  || JSON.stringify(periods) !== JSON.stringify(savedPeriods)
+  || JSON.stringify(strat) !== JSON.stringify(savedStrat);
 
 /* ------------------------------------------------------------------ edit */
 
@@ -189,8 +407,19 @@ function setMinutes(id, value) {
   const cap = gameMinutes(settings());
   const n = Math.max(0, Math.min(cap, Math.round(Number(value) || 0)));
   minutes[id] = n;
+  // A changed total makes the old quarter split stale — it no longer adds up —
+  // so it is redrawn rather than left contradicting the number above it.
+  periods = spreadPeriods(minutes, roster, settings());
   // The preset no longer describes what is on screen once a slider moves.
   if (presetName) { presetName = null; el('presetSel').value = ''; }
+  render();
+}
+
+/** Every quick action rewrites the totals, so every one redraws the split. */
+function afterMinutesChange() {
+  periods = spreadPeriods(minutes, roster, settings());
+  presetName = null;
+  el('presetSel').value = '';
   render();
 }
 
@@ -213,30 +442,84 @@ function bind() {
     else if (btn.dataset.act === 'balance') minutes = balanceMinutes(roster, minutes, s);
     else if (btn.dataset.act === 'even') minutes = evenMinutes(roster, s);
     else if (btn.dataset.act === 'reset') minutes = resetMinutes(roster);
-    presetName = null;
-    el('presetSel').value = '';
-    render();
+    afterMinutesChange();
   });
 
   el('presetSel').addEventListener('change', (e) => {
     const name = e.target.value;
     if (!name || !PRESETS[name]) { presetName = null; return; }
     minutes = applyPreset(depthOrder(roster), PRESETS[name], settings());
+    periods = spreadPeriods(minutes, roster, settings());
     presetName = name;
+    render();
+  });
+
+  // The four tabs are four views of one team, so one Save writes all of them
+  // and one Revert takes all of them back.
+  el('tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab[data-tab]');
+    if (!btn || btn.disabled) return;
+    tab = btn.dataset.tab;
+    render();
+  });
+
+  el('paneLineups').addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-unit]');
+    if (!sel) return;
+    const key = sel.dataset.unit;
+    const seat = Number(sel.dataset.seat);
+    const list = [...(units[key] || [])];
+    const already = list.indexOf(sel.value);
+    // Picking somebody already in the unit swaps the two seats rather than
+    // leaving a duplicate, which is the only sensible reading of the action.
+    if (already >= 0 && already !== seat) list[already] = list[seat];
+    list[seat] = sel.value;
+    units[key] = list;
+    render();
+  });
+
+  el('paneMinutes').addEventListener('input', (e) => {
+    const inp = e.target.closest('.mn-in');
+    if (!inp) return;
+    const per = periodMinutes(settings());
+    const row = [...(periods[inp.dataset.pid] || new Array(PERIODS).fill(0))];
+    row[Number(inp.dataset.q)] = Math.max(0, Math.min(per, Math.round(Number(inp.value) || 0)));
+    periods[inp.dataset.pid] = row;
+    render();
+  });
+  el('paneMinutes').addEventListener('click', (e) => {
+    if (!e.target.closest('#mnSpread')) return;
+    periods = spreadPeriods(minutes, roster, settings());
+    render();
+  });
+
+  el('paneStrategy').addEventListener('click', (e) => {
+    const btn = e.target.closest('.st-opt');
+    if (!btn) return;
+    strat = { ...strat, [btn.dataset.group]: btn.dataset.opt };
     render();
   });
 
   el('saveBtn').addEventListener('click', async () => {
     const v = validate(roster, minutes, settings());
-    if (!v.ok) return;
-    team.rotation = { minutes: { ...minutes }, preset: presetName };
+    const pv = validatePeriods(periods, minutes, roster, settings());
+    if (!v.ok || !pv.ok) return;
+    team.rotation = { minutes: { ...minutes }, preset: presetName, periods: { ...periods } };
+    team.lineups = { ...units };
+    team.strategy = { ...strat };
     saved = { ...minutes };
+    savedUnits = JSON.parse(JSON.stringify(units));
+    savedPeriods = JSON.parse(JSON.stringify(periods));
+    savedStrat = { ...strat };
     try { await saveLeague(leagueId, league); } catch (_) { /* read-only is fine */ }
     render();
   });
 
   el('revertBtn').addEventListener('click', () => {
     minutes = { ...saved };
+    units = JSON.parse(JSON.stringify(savedUnits));
+    periods = JSON.parse(JSON.stringify(savedPeriods));
+    strat = { ...savedStrat };
     render();
   });
 }
@@ -283,7 +566,13 @@ function bind() {
   const start = reconcile(team.rotation, roster, settings());
   minutes = start.minutes;
   presetName = start.preset;
+  periods = reconcilePeriods(team.rotation && team.rotation.periods, minutes, roster, settings());
+  units = reconcileUnits(team.lineups, roster);
+  strat = reconcileStrategy(team.strategy);
   saved = { ...minutes };
+  savedPeriods = JSON.parse(JSON.stringify(periods));
+  savedUnits = JSON.parse(JSON.stringify(units));
+  savedStrat = { ...strat };
   if (presetName) el('presetSel').value = presetName;
 
   bind();
