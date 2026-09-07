@@ -20,7 +20,7 @@ export const NAV = [
   { id: 'teamStats',  label: 'Team Stats',      icon: '📊' },
   { id: 'schedule',   label: 'Schedule',        icon: '📅', href: './schedule.html' },
   { id: 'standings',  label: 'Standings',       icon: '🏆', href: './standings.html' },
-  { id: 'playoffs',   label: 'Playoffs',        icon: '🏅' },
+  { id: 'playoffs',   label: 'Playoffs',        icon: '🏅', href: './playoffs.html' },
   { id: 'finances',   label: 'Finances',        icon: '💰' },
   { id: 'draft',      label: 'Draft',           icon: '🎯' },
   { id: 'scouting',   label: 'Scouting',        icon: '🔍' },

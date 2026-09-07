@@ -332,9 +332,8 @@ function renderClock() {
     done.hidden = s.phase !== 'complete';
     done.innerHTML = s.phase === 'complete'
       ? `<b>The regular season is over.</b> Every one of the ${s.total} games has been
-         played and the final standings are on the Standings screen. The playoffs are
-         not built yet, so there is nothing further to advance to \u2014 this is as far
-         as the calendar goes.`
+         played. The final standings seed the bracket \u2014 head to
+         <a href="./playoffs.html">Playoffs</a> to play the postseason out.`
       : '';
   }
 

@@ -482,3 +482,4 @@
   color: var(--muted); font-size: 0.8rem; line-height: 1.6; max-width: 90ch;
 }
 .adv-done b { color: var(--white); }
+.adv-done a { color: var(--brand); }
