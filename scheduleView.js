@@ -35,6 +35,9 @@ import { detectBackToBacks } from './scheduleFatigue.js';
 import { preseasonGames } from './preseason.js';
 import { simulateGame, applyResult } from './gameSim.js';
 import { watchLive } from './liveGame.js';
+import {
+  STEPS, clockState, targetDate, advanceTo, runSummary, currentDate,
+} from './seasonClock.js';
 
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -137,6 +140,7 @@ function render() {
   else renderTable(games, records);
   renderNext(next);
   renderCalendar(games);
+  renderClock();
 }
 
 /**
@@ -298,6 +302,93 @@ function fixtureById(id) {
   const pre = preseason();
   return (league.schedule.games || []).find((g) => g.id === id)
     || ((pre && pre.games) || []).find((g) => g.id === id) || null;
+}
+
+/* ------------------------------------------------------- the season clock */
+
+const PHASE_TEXT = {
+  preseason: 'Preseason',
+  gap: 'Between preseason and opening night',
+  regular: 'Regular season',
+  complete: 'Regular season complete',
+  none: 'No schedule',
+};
+
+function renderClock() {
+  const s = clockState(league);
+  el('advDate').textContent = s.date ? formatLongDate(s.date) : '—';
+  el('advPhase').textContent = PHASE_TEXT[s.phase] || '';
+  el('advLeft').innerHTML = s.total
+    ? `<b>${s.played}</b> of <b>${s.total}</b> league games played`
+      + `${s.preLeft ? ` · <span>${s.preLeft} preseason to go</span>` : ''}`
+    : '';
+
+  // A finished season with every button dead is a dead end unless it says why.
+  // "To Playoffs" advances to where the playoffs WOULD start; the bracket
+  // itself is not built, and pretending otherwise would be the one fabrication
+  // this screen has avoided all along.
+  const done = el('advDone');
+  if (done) {
+    done.hidden = s.phase !== 'complete';
+    done.innerHTML = s.phase === 'complete'
+      ? `<b>The regular season is over.</b> Every one of the ${s.total} games has been
+         played and the final standings are on the Standings screen. The playoffs are
+         not built yet, so there is nothing further to advance to \u2014 this is as far
+         as the calendar goes.`
+      : '';
+  }
+
+  el('advSteps').innerHTML = STEPS.map((step) => {
+    const to = targetDate(league, step.id, viewTeam);
+    // A step with nowhere to go is disabled rather than pressable to no
+    // effect, and says why on hover.
+    const title = to
+      ? `${step.hint} Through ${formatGameDate(to)}.`
+      : `${step.hint} Nothing left to play.`;
+    return `<button class="adv-btn${step.id === 'playoffs' ? ' is-far' : ''}"
+      data-step="${step.id}" ${to ? '' : 'disabled'} title="${esc(title)}"
+      >${esc(step.label)}</button>`;
+  }).join('');
+}
+
+/**
+ * Advance, then say what happened.
+ *
+ * Forty games passing in silence tells a manager nothing, so the run is
+ * summarised: how many were played, and the club's own record over them.
+ */
+async function advance(step) {
+  const to = targetDate(league, step, viewTeam);
+  if (!to) return;
+  const box = el('advSteps');
+  for (const b of box.querySelectorAll('button')) b.disabled = true;
+
+  const report = advanceTo(league, to);
+  const sum = runSummary(report, viewTeam);
+  await persist();
+
+  const rep = el('advReport');
+  if (!report.played) {
+    rep.hidden = false;
+    rep.className = 'adv-report is-quiet';
+    rep.innerHTML = `<b>No games</b> were scheduled between
+      ${esc(formatGameDate(report.from))} and ${esc(formatGameDate(report.to))}.`;
+  } else {
+    const mine = sum.games.map((g) => `<span class="adv-g ${g.won ? 'is-w' : 'is-l'}">
+      ${g.won ? 'W' : 'L'} ${esc(g.score)} ${g.home ? 'vs' : '@'}
+      ${esc(shortName(g.opponent))}${g.preseason ? ' <i>pre</i>' : ''}</span>`).join('');
+    rep.hidden = false;
+    rep.className = 'adv-report';
+    rep.innerHTML = `<div class="adv-h">
+        <b>${report.played}</b> game${report.played === 1 ? '' : 's'} played through
+        ${esc(formatGameDate(report.to))}
+        ${sum.total ? `· <b>${esc(shortName(viewTeam))}</b> went
+          <b class="${sum.wins >= sum.losses ? 'is-w' : 'is-l'}">${sum.wins}-${sum.losses}</b>` : ''}
+      </div>
+      ${mine ? `<div class="adv-games">${mine}</div>` : ''}`;
+  }
+  syncMonths();
+  render();
 }
 
 async function persist() {
@@ -624,6 +715,10 @@ function bindPlayButtons() {
 
 function bind() {
   bindPlayButtons();
+  el('advSteps').addEventListener('click', (e) => {
+    const btn = e.target.closest('.adv-btn');
+    if (btn && !btn.disabled) advance(btn.dataset.step);
+  });
   el('teamSel').addEventListener('change', (e) => {
     viewTeam = e.target.value; selectedDate = null; syncMonths(); render();
   });

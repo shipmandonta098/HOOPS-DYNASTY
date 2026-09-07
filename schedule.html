@@ -47,6 +47,20 @@
         </div>
       </div>
 
+      <!-- The season clock. Advancing plays every fixture up to the target
+           date; nothing is skipped and nothing already played is touched. -->
+      <div class="card adv-card">
+        <div class="adv-now">
+          <span class="adv-k">Now</span>
+          <b id="advDate">—</b>
+          <span class="adv-sub" id="advPhase"></span>
+        </div>
+        <div class="adv-steps" id="advSteps"><!-- scheduleView.js --></div>
+        <div class="adv-left" id="advLeft"></div>
+      </div>
+      <div class="adv-report" id="advReport" hidden></div>
+      <div class="adv-done" id="advDone" hidden></div>
+
       <!-- Summary strip. Every figure is counted from games actually played,
            so in an unsimulated league these read as dashes, not as zeros. -->
       <div class="card strip-card">
