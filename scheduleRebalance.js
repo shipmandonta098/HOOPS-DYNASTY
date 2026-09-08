@@ -34,6 +34,8 @@
  * had deliberately left empty.
  */
 
+import { restTeam, seedDebt } from './fatigueRecovery.js';
+
 /* ------------------------------------------------------------------- rules */
 
 /**
@@ -955,4 +957,105 @@ export function backToBackReport(schedule, rules = {}) {
       backToBacks: r.backToBacks, counts: r.counts, difficulty: r.difficulty,
     }])),
   };
+}
+
+
+/* ------------------------------------------------ rebalance with recovery */
+
+/**
+ * Rebalance a schedule, then pay the rest days back as fatigue recovery.
+ *
+ * WHAT A REST DAY IS HERE. The calendar is fixed — a season has the nights it
+ * has — so nothing is "inserted". A rest day is a night a club was carrying a
+ * fixture and no longer is, because the fixture moved. That is the same event
+ * the brief describes and the only one a fixed calendar can produce, and it is
+ * the thing recovery is paid for.
+ *
+ * @param {object} input  `{ schedule, players, leagueRules }`
+ * @param {object} [opts] passed through to the rebalancer and the recovery
+ * @returns {{ adjustedSchedule, fatigueRecoverySummary, compliance }}
+ */
+export function rebalanceWithRecovery(input, opts = {}) {
+  const inp = input || {};
+  const rules = inp.leagueRules || {};
+  const players = inp.players || [];
+
+  const result = rebalanceSchedule(inp.schedule, {
+    maxBackToBacksPerTeam: rules.maxBackToBacksPerTeam,
+    minRestDaysBetweenGames: rules.minRestDaysBetweenGames,
+    maxConsecutiveGames: rules.maxConsecutiveGames != null ? rules.maxConsecutiveGames : 2,
+    ...opts.rules,
+  });
+
+  const before = normalise(inp.schedule);
+  const after = normalise(result.games);
+  const teams = [...new Set(after.flatMap((g) => [g.home, g.away]))].sort();
+
+  // Nights each club was relieved of a game: it had one, and now does not.
+  const datesOf = (list, team) => new Set(list
+    .filter((g) => g.home === team || g.away === team).map((g) => g.date));
+  const freedBy = new Map(teams.map((t) => {
+    const b = datesOf(before, t), a = datesOf(after, t);
+    return [t, [...b].filter((d) => !a.has(d)).sort()];
+  }));
+
+  const byTeam = new Map();
+  for (const p of players) {
+    const key = p.teamId || p.team;
+    if (!key) continue;
+    if (!byTeam.has(key)) byTeam.set(key, []);
+    byTeam.get(key).push(p);
+  }
+
+  const profiles = teamProfiles(result.games, result.rules);
+  const summary = [];
+  for (const team of teams) {
+    const freed = freedBy.get(team) || [];
+    const squad = byTeam.get(team) || [];
+    if (!squad.length) {
+      summary.push({ team, restDaysAdded: freed.length,
+        averageRecoveryPhysical: 0, averageRecoveryMental: 0 });
+      continue;
+    }
+    // Charge the debt the club actually ran up before crediting the rest, so
+    // recovery is applied to something rather than to a zero that cannot move.
+    if (opts.seed !== false) {
+      const prof = profiles.get(team);
+      seedDebt(squad, prof ? prof.backToBacks : 0, opts);
+    }
+    const r = restTeam(team, squad, freed.length, opts);
+    summary.push({
+      team: r.team,
+      restDaysAdded: r.restDaysAdded,
+      averageRecoveryPhysical: r.averageRecoveryPhysical,
+      averageRecoveryMental: r.averageRecoveryMental,
+      totalRecoveryPhysical: r.totalRecoveryPhysical,
+      totalRecoveryMental: r.totalRecoveryMental,
+    });
+  }
+
+  // Rest days are shown for the clubs that got them, interleaved with the
+  // fixtures in date order — a league-wide list of every empty night would be
+  // thousands of rows saying nothing happened.
+  const restRows = [];
+  for (const [team, dates] of freedBy) {
+    for (const d of dates) restRows.push({ date: d, restDay: true, team });
+  }
+  const adjustedSchedule = [
+    ...after.map((g) => ({ date: g.date, homeTeam: g.home, awayTeam: g.away })),
+    ...restRows,
+  ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  const over = result.after.teamsOverB2BCap;
+  const runs = result.after.teamsOverRunLimit;
+  const compliance = result.integrity.ok && !over && !runs
+    ? 'Within league rules'
+    : [
+        result.integrity.ok ? null : `schedule integrity failed: ${result.integrity.notes[0]}`,
+        over ? `${over} team${over === 1 ? '' : 's'} still above the back-to-back cap` : null,
+        runs ? `${runs} team${runs === 1 ? '' : 's'} still play more than `
+          + `${result.rules.maxConsecutiveGames} games in a row` : null,
+      ].filter(Boolean).join('; ');
+
+  return { adjustedSchedule, fatigueRecoverySummary: summary, compliance };
 }
