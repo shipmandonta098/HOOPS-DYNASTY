@@ -1,0 +1,210 @@
+/* staff.css — the Staff screen.
+
+   Two ideas carry the layout. The table is the page's spine: seven people,
+   one row each, with the Influence column wide enough to say something real
+   rather than a truncated phrase. And LIVE versus NOT LIVE is a visible
+   distinction everywhere it appears, because half the influence figures in
+   this brief describe systems this game has not built, and a reader has to be
+   able to tell those apart at a glance rather than by reading footnotes. */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ------------------------------------------------------------------ header */
+/* The name column gets a real floor. Without one the two auto columns to its
+   right take what they want, the 1fr collapses, and the club name — set in a
+   wide display face — spills out from under itself into the stat boxes. */
+.sf-top {
+  display: grid; gap: 1rem; align-items: center;
+  grid-template-columns: auto minmax(210px, 1fr) auto auto;
+}
+.sf-crest { font-size: 1.9rem; line-height: 1; }
+.sf-id { min-width: 0; }
+.sf-city {
+  color: var(--muted); font-size: 0.6rem; font-weight: 800;
+  letter-spacing: 0.18em; text-transform: uppercase;
+}
+/* The display face is wide, and a long club name would otherwise push out of
+   its own grid column and sit under the stat boxes. */
+.sf-id h1 { margin: 0.1rem 0 0.2rem; overflow-wrap: anywhere; }
+.sf-coach { overflow-wrap: anywhere; }
+.sf-coach { color: var(--silver); font-size: 0.78rem; }
+
+.sf-stats { display: flex; gap: 0.6rem; }
+.sf-stat {
+  display: flex; flex-direction: column; gap: 0.15rem; min-width: 108px;
+  border: 1px solid var(--stroke); border-radius: 9px;
+  background: var(--panel-2); padding: 0.45rem 0.7rem;
+}
+.sf-sk {
+  color: var(--muted); font-size: 0.55rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+.sf-stat b { font-size: 1.02rem; color: var(--white); }
+.sf-stat small { color: var(--muted-2); font-size: 0.63rem; line-height: 1.35; }
+
+.sf-teamsel {
+  display: flex; align-items: center; gap: 0.55rem;
+  border: 1px solid var(--stroke); border-radius: 8px;
+  background: var(--panel-2); padding: 0.3rem 0.5rem 0.3rem 0.7rem;
+}
+.sf-teamsel select {
+  background: none; border: 0; color: var(--white); font: inherit;
+  font-size: 0.84rem; padding: 0.25rem 0.2rem; max-width: 190px;
+}
+
+/* -------------------------------------------------------------- the notice */
+.sf-note {
+  border: 1px solid var(--stroke); border-left: 3px solid var(--blue);
+  border-radius: 9px; background: rgba(91, 141, 214, 0.07);
+  padding: 0.7rem 0.9rem; margin-bottom: 0.9rem;
+  color: var(--silver); font-size: 0.78rem; line-height: 1.5;
+}
+.sf-note b { color: var(--white); }
+
+/* --------------------------------------------------------------- the table */
+.sf-tablecard { margin-bottom: 0.9rem; }
+.sf-wrap { overflow-x: auto; }
+.sf-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 880px; }
+.sf-table th {
+  text-align: left; padding: 0.4rem 0.6rem; color: var(--muted);
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; border-bottom: 1px solid var(--stroke);
+  white-space: nowrap;
+}
+.sf-table td {
+  padding: 0.6rem; border-bottom: 1px solid var(--stroke-2);
+  vertical-align: top; color: var(--silver);
+}
+.sf-table tbody tr:last-child td { border-bottom: 0; }
+.sf-table tbody tr:hover { background: var(--row); }
+
+.sf-role { width: 1%; white-space: nowrap; }
+.sf-rolecell { display: flex; align-items: center; gap: 0.45rem; white-space: nowrap; }
+.sf-rolecell .ic { font-size: 0.95rem; line-height: 1; }
+.sf-table .sf-name { color: var(--white); font-weight: 600; white-space: nowrap; }
+.sf-spec { white-space: nowrap; }
+.sf-speccell { display: flex; align-items: center; gap: 0.4rem; }
+.sf-sal, .sf-rate, .sf-con { white-space: nowrap; }
+.sf-infl { min-width: 260px; line-height: 1.45; }
+
+/* The rating cell: number, then the graded chip. Colour is never the only
+   carrier — the letter says the same thing for anyone who cannot use it. */
+.sf-ratecell { display: flex; align-items: center; gap: 0.4rem; }
+.sf-ratecell b { color: var(--white); font-variant-numeric: tabular-nums; }
+.gr {
+  display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 4px; font-size: 0.62rem; font-weight: 900; color: var(--ink-0);
+}
+.gr-a { background: var(--rating-elite); }
+.gr-b { background: var(--rating-avg); }
+.gr-c { background: var(--rating-poor); }
+.gr-na { background: var(--muted-2); }
+
+.sf-badge {
+  display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.35rem;
+  border-radius: 4px; border: 1px solid rgba(212, 175, 55, 0.5);
+  background: rgba(212, 175, 55, 0.13); color: var(--gold);
+  font-size: 0.56rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; white-space: nowrap;
+}
+
+.sf-legend {
+  display: flex; flex-wrap: wrap; gap: 1rem; padding-top: 0.8rem;
+  border-top: 1px solid var(--stroke-2); margin-top: 0.2rem;
+  color: var(--muted); font-size: 0.68rem;
+}
+.sf-key { display: flex; align-items: center; gap: 0.35rem; }
+
+/* ------------------------------------------------------- the two panels */
+/* start, not stretch: the compatibility panel has three or four lines and
+   should not be padded out to the height of the influence list beside it. */
+.sf-grid {
+  display: grid; gap: 0.9rem; margin-bottom: 0.9rem; align-items: start;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+
+.sf-inf {
+  display: grid; gap: 0.55rem; padding: 0.6rem 0;
+  border-bottom: 1px solid var(--stroke-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.sf-inf:last-child { border-bottom: 0; padding-bottom: 0; }
+.sf-inf-h { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.sf-inf-h b { color: var(--white); font-size: 0.84rem; }
+.sf-inf-v {
+  font-size: 1rem; font-weight: 800; text-align: right; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.is-live .sf-inf-v { color: var(--rating-elite); }
+.is-live .sf-inf-v.is-flat { color: var(--brand-hi); }
+.is-dead .sf-inf-v { color: var(--muted-2); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; }
+.sf-inf-body { grid-column: 1 / -1; }
+.sf-inf ul { margin: 0.15rem 0 0; padding-left: 1.05rem; }
+.sf-inf li { color: var(--silver); font-size: 0.74rem; line-height: 1.5; }
+.sf-inf-why { color: var(--muted); font-size: 0.73rem; line-height: 1.5; margin: 0.3rem 0 0; }
+.sf-inf-where { color: var(--muted-2); font-size: 0.68rem; margin: 0.25rem 0 0; }
+
+.sf-tag {
+  padding: 0.05rem 0.35rem; border-radius: 4px; font-size: 0.53rem;
+  font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.is-live .sf-tag { background: rgba(63, 202, 125, 0.14); color: var(--rating-elite);
+  border: 1px solid rgba(63, 202, 125, 0.4); }
+.is-dead .sf-tag { background: rgba(255, 255, 255, 0.05); color: var(--muted);
+  border: 1px solid var(--stroke); }
+
+/* --------------------------------------------------------- compatibility */
+.sf-fit-top { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.3rem; }
+.sf-fit-pct { font-family: var(--font-display); font-size: 2.1rem; color: var(--white); line-height: 1; }
+.sf-fit-sys { color: var(--brand-hi); font-weight: 700; font-size: 0.85rem; }
+.sf-fit-say { color: var(--muted); font-size: 0.74rem; line-height: 1.5; margin: 0 0 0.8rem; }
+
+.sf-bar { height: 7px; border-radius: 4px; background: var(--inset); overflow: hidden;
+  border: 1px solid var(--stroke-2); }
+.sf-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-hi)); }
+
+.sf-fitrow {
+  display: grid; gap: 0.5rem; align-items: center; padding: 0.45rem 0;
+  grid-template-columns: minmax(0, 1fr) 78px 46px;
+  border-bottom: 1px solid var(--stroke-2); font-size: 0.76rem;
+}
+.sf-fitrow:last-child { border-bottom: 0; }
+.sf-fitrow .k { color: var(--silver); min-width: 0; }
+.sf-fitrow .k small { display: block; color: var(--muted-2); font-size: 0.65rem; }
+.sf-fitrow .s { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sf-fitrow .s.hi { color: var(--rating-elite); }
+.sf-fitrow .s.lo { color: var(--rating-poor); }
+
+/* -------------------------------------------------------------- contracts */
+.sf-cons { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); }
+.sf-con-card {
+  border: 1px solid var(--stroke); border-radius: 9px; background: var(--panel-2);
+  padding: 0.6rem 0.75rem;
+}
+.sf-con-card.is-expiring { border-color: rgba(212, 175, 55, 0.45); }
+.sf-con-role { color: var(--muted); font-size: 0.56rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase; }
+.sf-con-name { color: var(--white); font-weight: 600; font-size: 0.85rem; margin: 0.15rem 0 0.35rem; }
+.sf-con-meta { display: flex; gap: 0.8rem; color: var(--silver); font-size: 0.74rem; }
+.sf-con-meta span { font-variant-numeric: tabular-nums; }
+
+.sf-acts { display: flex; gap: 0.5rem; margin-top: 0.9rem; flex-wrap: wrap; align-items: center; }
+.sf-acts button[disabled] { opacity: 0.45; cursor: not-allowed; }
+.sf-acts .why { color: var(--muted); font-size: 0.72rem; line-height: 1.45; flex: 1 1 240px; min-width: 0; }
+
+/* ------------------------------------------------------------------ narrow */
+@media (max-width: 1400px) {
+  .sf-grid { grid-template-columns: minmax(0, 1fr); }
+  .sf-top { grid-template-columns: auto minmax(0, 1fr); }
+  .sf-stats, .sf-teamsel { grid-column: 1 / -1; }
+  .sf-stats { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+  .sf-stat { flex: 1 1 128px; min-width: 0; }
+  .sf-fit-pct { font-size: 1.7rem; }
+}

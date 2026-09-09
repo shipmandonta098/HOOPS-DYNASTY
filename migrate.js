@@ -24,6 +24,7 @@ import { cultureForCountry } from './nameCultures.js';
 import { secondaryPosition } from './playerGen.js';
 import { classifyArchetype, archetypeById } from './playerArchetypes.js';
 import { pickCollege, COLLEGES } from './colleges.js';
+import { ensureStaff } from './staff.js';
 
 /**
  * Old attribute -> the new attributes it feeds, with an offset applied so the
@@ -374,6 +375,16 @@ export function migrateLeague(league) {
   // Fields added after the first saves shipped, defaulted rather than assumed.
   if (!Array.isArray(league.freeAgents)) league.freeAgents = [];
   if (!Array.isArray(league.transactions)) league.transactions = [];
+
+  // Staff arrived after coaching and the Staff screen were built, so every
+  // save — new or old — is staffed on read. Deterministic from the league
+  // seed, so the same save produces the same people every time it loads, and
+  // anyone already stored is left exactly alone.
+  const staffed = ensureStaff(league);
+  if (staffed.coaches || staffed.staff) {
+    console.info(`Save upgraded: staff hired for ${staffed.staff} team(s)`
+      + `${staffed.coaches ? `, head coach for ${staffed.coaches}` : ''}.`);
+  }
   if (changed) {
     console.info(`Save upgraded: ${changed} player(s) moved to the 23-attribute model.`);
   }

@@ -33,6 +33,7 @@ import {
 import {
   coachOf, coachFatigueFactors, coachRecoveryFactor, philosophyShift, developmentFactor,
 } from './coaching.js';
+import { staffOf, staffRecoveryFactor, staffDevelopmentFactor } from './staff.js';
 
 const clamp01 = (n) => Math.max(-1, Math.min(0, n));
 const round4 = (n) => Math.round(n * 10000) / 10000;
@@ -75,7 +76,10 @@ export function runSeasonPipeline(input, opts = {}) {
   const rules = inp.leagueRules || {};
   const players = inp.players || [];
   const ctx = inp.seasonContext || {};
-  const league = { coaches: inp.coaches || [] };
+  // A stub league, so coachOf/staffOf can be used the same way here as on a
+  // real save. Staff is optional: a caller that passes none gets a factor of 1
+  // from every staff channel rather than an error.
+  const league = { coaches: inp.coaches || [], staff: inp.staff || [] };
 
   /* ---- Part 1: detection ------------------------------------------- */
   const detected = detectBackToBacks(inp.schedule);
@@ -117,6 +121,10 @@ export function runSeasonPipeline(input, opts = {}) {
     const coach = coachOf(league, team);
     const cf = coachFatigueFactors(coach);
     const cr = coachRecoveryFactor(coach);
+    // The trainer is the other half of recovery. Multiplied, not added, so a
+    // player-friendly coach and a good trainer compound the way two separate
+    // reasons to recover faster should.
+    const sr = staffRecoveryFactor(staffOf(league, team));
     const nights = (freed.get(team) || []).length;
     const b2b = (profiles.get(team) || {}).backToBacks || 0;
 
@@ -138,8 +146,8 @@ export function runSeasonPipeline(input, opts = {}) {
       const rest = restPlayer(p, nights, opts);
       // Part 4: the coach's motivational style scales what a night gives back.
       const gained = {
-        physical: round4(rest.gained.physical * cr.factor),
-        mental: round4(rest.gained.mental * cr.factor),
+        physical: round4(rest.gained.physical * cr.factor * sr.factor),
+        mental: round4(rest.gained.mental * cr.factor * sr.factor),
       };
       const finalDebt = {
         physical: round4(clamp01(before.physical + gained.physical)),
@@ -252,6 +260,11 @@ export function runSeasonPipeline(input, opts = {}) {
     const team = teamKey(p);
     const coach = coachOf(league, team);
     const dev = developmentFactor(coach, p);
+    // The development assistant and the development director scale the same
+    // drift the head coach's style scales, so a club that staffs for growth
+    // gets both. Percentages, because this is season to season.
+    const sdev = staffDevelopmentFactor(staffOf(league, team));
+    const devFactor = Math.round(dev.factor * sdev.factor * 1000) / 1000;
     const evolved = evolveTendencies(p, {
       system: systemOf(team),
       role: (ctx.roles && ctx.roles[p.id]) || null,
@@ -266,9 +279,9 @@ export function runSeasonPipeline(input, opts = {}) {
       const carried = (Number(prior[k]) || 0) * (1 - DRIFT_FADE);
       const delta = v - carried;
       const scaled = Math.max(-DRIFT_CAP, Math.min(DRIFT_CAP,
-        carried + delta * dev.factor));
+        carried + delta * devFactor));
       drift[k] = Math.round(scaled * 100) / 100;
-      const moved = Math.round(delta * dev.factor * 100) / 100;
+      const moved = Math.round(delta * devFactor * 100) / 100;
       if (moved) seasonDelta[k] = moved;
     }
 
@@ -281,8 +294,9 @@ export function runSeasonPipeline(input, opts = {}) {
       player: p.name, team, age: p.age,
       system: (systemOf(team) || {}).label || null,
       developmentStyle: (coach && coach.coachTraits && coach.coachTraits.developmentStyle) || null,
-      evolutionFactor: dev.factor,
+      evolutionFactor: devFactor,
       coachEffects: dev.applied,
+      staffEffects: sdev.applied,
       drift,
       seasonDelta,
       before: flatten(before),
@@ -321,8 +335,12 @@ export function runSeasonPipeline(input, opts = {}) {
     summary: {
       // Back-to-backs REMOVED by the fix, which is what "fixed" means. The
       // count before minus the count after, not the number that existed.
+      // rebalanceSchedule returns before/after as NULL for an empty schedule,
+      // and a save whose season has not been generated yet has exactly that.
+      // Reading through them crashed the whole pipeline on a fresh career.
       backToBacksFixed: Math.max(0,
-        fixed.before.totalBackToBacks - fixed.after.totalBackToBacks),
+        ((fixed.before || {}).totalBackToBacks || 0)
+        - ((fixed.after || {}).totalBackToBacks || 0)),
       overloadSegments: overloads.length,
       overloadSegmentsRemaining: findOverloads(fixed.games, { maxConsecutiveGames: 2 }).length,
       restDaysAdded,
@@ -331,8 +349,8 @@ export function runSeasonPipeline(input, opts = {}) {
       coachInfluenceApplied: updatedTendencies.some((r) => r.philosophy != null),
       // Stated rather than assumed: a report that claims compliance it did not
       // achieve is worse than one that says what is left.
-      compliance: fixed.integrity.ok && !fixed.after.teamsOverB2BCap
-        && !fixed.after.teamsOverRunLimit
+      compliance: fixed.integrity.ok && !(fixed.after || {}).teamsOverB2BCap
+        && !(fixed.after || {}).teamsOverRunLimit
         ? 'Within league rules'
         : `${fixed.after.teamsOverRunLimit} team(s) over the run limit, `
           + `${fixed.after.teamsOverB2BCap} over the back-to-back cap`,

@@ -14,7 +14,7 @@ export const NAV = [
   { id: 'dashboard',  label: 'Dashboard',       icon: '🏠', href: './gm-dashboard.html' },
   { id: 'roster',     label: 'Roster',          icon: '👥', href: './roster.html' },
   { id: 'rotations',  label: 'Rotations',       icon: '🔄', href: './rotations.html' },
-  { id: 'staff',      label: 'Staff',           icon: '🧑‍🏫' },
+  { id: 'staff',      label: 'Staff',           icon: '🧑‍🏫', href: './staff.html' },
   { id: 'players',    label: 'Players',         icon: '🏀' },
   { id: 'teamMgmt',   label: 'Team Management', icon: '🗂️' },
   { id: 'teamStats',  label: 'Team Stats',      icon: '📊' },

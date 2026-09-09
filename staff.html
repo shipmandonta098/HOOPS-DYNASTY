@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoops Dynasty — Staff</title>
+  <link rel="stylesheet" href="./theme.css" />
+  <link rel="stylesheet" href="./gm-dashboard.css" />
+  <link rel="stylesheet" href="./roster.css" />
+  <link rel="stylesheet" href="./staff.css" />
+</head>
+<body>
+
+  <div class="arena-rings" aria-hidden="true"></div>
+  <div class="app">
+
+    <aside class="sidebar">
+      <a class="brand" href="./index.html" style="text-decoration:none;display:block">
+        <span class="h">Hoops</span><span class="d">Dynasty</span>
+        <span class="sub">Basketball GM Simulator</span>
+        <span class="tr" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3zm0 4H5v1a2 2 0 0 0 1 1.73V7zm12 0v2.73A2 2 0 0 0 19 8V7h-1z"/></svg></span>
+      </a>
+      <nav class="nav"><!-- shell.js --></nav>
+    </aside>
+
+    <main class="main">
+
+      <div class="topbar sf-top">
+        <div class="sf-crest" id="crest">🏀</div>
+        <div class="sf-id">
+          <div class="sf-city" id="city">—</div>
+          <h1 id="teamName">—</h1>
+          <div class="sf-coach" id="coachLine">—</div>
+        </div>
+
+        <!-- The three figures the brief puts in the header. Salary and count
+             are sums of real contracts; morale is scored, and says how. -->
+        <div class="sf-stats">
+          <div class="sf-stat">
+            <span class="sf-sk">Season</span>
+            <b id="season">—</b>
+          </div>
+          <div class="sf-stat">
+            <span class="sf-sk">Staff Salary</span>
+            <b id="totalSalary">—</b>
+            <small id="capNote">—</small>
+          </div>
+          <div class="sf-stat">
+            <span class="sf-sk">Staff Morale</span>
+            <b id="morale">—</b>
+            <small id="moraleBasis">—</small>
+          </div>
+        </div>
+
+        <div class="sf-teamsel">
+          <label class="sr-only" for="teamSel">Team</label>
+          <span class="sf-sk">Team</span>
+          <select id="teamSel"><!-- staffView.js --></select>
+        </div>
+      </div>
+
+      <!-- Said once, at the top: three of the five influence figures in the
+           brief have no system behind them yet. Better here than repeated. -->
+      <div class="sf-note" id="liveNote"><!-- staffView.js --></div>
+
+      <section class="card sf-tablecard">
+        <div class="card-head">
+          <h2>Staff</h2>
+          <span class="right" id="staffCount">—</span>
+        </div>
+        <div class="sf-wrap">
+          <table class="sf-table">
+            <thead>
+              <tr>
+                <th class="sf-role">Role</th>
+                <th class="sf-name">Name</th>
+                <th class="sf-spec">Specialty</th>
+                <th class="sf-rate">Rating</th>
+                <th class="sf-con">Contract</th>
+                <th class="sf-sal">Salary</th>
+                <th class="sf-infl">Influence Summary</th>
+              </tr>
+            </thead>
+            <tbody id="staffBody"><!-- staffView.js --></tbody>
+          </table>
+        </div>
+        <div class="sf-legend" id="gradeLegend"><!-- staffView.js --></div>
+      </section>
+
+      <div class="sf-grid">
+        <section class="card">
+          <div class="card-head"><h2>Influence Breakdown</h2></div>
+          <div id="influence"><!-- staffView.js --></div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>System Compatibility</h2></div>
+          <div id="compat"><!-- staffView.js --></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Contracts</h2>
+          <span class="right" id="expiringCount">—</span>
+        </div>
+        <div id="controls"><!-- staffView.js --></div>
+      </section>
+
+      <div id="noCareer" hidden></div>
+    </main>
+  </div>
+
+  <script type="module" src="./staffView.js"></script>
+</body>
+</html>
