@@ -763,6 +763,8 @@ const SYSTEM_SHIFT = {
   // "offBall" is not one of the sixteen; catch-and-shoot is the tendency that
   // describes playing off the ball, so it takes that share.
   Motion:           { pass: +5, catchAndShoot: +3, isoCreate: -3 },
+  Isolation:        { isoCreate: +5, pullUp: +3, pass: -3 },
+  'Defensive Anchor': { contestShots: +5, perimeterPressure: +3, gambleSteals: -3 },
   Balanced:         {},
 };
 
