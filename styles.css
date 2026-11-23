@@ -1,0 +1,593 @@
+/* ==========================================================================
+   HOOPS DYNASTY — title screen styles
+   Sections:
+     1. Theme (CSS variables — reuse these on every future screen)
+     2. Base
+     3. Backdrop (gradient, court, spotlight, particles, vignette)
+     4. Brand (emblem, logo, tagline)
+     5. Menu card & buttons
+     6. Toasts
+     7. Bottom bar (ticker + footer)
+     8. Keyframes
+     9. Responsive
+    10. Reduced motion
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. THEME
+   ========================================================================== */
+:root {
+  /* Navy scale */
+  --navy-900: #060E1F;   /* deepest background */
+  --navy-800: #0B1A33;
+  --navy-700: #13284D;   /* cards and panels */
+
+  /* Gold scale */
+  --gold-500: #D4AF37;   /* main accent */
+  --gold-300: #F5D76E;   /* highlights */
+  --gold-gradient: linear-gradient(135deg, #F5D76E, #D4AF37 45%, #9C7A1E);
+
+  /* Text */
+  --text-primary: #F2F4F8;
+  --text-muted: #8A9BB8;
+
+  /* RGB triplets, so the same colors can be used with an alpha: rgba(var(--gold-500-rgb), .3) */
+  --navy-700-rgb: 19, 40, 77;
+  --navy-900-rgb: 6, 14, 31;
+  --gold-500-rgb: 212, 175, 55;
+  --gold-300-rgb: 245, 215, 110;
+
+  /* Typography */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Bebas Neue", "Anton", Impact, "Arial Narrow", sans-serif;
+  --font-serif: "Cinzel", "Trajan Pro", Georgia, serif;
+
+  /* Shape & motion */
+  --radius-lg: 20px;
+  --radius-md: 12px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Height of the ticker + footer block (used to place toasts above it) */
+  --bottom-h: 84px;
+}
+
+
+/* ==========================================================================
+   2. BASE
+   ========================================================================== */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  background: var(--navy-900);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+
+/* Content sits above the fixed backdrop */
+.stage {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;   /* the logo glow is wider than the screen on phones; don't let it cause sideways scroll */
+}
+
+
+/* ==========================================================================
+   3. BACKDROP
+   ========================================================================== */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Navy-800 in the center fading to navy-900 at the edges */
+  background: radial-gradient(ellipse 80% 70% at 50% 40%, var(--navy-800) 0%, var(--navy-900) 80%);
+  animation: fade-in 0.6s ease-out both;
+}
+
+/* Basketball court, tilted so it reads as a floor seen from above */
+.court-wrap {
+  position: absolute;
+  inset: 0;
+  perspective: 1100px;
+  perspective-origin: 50% 25%;
+  /* Fade the lines out toward the edges */
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 55%, #000 25%, transparent 78%);
+          mask-image: radial-gradient(ellipse 70% 65% at 50% 55%, #000 25%, transparent 78%);
+}
+.court {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: max(1500px, 150vw);
+  height: auto;
+  transform: translate(-50%, -50%) rotateX(58deg);
+}
+.court-lines {
+  fill: none;
+  stroke: var(--gold-500);
+  stroke-opacity: 0.08;      /* 6-8% as requested */
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.court-lines .dashed { stroke-dasharray: 10 9; }
+
+/* Arena light coming down from above */
+.spotlight-cone {
+  position: absolute;
+  top: -8%;
+  left: 50%;
+  width: min(110vw, 1300px);
+  height: 100%;
+  transform: translateX(-50%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  background: linear-gradient(to bottom,
+    rgba(var(--gold-300-rgb), 0.16) 0%,
+    rgba(var(--gold-500-rgb), 0.05) 55%,
+    transparent 100%);
+  filter: blur(42px);
+  animation: spot-breathe 9s ease-in-out infinite;
+}
+
+/* Faint gold dust drifting upward (created in title.js) */
+.particles { position: absolute; inset: 0; }
+.particle {
+  position: absolute;
+  bottom: -12px;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: rgba(var(--gold-300-rgb), 0.9);
+  box-shadow: 0 0 8px rgba(var(--gold-500-rgb), 0.7);
+  opacity: 0;
+  animation: drift var(--d) linear var(--delay) infinite;
+}
+
+/* Soft vignette */
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 45%, rgba(0, 0, 0, 0.6) 100%);
+}
+
+
+/* ==========================================================================
+   4. BRAND
+   ========================================================================== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 3.4vh, 38px);
+  padding: clamp(20px, 3vh, 40px) 16px;
+}
+
+.brand {
+  --hoops-size: clamp(84px, min(17vw, 19vh), 210px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: logo-in 0.7s var(--ease-out) 0.15s both;
+}
+/* Soft gold glow directly behind the logo */
+.brand::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -30% -45% -25%;
+  background: radial-gradient(ellipse 50% 50% at 50% 48%,
+    rgba(var(--gold-300-rgb), 0.24), rgba(var(--gold-500-rgb), 0.08) 50%, transparent 72%);
+  filter: blur(14px);
+}
+
+.emblem {
+  width: clamp(56px, 9vh, 92px);
+  height: auto;
+  margin-bottom: clamp(4px, 1vh, 10px);
+  filter: drop-shadow(0 6px 18px rgba(var(--gold-500-rgb), 0.35));
+}
+
+.logo { margin: 0; display: flex; flex-direction: column; align-items: center; font-weight: 400; }
+
+/* "HOOPS": gold gradient text with a shine that sweeps across */
+.logo-hoops {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: var(--hoops-size);
+  line-height: 0.88;
+  letter-spacing: 0.03em;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 8px 28px rgba(var(--gold-500-rgb), 0.3));
+}
+.logo-hoops::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.85) 50%, transparent 62%);
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  background-position: 160% 0;
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shine 6s ease-in-out 1.8s infinite;
+}
+
+/* "DYNASTY": wide-tracked serif flanked by thin gold rules */
+.logo-dynasty {
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  margin-top: calc(var(--hoops-size) * 0.07);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: calc(var(--hoops-size) * 0.235);
+  letter-spacing: 0.46em;
+  padding-left: 0.46em;       /* balances the trailing letter-spacing so it stays centered */
+  color: var(--gold-300);
+  text-shadow: 0 2px 18px rgba(var(--gold-500-rgb), 0.35);
+}
+.logo-dynasty::before,
+.logo-dynasty::after {
+  content: "";
+  width: 2.2em;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--gold-300-rgb), 0.7));
+}
+.logo-dynasty::after { transform: scaleX(-1); }
+
+.tagline {
+  margin: clamp(10px, 1.8vh, 18px) 0 0;
+  font-size: clamp(13px, 1.5vh, 16px);
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+
+/* ==========================================================================
+   5. MENU CARD & BUTTONS
+   ========================================================================== */
+.menu-card {
+  --btn-h: clamp(46px, 5.6vh, 56px);
+  width: min(420px, 100%);
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: rgba(var(--navy-700-rgb), 0.55);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+          backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(var(--gold-500-rgb), 0.3);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: fade-up 0.5s var(--ease-out) 0.3s both;
+}
+.menu { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.menu-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  column-gap: 14px;
+  width: 100%;
+  min-height: var(--btn-h);
+  padding: 6px 18px;
+  background: transparent;
+  border: 1px solid rgba(var(--gold-500-rgb), 0.26);
+  border-radius: var(--radius-md);
+  color: var(--gold-500);
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s var(--ease-out), color 0.2s, border-color 0.2s, box-shadow 0.25s;
+  /* Staggered slide-up on load; --i is set per button in title.js */
+  animation: fade-up 0.5s var(--ease-out) calc(0.45s + var(--i, 0) * 80ms) backwards;
+}
+.menu-btn[hidden] { display: none; }
+
+/* The gold fill that slides in from the left */
+.menu-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--gold-gradient);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.32s var(--ease-out);
+}
+
+.menu-btn .icon { width: 22px; height: 22px; }
+.menu-btn .label { display: block; line-height: 1.25; }
+.menu-btn .sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+/* Keyboard focus: fill + nudge + a visible ring */
+.menu-btn:focus-visible {
+  outline: 2px solid var(--gold-300);
+  outline-offset: 3px;
+  color: var(--navy-800);
+  border-color: transparent;
+  transform: translateX(4px);
+  box-shadow: 0 8px 22px rgba(var(--gold-500-rgb), 0.25);
+}
+.menu-btn:focus-visible::before { transform: scaleX(1); }
+.menu-btn:focus-visible .sub { color: rgba(11, 26, 51, 0.75); }
+
+/* Mouse hover (only on devices that can hover, so touch doesn't get "stuck" states) */
+@media (hover: hover) {
+  .menu-btn:hover {
+    color: var(--navy-800);
+    border-color: transparent;
+    transform: translateX(4px);
+    box-shadow: 0 8px 22px rgba(var(--gold-500-rgb), 0.25);
+  }
+  .menu-btn:hover::before { transform: scaleX(1); }
+  .menu-btn:hover .sub { color: rgba(11, 26, 51, 0.75); }
+}
+
+/* Press / tap feedback */
+.menu-btn:active { transform: translateX(4px) scale(0.99); }
+.menu-btn:active::before { transform: scaleX(1); }
+.menu-btn:active { color: var(--navy-800); }
+
+/* Primary action: solid gold */
+.menu-btn--primary {
+  background: var(--gold-gradient);
+  border-color: transparent;
+  color: var(--navy-800);
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(var(--gold-500-rgb), 0.28);
+}
+.menu-btn--primary::before { background: linear-gradient(135deg, #FFF1B8, #F5D76E 55%, #D4AF37); }
+
+
+/* ==========================================================================
+   6. TOASTS
+   ========================================================================== */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--bottom-h) + 16px);
+  z-index: 50;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(92vw, 380px);
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(var(--navy-700-rgb), 0.92);
+  -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(14px);
+  border: 1px solid rgba(var(--gold-500-rgb), 0.45);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  animation: toast-in 0.35s var(--ease-out) both;
+}
+.toast.leaving { animation: toast-out 0.3s ease-in forwards; }
+.toast-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--gold-gradient);
+  color: var(--navy-800);
+}
+.toast-icon svg { width: 16px; height: 16px; }
+.toast strong { font-weight: 600; color: var(--text-primary); }
+.toast span { color: var(--text-muted); }
+
+
+/* ==========================================================================
+   7. BOTTOM BAR (news ticker + footer)
+   ========================================================================== */
+.bottom { position: relative; z-index: 2; }
+
+.ticker {
+  display: flex;
+  align-items: stretch;
+  height: 44px;
+  background: var(--navy-700);
+  border-top: 1px solid rgba(var(--gold-500-rgb), 0.3);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+}
+.ticker-label {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 26px 0 18px;
+  background: var(--gold-gradient);
+  color: var(--navy-900);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  /* Slanted trailing edge, broadcast style */
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--navy-900);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.ticker-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 40px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 28px, #000 calc(100% - 40px), transparent 100%);
+}
+.ticker-track {
+  display: flex;
+  width: max-content;
+  height: 100%;
+  /* Two identical lists, so moving by -50% loops seamlessly. Duration is set in title.js. */
+  animation: ticker var(--ticker-duration, 80s) linear infinite;
+}
+.ticker:hover .ticker-track { animation-play-state: paused; }
+.ticker-list { display: flex; flex: none; margin: 0; padding: 0; list-style: none; }
+.ticker-list li {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  padding-left: 28px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+/* Gold diamond between headlines */
+.ticker-list li::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 28px;
+  background: var(--gold-500);
+  transform: rotate(45deg);
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px 10px;
+  background: var(--navy-900);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+
+/* ==========================================================================
+   8. KEYFRAMES
+   ========================================================================== */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes logo-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shine {
+  0%, 55%  { background-position: 160% 0; }
+  85%, 100% { background-position: -60% 0; }
+}
+
+@keyframes spot-breathe {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  10%  { opacity: var(--o); }
+  90%  { opacity: var(--o); }
+  100% { transform: translate3d(var(--dx), -110vh, 0); opacity: 0; }
+}
+
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+
+
+/* ==========================================================================
+   9. RESPONSIVE
+   ========================================================================== */
+@media (max-width: 600px) {
+  .brand { --hoops-size: 27vw; }
+  .logo-dynasty { gap: 0.6em; }
+  .logo-dynasty::before,
+  .logo-dynasty::after { width: 1.2em; }
+  .main { justify-content: flex-start; padding-top: 28px; }
+  .menu-card { width: 100%; padding: 12px; }
+  .menu-btn { min-height: 54px; }          /* comfortable touch target */
+  .ticker-label { padding-right: 22px; letter-spacing: 0.12em; }
+  .meta { padding: 8px 14px 10px; }
+  .court { width: 260vw; }
+}
+
+
+/* ==========================================================================
+   10. REDUCED MOTION — turn off everything that isn't essential
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+  .particles { display: none; }
+  .menu-btn:hover,
+  .menu-btn:focus-visible,
+  .menu-btn:active { transform: none; }
+
+  /* Static, scrollable ticker instead of a moving one */
+  .ticker-viewport { overflow-x: auto; scrollbar-width: none; }
+  .ticker-viewport::-webkit-scrollbar { display: none; }
+  .ticker-list[aria-hidden="true"] { display: none; }
+}
