@@ -3,169 +3,678 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#060E1F">
-  <meta name="description" content="Hoops Dynasty — build a legacy, one season at a time.">
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="description" content="Hoops Dynasty — your team, your decisions, your dynasty.">
   <title>Hoops Dynasty</title>
 
-  <!-- Fonts: Bebas Neue (HOOPS), Cinzel (DYNASTY), Inter (all UI text) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+  /* ==========================================================================
+     HOOPS DYNASTY — title screen (self-contained: no external assets)
+     Sections:
+       1. Theme
+       2. Base
+       3. Court background
+       4. Brand (ball icon, wordmark, tagline)
+       5. Menu + sliding red bar
+       6. Footer + toasts
+       7. Keyframes
+       8. Responsive
+       9. Reduced motion
+     ========================================================================== */
 
-  <link rel="stylesheet" href="styles.css">
-  <script src="title.js" defer></script>
+  /* 1. THEME ---------------------------------------------------------------- */
+  :root {
+    --bg: #0a0a0c;
+    --line: #5a5a60;
+    --red: #e0102f;
+    --red-hi: #ff5a70;
+    --text: #f2f2f2;
+    --muted: #7c7c84;
+
+    --font-display: "Arial Black", "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
+    --font-ui: "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
+
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --slam: cubic-bezier(0.2, 0.9, 0.3, 1.15);
+    --item-h: 52px;
+    --gutter: 16px;
+  }
+
+  /* 2. BASE ----------------------------------------------------------------- */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    background: var(--bg);
+    overflow-x: clip;
+    color: var(--text);
+    font-family: var(--font-ui);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 3. COURT ---------------------------------------------------------------- */
+  .court {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* JS nudges the court so the center circle sits behind the wordmark */
+    transform: translate(var(--court-dx, 0px), var(--court-dy, 0px));
+  }
+
+  .court .ln {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: var(--sw, 2.5);
+    stroke-linecap: square;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw 800ms var(--ease-out) forwards;
+  }
+  .court .ln.d1 { animation-delay: 80ms; }
+  .court .ln.d2 { animation-delay: 160ms; }
+
+  .court .ft-dash {
+    fill: none;
+    stroke: var(--red);
+    stroke-width: var(--sw, 2.5);
+    stroke-dasharray: 7 7;
+    opacity: 0;
+    animation: fade-to 500ms ease-out 600ms forwards;
+    --to: 0.85;
+  }
+
+  /* Half-court sideline marks would run under the menu in landscape */
+  .court.is-landscape .strip.mid { display: none; }
+
+  .court .strip {
+    fill: var(--red);
+    opacity: 0;
+    animation: fade-to 400ms ease-out 700ms forwards;
+    --to: 1;
+  }
+
+  /* Darken the middle so lines never fight the text */
+  .shade {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 45% at 50% 50%, rgba(10,10,12,0.78), rgba(10,10,12,0) 70%);
+  }
+
+  /* 4. BRAND ---------------------------------------------------------------- */
+  .stage {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: grid;
+    /* Brand sits dead-center when there's room; the top row gives way first */
+    grid-template-rows: minmax(0, 1fr) auto minmax(min-content, 1fr);
+    justify-items: center;
+    padding:
+      max(env(safe-area-inset-top), 12px)
+      max(env(safe-area-inset-right), var(--gutter))
+      max(env(safe-area-inset-bottom), 36px)
+      max(env(safe-area-inset-left), var(--gutter));
+  }
+
+  .brand {
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: slam 420ms var(--slam) 450ms both;
+  }
+
+  .ball {
+    width: clamp(26px, min(7vw, 5vh), 40px);
+    height: auto;
+    margin-bottom: clamp(4px, 1.2vh, 10px);
+    color: var(--red);
+  }
+
+  .logo {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-style: normal;        /* slant comes from skew: consistent on every platform */
+    line-height: 0.86;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: skewX(-11deg);
+  }
+
+  .logo-hoops {
+    color: var(--text);
+    font-size: clamp(36px, min(10.5vw, 8vh), 88px);
+  }
+
+  .logo-dynasty {
+    font-size: clamp(44px, min(13.5vw, 10.5vh), 120px);
+    color: var(--red);
+    /* light sweep: a brighter band rides across the red */
+    background: linear-gradient(105deg,
+      var(--red) 0%, var(--red) 42%, var(--red-hi) 50%, var(--red) 58%, var(--red) 100%);
+    background-size: 250% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sweep 7s ease-in-out 2.2s infinite;
+    padding-right: 0.06em;     /* keep the skewed last letter from clipping */
+  }
+
+  .tagline {
+    margin: clamp(10px, 2vh, 18px) 0 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: clamp(8px, 2.4vw, 11px);
+    font-weight: 700;
+    letter-spacing: clamp(0.12em, 0.6vw, 0.22em);
+    text-transform: uppercase;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .tagline::before,
+  .tagline::after {
+    content: "";
+    width: clamp(12px, 5vw, 40px);
+    height: 1px;
+    background: var(--red);
+  }
+
+  /* 5. MENU ----------------------------------------------------------------- */
+  .menu {
+    grid-row: 3;
+    align-self: start;
+    position: relative;
+    width: min(400px, 100%);
+    margin-top: clamp(14px, 4vh, 40px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The single red bar that slides between items */
+  .menu-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    background: var(--red);
+    transform: translateY(var(--bar-y, 0px)) skewX(-11deg);
+    height: var(--bar-h, var(--item-h));
+    transition:
+      transform 150ms var(--ease-out),
+      height 150ms var(--ease-out);
+    opacity: 0;
+    animation: fade-to 200ms ease-out 900ms forwards;
+    --to: 1;
+    pointer-events: none;
+  }
+  .menu-bar.no-anim { transition: none; }
+
+  .menu-btn {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-height: var(--item-h);
+    padding: 8px 20px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    outline: none;
+    opacity: 0;
+    animation: item-in 380ms var(--ease-out) forwards;
+    animation-delay: calc(950ms + var(--i, 0) * 70ms);
+    touch-action: manipulation;
+  }
+  .menu-btn[hidden] { display: none; }
+
+  .menu-btn.is-primary {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  /* Keep the label readable when it's NOT under the bar */
+  .menu-btn:not(.is-active) { color: rgba(242,242,242,0.82); }
+  .menu-btn.is-active { color: #fff; }
+
+  .menu-btn:focus-visible::after {
+    content: "";
+    position: absolute;
+    inset: 3px 6px;
+    border: 1px solid rgba(255,255,255,0.7);
+    transform: skewX(-11deg);
+    pointer-events: none;
+  }
+
+  .menu-btn .sub {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: rgba(255,255,255,0.82);
+    text-transform: uppercase;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 6. FOOTER + TOASTS ------------------------------------------------------ */
+  .version {
+    position: fixed;
+    left: max(env(safe-area-inset-left), var(--gutter));
+    bottom: max(env(safe-area-inset-bottom), 12px);
+    z-index: 1;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .toasts {
+    position: fixed;
+    left: 50%;
+    bottom: max(env(safe-area-inset-bottom), 44px);
+    transform: translateX(-50%);
+    z-index: 10;
+    width: min(360px, calc(100% - 2 * var(--gutter)));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: #141418;
+    border-left: 4px solid var(--red);
+    padding: 12px 16px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+    animation: toast-in 220ms var(--ease-out);
+  }
+  .toast strong { text-transform: uppercase; letter-spacing: 0.14em; }
+  .toast.leaving { animation: toast-out 250ms ease-in forwards; }
+
+  /* 7. KEYFRAMES ------------------------------------------------------------ */
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes fade-to { to { opacity: var(--to, 1); } }
+
+  @keyframes slam {
+    0%   { opacity: 0; transform: scale(1.35); }
+    70%  { opacity: 1; transform: scale(0.97); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes item-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @keyframes sweep {
+    0%   { background-position: 100% 0; }
+    45%  { background-position: 0% 0; }
+    100% { background-position: 0% 0; }
+  }
+
+  @keyframes toast-in  { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes toast-out { to   { opacity: 0; transform: translateY(8px); } }
+
+  /* 8. RESPONSIVE ----------------------------------------------------------- */
+  @media (max-height: 640px) {
+    :root { --item-h: 48px; }
+    .menu-btn { font-size: 13px; }
+    .menu-btn.is-primary { font-size: 14px; }
+  }
+
+  /* Landscape: menu stays under the wordmark, just tighter */
+  @media (min-aspect-ratio: 4/3) {
+    .stage { grid-template-rows: minmax(0, 0.75fr) auto minmax(min-content, 1.25fr); }
+  }
+  @media (min-aspect-ratio: 4/3) and (max-height: 760px) {
+    :root { --item-h: 48px; }
+    .menu { margin-top: 12px; }
+  }
+
+  /* 9. REDUCED MOTION ------------------------------------------------------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+    .court .ln { stroke-dashoffset: 0; }
+    .court .ft-dash { opacity: 0.85; }
+    .court .strip, .menu-bar, .menu-btn, .brand { opacity: 1; }
+  }
+  </style>
 </head>
 <body>
 
-  <!-- ===== Background: gradient, court, spotlight, dust, vignette ===== -->
-  <div class="backdrop" aria-hidden="true">
-    <div class="court-wrap">
-      <!-- Half-and-half basketball court, drawn as thin lines (real court proportions: 94 x 50 ft) -->
-      <svg class="court" viewBox="-20 -20 980 540" xmlns="http://www.w3.org/2000/svg">
-        <g class="court-lines">
-          <!-- Boundary and half-court line -->
-          <rect x="0" y="0" width="940" height="500"/>
-          <path d="M470 0V500"/>
-          <!-- Center circles -->
-          <circle cx="470" cy="250" r="60"/>
-          <circle cx="470" cy="250" r="20"/>
+  <!-- ===== Court background =====
+       Drawn in portrait coordinates (1 unit = 0.1 ft; 50 x 94 ft court).
+       In landscape, JS swaps the viewBox and rotates the group. -->
+  <svg class="court" id="court" viewBox="-20 -20 540 980"
+       preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <g id="court-g">
+      <!-- Boundary, half-court line, center circles -->
+      <rect class="ln" pathLength="1" x="0" y="0" width="500" height="940"/>
+      <path class="ln" pathLength="1" d="M0 470H500"/>
+      <circle class="ln d1" pathLength="1" cx="250" cy="470" r="60"/>
+      <circle class="ln d2" pathLength="1" cx="250" cy="470" r="20"/>
 
-          <!-- Left end: key, free-throw circle, three-point line, hoop -->
-          <rect x="0" y="170" width="190" height="160"/>
-          <path d="M190 190A60 60 0 0 1 190 310"/>
-          <path class="dashed" d="M190 190A60 60 0 0 0 190 310"/>
-          <path d="M0 30H140A237.5 237.5 0 0 1 140 470H0"/>
-          <path d="M40 220V280"/>
-          <circle cx="52.5" cy="250" r="7.5"/>
-          <path d="M52.5 210A40 40 0 0 1 52.5 290"/>
+      <!-- TOP END: lane, FT circle, 3-pt line, backboard, rim, restricted arc -->
+      <rect class="ln d1" pathLength="1" x="170" y="0" width="160" height="190"/>
+      <path class="ft-dash" d="M190 190A60 60 0 0 1 310 190"/>
+      <path class="ln d2" pathLength="1" d="M190 190A60 60 0 0 0 310 190"/>
+      <path class="ln d1" pathLength="1" d="M30 0V142A237.5 237.5 0 0 0 470 142V0"/>
+      <path class="ln d2" pathLength="1" d="M220 40H280"/>
+      <circle class="ln d2" pathLength="1" cx="250" cy="52.5" r="7.5"/>
+      <path class="ln d2" pathLength="1" d="M210 52.5A40 40 0 0 0 290 52.5"/>
 
-          <!-- Right end (mirrored) -->
-          <rect x="750" y="170" width="190" height="160"/>
-          <path d="M750 190A60 60 0 0 0 750 310"/>
-          <path class="dashed" d="M750 190A60 60 0 0 1 750 310"/>
-          <path d="M940 30H800A237.5 237.5 0 0 0 800 470H940"/>
-          <path d="M900 220V280"/>
-          <circle cx="887.5" cy="250" r="7.5"/>
-          <path d="M887.5 210A40 40 0 0 0 887.5 290"/>
-        </g>
-      </svg>
-    </div>
-    <div class="spotlight-cone"></div>
-    <div class="particles" id="particles"></div>
-    <div class="vignette"></div>
-  </div>
+      <!-- BOTTOM END (mirror) -->
+      <rect class="ln d1" pathLength="1" x="170" y="750" width="160" height="190"/>
+      <path class="ft-dash" d="M190 750A60 60 0 0 0 310 750"/>
+      <path class="ln d2" pathLength="1" d="M190 750A60 60 0 0 1 310 750"/>
+      <path class="ln d1" pathLength="1" d="M30 940V798A237.5 237.5 0 0 1 470 798V940"/>
+      <path class="ln d2" pathLength="1" d="M220 900H280"/>
+      <circle class="ln d2" pathLength="1" cx="250" cy="887.5" r="7.5"/>
+      <path class="ln d2" pathLength="1" d="M210 887.5A40 40 0 0 1 290 887.5"/>
+
+      <!-- Red accent strips: baselines outside the lane, sideline marks at half court -->
+      <rect class="strip" x="0"   y="-7"  width="170" height="7"/>
+      <rect class="strip" x="330" y="-7"  width="170" height="7"/>
+      <rect class="strip" x="0"   y="940" width="170" height="7"/>
+      <rect class="strip" x="330" y="940" width="170" height="7"/>
+      <rect class="strip mid" x="-7"  y="410" width="7"   height="120"/>
+      <rect class="strip mid" x="500" y="410" width="7"   height="120"/>
+    </g>
+  </svg>
+  <div class="shade" aria-hidden="true"></div>
 
   <div class="stage">
-    <main class="main">
+    <header class="brand" id="brand">
+      <!-- Red outline basketball -->
+      <svg class="ball" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" aria-hidden="true">
+        <circle cx="20" cy="20" r="17"/>
+        <path d="M3 20H37"/>
+        <path d="M20 3V37"/>
+        <path d="M8 8C13 13 13 27 8 32"/>
+        <path d="M32 8C27 13 27 27 32 32"/>
+      </svg>
 
-      <!-- ===== Brand: emblem, wordmark, tagline ===== -->
-      <header class="brand">
-        <!-- Emblem: crown over a shield holding a basketball -->
-        <svg class="emblem" viewBox="0 0 120 136" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hoops Dynasty crest">
-          <defs>
-            <linearGradient id="emblem-gold" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#F5D76E"/>
-              <stop offset="0.45" stop-color="#D4AF37"/>
-              <stop offset="1" stop-color="#9C7A1E"/>
-            </linearGradient>
-            <linearGradient id="emblem-navy" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#13284D"/>
-              <stop offset="1" stop-color="#0B1A33"/>
-            </linearGradient>
-          </defs>
+      <h1 class="logo" aria-label="Hoops Dynasty">
+        <span class="logo-hoops" aria-hidden="true">Hoops</span>
+        <span class="logo-dynasty" aria-hidden="true">Dynasty</span>
+      </h1>
 
-          <!-- Shield -->
-          <path d="M60 32L102 42V76C102 102 84 120 60 130C36 120 18 102 18 76V42Z"
-                fill="url(#emblem-navy)" stroke="url(#emblem-gold)" stroke-width="3.5" stroke-linejoin="round"/>
-          <path d="M60 40L95 48V76C95 97 80 112 60 121C40 112 25 97 25 76V48Z"
-                fill="none" stroke="#D4AF37" stroke-opacity="0.4" stroke-width="1"/>
+      <p class="tagline">Your team. Your decisions. Your dynasty.</p>
+    </header>
 
-          <!-- Basketball -->
-          <circle cx="60" cy="82" r="24" fill="url(#emblem-gold)"/>
-          <g fill="none" stroke="#0B1A33" stroke-width="2" stroke-linecap="round">
-            <path d="M60 58V106"/>
-            <path d="M36 82H84"/>
-            <path d="M42 66Q54 82 42 98"/>
-            <path d="M78 66Q66 82 78 98"/>
-          </g>
+    <!-- ===== Main menu =====
+         Each button's data-action is looked up in ACTIONS below. The first visible
+         button becomes the primary (red bar rests on it). -->
+    <nav class="menu" id="menu" aria-label="Main menu">
+      <div class="menu-bar" id="menu-bar" aria-hidden="true"></div>
 
-          <!-- Crown -->
-          <path d="M40 26L43 9L52 18L60 6L68 18L77 9L80 26Z" fill="url(#emblem-gold)" stroke-linejoin="round"/>
-          <rect x="40" y="26" width="40" height="5" rx="1.5" fill="url(#emblem-gold)"/>
-          <circle cx="43" cy="8" r="2.2" fill="#F5D76E"/>
-          <circle cx="60" cy="5" r="2.2" fill="#F5D76E"/>
-          <circle cx="77" cy="8" r="2.2" fill="#F5D76E"/>
-        </svg>
-
-        <h1 class="logo" aria-label="Hoops Dynasty">
-          <span class="logo-hoops" data-text="HOOPS" aria-hidden="true">HOOPS</span>
-          <span class="logo-dynasty" aria-hidden="true">DYNASTY</span>
-        </h1>
-
-        <p class="tagline">Build a Legacy. One Season at a Time.</p>
-      </header>
-
-      <!-- ===== Main menu =====
-           Each button's data-action is looked up in the ACTIONS map in title.js -->
-      <nav class="menu-card" aria-label="Main menu">
-        <div class="menu" id="menu" role="group">
-
-          <!-- Only shown when a save exists in localStorage (see title.js) -->
-          <button class="menu-btn" id="continue-btn" data-action="continue" type="button" hidden>
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8.5L15.5 12L10 15.5Z"/></svg>
-            <span>
-              <span class="label">Continue</span>
-              <small class="sub"></small>
-            </span>
-          </button>
-
-          <button class="menu-btn menu-btn--primary" data-action="new-dynasty" type="button">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8L7.5 12L12 5L16.5 12L21 8L19 19H5Z"/></svg>
-            <span class="label">New Dynasty</span>
-          </button>
-
-          <button class="menu-btn" data-action="load-dynasty" type="button">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4V15"/><path d="M7.5 10.5L12 15L16.5 10.5"/><path d="M5 19H19"/></svg>
-            <span class="label">Load Dynasty</span>
-          </button>
-
-          <button class="menu-btn" data-action="quick-game" type="button">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3L5 13.5H11L10 21L18 10.5H12Z"/></svg>
-            <span class="label">Quick Game</span>
-          </button>
-
-          <button class="menu-btn" data-action="settings" type="button">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7H13"/><path d="M19 7H20"/><circle cx="16" cy="7" r="2.2"/><path d="M4 17H5"/><path d="M11 17H20"/><circle cx="8" cy="17" r="2.2"/></svg>
-            <span class="label">Settings</span>
-          </button>
-
-          <button class="menu-btn" data-action="how-to-play" type="button">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.6A2.5 2.5 0 1 1 13 12C12.3 12.4 12 12.9 12 13.7"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
-            <span class="label">How to Play</span>
-          </button>
-
-        </div>
-      </nav>
-    </main>
-
-    <!-- ===== Bottom: news ticker + footer ===== -->
-    <footer class="bottom">
-      <section class="ticker" aria-label="League news">
-        <div class="ticker-label"><span class="live-dot" aria-hidden="true"></span>LEAGUE NEWS</div>
-        <div class="ticker-viewport" id="ticker-viewport">
-          <!-- Headlines are rendered by title.js from the HEADLINES array -->
-          <div class="ticker-track" id="ticker-track"></div>
-        </div>
-      </section>
-      <div class="meta">
-        <span>v0.2.0</span>
-        <span>© 2026 Hoops Dynasty</span>
-      </div>
-    </footer>
+      <!-- Only shown when a save exists in localStorage -->
+      <button class="menu-btn" id="continue-btn" data-action="continue" type="button" hidden>
+        <span class="label">Continue</span>
+        <small class="sub"></small>
+      </button>
+      <button class="menu-btn" data-action="new-dynasty" type="button"><span class="label">New Dynasty</span></button>
+      <button class="menu-btn" data-action="load-dynasty" type="button"><span class="label">Load Dynasty</span></button>
+      <button class="menu-btn" data-action="quick-game" type="button"><span class="label">Quick Game</span></button>
+      <button class="menu-btn" data-action="settings" type="button"><span class="label">Settings</span></button>
+      <button class="menu-btn" data-action="how-to-play" type="button"><span class="label">How to Play</span></button>
+    </nav>
   </div>
 
-  <!-- Toast notifications appear here (announced to screen readers) -->
+  <footer class="version">v0.2.0</footer>
+
+  <!-- Toast notifications (announced to screen readers) -->
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
+  <script>
+  (() => {
+    'use strict';
+
+    /* ----------------------------------------------------------------------
+       CONFIG
+       ---------------------------------------------------------------------- */
+
+    // localStorage key for the saved dynasty. "Continue" appears when this holds
+    // JSON like: { "teamName": "Chicago", "season": 3, "wins": 41, "losses": 22 }
+    // ("record": "41-22" also works instead of wins/losses).
+    const SAVE_KEY = 'hoopsDynasty.save';
+
+    const TOAST_DURATION_MS = 2800;
+    const MAX_TOASTS = 3;
+    const STROKE_PX = 2;               // on-screen court line width
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const landscape = window.matchMedia('(min-aspect-ratio: 4/3)');
+    const $ = (sel, root = document) => root.querySelector(sel);
+
+
+    /* ----------------------------------------------------------------------
+       TOASTS
+       ---------------------------------------------------------------------- */
+
+    const toastRoot = $('#toasts');
+
+    function showToast(label) {
+      while (toastRoot.children.length >= MAX_TOASTS) dismissToast(toastRoot.firstElementChild);
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      const strong = document.createElement('strong');
+      strong.textContent = label;                    // textContent keeps it injection-safe
+      toast.append(strong, document.createTextNode(' — coming soon'));
+      toastRoot.appendChild(toast);
+      setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
+    }
+
+    function dismissToast(toast) {
+      if (!toast || toast.classList.contains('leaving')) return;
+      toast.classList.add('leaving');
+      setTimeout(() => toast.remove(), reducedMotion.matches ? 0 : 260);
+    }
+
+
+    /* ----------------------------------------------------------------------
+       MENU ACTIONS — plug real screens in here, keyed by data-action.
+       e.g.  'new-dynasty': () => showScreen('new-dynasty')
+       ---------------------------------------------------------------------- */
+
+    const soon = (label) => () => showToast(label);
+
+    const ACTIONS = {
+      'continue':     soon('Continue'),
+      'new-dynasty':  soon('New Dynasty'),
+      'load-dynasty': soon('Load Dynasty'),
+      'quick-game':   soon('Quick Game'),
+      'settings':     soon('Settings'),
+      'how-to-play':  soon('How to Play')
+    };
+
+
+    /* ----------------------------------------------------------------------
+       SAVE LOOKUP
+       ---------------------------------------------------------------------- */
+
+    // Returns { teamName, season, record } if a valid save exists, otherwise null.
+    function readSave() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return null;
+        const save = JSON.parse(raw);
+        if (save && typeof save.teamName === 'string' && save.teamName.trim()) {
+          let record = null;
+          if (typeof save.record === 'string' && save.record.trim()) record = save.record.trim();
+          else if (Number.isFinite(save.wins) && Number.isFinite(save.losses)) record = `${save.wins}-${save.losses}`;
+          return { teamName: save.teamName.trim(), season: save.season ?? 1, record };
+        }
+      } catch (err) {
+        /* Storage blocked or corrupt JSON: behave as if there is no save. */
+      }
+      return null;
+    }
+
+    function setupContinue() {
+      const btn = $('#continue-btn');
+      const save = readSave();
+      if (!save) { btn.hidden = true; return; }
+      const parts = [save.teamName, `Season ${save.season}`];
+      if (save.record) parts.push(save.record);
+      $('.sub', btn).textContent = parts.join(' · ');
+      btn.hidden = false;
+    }
+
+
+    /* ----------------------------------------------------------------------
+       MENU: primary item, sliding bar, click + keyboard
+       ---------------------------------------------------------------------- */
+
+    const menu = $('#menu');
+    const bar = $('#menu-bar');
+    const items = () => [...menu.querySelectorAll('.menu-btn')].filter((b) => !b.hidden);
+    let primary = null;
+    let active = null;
+
+    function moveBar(btn, instant = false) {
+      if (!btn) return;
+      active?.classList.remove('is-active');
+      active = btn;
+      btn.classList.add('is-active');
+      bar.classList.toggle('no-anim', instant);
+      bar.style.setProperty('--bar-y', `${btn.offsetTop}px`);
+      bar.style.setProperty('--bar-h', `${btn.offsetHeight}px`);
+      if (instant) requestAnimationFrame(() => bar.classList.remove('no-anim'));
+    }
+
+    // Where the bar rests when nothing is hovered: the focused item, else the primary.
+    function restBar() {
+      const focused = items().includes(document.activeElement) ? document.activeElement : null;
+      moveBar(focused || primary);
+    }
+
+    function setupMenu() {
+      const list = items();
+      primary = list[0];
+      primary.classList.add('is-primary');
+      list.forEach((btn, i) => btn.style.setProperty('--i', i));
+      moveBar(primary, true);
+
+      menu.addEventListener('pointerover', (e) => {
+        const btn = e.target.closest('.menu-btn');
+        if (btn) moveBar(btn);
+      });
+      menu.addEventListener('pointerdown', (e) => {
+        const btn = e.target.closest('.menu-btn');
+        if (btn) moveBar(btn);
+      });
+      menu.addEventListener('pointerleave', restBar);
+      menu.addEventListener('focusin', (e) => {
+        const btn = e.target.closest('.menu-btn');
+        if (btn) moveBar(btn);
+      });
+      menu.addEventListener('focusout', () => setTimeout(restBar, 0));
+
+      // One click listener: mouse, touch, Enter and Space all land here.
+      menu.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const handler = ACTIONS[btn.dataset.action];
+        if (handler) handler({ button: btn, action: btn.dataset.action });
+      });
+    }
+
+    // Arrow Up/Down (plus Home/End) move focus; Enter activates natively.
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+      const list = items();
+      if (!list.length) return;
+      e.preventDefault();
+
+      const cur = list.indexOf(document.activeElement);
+      let next;
+      if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = list.length - 1;
+      else if (cur === -1) next = list.indexOf(active) >= 0 ? list.indexOf(active) : 0;
+      else next = (cur + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+      list[next].focus();
+    });
+
+
+    /* ----------------------------------------------------------------------
+       COURT: orientation, line width, align center circle behind wordmark
+       ---------------------------------------------------------------------- */
+
+    const court = $('#court');
+    const courtG = $('#court-g');
+    const brand = $('#brand');
+
+    function layoutCourt() {
+      const land = landscape.matches;
+      const vb = land ? [-20, -20, 980, 540] : [-20, -20, 540, 980];
+      court.setAttribute('viewBox', vb.join(' '));
+      court.classList.toggle('is-landscape', land);
+      // Landscape: (x, y) -> (y, 500 - x), so baskets end up left and right.
+      if (land) courtG.setAttribute('transform', 'translate(0 500) rotate(-90)');
+      else courtG.removeAttribute('transform');
+
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const scale = Math.min(W / vb[2], H / vb[3]);
+      court.style.setProperty('--sw', (STROKE_PX / scale).toFixed(3));
+
+      // Shift so the court's center (center circle) lands on the wordmark's center.
+      const logo = $('.logo', brand).getBoundingClientRect();
+      const cy = logo.top + logo.height / 2;
+      court.style.setProperty('--court-dy', `${Math.round(cy - H / 2)}px`);
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { layoutCourt(); moveBar(active, true); }, 120);
+    });
+
+
+    /* ----------------------------------------------------------------------
+       INIT
+       ---------------------------------------------------------------------- */
+
+    setupContinue();
+    setupMenu();
+    // The brand animates from scale(1.35); measure after it settles.
+    layoutCourt();
+    brand.addEventListener('animationend', layoutCourt, { once: true });
+  })();
+  </script>
 </body>
 </html>
