@@ -7,9 +7,14 @@
   <meta name="description" content="Hoops Dynasty — your team, your decisions, your dynasty.">
   <title>Hoops Dynasty</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap">
+
   <style>
   /* ==========================================================================
-     HOOPS DYNASTY — title screen (self-contained: no external assets)
+     HOOPS DYNASTY — title screen (self-contained apart from the Montserrat
+     webfont, which falls back to the system sans if it can't load)
      Sections:
        1. Theme
        2. Base
@@ -31,8 +36,8 @@
     --text: #f2f2f2;
     --muted: #7c7c84;
 
-    --font-display: "Arial Black", "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
-    --font-ui: "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
+    --font-display: "Montserrat", "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
+    --font-ui: "Montserrat", "Helvetica Neue", Helvetica, Roboto, Arial, system-ui, sans-serif;
 
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --slam: cubic-bezier(0.2, 0.9, 0.3, 1.15);
@@ -139,58 +144,55 @@
     color: var(--red);
   }
 
+  /* Wordmark: upright geometric sans. HOOPS is a small, tracked-out kicker;
+     DYNASTY carries the weight. */
   .logo {
     margin: 0;
     font-family: var(--font-display);
-    font-weight: 900;
-    font-style: normal;        /* slant comes from skew: consistent on every platform */
-    line-height: 0.86;
-    letter-spacing: -0.01em;
+    font-style: normal;
+    line-height: 1;
     text-transform: uppercase;
     display: flex;
     flex-direction: column;
     align-items: center;
-    transform: skewX(-11deg);
   }
 
   .logo-hoops {
     color: var(--text);
-    font-size: clamp(36px, min(10.5vw, 8vh), 88px);
+    font-size: clamp(14px, min(4.4vw, 3.2vh), 28px);
+    font-weight: 700;
+    letter-spacing: 0.52em;
+    /* tracking adds space after the last letter; pad the front to re-center */
+    padding-left: 0.52em;
+    margin-bottom: clamp(2px, 0.6vh, 6px);
   }
 
   .logo-dynasty {
-    font-size: clamp(44px, min(13.5vw, 10.5vh), 120px);
     color: var(--red);
-    /* light sweep: a brighter band rides across the red */
-    background: linear-gradient(105deg,
-      var(--red) 0%, var(--red) 42%, var(--red-hi) 50%, var(--red) 58%, var(--red) 100%);
-    background-size: 250% 100%;
-    background-position: 100% 0;
-    -webkit-background-clip: text;
-            background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: sweep 7s ease-in-out 2.2s infinite;
-    padding-right: 0.06em;     /* keep the skewed last letter from clipping */
+    font-size: clamp(46px, min(15vw, 11vh), 132px);
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    padding-left: 0.01em;
+    line-height: 0.9;
+  }
+
+  .logo-rule {
+    display: block;
+    width: clamp(56px, 14vw, 120px);
+    height: 2px;
+    margin-top: clamp(12px, 2.2vh, 20px);
+    background: var(--red);
   }
 
   .tagline {
-    margin: clamp(10px, 2vh, 18px) 0 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: clamp(8px, 2.4vw, 11px);
-    font-weight: 700;
-    letter-spacing: clamp(0.12em, 0.6vw, 0.22em);
+    margin: clamp(12px, 2.2vh, 20px) 0 0;
+    padding-left: 0.42em;      /* re-center against trailing tracking */
+    font-size: clamp(10px, 2.6vw, 12px);
+    font-weight: 600;
+    letter-spacing: 0.42em;
     text-transform: uppercase;
-    color: var(--text);
+    color: rgba(242,242,242,0.72);
     white-space: nowrap;
-  }
-  .tagline::before,
-  .tagline::after {
-    content: "";
-    width: clamp(12px, 5vw, 40px);
-    height: 1px;
-    background: var(--red);
   }
 
   /* 5. MENU ----------------------------------------------------------------- */
@@ -211,7 +213,7 @@
     right: 0;
     top: 0;
     background: var(--red);
-    transform: translateY(var(--bar-y, 0px)) skewX(-11deg);
+    transform: translateY(var(--bar-y, 0px));
     height: var(--bar-h, var(--item-h));
     transition:
       transform 150ms var(--ease-out),
@@ -233,9 +235,9 @@
     background: transparent;
     color: var(--text);
     font: inherit;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.24em;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     text-align: center;
     cursor: pointer;
@@ -253,8 +255,8 @@
   .menu-btn[hidden] { display: none; }
 
   .menu-btn.is-primary {
-    font-size: 16px;
-    font-weight: 800;
+    font-size: 14px;
+    font-weight: 700;
   }
 
   /* Keep the label readable when it's NOT under the bar */
@@ -266,14 +268,13 @@
     position: absolute;
     inset: 3px 6px;
     border: 1px solid rgba(255,255,255,0.7);
-    transform: skewX(-11deg);
     pointer-events: none;
   }
 
   .menu-btn .sub {
     font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
+    font-weight: 500;
+    letter-spacing: 0.12em;
     color: rgba(255,255,255,0.82);
     text-transform: uppercase;
     max-width: 100%;
@@ -334,20 +335,14 @@
     to   { opacity: 1; transform: none; }
   }
 
-  @keyframes sweep {
-    0%   { background-position: 100% 0; }
-    45%  { background-position: 0% 0; }
-    100% { background-position: 0% 0; }
-  }
-
   @keyframes toast-in  { from { opacity: 0; transform: translateY(8px); } }
   @keyframes toast-out { to   { opacity: 0; transform: translateY(8px); } }
 
   /* 8. RESPONSIVE ----------------------------------------------------------- */
   @media (max-height: 640px) {
     :root { --item-h: 48px; }
-    .menu-btn { font-size: 13px; }
-    .menu-btn.is-primary { font-size: 14px; }
+    .menu-btn { font-size: 12px; }
+    .menu-btn.is-primary { font-size: 13px; }
   }
 
   /* Landscape: menu stays under the wordmark, just tighter */
@@ -431,7 +426,9 @@
         <span class="logo-dynasty" aria-hidden="true">Dynasty</span>
       </h1>
 
-      <p class="tagline">Your team. Your decisions. Your dynasty.</p>
+      <span class="logo-rule" aria-hidden="true"></span>
+
+      <p class="tagline">Greatness is built.</p>
     </header>
 
     <!-- ===== Main menu =====
@@ -674,6 +671,8 @@
     // The brand animates from scale(1.35); measure after it settles.
     layoutCourt();
     brand.addEventListener('animationend', layoutCourt, { once: true });
+    // Webfont swap changes the wordmark's size; re-center the court once it lands.
+    document.fonts?.ready.then(layoutCourt);
   })();
   </script>
 </body>
