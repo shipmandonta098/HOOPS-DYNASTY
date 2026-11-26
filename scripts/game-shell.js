@@ -32,52 +32,163 @@
     ]);
   }
 
+  /* --- Roster: any team, any season with data ----------------------------- */
+
+  // Which roster is being viewed; resets when a different dynasty opens.
+  var rosterView = { saveId: null, teamId: null, seasonYear: null };
+
+  var bornFmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  function bornLabel(iso) {
+    var t = Date.parse(iso + 'T00:00:00Z');
+    return isNaN(t) ? '—' : bornFmt.format(new Date(t));
+  }
+
+  function flag(code) {
+    var name = window.HDPlayerBio.countryName(code);
+    return el('span', { class: 'gs-country' }, [
+      el('span', { class: 'hd-flag', html: window.HDFlags.svg(code) }),
+      el('span', { text: name })
+    ]);
+  }
+
   function renderRoster(container, save) {
-    var c = window.HDDashboard.context(save);
+    if (rosterView.saveId !== save.id) {
+      rosterView = { saveId: save.id, teamId: save.userTeamId, seasonYear: save.calendar.seasonYear };
+    }
+    var seasons = D().rosterSeasons(save);
+    if (!seasons.some(function (x) { return x.seasonYear === rosterView.seasonYear; })) rosterView.seasonYear = save.calendar.seasonYear;
+
+    container.appendChild(sectionHeader(save, 'Roster'));
+
+    // Team picker: grouped by conference, your team first and labelled.
+    var teamSelect = el('select', { class: 'hd-select', id: 'gs-roster-team' });
+    (save.league.conferences || []).forEach(function (conf) {
+      var group = el('optgroup', { label: conf.name });
+      save.teams.filter(function (t) { return t.conference === conf.id; })
+        .sort(function (a, b) { return a.fullName.localeCompare(b.fullName); })
+        .forEach(function (t) {
+          group.appendChild(el('option', { value: t.id, text: t.fullName + (t.id === save.userTeamId ? ' (Your Team)' : '') }));
+        });
+      teamSelect.appendChild(group);
+    });
+    teamSelect.value = rosterView.teamId;
+
+    var seasonSelect = el('select', { class: 'hd-select', id: 'gs-roster-season', 'aria-describedby': 'gs-roster-season-hint' });
+    seasons.forEach(function (x) {
+      seasonSelect.appendChild(el('option', { value: String(x.seasonYear), text: x.seasonLabel + (x.current ? ' (Current)' : '') }));
+    });
+    seasonSelect.value = String(rosterView.seasonYear);
+
+    var mine = el('button', { class: 'hd-btn is-quiet gs-roster-mine', type: 'button', text: 'My Team' });
+
+    container.appendChild(el('div', { class: 'gs-roster-tools' }, [
+      el('div', { class: 'gs-roster-field gs-roster-field-team' }, [
+        el('label', { class: 'gs-roster-label', for: 'gs-roster-team', text: 'Team' }),
+        el('div', { class: 'hd-select-wrap' }, [teamSelect])
+      ]),
+      el('div', { class: 'gs-roster-field' }, [
+        el('label', { class: 'gs-roster-label', for: 'gs-roster-season', text: 'Season' }),
+        el('div', { class: 'hd-select-wrap' }, [seasonSelect])
+      ]),
+      mine
+    ]));
+    container.appendChild(el('p', { class: 'gs-roster-hint', id: 'gs-roster-season-hint',
+      text: seasons.length > 1 ? 'Past seasons show each roster as it stood at season’s end.' : 'Past seasons will appear here as your dynasty moves through each season.' }));
+
+    var body = el('div', { class: 'gs-roster-body', 'aria-live': 'polite' });
+    container.appendChild(body);
+
+    function update() {
+      rosterView.teamId = teamSelect.value;
+      rosterView.seasonYear = Number(seasonSelect.value);
+      mine.hidden = rosterView.teamId === save.userTeamId;
+      renderRosterBody(body, save);
+    }
+    teamSelect.addEventListener('change', update);
+    seasonSelect.addEventListener('change', update);
+    mine.addEventListener('click', function () { teamSelect.value = save.userTeamId; update(); teamSelect.focus(); });
+    update();
+  }
+
+  function renderRosterBody(body, save) {
     var R = window.HDRoster;
-    var lu = save.lineups[c.team.id] || {};
+    var Bio = window.HDPlayerBio;
+    var team = save.teams.filter(function (t) { return t.id === rosterView.teamId; })[0];
+    var data = D().rosterFor(save, team.id, rosterView.seasonYear);
+    var season = D().rosterSeasons(save).filter(function (x) { return x.seasonYear === rosterView.seasonYear; })[0];
+    var jersey = { primary: dom.hex(team.colors.primary), secondary: dom.hex(team.colors.secondary) };
+    var conf = (save.league.conferences || []).filter(function (x) { return x.id === team.conference; })[0];
+    var overall = data.current ? D().teamOverall(team) : R.teamOverall(data.players);
+
     var starterPos = {};
-    R.POSITIONS.forEach(function (pos) { if (lu[pos]) starterPos[lu[pos]] = pos; });
-    var order = R.POSITIONS;
-    var players = c.roster.slice().sort(function (a, b) {
+    R.POSITIONS.forEach(function (pos) { if (data.lineup[pos]) starterPos[data.lineup[pos]] = pos; });
+    var players = data.players.slice().sort(function (a, b) {
       var sa = starterPos[a.id], sb = starterPos[b.id];
-      if (sa && sb) return order.indexOf(sa) - order.indexOf(sb);
+      if (sa && sb) return R.POSITIONS.indexOf(sa) - R.POSITIONS.indexOf(sb);
       if (sa) return -1;
       if (sb) return 1;
       return b.overall - a.overall || a.lastName.localeCompare(b.lastName);
     });
 
+    body.textContent = '';
+    body.style.setProperty('--team-c1', dom.hex(team.colors.primary));
+    body.appendChild(el('div', { class: 'gs-roster-team' }, [
+      el('img', { src: team.logo, alt: '', width: 48, height: 48 }),
+      el('div', { class: 'gs-roster-team-text' }, [
+        el('p', { class: 'gs-roster-team-name' }, [
+          el('span', { text: team.fullName }),
+          team.id === save.userTeamId ? el('span', { class: 'gs-roster-you', text: 'Your Team' }) : null
+        ]),
+        el('p', { class: 'gs-roster-team-meta', text: [
+          (season ? season.seasonLabel : ''),
+          players.length + ' players',
+          'Team overall ' + overall,
+          conf ? conf.name : null
+        ].filter(Boolean).join(' · ') })
+      ])
+    ]));
+
+    if (!players.length) {
+      body.appendChild(el('p', { class: 'db-empty', text: 'No roster on record for this team in the selected season.' }));
+      return;
+    }
+
+    var head = [
+      ['Player', 'gs-sticky'], ['Pos'], ['OVR', 'is-num'], ['POT', 'is-num'], ['Age', 'is-num'],
+      ['Born'], ['Ht', 'is-num'], ['Wt', 'is-num'], ['Exp', 'is-num', 'Seasons of league experience (R = rookie)'],
+      ['Country'], ['College']
+    ];
     var table = el('table', { class: 'gs-roster' }, [
-      el('thead', null, [el('tr', null, [
-        el('th', { scope: 'col', text: 'Player' }),
-        el('th', { scope: 'col', text: 'Pos' }),
-        el('th', { scope: 'col', class: 'is-num', text: 'Age' }),
-        el('th', { scope: 'col', class: 'is-num gs-col-ht', text: 'Ht' }),
-        el('th', { scope: 'col', class: 'is-num', text: 'OVR' }),
-        el('th', { scope: 'col', class: 'is-num gs-col-pot', text: 'POT' }),
-        el('th', { scope: 'col', class: 'gs-col-role', text: 'Role' })
-      ])]),
+      el('caption', { class: 'hd-visually-hidden', text: team.fullName + ' roster, ' + (season ? season.seasonLabel : '') }),
+      el('thead', null, [el('tr', null, head.map(function (h) {
+        return el('th', { scope: 'col', class: h[1] || null, title: h[2] || null, text: h[0] });
+      }))]),
       el('tbody', null, players.map(function (p) {
         var starter = starterPos[p.id];
         return el('tr', { class: starter ? 'is-starter' : null }, [
-          el('th', { scope: 'row' }, [el('span', { class: 'gs-player' }, [
-            dom.portrait(p.portrait, { className: 'gs-player-portrait', jersey: c.jersey }),
+          el('th', { scope: 'row', class: 'gs-sticky' }, [el('span', { class: 'gs-player' }, [
+            dom.portrait(p.portrait, { className: 'gs-player-portrait', jersey: jersey }),
             el('span', { class: 'gs-player-text' }, [
               el('span', { class: 'gs-player-name', text: p.firstName + ' ' + p.lastName }),
-              el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter' : '') })
+              el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter ' + starter : ' · Bench') })
             ])
           ])]),
           el('td', { text: p.position }),
-          el('td', { class: 'is-num', text: String(p.age) }),
-          el('td', { class: 'is-num gs-col-ht', text: R.heightLabel(p.heightIn) }),
           el('td', { class: 'is-num gs-ovr', text: String(p.overall) }),
-          el('td', { class: 'is-num gs-col-pot', text: String(p.potential) }),
-          el('td', { class: 'gs-col-role', text: starter ? 'Starter · ' + starter : 'Bench' })
+          el('td', { class: 'is-num', text: String(p.potential) }),
+          el('td', { class: 'is-num', text: String(p.age) }),
+          el('td', null, [el('time', { datetime: p.birthDate, text: bornLabel(p.birthDate) })]),
+          el('td', { class: 'is-num', text: R.heightLabel(p.heightIn) }),
+          el('td', { class: 'is-num', text: p.weightLb ? p.weightLb + ' lb' : '—' }),
+          el('td', { class: 'is-num', title: p.experience === 0 ? 'Rookie' : p.experience + ' seasons', text: Bio.experienceLabel(p.experience) }),
+          el('td', null, [flag(p.nationality)]),
+          el('td', { class: p.college ? null : 'gs-muted-cell', title: p.college ? null : 'Did not play U.S. college basketball', text: p.college || '—' })
         ]);
       }))
     ]);
-    container.appendChild(sectionHeader(save, 'Roster', c.roster.length + ' players · Team overall ' + D().teamOverall(c.team)));
-    container.appendChild(el('section', { class: 'hd-panel gs-panel', 'aria-label': 'Roster' }, [el('div', { class: 'gs-table-wrap' }, [table])]));
+    body.appendChild(el('section', { class: 'hd-panel gs-panel gs-roster-panel', 'aria-label': team.fullName + ' roster' }, [
+      el('div', { class: 'gs-table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Roster table (scrolls sideways)' }, [table])
+    ]));
   }
 
   function renderFinances(container, save) {
