@@ -26,10 +26,16 @@
     taxRates: [1.5, 1.75, 2.5, 3.25]
   });
 
-  function initFinances(seasonYear) {
+  // overrides: { salaryCap, luxuryTax } from the dynasty's league rules
+  function initFinances(seasonYear, overrides) {
+    var config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    if (overrides) {
+      if (typeof overrides.salaryCap === 'number') config.salaryCap = overrides.salaryCap;
+      if (typeof overrides.luxuryTax === 'number') config.luxuryTax = overrides.luxuryTax;
+    }
     return {
       seasonYear: seasonYear,
-      config: JSON.parse(JSON.stringify(DEFAULT_CONFIG)),
+      config: config,
       // Per-team ledgers (revenue, expenses...) land here later.
       teams: {}
     };

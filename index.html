@@ -673,6 +673,14 @@
         <h1 class="hd-screen-title" tabindex="-1" data-step-title>League Setup</h1>
         <p class="hd-screen-intro">Name your league, sign on as general manager and choose the year it all begins.</p>
 
+        <div class="nd-tabs" role="tablist" aria-label="League setup">
+          <button class="nd-tab" type="button" role="tab" id="nd-tab-details" aria-controls="nd-panel-details" aria-selected="true" data-tab="details">League Details</button>
+          <button class="nd-tab" type="button" role="tab" id="nd-tab-rules" aria-controls="nd-panel-rules" aria-selected="false" tabindex="-1" data-tab="rules">
+            League Rules <span class="nd-tab-badge" data-rules-badge hidden>Custom</span>
+          </button>
+        </div>
+
+        <div class="nd-tabpanel" id="nd-panel-details" role="tabpanel" aria-labelledby="nd-tab-details">
         <div class="nd-setup-grid">
           <div class="hd-panel nd-panel">
             <div class="hd-field">
@@ -680,6 +688,7 @@
               <input class="hd-input" id="nd-league-name" name="leagueName" type="text" required
                      maxlength="40" placeholder="e.g. National Hoops Association"
                      aria-describedby="nd-league-name-error">
+              <div class="nd-recent" data-recent="league" hidden></div>
               <p class="hd-error" id="nd-league-name-error" data-error-for="leagueName"></p>
             </div>
 
@@ -688,6 +697,7 @@
               <input class="hd-input" id="nd-gm-name" name="gmName" type="text" required
                      maxlength="40" placeholder="Your name" autocomplete="name"
                      aria-describedby="nd-gm-name-hint nd-gm-name-error">
+              <div class="nd-recent" data-recent="gm" hidden></div>
               <p class="hd-hint" id="nd-gm-name-hint">This is how you’ll be identified throughout your dynasty.</p>
               <p class="hd-error" id="nd-gm-name-error" data-error-for="gmName"></p>
             </div>
@@ -716,6 +726,75 @@
             <ul class="nd-structure-list" data-structure="list"></ul>
             <p class="hd-hint">You’ll control one franchise. The rest are run by CPU general managers.</p>
           </aside>
+        </div>
+        </div>
+
+        <!-- League Rules: options are filled from HDDynasty.RULE_OPTIONS -->
+        <div class="nd-tabpanel" id="nd-panel-rules" role="tabpanel" aria-labelledby="nd-tab-rules" hidden>
+          <div class="nd-rules-grid">
+            <section class="hd-panel nd-panel" aria-labelledby="nd-rules-season">
+              <h2 class="hd-eyebrow" id="nd-rules-season">Season</h2>
+              <div class="hd-field">
+                <label class="hd-label" for="nd-season-games">Season Length</label>
+                <div class="hd-select-wrap"><select class="hd-select" id="nd-season-games" data-rule="seasonGames"></select></div>
+              </div>
+              <div class="hd-field">
+                <label class="hd-label" for="nd-playoff-format">Playoff Format</label>
+                <div class="hd-select-wrap"><select class="hd-select" id="nd-playoff-format" data-rule="playoffFormat" aria-describedby="nd-playoff-detail"></select></div>
+                <p class="hd-hint" id="nd-playoff-detail" data-rule-detail="playoffFormat"></p>
+              </div>
+              <fieldset class="hd-field nd-fieldset">
+                <legend class="hd-label">Playoff Series</legend>
+                <div class="hd-segmented nd-seg-full" data-rule-group="seriesLength"></div>
+              </fieldset>
+            </section>
+
+            <section class="hd-panel nd-panel" aria-labelledby="nd-rules-competition">
+              <h2 class="hd-eyebrow" id="nd-rules-competition">Competition</h2>
+              <fieldset class="hd-field nd-fieldset">
+                <legend class="hd-label">Difficulty</legend>
+                <div class="hd-segmented nd-seg-full nd-seg-wrap" data-rule-group="difficulty"></div>
+                <p class="hd-hint" data-rule-detail="difficulty"></p>
+              </fieldset>
+              <div class="hd-field">
+                <label class="hd-label" for="nd-roster-size">Roster Size</label>
+                <div class="nd-year">
+                  <button class="hd-btn is-icon" type="button" data-roster-step="-1" aria-label="Fewer players">&minus;</button>
+                  <input class="hd-input nd-year-input" id="nd-roster-size" data-rule="rosterSize" type="text" inputmode="numeric" maxlength="2" aria-describedby="nd-roster-hint nd-rosterSize-error">
+                  <button class="hd-btn is-icon" type="button" data-roster-step="1" aria-label="More players">+</button>
+                </div>
+                <p class="hd-hint" id="nd-roster-hint" data-roster-hint></p>
+                <p class="hd-error" id="nd-rosterSize-error" data-rule-error="rosterSize"></p>
+              </div>
+            </section>
+
+            <section class="hd-panel nd-panel" aria-labelledby="nd-rules-finances">
+              <h2 class="hd-eyebrow" id="nd-rules-finances">Finances</h2>
+              <div class="hd-field">
+                <label class="hd-label" for="nd-salary-cap">Salary Cap</label>
+                <div class="nd-money">
+                  <span aria-hidden="true">$</span>
+                  <input class="hd-input" id="nd-salary-cap" data-rule="salaryCapM" type="text" inputmode="decimal" maxlength="6" aria-describedby="nd-salaryCap-error">
+                  <span aria-hidden="true">M</span>
+                </div>
+                <p class="hd-error" id="nd-salaryCap-error" data-rule-error="salaryCap"></p>
+              </div>
+              <div class="hd-field">
+                <label class="hd-label" for="nd-luxury-tax">Luxury Tax Threshold</label>
+                <div class="nd-money">
+                  <span aria-hidden="true">$</span>
+                  <input class="hd-input" id="nd-luxury-tax" data-rule="luxuryTaxM" type="text" inputmode="decimal" maxlength="6" aria-describedby="nd-luxuryTax-hint nd-luxuryTax-error">
+                  <span aria-hidden="true">M</span>
+                </div>
+                <p class="hd-hint" id="nd-luxuryTax-hint">Teams with payroll above this line pay luxury tax.</p>
+                <p class="hd-error" id="nd-luxuryTax-error" data-rule-error="luxuryTax"></p>
+              </div>
+            </section>
+          </div>
+          <div class="nd-rules-foot">
+            <p class="hd-hint">These rules apply only to this dynasty.</p>
+            <button class="hd-btn is-quiet" type="button" data-rules-reset>Reset to Defaults</button>
+          </div>
         </div>
 
         <div class="nd-actions">
@@ -942,6 +1021,7 @@
   <!-- Screens -->
   <script src="scripts/dom.js"></script>
   <script src="scripts/settings.js"></script>
+  <script src="scripts/recent-names.js"></script>
   <script src="scripts/new-dynasty.js"></script>
   <script src="scripts/load-dynasty.js"></script>
   <script src="scripts/owner-welcome.js"></script>

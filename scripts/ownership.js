@@ -57,6 +57,11 @@
   }
 
   /* --- Season objectives ---------------------------------------------- */
+  // Win targets are written for 82 games; scale to the league's season.
+  function winTarget(tier, ctx, bonus) {
+    return Math.round((TIERS[tier].targetWins + (bonus || 0)) * (ctx.seasonGames || 82) / 82);
+  }
+
   function seasonObjectives(tier, personality, ctx) {
     var conf = ctx.conferenceName;
     var base = {
@@ -84,10 +89,10 @@
 
     // Personality adjustments make the same tier read differently.
     if (personality === 'demanding') {
-      base[2] = o('win-target', 'Win at least ' + TIERS[tier].targetWins + ' games.', { type: 'wins', min: TIERS[tier].targetWins });
+      base[2] = o('win-target', 'Win at least ' + winTarget(tier, ctx) + ' games.', { type: 'wins', min: winTarget(tier, ctx) });
     } else if (personality === 'championship-driven' && tier !== 'contender') {
       base[2] = tier === 'rebuilding'
-        ? o('show-progress', 'Show clear, measurable progress toward contention.', { type: 'wins', min: TIERS[tier].targetWins + 6 })
+        ? o('show-progress', 'Show clear, measurable progress toward contention.', { type: 'wins', min: winTarget(tier, ctx, 6) })
         : o('win-series', 'Win a playoff series.', { type: 'playoff-round', reach: 'second-round' });
     } else if (personality === 'patient-builder' && tier !== 'rebuilding') {
       base[2] = o('develop-while-winning', 'Keep developing young players while competing.');
@@ -196,6 +201,7 @@
     var ctx = {
       gmName: context.gmName,
       conferenceName: context.conferenceName,
+      seasonGames: context.seasonGames,
       marketLabel: context.marketLabel,
       city: team.city
     };

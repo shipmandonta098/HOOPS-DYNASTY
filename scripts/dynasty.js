@@ -11,12 +11,14 @@
    - exportPayload() / parseExport() / exportFilename(): the JSON file format.
    - teamOverall(): the one place team strength is read from.
 
-   SAVE FORMAT (schemaVersion 3)
+   SAVE FORMAT (schemaVersion 4)
    {
-     schemaVersion: 3,
+     schemaVersion: 4,
      id,                         // permanent dynasty ID, never reused
      createdAt, updatedAt, lastPlayedAt,          // ISO timestamps
-     league:   { name, foundedYear, conferences[{ id, name, teamIds[] }], teamIds[] },
+     league:   { name, foundedYear, conferences[{ id, name, teamIds[] }], teamIds[],
+                 rules: { seasonGames, playoffFormat, seriesLength, difficulty,
+                          rosterSize, salaryCap, luxuryTax } },   // chosen at creation
      gm:       { name, teamId },
      calendar: { startYear, seasonYear, seasonLabel, phase, currentDate },
      onboarding: { ownerIntroCompleted, completedAt },
@@ -45,7 +47,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 3;
+  var SCHEMA_VERSION = 4;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -72,6 +74,87 @@
     nameMinLength: 2,
     nameMaxLength: 40
   });
+
+  /* --- League rules (chosen in New Dynasty > League Rules) ---------------- */
+
+  var RULE_OPTIONS = Object.freeze({
+    seasonGames: [82, 72, 58, 41, 29],
+    playoffFormat: {
+      'play-in': { label: '20 teams with play-in', detail: 'Top 6 per conference advance; seeds 7–10 meet in a play-in tournament.', teamsPerConference: 10 },
+      'sixteen': { label: '16 teams', detail: 'Top 8 per conference advance directly.', teamsPerConference: 8 },
+      'eight':   { label: '8 teams', detail: 'Only the top 4 per conference make the playoffs.', teamsPerConference: 4 }
+    },
+    seriesLength: [7, 5, 3],
+    difficulty: {
+      'rookie':       { label: 'Rookie',       detail: 'Forgiving owners and generous CPU trade partners.' },
+      'pro':          { label: 'Pro',          detail: 'A balanced, realistic front-office challenge.' },
+      'all-star':     { label: 'All-Star',     detail: 'Shrewd CPU general managers and higher expectations.' },
+      'hall-of-fame': { label: 'Hall of Fame', detail: 'Ruthless trade AI and owners with little patience.' }
+    },
+    rosterSize: { min: 13, max: 17 },
+    salaryCap: { min: 50000000, max: 500000000 },
+    luxuryTax: { min: 50000000, max: 600000000 }
+  });
+
+  var DEFAULT_RULES = Object.freeze({
+    seasonGames: 82,
+    playoffFormat: 'play-in',
+    seriesLength: 7,
+    difficulty: 'pro',
+    rosterSize: 15,
+    salaryCap: 141000000,
+    luxuryTax: 171300000
+  });
+
+  // Accepts form values (strings OK; money may be given in $M via
+  // salaryCapM / luxuryTaxM). -> { valid, errors{}, values }
+  function validateRules(input) {
+    input = input || {};
+    var errors = {};
+    var o = RULE_OPTIONS;
+    function num(v) { return typeof v === 'number' ? v : Number(String(v == null ? '' : v).replace(/[$,\s]/g, '')); }
+    function money(key) {
+      if (input[key + 'M'] != null && String(input[key + 'M']).trim() !== '') return Math.round(num(input[key + 'M']) * 1e6);
+      return input[key] != null ? Math.round(num(input[key])) : DEFAULT_RULES[key];
+    }
+    var v = {
+      seasonGames: input.seasonGames != null ? num(input.seasonGames) : DEFAULT_RULES.seasonGames,
+      playoffFormat: input.playoffFormat || DEFAULT_RULES.playoffFormat,
+      seriesLength: input.seriesLength != null ? num(input.seriesLength) : DEFAULT_RULES.seriesLength,
+      difficulty: input.difficulty || DEFAULT_RULES.difficulty,
+      rosterSize: input.rosterSize != null ? num(input.rosterSize) : DEFAULT_RULES.rosterSize,
+      salaryCap: money('salaryCap'),
+      luxuryTax: money('luxuryTax')
+    };
+    if (o.seasonGames.indexOf(v.seasonGames) === -1) errors.seasonGames = 'Choose a season length.';
+    if (!Object.prototype.hasOwnProperty.call(o.playoffFormat, v.playoffFormat)) errors.playoffFormat = 'Choose a playoff format.';
+    if (o.seriesLength.indexOf(v.seriesLength) === -1) errors.seriesLength = 'Choose a series length.';
+    if (!Object.prototype.hasOwnProperty.call(o.difficulty, v.difficulty)) errors.difficulty = 'Choose a difficulty.';
+    if (!Number.isInteger(v.rosterSize) || v.rosterSize < o.rosterSize.min || v.rosterSize > o.rosterSize.max) {
+      errors.rosterSize = 'Roster size must be ' + o.rosterSize.min + '–' + o.rosterSize.max + ' players.';
+    }
+    if (!isFinite(v.salaryCap) || v.salaryCap < o.salaryCap.min || v.salaryCap > o.salaryCap.max) {
+      errors.salaryCap = 'Salary cap must be between $' + o.salaryCap.min / 1e6 + 'M and $' + o.salaryCap.max / 1e6 + 'M.';
+    }
+    if (!isFinite(v.luxuryTax) || v.luxuryTax < o.luxuryTax.min || v.luxuryTax > o.luxuryTax.max) {
+      errors.luxuryTax = 'Luxury tax line must be between $' + o.luxuryTax.min / 1e6 + 'M and $' + o.luxuryTax.max / 1e6 + 'M.';
+    } else if (!errors.salaryCap && v.luxuryTax <= v.salaryCap) {
+      errors.luxuryTax = 'The luxury tax line must be above the salary cap.';
+    }
+    return { valid: Object.keys(errors).length === 0, errors: errors, values: v };
+  }
+
+  function rulesSummary(rules) {
+    var r = rules || DEFAULT_RULES;
+    return {
+      season: r.seasonGames + ' games',
+      playoffs: (RULE_OPTIONS.playoffFormat[r.playoffFormat] || {}).label + ', best of ' + r.seriesLength,
+      difficulty: (RULE_OPTIONS.difficulty[r.difficulty] || {}).label,
+      roster: r.rosterSize + ' players',
+      salaryCap: '$' + (r.salaryCap / 1e6).toFixed(1) + 'M',
+      luxuryTax: '$' + (r.luxuryTax / 1e6).toFixed(1) + 'M'
+    };
+  }
 
   var PHASES = Object.freeze({
     'preseason':      'Preseason',
@@ -181,6 +264,8 @@
 
     var v = check.values;
     var stamp = now.toISOString();
+    var ruleCheck = validateRules(setup.rules || DEFAULT_RULES);
+    if (!ruleCheck.valid) throw new Error('Invalid league rules: ' + JSON.stringify(ruleCheck.errors));
 
     // Teams are copied, not referenced, so later relocations / rebrands /
     // expansion never rewrite an existing dynasty's history.
@@ -218,7 +303,8 @@
             teamIds: teams.filter(function (t) { return t.conference === c.id; }).map(function (t) { return t.id; })
           };
         }),
-        teamIds: teams.map(function (t) { return t.id; })
+        teamIds: teams.map(function (t) { return t.id; }),
+        rules: ruleCheck.values
       },
       gm: { name: v.gmName, teamId: userTeam.id },
       calendar: {
@@ -256,10 +342,11 @@
    */
   function attachSystems(save, userRecord) {
     var x = deps();
+    var rules = save.league.rules || DEFAULT_RULES;
 
     // Rosters first: team strength is then derived from the roster.
     if (!Array.isArray(save.players)) {
-      var league = x.roster.generateLeague(save.teams, save.id);
+      var league = x.roster.generateLeague(save.teams, save.id, { rosterSize: rules.rosterSize });
       save.players = league.players;
       save.lineups = league.lineups;
       save.teams.forEach(function (t) {
@@ -282,6 +369,7 @@
           conferenceName: conferenceName(save, t.conference),
           marketLabel: market ? market.label : 'local',
           seed: save.id,
+          seasonGames: rules.seasonGames,
           isUserTeam: t.id === save.userTeamId
         });
       });
@@ -300,7 +388,7 @@
     }
 
     if (!save.stats) save.stats = { season: x.stats.initSeason(save.calendar.seasonYear, save.teams, save.players) };
-    if (!save.finances) save.finances = x.finance.initFinances(save.calendar.seasonYear);
+    if (!save.finances) save.finances = x.finance.initFinances(save.calendar.seasonYear, { salaryCap: rules.salaryCap, luxuryTax: rules.luxuryTax });
     if (!save.calendar.currentDate) save.calendar.currentDate = defaultDate(save.calendar.seasonYear, save.calendar.phase);
     if (!save.onboarding) save.onboarding = { ownerIntroCompleted: false, completedAt: null };
     return save;
@@ -335,6 +423,22 @@
       delete s.record;
       attachSystems(s, record);
       s.schemaVersion = 3;
+      return s;
+    },
+    // v3 (GM dashboard release): no league rules. Existing dynasties get
+    // the defaults, keeping whatever cap / tax their finances already use.
+    3: function (s) {
+      var cfg = s.finances && s.finances.config ? s.finances.config : {};
+      s.league.rules = {
+        seasonGames: DEFAULT_RULES.seasonGames,
+        playoffFormat: DEFAULT_RULES.playoffFormat,
+        seriesLength: DEFAULT_RULES.seriesLength,
+        difficulty: DEFAULT_RULES.difficulty,
+        rosterSize: DEFAULT_RULES.rosterSize,
+        salaryCap: typeof cfg.salaryCap === 'number' ? cfg.salaryCap : DEFAULT_RULES.salaryCap,
+        luxuryTax: typeof cfg.luxuryTax === 'number' ? cfg.luxuryTax : DEFAULT_RULES.luxuryTax
+      };
+      s.schemaVersion = 4;
       return s;
     }
   };
@@ -390,6 +494,7 @@
     req(isInt(league.foundedYear, 1000, 9999), 'Missing league founding year.');
     req(Array.isArray(league.conferences) && league.conferences.length > 0, 'Missing conferences.');
     req(Array.isArray(league.teamIds), 'Missing league team list.');
+    req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
 
     var gm = d.gm || {};
     req(isText(gm.name, 80), 'Missing general manager name.');
@@ -637,6 +742,10 @@
     parseYear: parseYear,
     makeId: makeId,
     validateSetup: validateSetup,
+    RULE_OPTIONS: RULE_OPTIONS,
+    DEFAULT_RULES: DEFAULT_RULES,
+    validateRules: validateRules,
+    rulesSummary: rulesSummary,
     teamOverall: teamOverall,
     createDynasty: createDynasty,
     migrate: migrate,

@@ -77,11 +77,30 @@
     return lineup;
   }
 
-  function generateTeam(team, rng, nextId, usedNames) {
+  // Rating offsets for any roster size, sampled from the 15-player curve.
+  function offsetsFor(size) {
+    if (size === OFFSETS.length) return OFFSETS.slice();
+    var out = [];
+    for (var i = 0; i < size; i++) {
+      var t = size === 1 ? 0 : i * (OFFSETS.length - 1) / (size - 1);
+      var lo = Math.floor(t), hi = Math.min(OFFSETS.length - 1, lo + 1);
+      out.push(Math.round(OFFSETS[lo] + (OFFSETS[hi] - OFFSETS[lo]) * (t - lo)));
+    }
+    return out;
+  }
+
+  // Balanced positions: every position at least twice for 10+ players.
+  function positionsFor(size) {
+    var list = [];
+    for (var i = 0; i < size; i++) list.push(POSITIONS[i % POSITIONS.length]);
+    return list;
+  }
+
+  function generateTeam(team, rng, nextId, usedNames, size) {
     var target = team.overall;
     var youthBias = target < 71 ? -2.5 : target >= 86 ? 2.5 : 0;
-    var positions = rng.shuffle(POSITIONS.concat(POSITIONS, POSITIONS));
-    var offsets = OFFSETS.slice();
+    var positions = rng.shuffle(positionsFor(size));
+    var offsets = offsetsFor(size);
     var jerseys = rng.shuffle(JERSEYS);
 
     var players = positions.map(function (pos, i) {
@@ -130,16 +149,18 @@
   /**
    * @param teams  dynasty team records (need id, overall)
    * @param seed   any string (the dynasty id), for reproducibility
+   * @param opts   { rosterSize } (default 15)
    * @returns { players[], lineups{ teamId: {PG,SG,SF,PF,C} }, ratings{ teamId: n } }
    */
-  function generateLeague(teams, seed) {
+  function generateLeague(teams, seed, opts) {
+    var size = (opts && opts.rosterSize) || ROSTER_SIZE;
     var rng = R.rng('roster:' + seed);
     var counter = 0;
     var usedNames = {};
     var nextId = function () { counter++; return 'pl-' + String(counter).padStart(4, '0'); };
     var out = { players: [], lineups: {}, ratings: {} };
     teams.forEach(function (team) {
-      var res = generateTeam(team, rng, nextId, usedNames);
+      var res = generateTeam(team, rng, nextId, usedNames, size);
       out.players = out.players.concat(res.players);
       out.lineups[team.id] = res.lineup;
       out.ratings[team.id] = res.overall;

@@ -98,7 +98,13 @@
 
 /* Multiplies the browser's own default size, so OS accessibility settings
    still apply on top of the in-game choice. */
-html { font-size: calc(var(--text-scale) * 100%); }
+html {
+  font-size: calc(var(--text-scale) * 100%);
+  /* Stop iOS / iPadOS Safari "text inflation", which enlarged some
+     paragraphs (hints, notes) independently of the Text Size setting. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 /* --- Shared primitives for any screen ------------------------------------- */
 .hd-visually-hidden {

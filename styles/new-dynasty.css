@@ -452,3 +452,145 @@
 }
 
 .nd-save-error { margin-top: 1rem; }
+
+
+/* --- Step 1 tabs: League Details | League Rules -------------------------- */
+.nd-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: clamp(18px, 3vh, 26px);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nd-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0.55rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nd-tab:hover { color: var(--text); }
+/* Phones: both tabs always visible, sharing the width (labels may wrap) */
+@media (max-width: 599px) {
+  .nd-tab { flex: 1 1 0; min-width: 0; white-space: normal; text-align: center; padding-left: 0.5rem; padding-right: 0.5rem; flex-wrap: wrap; row-gap: 4px; }
+}
+.nd-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.nd-tab[aria-selected="true"] { color: var(--text); }
+.nd-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+.nd-tab-badge {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  color: var(--accent-text);
+}
+.nd-tab-badge[hidden] { display: none; }
+.nd-tabpanel[hidden] { display: none; }
+.nd-tabpanel .nd-setup-grid { margin-top: 16px; }
+
+/* --- League Rules ---------------------------------------------------------- */
+.nd-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+.nd-rules-grid .hd-eyebrow { margin-bottom: 1rem; }
+.nd-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.nd-fieldset legend { padding: 0; }
+.nd-seg-full { display: flex; flex-wrap: wrap; width: 100%; }
+.nd-seg-full label { flex: 1 1 auto; }
+.nd-seg-full span { padding-left: 0.4rem; padding-right: 0.4rem; white-space: normal; text-align: center; line-height: 1.2; height: 100%; }
+.nd-seg-wrap { flex-wrap: wrap; }
+.nd-seg-wrap label { flex: 1 1 calc(50% - 4px); }
+.nd-money {
+  display: grid;
+  grid-template-columns: auto minmax(0, 9rem) auto;
+  justify-content: start;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.nd-money .hd-input { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nd-rules-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+.nd-rules-foot .hd-hint { margin: 0; }
+
+/* --- "Last used" name chips ------------------------------------------------ */
+.nd-recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 0.55rem;
+}
+.nd-recent[hidden] { display: none; }
+.nd-recent-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.nd-recent-list { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.nd-chip {
+  max-width: 100%;
+  min-height: 34px;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.nd-chip:hover { border-color: var(--text-muted); color: var(--text); }
+.nd-chip:focus-visible, .nd-chip-clear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nd-chip-clear {
+  min-height: 34px;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.nd-chip-clear:hover { color: var(--text); }
