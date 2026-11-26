@@ -19,7 +19,10 @@
      current format and stored as its own dynasty (same id, all data kept).
      Only after that write commits is the old key renamed to
      "hoopsDynasty.save.legacy" (kept as a backup, never re-imported).
-     Saves already in storage are upgraded lazily when read.
+     Saves from older formats already in storage are upgraded once at
+     start-up (HDDynasty.migrate) and written back, so generated data such
+     as rosters and owners is created exactly once and then persisted. A
+     save that can't be upgraded is left untouched.
 
    API (window.HDSaves) — every method returns a Promise
      ready()                 -> backend name ('indexeddb' | 'localstorage')
@@ -229,7 +232,9 @@
           return lsBackend(ls);
         })
         .then(function (b) {
-          return migrateLegacy(b).then(function () { return b; });
+          return migrateLegacy(b)
+            .then(function () { return upgradeStored(b); })
+            .then(function () { return b; });
         });
     }
     return backendPromise;
@@ -265,7 +270,28 @@
     });
   }
 
-  // Read + upgrade older formats transparently (written back on next save).
+  // Upgrade every stored save that predates the current format, persisting
+  // the result. Failures leave the original save exactly as it was.
+  function upgradeStored(b) {
+    return b.list().then(function (rows) {
+      var stale = rows.filter(function (r) { return r.schemaVersion !== D.SCHEMA_VERSION; });
+      return stale.reduce(function (chain, row) {
+        return chain.then(function () {
+          return b.get(row.id).then(function (raw) {
+            if (!raw || raw.schemaVersion === D.SCHEMA_VERSION) return null;
+            var upgraded = D.migrate(raw);
+            if (!D.validateDynasty(upgraded).valid) throw new Error('invalid after migration');
+            return b.put(upgraded, D.summarize(upgraded));
+          }).catch(function () {
+            if (root.console) console.warn('[Hoops Dynasty] Save ' + row.id + ' could not be upgraded and was left unchanged.');
+          });
+        });
+      }, Promise.resolve());
+    });
+  }
+
+  // Read + upgrade older formats transparently (safety net; start-up
+  // upgrade normally means everything is already current).
   function loadFull(b, id) {
     return b.get(id).then(function (raw) {
       if (!raw) return null;

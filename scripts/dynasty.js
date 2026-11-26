@@ -11,19 +11,25 @@
    - exportPayload() / parseExport() / exportFilename(): the JSON file format.
    - teamOverall(): the one place team strength is read from.
 
-   SAVE FORMAT (schemaVersion 2)
+   SAVE FORMAT (schemaVersion 3)
    {
-     schemaVersion: 2,
+     schemaVersion: 3,
      id,                         // permanent dynasty ID, never reused
      createdAt, updatedAt, lastPlayedAt,          // ISO timestamps
      league:   { name, foundedYear, conferences[{ id, name, teamIds[] }], teamIds[] },
      gm:       { name, teamId },
-     calendar: { startYear, seasonYear, seasonLabel, phase },
-     record:   { wins, losses },                  // user team, current season
+     calendar: { startYear, seasonYear, seasonLabel, phase, currentDate },
+     onboarding: { ownerIntroCompleted, completedAt },
      userTeamId,
      teams: [{ id, franchiseId, city, name, fullName, abbreviation, logo,
                colors{primary,secondary,tertiary}, marketSize, conference,
-               overall, ratingSource, control: 'human' | 'cpu' }]
+               overall, ratingSource, control: 'human' | 'cpu' }],
+     owners:    [owner]                           // scripts/ownership.js
+     players:   [player]                          // scripts/roster.js
+     lineups:   { teamId: { PG, SG, SF, PF, C } } // player ids
+     standings: { teamId: { wins, losses, streak{type,count}, conferenceRank } }
+     stats:     { season: { seasonYear, teams{}, players{} } }  // totals
+     finances:  { seasonYear, config{ salaryCap, luxuryTax, ... }, teams{} }
      // Future systems (rosters, contracts, schedule, standings, history...)
      // add their own top-level keys. Unknown keys are preserved by
      // storage, export and import, so nothing is dropped between versions.
@@ -39,7 +45,24 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 2;
+  var SCHEMA_VERSION = 3;
+
+  // Sibling modules (globals in the browser, require() in Node).
+  var isNode = typeof module === 'object' && module.exports;
+  function dep(name, path) {
+    return isNode ? require(path) : (typeof self !== 'undefined' ? self : this)[name];
+  }
+  function deps() {
+    return {
+      franchises: dep('HDFranchises', '../data/franchises.js'),
+      owners: dep('HDOwners', '../data/owners.js'),
+      roster: dep('HDRoster', './roster.js'),
+      ownership: dep('HDOwnership', './ownership.js'),
+      stats: dep('HDStats', './stats.js'),
+      finance: dep('HDFinance', './finance.js'),
+      portraits: dep('HDPortraits', './portraits.js')
+    };
+  }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
 
   var LEAGUE_RULES = Object.freeze({
@@ -179,7 +202,7 @@
       };
     });
 
-    return {
+    var save = {
       schemaVersion: SCHEMA_VERSION,
       id: makeId(),
       createdAt: stamp,
@@ -202,12 +225,85 @@
         startYear: v.startYear,
         seasonYear: v.startYear,
         seasonLabel: seasonLabel(v.startYear),
-        phase: 'preseason'
+        phase: 'preseason',
+        currentDate: defaultDate(v.startYear, 'preseason')
       },
-      record: { wins: 0, losses: 0 },
       userTeamId: userTeam.id,
       teams: teams
     };
+    attachSystems(save, null);
+    return save;
+  }
+
+  // First in-game date for a phase (ISO yyyy-mm-dd).
+  function defaultDate(seasonYear, phase) {
+    var md = { 'preseason': '10-01', 'regular-season': '10-21', 'playoffs': '04-18', 'offseason': '07-01' }[phase] || '10-01';
+    var year = phase === 'playoffs' || phase === 'offseason' ? seasonYear + 1 : seasonYear;
+    return year + '-' + md;
+  }
+
+  // Full conference name, e.g. "Western Conference".
+  function conferenceName(save, confId) {
+    var conf = (save.league.conferences || []).filter(function (c) { return c.id === confId; })[0];
+    return conf ? conf.name : String(confId);
+  }
+
+  /**
+   * Adds the v3 systems (owners, rosters, lineups, standings, stats,
+   * finances, onboarding) to a save that doesn't have them yet. Used by
+   * createDynasty and by the v2 -> v3 migration. `userRecord` carries an
+   * existing record forward so no progress is lost.
+   */
+  function attachSystems(save, userRecord) {
+    var x = deps();
+
+    // Rosters first: team strength is then derived from the roster.
+    if (!Array.isArray(save.players)) {
+      var league = x.roster.generateLeague(save.teams, save.id);
+      save.players = league.players;
+      save.lineups = league.lineups;
+      save.teams.forEach(function (t) {
+        t.overall = league.ratings[t.id];
+        t.ratingSource = 'roster';
+      });
+    }
+
+    if (!Array.isArray(save.owners)) {
+      save.owners = save.teams.map(function (t) {
+        var base = x.owners.byFranchise(t.franchiseId) || {
+          // A team with no catalog owner (e.g. future expansion): neutral defaults.
+          id: 'own-' + t.id, franchiseId: t.franchiseId, name: t.city + ' Ownership Group', title: 'Ownership Group',
+          personality: 'balanced', traits: { ambition: 60, patience: 60, spending: 55 },
+          portrait: x.portraits.generate('owner:' + t.id, { older: true })
+        };
+        var market = x.franchises.marketSize(t.marketSize);
+        return x.ownership.buildOwner(base, t, {
+          gmName: save.gm.name,
+          conferenceName: conferenceName(save, t.conference),
+          marketLabel: market ? market.label : 'local',
+          seed: save.id,
+          isUserTeam: t.id === save.userTeamId
+        });
+      });
+    }
+
+    if (!save.standings) {
+      save.standings = {};
+      save.teams.forEach(function (t) {
+        var rec = t.id === save.userTeamId && userRecord ? userRecord : { wins: 0, losses: 0 };
+        save.standings[t.id] = {
+          wins: rec.wins, losses: rec.losses,
+          streak: { type: null, count: 0 },
+          conferenceRank: null      // set once games are played
+        };
+      });
+    }
+
+    if (!save.stats) save.stats = { season: x.stats.initSeason(save.calendar.seasonYear, save.teams, save.players) };
+    if (!save.finances) save.finances = x.finance.initFinances(save.calendar.seasonYear);
+    if (!save.calendar.currentDate) save.calendar.currentDate = defaultDate(save.calendar.seasonYear, save.calendar.phase);
+    if (!save.onboarding) save.onboarding = { ownerIntroCompleted: false, completedAt: null };
+    return save;
   }
 
   /* --- Migration ------------------------------------------------------------ */
@@ -229,6 +325,16 @@
       delete s.wins;       // moved into record
       delete s.losses;
       s.schemaVersion = 2;
+      return s;
+    },
+    // v2 (multi-save release): no owners, rosters, standings, stats,
+    // finances, in-game date or onboarding. Existing record is kept as the
+    // user team's standings; everything else is initialized once and saved.
+    2: function (s) {
+      var record = s.record && Number.isInteger(s.record.wins) ? { wins: s.record.wins, losses: s.record.losses } : null;
+      delete s.record;
+      attachSystems(s, record);
+      s.schemaVersion = 3;
       return s;
     }
   };
@@ -293,8 +399,8 @@
     req(typeof cal.seasonLabel === 'string' && cal.seasonLabel.length <= 20, 'Missing season label.');
     req(Object.prototype.hasOwnProperty.call(PHASES, cal.phase), 'Unknown league phase.');
 
-    var rec = d.record || {};
-    req(isInt(rec.wins, 0, 1000) && isInt(rec.losses, 0, 1000), 'Missing season record.');
+    req(typeof cal.currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cal.currentDate) && !isNaN(Date.parse(cal.currentDate)), 'Missing in-game date.');
+    req(d.onboarding && typeof d.onboarding.ownerIntroCompleted === 'boolean', 'Missing onboarding status.');
 
     var teams = Array.isArray(d.teams) ? d.teams : null;
     req(teams && teams.length >= 2 && teams.length <= 64, 'Missing or invalid team list.');
@@ -322,12 +428,98 @@
       req(!human || human.id === d.userTeamId, 'Human-controlled team doesn’t match the selected franchise.');
     }
 
+    if (teams && errors.length === 0) validateSystems(d, teams, req);
+
     // Collapse to unique messages, cap the list
     var unique = errors.filter(function (m, i) { return errors.indexOf(m) === i; }).slice(0, 8);
     return { valid: unique.length === 0, errors: unique };
   }
 
+  var POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
+  var PERSONALITY_IDS = ['championship-driven', 'patient-builder', 'business-oriented', 'balanced', 'demanding'];
+
+  function validObjectives(list) {
+    return Array.isArray(list) && list.length <= 12 && list.every(function (x) {
+      return x && typeof x.id === 'string' && x.id.length <= 60 && isText(x.text, 240);
+    });
+  }
+
+  function validPortrait(p) {
+    return !!p && ['skin', 'hair', 'hairColor', 'attire'].every(function (k) { return isInt(p[k], 0, 31); });
+  }
+
+  // Owners, players, lineups, standings, stats, finances.
+  function validateSystems(d, teams, req) {
+    var teamIds = {};
+    teams.forEach(function (t) { teamIds[t.id] = true; });
+
+    var owners = Array.isArray(d.owners) ? d.owners : null;
+    req(owners && owners.length === teams.length, 'Missing ownership data.');
+    if (owners) {
+      var ownerTeams = {};
+      owners.forEach(function (o) {
+        var ok = o && typeof o.id === 'string' && ID.test(o.id) && teamIds[o.teamId] && !ownerTeams[o.teamId] &&
+          isText(o.name, 80) && isText(o.title, 60) && PERSONALITY_IDS.indexOf(o.personality) !== -1 &&
+          o.traits && isInt(o.traits.ambition, 0, 100) && isInt(o.traits.patience, 0, 100) && isInt(o.traits.spending, 0, 100) &&
+          isInt(o.confidence, 0, 100) && validPortrait(o.portrait) && o.expectations &&
+          validObjectives(o.expectations.season) && validObjectives(o.expectations.financial) && validObjectives(o.expectations.longTerm) &&
+          (o.welcomeMessage === null || isText(o.welcomeMessage, 2000));
+        req(ok, 'Invalid ownership record.');
+        if (o) ownerTeams[o.teamId] = true;
+      });
+    }
+
+    var players = Array.isArray(d.players) ? d.players : null;
+    req(players && players.length >= teams.length * 5 && players.length <= 5000, 'Missing or invalid rosters.');
+    var byTeam = {};
+    if (players) {
+      var seen = {};
+      players.forEach(function (p) {
+        var ok = p && typeof p.id === 'string' && ID.test(p.id) && !seen[p.id] && teamIds[p.teamId] &&
+          isText(p.firstName, 40) && isText(p.lastName, 40) && POSITIONS.indexOf(p.position) !== -1 &&
+          isInt(p.age, 15, 50) && isInt(p.overall, 0, 100) && isInt(p.jerseyNumber, 0, 99) && validPortrait(p.portrait);
+        req(ok, 'Invalid player record.');
+        if (!p) return;
+        seen[p.id] = true;
+        (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p);
+      });
+    }
+
+    var lineups = d.lineups && typeof d.lineups === 'object' ? d.lineups : null;
+    req(lineups, 'Missing starting lineups.');
+    if (lineups && players) {
+      teams.forEach(function (t) {
+        var lu = lineups[t.id];
+        var roster = byTeam[t.id] || [];
+        var ids = lu ? POSITIONS.map(function (pos) { return lu[pos]; }) : [];
+        var onTeam = {};
+        roster.forEach(function (p) { onTeam[p.id] = true; });
+        req(lu && ids.every(function (id) { return onTeam[id]; }) && new Set(ids).size === 5, 'Invalid starting lineup for ' + t.fullName + '.');
+      });
+    }
+
+    var standings = d.standings && typeof d.standings === 'object' ? d.standings : null;
+    req(standings && teams.every(function (t) {
+      var s = standings[t.id];
+      return s && isInt(s.wins, 0, 200) && isInt(s.losses, 0, 200);
+    }), 'Missing or invalid standings.');
+
+    req(d.stats && d.stats.season && typeof d.stats.season.teams === 'object' && typeof d.stats.season.players === 'object', 'Missing statistics.');
+    req(d.finances && d.finances.config && typeof d.finances.config.salaryCap === 'number' && d.finances.config.salaryCap > 0 &&
+      typeof d.finances.config.luxuryTax === 'number' && d.finances.config.luxuryTax > 0, 'Missing financial configuration.');
+  }
+
   /* --- Summaries ------------------------------------------------------------ */
+
+  function userOwner(d) {
+    var list = d.owners || [];
+    for (var i = 0; i < list.length; i++) if (list[i].teamId === d.userTeamId) return list[i];
+    return null;
+  }
+
+  function teamRoster(d, teamId) {
+    return (d.players || []).filter(function (p) { return p.teamId === teamId; });
+  }
 
   function userTeam(d) {
     for (var i = 0; i < d.teams.length; i++) if (d.teams[i].id === d.userTeamId) return d.teams[i];
@@ -352,7 +544,10 @@
       seasonYear: d.calendar.seasonYear,
       seasonLabel: d.calendar.seasonLabel,
       phase: d.calendar.phase,
-      record: d.record,
+      record: d.standings && d.standings[d.userTeamId]
+        ? { wins: d.standings[d.userTeamId].wins, losses: d.standings[d.userTeamId].losses }
+        : { wins: 0, losses: 0 },
+      ownerIntroCompleted: !!(d.onboarding && d.onboarding.ownerIntroCompleted),
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
       lastPlayedAt: d.lastPlayedAt
@@ -447,6 +642,9 @@
     migrate: migrate,
     validateDynasty: validateDynasty,
     userTeam: userTeam,
+    userOwner: userOwner,
+    teamRoster: teamRoster,
+    defaultDate: defaultDate,
     summarize: summarize,
     exportFilename: exportFilename,
     exportPayload: exportPayload,

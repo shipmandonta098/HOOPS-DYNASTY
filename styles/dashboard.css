@@ -1,92 +1,218 @@
 /* ==========================================================================
-   HOOPS DYNASTY — Dynasty dashboard
+   HOOPS DYNASTY — GM Dashboard panels
    ========================================================================== */
 
-.db-screen { --screen-max: 1080px; }
-
-.db-hero { overflow: hidden; }
-.db-hero-body {
+/* --- Franchise header ---------------------------------------------------- */
+.db-header { overflow: hidden; }
+.db-header-body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px 24px;
-  padding: clamp(18px, 3.5vw, 28px);
+  gap: 14px 22px;
+  padding: clamp(16px, 3vw, 24px);
 }
-.db-logo { width: 96px; height: 96px; display: block; }
+.db-logo { width: 84px; height: 84px; display: block; }
 .db-ident { min-width: 0; }
-.db-ident .hd-eyebrow { margin-bottom: 0.3rem; overflow-wrap: anywhere; }
+.db-league { margin-bottom: 0.25rem; overflow-wrap: anywhere; }
 .db-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.875rem;
+  /* capped by viewport so large text sizes never split words on phones */
+  font-size: min(1.875rem, 7.4vw);
   font-weight: 800;
-  line-height: 1.12;
-  overflow-wrap: anywhere;
+  line-height: 1.1;
+  overflow-wrap: break-word;
   outline: none;
 }
-.db-gm { margin: 0.35rem 0 0; font-size: 0.875rem; color: var(--text-soft); overflow-wrap: anywhere; }
-.db-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.75rem; }
-.db-chip {
-  padding: 0.25rem 0.6rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-soft);
+.db-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
 }
-.db-chip.is-phase { border-color: var(--accent); color: var(--accent-text); }
+.db-meta li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.db-meta-k {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.db-when { text-align: right; }
+.db-date { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 0; font-size: 0.9375rem; font-weight: 700; white-space: nowrap; }
+.db-date .hd-icon { color: var(--text-muted); }
+.db-season { margin: 0.2rem 0 0; font-size: 0.75rem; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; }
+@media (max-width: 719px) {
+  .db-header-body { grid-template-columns: auto minmax(0, 1fr); }
+  .db-logo { width: 64px; height: 64px; }
+  .db-when { grid-column: 1 / -1; text-align: left; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+  .db-date { justify-content: flex-start; }
+  .db-season { margin: 0; }
+}
 
-.db-stats { display: flex; gap: 10px; }
-.db-stat {
+/* --- Overview cards ------------------------------------------------------ */
+.db-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.db-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  min-width: 5.5rem;
-  padding: 0.7rem 0.9rem;
+  gap: 3px;
+  min-width: 0;
+  padding: 0.85rem 1rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
-.db-stat-num {
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1.05;
-  font-variant-numeric: tabular-nums;
-}
-.db-stat-label {
-  margin-top: 0.3rem;
+.db-card-label {
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
-
-@media (max-width: 679px) {
-  .db-hero-body { grid-template-columns: auto minmax(0, 1fr); }
-  .db-logo { width: 72px; height: 72px; }
-  .db-stats { grid-column: 1 / -1; }
-  .db-stat { flex: 1; }
+.db-card-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
+.db-card-sub { font-size: 0.75rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.db-card-bar { display: block; height: 4px; margin-top: 4px; border-radius: 2px; background: var(--surface-raised); overflow: hidden; }
+.db-card-bar span { display: block; height: 100%; background: var(--accent); }
 
-.db-grid {
+/* --- Panels ------------------------------------------------------------- */
+.db-columns {
   display: grid;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 14px;
+  margin-top: 14px;
 }
-@media (min-width: 880px) {
-  .db-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+@media (min-width: 1100px) {
+  .db-columns { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
 }
-.db-panel { padding: clamp(16px, 3vw, 24px); min-width: 0; }
-.db-panel-title { margin-bottom: 0.9rem; }
+.db-col { display: grid; gap: 14px; min-width: 0; }
+.db-panel { padding: clamp(14px, 2.5vw, 20px); min-width: 0; }
+.db-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0.75rem; }
+.db-panel-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.db-link { min-height: 36px; padding: 0.3rem 0.6rem; }
 
-.db-facts {
+.db-empty {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+.db-empty-icon { color: var(--text-muted); margin-top: 0.1em; }
+
+/* Lineup + leaders rows */
+.db-lineup, .db-leaders { margin: 0; padding: 0; list-style: none; }
+.db-player, .db-leader {
   display: grid;
-  /* two columns, collapsing to one when large text makes cells too narrow */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.db-player:last-child, .db-leader:last-child { border-bottom: 0; }
+.db-player { grid-template-columns: 2.25rem 40px 2.6rem minmax(0, 1fr) auto; }
+.db-leader { grid-template-columns: 40px minmax(0, 1fr) auto; }
+.db-slot {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.db-player-portrait { width: 40px; height: 40px; }
+.db-portrait-empty { width: 40px; height: 40px; border-radius: 50%; border: 1px dashed var(--border-strong); }
+.db-jersey { font-size: 0.8125rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.db-player-name { display: flex; flex-direction: column; min-width: 0; }
+.db-player-full { font-size: 0.9375rem; font-weight: 700; overflow-wrap: anywhere; }
+.db-player-sub, .db-leader-cat { font-size: 0.75rem; color: var(--text-muted); }
+.db-leader.is-empty .db-player-full { color: var(--text-muted); font-weight: 600; }
+.db-ovr, .db-leader-value { display: flex; flex-direction: column; align-items: center; min-width: 3rem; line-height: 1; }
+.db-ovr strong, .db-leader-value strong { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.db-ovr span, .db-leader-value span { margin-top: 3px; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.14em; color: var(--text-muted); }
+@media (max-width: 419px) {
+  .db-player { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .db-slot, .db-jersey { display: none; }
+}
+
+/* Team stats table */
+.db-stats { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.db-stats th, .db-stats td { padding: 0.45rem 0.25rem; border-bottom: 1px solid var(--border); text-align: left; }
+.db-stats tbody tr:last-child th, .db-stats tbody tr:last-child td { border-bottom: 0; }
+.db-stats thead th {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.db-stats tbody th { font-weight: 600; color: var(--text-soft); }
+.db-stats .is-num { text-align: right; }
+.db-stats td.is-num { font-weight: 700; }
+.db-rank { color: var(--text-muted); width: 4.5rem; }
+.db-stat-abbr { display: none; text-decoration: none; }
+@media (max-width: 379px) {
+  .db-stats tbody th span { display: none; }
+  .db-stat-abbr { display: inline; }
+}
+
+/* Finances */
+.db-gauge { margin: 0.25rem 0 1rem; }
+.db-gauge-track {
+  position: relative;
+  display: block;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.db-gauge.is-unavailable .db-gauge-track {
+  background: repeating-linear-gradient(-45deg, var(--surface-raised) 0 6px, color-mix(in srgb, var(--border) 60%, transparent) 6px 12px);
+}
+.db-gauge-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--text-soft); }
+.db-gauge-fill.is-over-cap { background: var(--c2, var(--text-soft)); }
+.db-gauge-fill.is-taxpayer { background: var(--accent); }
+.db-gauge-mark { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text-soft); border-radius: 1px; }
+.db-gauge-mark.is-tax { background: var(--accent); }
+.db-gauge-labels { position: relative; height: 1.1rem; margin-top: 4px; }
+.db-gauge-label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.db-gauge-label.is-tax { color: var(--accent-text); }
+
+.db-fin {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   gap: 1px;
   margin: 0;
   background: var(--border);
@@ -94,43 +220,13 @@
   border-radius: var(--radius);
   overflow: hidden;
 }
-.db-facts div { min-width: 0; padding: 0.7rem 0.85rem; background: var(--surface-raised); }
-.db-facts dt {
-  overflow-wrap: anywhere;
+.db-fin div { min-width: 0; padding: 0.6rem 0.8rem; background: var(--surface-raised); }
+.db-fin dt {
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-muted);
+  overflow-wrap: anywhere;
 }
-.db-facts dd { margin: 0.25rem 0 0; font-size: 0.9375rem; font-weight: 700; overflow-wrap: anywhere; }
-
-.db-ratings { margin: 0; padding: 0; list-style: none; }
-.db-ratings li {
-  display: grid;
-  grid-template-columns: 1.75rem 28px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0.35rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.875rem;
-}
-.db-ratings li:last-child { border-bottom: 0; }
-.db-ratings li.is-user {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  box-shadow: inset 3px 0 0 var(--accent);
-  font-weight: 700;
-}
-.db-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
-.db-team { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; overflow-wrap: anywhere; }
-.db-you {
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-}
-.db-ovr { font-weight: 800; font-variant-numeric: tabular-nums; }
-
-.db-note { margin: 1.25rem 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+.db-fin dd { margin: 0.2rem 0 0; font-size: 0.9375rem; font-weight: 700; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
