@@ -18,19 +18,9 @@
 
   function D() { return window.HDDynasty; }
 
-  var longDate = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-  function dateLabel(iso) {
-    var t = Date.parse(iso + 'T00:00:00Z');
-    return isNaN(t) ? '—' : longDate.format(new Date(t));
-  }
-
-  // Age on a given in-game date (ISO yyyy-mm-dd)
-  function ageOn(birthIso, onIso) {
-    var b = birthIso.split('-').map(Number), o = onIso.split('-').map(Number);
-    var age = o[0] - b[0];
-    if (o[1] < b[1] || (o[1] === b[1] && o[2] < b[2])) age--;
-    return age;
-  }
+  // Game dates of any supported year (scripts/season.js)
+  function dateLabel(iso) { return window.HDSeason.formatDate(iso, 'long'); }
+  function ageOn(birthIso, onIso) { return window.HDSeason.ageOn(birthIso, onIso); }
 
   function heightLabel(inches) {
     return window.HDRoster.heightLabel(inches) + ' (' + (inches * 2.54 / 100).toFixed(2) + ' m)';

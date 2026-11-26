@@ -26,11 +26,12 @@
   var node = typeof module === 'object' && module.exports;
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
-    node ? require('./player-identity.js') : root.HDPlayerIdentity
+    node ? require('./player-identity.js') : root.HDPlayerIdentity,
+    node ? require('./season.js') : root.HDSeason
   );
   if (node) module.exports = api;
   else root.HDPlayerCareer = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Identity) {
+})(typeof self !== 'undefined' ? self : this, function (R, Identity, Season) {
   'use strict';
 
   var ROUNDS = 2;
@@ -109,7 +110,7 @@
       var team = p.draft.teamId && teamById[p.draft.teamId] && rng.chance(0.8) ? teamById[p.draft.teamId] : rng.pick(teams);
       var opp = rng.pick(teams.filter(function (t) { return t.id !== team.id; }));
       p.debut = {
-        date: year + '-10-' + pad(rng.int(19, 30)),
+        date: Season.isoDate(year, 10, rng.int(19, 30)),
         teamName: team.fullName,
         opponentName: opp.fullName
       };

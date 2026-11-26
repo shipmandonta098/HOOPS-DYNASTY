@@ -37,11 +37,9 @@
 
   function hex(c, fallback) { return /^#[0-9A-Fa-f]{6}$/.test(c) ? c : (fallback || '#808080'); }
 
-  var dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  var dateFmtLong = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  // In-game dates work for any supported year (see scripts/season.js)
   function gameDate(iso, long) {
-    var t = Date.parse(iso + 'T00:00:00Z');
-    return isNaN(t) ? '—' : (long ? dateFmtLong : dateFmt).format(new Date(t));
+    return window.HDSeason.formatDate(iso, long ? 'long' : 'short');
   }
 
   var ICON_PATHS = {
