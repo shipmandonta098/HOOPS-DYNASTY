@@ -462,7 +462,6 @@
       </button>
       <button class="menu-btn" data-action="new-dynasty" type="button"><span class="label">New Dynasty</span></button>
       <button class="menu-btn" data-action="load-dynasty" type="button"><span class="label">Load Dynasty</span></button>
-      <button class="menu-btn" data-action="quick-game" type="button"><span class="label">Quick Game</span></button>
       <button class="menu-btn" data-action="settings" type="button"><span class="label">Settings</span></button>
       <button class="menu-btn" data-action="how-to-play" type="button"><span class="label">How to Play</span></button>
     </nav>
@@ -704,17 +703,17 @@
             </div>
 
             <div class="hd-field">
-              <label class="hd-label" for="nd-start-year">Starting Year<span class="hd-required" aria-hidden="true">*</span></label>
+              <label class="hd-label" for="nd-start-year">Inaugural Season Year<span class="hd-required" aria-hidden="true">*</span></label>
               <div class="nd-year">
                 <button class="hd-btn is-icon" type="button" data-year-step="-1" aria-label="Previous year">&minus;</button>
-                <input class="hd-input nd-year-input" id="nd-start-year" name="startYear" type="text" required
+                <input class="hd-input nd-year-input" id="nd-start-year" name="inauguralYear" type="text" required
                        inputmode="numeric" pattern="[0-9]*" maxlength="4"
                        aria-describedby="nd-season-label nd-year-hint nd-start-year-error">
                 <button class="hd-btn is-icon" type="button" data-year-step="1" aria-label="Next year">+</button>
               </div>
-              <p class="nd-season" id="nd-season-label" aria-live="polite">Inaugural season <strong data-season-label>2026–27</strong></p>
+              <p class="nd-season" id="nd-season-label" aria-live="polite">Inaugural season <strong data-season-label>2026–27</strong> <span class="nd-season-start" data-season-start></span></p>
               <p class="hd-hint" id="nd-year-hint" data-year-hint></p>
-              <p class="hd-error" id="nd-start-year-error" data-error-for="startYear"></p>
+              <p class="hd-error" id="nd-start-year-error" data-error-for="inauguralYear"></p>
             </div>
           </div>
 
@@ -1034,6 +1033,7 @@
   <script src="scripts/ownership.js"></script>
   <script src="scripts/stats.js"></script>
   <script src="scripts/finance.js"></script>
+  <script src="scripts/season.js"></script>
   <script src="scripts/dynasty.js"></script>
   <script src="scripts/save-manager.js"></script>
   <!-- Screens -->
@@ -1103,7 +1103,6 @@
       'continue':     ({ button }) => continueDynasty(button),
       'new-dynasty':  ({ button }) => openScreen('new-dynasty', button, 1),
       'load-dynasty': ({ button }) => openScreen('load-dynasty', button),
-      'quick-game':   soon('Quick Game'),
       'settings':     ({ button }) => openScreen('settings', button),
       'how-to-play':  soon('How to Play')
     };

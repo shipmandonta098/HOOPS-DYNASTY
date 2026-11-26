@@ -127,6 +127,7 @@
   font-size: 0.875rem;
   color: var(--text-soft);
 }
+.nd-season-start { color: var(--text-muted); }
 .nd-season strong { color: var(--text); font-weight: 800; letter-spacing: 0.02em; }
 
 .nd-structure .hd-eyebrow { margin-bottom: 1rem; }
