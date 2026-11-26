@@ -171,6 +171,156 @@
     };
   }
 
+  /* --- Changing rules during a dynasty (in-game Settings) ----------------- *
+   * Before the regular season (preseason) and between seasons (offseason)
+   * every rule can change and takes effect immediately. Once the regular
+   * season starts, only 'anytime' rules change now; the rest are saved as
+   * league.pendingRules and take effect when the next season begins.
+   *   league.pendingRules = { seasonYear: <start year it applies to>, values: { key: value } }
+   */
+  var RULE_KEYS = ['seasonGames', 'playoffFormat', 'seriesLength', 'difficulty', 'rosterSize', 'salaryCap', 'luxuryTax'];
+  var RULE_TIMING = Object.freeze({
+    seasonGames: 'next-season',     // the schedule is set when the regular season starts
+    playoffFormat: 'next-season',   // seeding races depend on it
+    seriesLength: 'next-season',
+    difficulty: 'anytime',
+    rosterSize: 'next-season',      // roster limits hold for the whole season
+    salaryCap: 'next-season',       // a season's cap and tax line are fixed
+    luxuryTax: 'next-season'
+  });
+  var RULE_LABELS = Object.freeze({
+    seasonGames: 'Season length', playoffFormat: 'Playoff format', seriesLength: 'Playoff series',
+    difficulty: 'Difficulty', rosterSize: 'Roster size', salaryCap: 'Salary cap', luxuryTax: 'Luxury tax line'
+  });
+
+  // True while the regular season or playoffs are under way
+  function seasonInProgress(save) {
+    var ph = save.calendar.phase;
+    return ph === 'regular-season' || ph === 'playoffs';
+  }
+
+  function ruleLocked(save, key) {
+    return seasonInProgress(save) && RULE_TIMING[key] !== 'anytime';
+  }
+
+  // Rules that will be in force next season (current + scheduled changes)
+  function nextSeasonRules(save) {
+    var r = clone(save.league.rules);
+    var p = save.league.pendingRules;
+    if (p && p.values) Object.keys(p.values).forEach(function (k) { r[k] = p.values[k]; });
+    return r;
+  }
+
+  function ruleValueLabel(key, value) {
+    var o = RULE_OPTIONS;
+    switch (key) {
+      case 'seasonGames': return value + ' games';
+      case 'playoffFormat': return (o.playoffFormat[value] || {}).label || String(value);
+      case 'seriesLength': return 'Best of ' + value;
+      case 'difficulty': return (o.difficulty[value] || {}).label || String(value);
+      case 'rosterSize': return value + ' players';
+      default: return '$' + (value / 1e6).toFixed(1) + 'M';
+    }
+  }
+
+  function conferenceSizes(save) {
+    var sizes = {};
+    save.teams.forEach(function (t) { sizes[t.conference] = (sizes[t.conference] || 0) + 1; });
+    return sizes;
+  }
+
+  // Effects of a rule taking effect on the rest of the save
+  function applyRuleEffects(save, key, oldValue, value) {
+    var x = deps();
+    if ((key === 'salaryCap' || key === 'luxuryTax') && save.finances && save.finances.config) {
+      save.finances.config[key] = value;
+    }
+    if (key === 'seasonGames' && Array.isArray(save.owners) && x.ownership.rescaleWinTargets) {
+      save.owners.forEach(function (o) { x.ownership.rescaleWinTargets(o, value); });
+    }
+    void oldValue;
+  }
+
+  /**
+   * Change league rules during a dynasty. Mutates `save`.
+   * @param input  form values (same shape validateRules accepts), describing
+   *               the rules the player wants for the CURRENT season when
+   *               unlocked, or for NEXT season when a rule is locked
+   * @returns {{ ok, errors, applied: [{key, from, to}], scheduled: [{key, to}], cancelled: [{key}] }}
+   */
+  function changeRules(save, input) {
+    applyPendingRules(save);
+    var check = validateRules(input);
+    var result = { ok: false, errors: check.errors, applied: [], scheduled: [], cancelled: [] };
+    if (!check.valid) return result;
+    var want = check.values;
+    var fmt = RULE_OPTIONS.playoffFormat[want.playoffFormat];
+    var sizes = conferenceSizes(save);
+    var short = Object.keys(sizes).filter(function (c) { return sizes[c] < fmt.teamsPerConference; });
+    if (short.length) {
+      result.errors = { playoffFormat: 'This format needs ' + fmt.teamsPerConference + ' teams per conference; the ' + conferenceName(save, short[0]) + ' has ' + sizes[short[0]] + '.' };
+      return result;
+    }
+    var rules = save.league.rules;
+    var pending = save.league.pendingRules && save.league.pendingRules.values ? clone(save.league.pendingRules.values) : {};
+    RULE_KEYS.forEach(function (key) {
+      var to = want[key];
+      if (!ruleLocked(save, key)) {
+        if (to !== rules[key]) {
+          var from = rules[key];
+          rules[key] = to;
+          applyRuleEffects(save, key, from, to);
+          result.applied.push({ key: key, from: from, to: to });
+        }
+        delete pending[key];
+        return;
+      }
+      var target = Object.prototype.hasOwnProperty.call(pending, key) ? pending[key] : rules[key];
+      if (to === rules[key]) {
+        if (Object.prototype.hasOwnProperty.call(pending, key)) { delete pending[key]; result.cancelled.push({ key: key }); }
+      } else if (to !== target) {
+        pending[key] = to;
+        result.scheduled.push({ key: key, to: to });
+      }
+    });
+    if (Object.keys(pending).length) save.league.pendingRules = { seasonYear: save.calendar.seasonYear + 1, values: pending };
+    else delete save.league.pendingRules;
+    result.ok = true;
+    result.errors = {};
+    return result;
+  }
+
+  // Drop one scheduled change (e.g. "Cancel" next to it in Settings)
+  function cancelPendingRule(save, key) {
+    var p = save.league.pendingRules;
+    if (!p || !p.values || !Object.prototype.hasOwnProperty.call(p.values, key)) return false;
+    delete p.values[key];
+    if (!Object.keys(p.values).length) delete save.league.pendingRules;
+    return true;
+  }
+
+  /**
+   * Applies scheduled rule changes once their season has begun. Call at the
+   * start of every season (season rollover) and whenever a save is opened.
+   * @returns {Array} [{ key, from, to }] applied (empty when nothing changed)
+   */
+  function applyPendingRules(save) {
+    var p = save.league && save.league.pendingRules;
+    if (!p) return [];
+    var due = save.calendar.seasonYear >= p.seasonYear || !seasonInProgress(save);
+    if (!due) return [];
+    var applied = [];
+    Object.keys(p.values || {}).forEach(function (key) {
+      var from = save.league.rules[key];
+      if (from === p.values[key]) return;
+      save.league.rules[key] = p.values[key];
+      applyRuleEffects(save, key, from, p.values[key]);
+      applied.push({ key: key, from: from, to: p.values[key] });
+    });
+    delete save.league.pendingRules;
+    return applied;
+  }
+
   var PHASES = Object.freeze({
     'preseason':      'Preseason',
     'regular-season': 'Regular Season',
@@ -605,6 +755,12 @@
     req(Array.isArray(league.conferences) && league.conferences.length > 0, 'Missing conferences.');
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
+    if (league.pendingRules !== undefined) {
+      var pr = league.pendingRules;
+      req(pr && isInt(pr.seasonYear, 1, MAX_YEAR) && pr.values && typeof pr.values === 'object' &&
+        Object.keys(pr.values).every(function (k) { return RULE_KEYS.indexOf(k) !== -1; }) &&
+        league.rules && validateRules(Object.assign(clone(league.rules), pr.values)).valid, 'Invalid scheduled rule changes.');
+    }
 
     var gm = d.gm || {};
     req(isText(gm.name, 80), 'Missing general manager name.');
@@ -927,6 +1083,16 @@
     makeId: makeId,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
+    RULE_KEYS: RULE_KEYS,
+    RULE_TIMING: RULE_TIMING,
+    RULE_LABELS: RULE_LABELS,
+    seasonInProgress: seasonInProgress,
+    ruleLocked: ruleLocked,
+    nextSeasonRules: nextSeasonRules,
+    ruleValueLabel: ruleValueLabel,
+    changeRules: changeRules,
+    cancelPendingRule: cancelPendingRule,
+    applyPendingRules: applyPendingRules,
     DEFAULT_RULES: DEFAULT_RULES,
     validateRules: validateRules,
     rulesSummary: rulesSummary,
