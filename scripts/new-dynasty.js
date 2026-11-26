@@ -334,8 +334,20 @@
     var searchInput = $('#nd-search');
     var sortSelect = $('#nd-sort');
     var view = { conference: 'all', query: '', sort: 'city' };
-    var cards = {};          // franchise id -> <label>
+    var cards = {};          // team id -> <label>
     var selectedId = null;
+    // The league being set up: editable copies of the default franchises,
+    // changed through Customize (edit / relocate / delete).
+    var T = window.HDTeams;
+    var league = T.defaultLeague();
+    function teamById(id) { return league.filter(function (t) { return t.id === id; })[0] || null; }
+    function playoffNeed() {
+      var f = D.RULE_OPTIONS.playoffFormat[rulesValues().playoffFormat];
+      return f ? f.teamsPerConference : 0;
+    }
+    function leagueProblems() {
+      return T.validateLeague(league, { minPerConference: playoffNeed() }).errors;
+    }
 
     function swatches(team, className) {
       var wrap = el('span', { class: 'hd-swatches' + (className ? ' ' + className : ''), 'aria-hidden': 'true' });
@@ -353,11 +365,15 @@
     }
 
     function teamLogo(team, className, size) {
-      return el('img', { class: className, src: team.logo.src, alt: '', width: size, height: size, decoding: 'async' });
+      return el('img', { class: className, src: team.logo, alt: '', width: size, height: size, decoding: 'async' });
     }
 
     function renderTeams() {
-      F.FRANCHISES.forEach(function (team) {
+      teamList.textContent = '';
+      cards = {};
+      league.forEach(function (raw) {
+        var team = T.normalize(raw);
+        team.fullName = T.fullName(team);
         var conf = F.conference(team.conference);
         var market = F.marketSize(team.marketSize);
         var input = el('input', {
@@ -380,6 +396,7 @@
           ovrBlock(team),
           el('span', { class: 'hd-check', 'aria-hidden': 'true', html: CHECK_SVG })
         ]);
+        if (team.id === selectedId) input.checked = true;
         var label = el('label', { class: 'hd-option nd-team', 'data-id': team.id }, [input, card]);
         cards[team.id] = label;
         teamList.appendChild(label);
@@ -387,7 +404,7 @@
     }
 
     var SORTS = {
-      city: function (a, b) { return a.city.localeCompare(b.city) || a.name.localeCompare(b.name); },
+      city: function (a, b) { return a.city.localeCompare(b.city) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id); },
       overall: function (a, b) { return b.overall - a.overall || SORTS.city(a, b); },
       market: function (a, b) {
         return F.marketSize(b.marketSize).rank - F.marketSize(a.marketSize).rank || SORTS.city(a, b);
@@ -396,12 +413,12 @@
 
     function applyView() {
       var q = normalize(view.query.trim());
-      var sorted = F.FRANCHISES.slice().sort(SORTS[view.sort]);
+      var sorted = league.map(T.normalize).sort(SORTS[view.sort]);
       var shown = 0;
       sorted.forEach(function (team) {
         var matchConf = view.conference === 'all' || team.conference === view.conference;
         // Match from the start of any word: "los" finds Los Angeles, not Apollos.
-        var matchQuery = !q || [team.fullName, team.abbreviation].some(function (s) {
+        var matchQuery = !q || [T.fullName(team), team.abbreviation].some(function (s) {
           var hay = normalize(s);
           return hay.indexOf(q) === 0 || hay.indexOf(' ' + q) !== -1;
         });
@@ -412,16 +429,28 @@
         if (visible) shown++;
       });
       $('[data-nd-empty]').hidden = shown !== 0;
-      $('[data-nd-count]').textContent = shown === F.FRANCHISES.length
+      $('[data-nd-count]').textContent = shown === league.length
         ? 'Showing all ' + shown + ' franchises'
-        : 'Showing ' + shown + ' of ' + F.FRANCHISES.length + ' franchises';
+        : 'Showing ' + shown + ' of ' + league.length + ' franchises';
+    }
+
+    // League-level problems (e.g. too few teams in a conference for the
+    // chosen playoff format) block Continue and are explained here.
+    function renderLeagueStatus() {
+      var problems = leagueProblems();
+      $('[data-nd-league-error]').textContent = problems.length
+        ? problems[0] + ' Change the playoff format in League Rules (step 1) or restore teams in Customize.'
+        : '';
+      $('[data-nd-custom-badge]').hidden = !T.isCustomized(league);
+      return problems.length === 0;
     }
 
     function renderSelection() {
       var info = $('[data-nd-selection-info]');
       info.textContent = '';
-      var team = selectedId ? F.byId(selectedId) : null;
-      nextBtn2.disabled = !team;
+      var team = selectedId ? teamById(selectedId) : null;
+      var leagueOk = renderLeagueStatus();
+      nextBtn2.disabled = !team || !leagueOk;
       if (!team) {
         info.appendChild(el('span', { class: 'nd-selection-empty', text: 'Select a franchise to continue.' }));
         return;
@@ -429,7 +458,7 @@
       info.appendChild(teamLogo(team, '', 40));
       info.appendChild(el('span', { class: 'nd-selection-text' }, [
         el('span', { class: 'hd-eyebrow', text: 'Your franchise' }),
-        el('span', { class: 'nd-selection-name', text: team.fullName })
+        el('span', { class: 'nd-selection-name', text: T.fullName(team) })
       ]));
       var ovr = ovrBlock(team);
       ovr.classList.add('nd-selection-ovr');
@@ -449,7 +478,49 @@
     sortSelect.addEventListener('change', function () { view.sort = sortSelect.value; applyView(); });
 
     nextBtn2.addEventListener('click', function () {
-      if (selectedId) options.navigate(3);
+      if (selectedId && teamById(selectedId) && renderLeagueStatus()) options.navigate(3);
+    });
+
+    // Randomize: picks a franchise at random from the teams currently
+    // shown (respects the conference filter and search).
+    $('[data-nd-random]').addEventListener('click', function () {
+      var visible = league.filter(function (t) { return cards[t.id] && !cards[t.id].hidden; });
+      var pool = visible.length ? visible : league;
+      if (pool.length > 1 && selectedId) pool = pool.filter(function (t) { return t.id !== selectedId; });
+      var pick = pool[Math.floor(Math.random() * pool.length)];
+      if (!pick) return;
+      var card = cards[pick.id];
+      if (card.hidden) {
+        // nothing visible matched: clear the filters so the pick can be seen
+        view = { conference: 'all', query: '', sort: view.sort };
+        $('input[name="nd-conference"][value="all"]').checked = true;
+        searchInput.value = '';
+        applyView();
+      }
+      var radio = card.querySelector('input');
+      radio.checked = true;
+      selectedId = pick.id;
+      renderSelection();
+      card.classList.toggle('is-picked', false);
+      void card.offsetWidth;                     // restart the highlight
+      card.classList.toggle('is-picked', true);
+      card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      radio.focus({ preventScroll: true });
+    });
+
+    // Customize: edit / relocate / delete teams in the league being set up.
+    var editor = window.HDLeagueEditor.init({
+      dialog: document.getElementById('league-editor'),
+      onChange: function (teams) {
+        league = teams;
+        if (selectedId && !teamById(selectedId)) selectedId = null;
+        renderTeams();
+        applyView();
+        renderSelection();
+      }
+    });
+    $('[data-nd-customize]').addEventListener('click', function () {
+      editor.open(league, { minPerConference: playoffNeed(), selectedId: selectedId });
     });
 
     /* ------------------------------------------------------------------
@@ -462,8 +533,10 @@
     function renderReview() {
       var setup = D.validateSetup(setupValues()).values;
       var rs = D.rulesSummary(D.validateRules(rulesValues()).values);
-      var team = F.byId(selectedId);
+      var team = T.normalize(teamById(selectedId));
+      team.fullName = T.fullName(team);
       var conf = F.conference(team.conference);
+      var division = F.division(team.division);
       var market = F.marketSize(team.marketSize);
 
       review.textContent = '';
@@ -496,8 +569,9 @@
         ['League', setup.leagueName],
         ['General Manager', setup.gmName],
         ['Inaugural Season', window.HDSeason.fromInauguralYear(setup.inauguralYear).label],
-        ['Conference', conf.name],
-        ['Market Size', market.label],
+        ['Conference', conf.name + (division ? ' · ' + division.name : '')],
+        ['Market Size', market.label + ' · ' + team.population.toLocaleString('en-US') + ' metro population'],
+        ['Arena', team.arenaName + ' · ' + team.arenaCapacity.toLocaleString('en-US') + ' seats'],
         ['Team Overall', team.overall + ' · ' + F.ratingTier(team.overall)],
         ['Season & Playoffs', rs.season + ' · ' + rs.playoffs],
         ['Difficulty & Rosters', rs.difficulty + ' · ' + rs.roster],
@@ -522,7 +596,8 @@
           gmName: setup.gmName,
           inauguralYear: String(setup.inauguralYear),
           franchiseId: selectedId,
-          rules: rulesValues()
+          rules: rulesValues(),
+          teams: league
         }, F);
       } catch (err) {
         saveError.textContent = 'Something went wrong creating the dynasty. Please go back and check your setup.';
@@ -549,7 +624,7 @@
     function allowedStep(step) {
       step = Math.max(1, Math.min(3, Number(step) || 1));
       if (step > 1 && !setupIsValid()) return 1;
-      if (step > 2 && !selectedId) return 2;
+      if (step > 2 && (!selectedId || !teamById(selectedId) || leagueProblems().length)) return 2;
       return step;
     }
 
@@ -564,6 +639,7 @@
         else li.removeAttribute('aria-current');
       });
       if (step === 1) refreshRecent();        // names may have changed since last visit
+      if (step === 2) renderSelection();      // playoff format may have changed
       if (step === 3) renderReview();
       if (step === 3) beginBtn.disabled = false;
       root.scrollTop = 0;
@@ -582,7 +658,8 @@
       renderAllRecent();
       updateSeasonLabel();
       selectedId = null;
-      $$('input[name="nd-franchise"]').forEach(function (r) { r.checked = false; });
+      league = T.defaultLeague();
+      renderTeams();
       view = { conference: 'all', query: '', sort: 'city' };
       $('input[name="nd-conference"][value="all"]').checked = true;
       searchInput.value = '';
@@ -592,7 +669,6 @@
       saveError.textContent = '';
     }
 
-    renderTeams();
     reset();
 
     return { show: show, reset: reset, current: function () { return current; } };

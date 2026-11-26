@@ -24,7 +24,8 @@
      onboarding: { ownerIntroCompleted, completedAt },
      userTeamId,
      teams: [{ id, franchiseId, city, name, fullName, abbreviation, logo,
-               colors{primary,secondary,tertiary}, marketSize, conference,
+               secondaryLogo, colors{primary,secondary,tertiary}, marketSize,
+               population, conference, division, arena{name,capacity},
                overall, ratingSource, control: 'human' | 'cpu' }],
      owners:    [owner]                           // scripts/ownership.js
      players:   [player]       // roster.js (ratings) + player-identity.js (who they are)
@@ -51,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 7;
+  var SCHEMA_VERSION = 8;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -71,7 +72,8 @@
       playerIdentity: dep('HDPlayerIdentity', './player-identity.js'),
       nationalities: dep('HDNationalities', '../data/nationalities.js'),
       playerCareer: dep('HDPlayerCareer', './player-career.js'),
-      season: dep('HDSeason', './season.js')
+      season: dep('HDSeason', './season.js'),
+      teams: dep('HDTeams', './teams.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -264,8 +266,10 @@
 
   /**
    * Build a new dynasty.
-   * @param {object} setup       { leagueName, gmName, inauguralYear, franchiseId, rules }
+   * @param {object} setup       { leagueName, gmName, inauguralYear, franchiseId, rules, teams? }
    *                              inauguralYear = year the first season ENDS
+   *                              teams = the league as customized in setup
+   *                              (HDTeams editable teams); default league if omitted
    * @param {object} franchises  the HDFranchises module
    * @param {Date}   [now]
    */
@@ -277,9 +281,6 @@
     var problems = franchises.validate();
     if (problems.length) throw new Error('Franchise data is invalid: ' + problems.join('; '));
 
-    var userTeam = franchises.byId(setup.franchiseId);
-    if (!userTeam) throw new Error('Unknown franchise: ' + setup.franchiseId);
-
     var v = check.values;
     var stamp = now.toISOString();
     // 2026 -> 2025–26: the dynasty starts in the preseason of October 2025.
@@ -287,20 +288,34 @@
     var ruleCheck = validateRules(setup.rules || DEFAULT_RULES);
     if (!ruleCheck.valid) throw new Error('Invalid league rules: ' + JSON.stringify(ruleCheck.errors));
 
+    // The league as customized during setup (edited / deleted / relocated
+    // teams), or the default franchises.
+    var T = deps().teams;
+    var source = Array.isArray(setup.teams) ? setup.teams.map(T.normalize) : T.defaultLeague();
+    var leagueCheck = T.validateLeague(source, { minPerConference: playoffTeamsPerConference(ruleCheck.values) });
+    if (!leagueCheck.valid) throw new Error('Invalid league teams: ' + leagueCheck.errors.join('; '));
+
+    var userTeam = source.filter(function (t) { return t.id === setup.franchiseId; })[0];
+    if (!userTeam) throw new Error('Unknown franchise: ' + setup.franchiseId);
+
     // Teams are copied, not referenced, so later relocations / rebrands /
     // expansion never rewrite an existing dynasty's history.
-    var teams = franchises.FRANCHISES.map(function (f) {
+    var teams = source.map(function (f) {
       return {
         id: f.id,                 // team id == franchise id for the founding league
-        franchiseId: f.id,
+        franchiseId: f.franchiseId,
         city: f.city,
         name: f.name,
-        fullName: f.fullName,
+        fullName: T.fullName(f),
         abbreviation: f.abbreviation,
-        logo: f.logo.src,
+        logo: f.logo,
+        secondaryLogo: f.secondaryLogo || null,
         colors: { primary: f.colors.primary, secondary: f.colors.secondary, tertiary: f.colors.tertiary },
         marketSize: f.marketSize,
+        population: f.population,
         conference: f.conference,
+        division: f.division,
+        arena: { name: f.arenaName, capacity: f.arenaCapacity },
         overall: teamOverall(f),
         ratingSource: 'provisional',
         control: f.id === userTeam.id ? 'human' : 'cpu'
@@ -323,6 +338,7 @@
             teamIds: teams.filter(function (t) { return t.conference === c.id; }).map(function (t) { return t.id; })
           };
         }),
+        divisions: divisionsFor(teams),
         teamIds: teams.map(function (t) { return t.id; }),
         rules: ruleCheck.values
       },
@@ -339,6 +355,21 @@
     };
     attachSystems(save, null);
     return save;
+  }
+
+  // Playoff teams each conference needs for the chosen format
+  function playoffTeamsPerConference(rules) {
+    var f = RULE_OPTIONS.playoffFormat[(rules || DEFAULT_RULES).playoffFormat];
+    return f ? f.teamsPerConference : 0;
+  }
+
+  function divisionsFor(teams) {
+    return deps().franchises.DIVISIONS.map(function (d) {
+      return {
+        id: d.id, name: d.name, conference: d.conference,
+        teamIds: teams.filter(function (t) { return t.division === d.id; }).map(function (t) { return t.id; })
+      };
+    });
   }
 
   // First in-game date for a phase (ISO yyyy-mm-dd), season START year.
@@ -497,6 +528,27 @@
       deps().playerIdentity.addMissing(s.players || [], s.id);
       s.schemaVersion = 7;
       return s;
+    },
+    // v7: teams had no division, population, arena or secondary logo.
+    // Founding teams take them from the franchise catalog; market size,
+    // names, colors and everything else stay exactly as saved.
+    7: function (s) {
+      var F = deps().franchises;
+      (s.teams || []).forEach(function (t) {
+        var f = F.byId(t.franchiseId);
+        if (t.division === undefined) {
+          t.division = f ? f.division : (F.DIVISIONS.filter(function (d) { return d.conference === t.conference; })[0] || F.DIVISIONS[0]).id;
+        }
+        if (t.population === undefined) {
+          var band = F.marketSize(t.marketSize);
+          t.population = f ? f.population : ({ large: 5000000, medium: 2500000, small: 1200000 }[band ? band.id : 'small']);
+        }
+        if (t.arena === undefined) t.arena = f ? { name: f.arena.name, capacity: f.arena.capacity } : { name: t.city + ' Arena', capacity: 18000 };
+        if (t.secondaryLogo === undefined) t.secondaryLogo = null;
+      });
+      if (s.league && !Array.isArray(s.league.divisions)) s.league.divisions = divisionsFor(s.teams || []);
+      s.schemaVersion = 8;
+      return s;
     }
   };
 
@@ -527,7 +579,6 @@
   /* --- Validation (current format) ----------------------------------------- */
 
   var HEX = /^#[0-9A-Fa-f]{6}$/;
-  var LOGO_PATH = /^assets\/logos\/[A-Za-z0-9_-]+\.svg$/;   // local assets only
   var ID = /^[A-Za-z0-9_-]{4,100}$/;
 
   function isText(v, max) { return typeof v === 'string' && v.trim().length > 0 && v.length <= max; }
@@ -578,7 +629,11 @@
         ids[t.id] = true;
         req(isText(t.fullName, 80) && isText(t.city, 60) && isText(t.name, 60), where + ': missing name.');
         req(typeof t.abbreviation === 'string' && /^[A-Z]{2,4}$/.test(t.abbreviation), where + ': invalid abbreviation.');
-        req(typeof t.logo === 'string' && LOGO_PATH.test(t.logo), where + ': invalid logo reference.');
+        req(deps().teams.isLogoRef(t.logo), where + ': invalid logo reference.');
+        req(t.secondaryLogo === null || deps().teams.isLogoRef(t.secondaryLogo), where + ': invalid secondary logo.');
+        req(typeof t.division === 'string' && t.division.length <= 40, where + ': missing division.');
+        req(isInt(t.population, 1, 100000000), where + ': invalid population.');
+        req(t.arena && isText(t.arena.name, 60) && isInt(t.arena.capacity, 1, 200000), where + ': invalid arena.');
         req(t.colors && HEX.test(t.colors.primary) && HEX.test(t.colors.secondary) && HEX.test(t.colors.tertiary), where + ': invalid colors.');
         req(typeof t.conference === 'string' && t.conference.length <= 40, where + ': missing conference.');
         req(typeof t.overall === 'number' && t.overall >= 0 && t.overall <= 100, where + ': invalid overall rating.');

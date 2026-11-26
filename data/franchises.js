@@ -13,9 +13,13 @@
                    describe the design; edit them, then run
                    `node tools/build-logos.js` to regenerate the files.
      colors        primary / secondary / tertiary hex values.
-     marketSize    'small' | 'medium' | 'large' (metro market; independent
-                   of team quality).
-     conference    'east' | 'west'.
+     marketSize    'small' | 'medium' | 'large', derived from population
+                   (marketSizeFor); independent of team quality.
+     population    Approximate metro-area population (2023 estimates,
+                   rounded). Drives market size.
+     division      One of DIVISIONS; its conference is the team's conference.
+     conference    'east' | 'west' (follows the division).
+     arena         { name, capacity } — fictional venue names.
      overall       0–100. PROVISIONAL: there is no roster system yet. Once
                    rosters exist, derive this from roster strength (see
                    teamOverall() in scripts/dynasty.js) and treat this value
@@ -36,12 +40,62 @@
     { id: 'west', name: 'Western Conference', shortName: 'West' }
   ];
 
-  // Ordered largest first; `rank` drives market-size sorting.
-  var MARKET_SIZES = [
-    { id: 'large',  label: 'Large',  rank: 3 },
-    { id: 'medium', label: 'Medium', rank: 2 },
-    { id: 'small',  label: 'Small',  rank: 1 }
+  // Three divisions of five per conference.
+  var DIVISIONS = [
+    { id: 'atlantic',  name: 'Atlantic Division',  shortName: 'Atlantic',  conference: 'east' },
+    { id: 'central',   name: 'Central Division',   shortName: 'Central',   conference: 'east' },
+    { id: 'southeast', name: 'Southeast Division', shortName: 'Southeast', conference: 'east' },
+    { id: 'northwest', name: 'Northwest Division', shortName: 'Northwest', conference: 'west' },
+    { id: 'pacific',   name: 'Pacific Division',   shortName: 'Pacific',   conference: 'west' },
+    { id: 'southwest', name: 'Southwest Division', shortName: 'Southwest', conference: 'west' }
   ];
+
+  // Ordered largest first; `rank` drives market-size sorting. A market is
+  // the largest size whose minPopulation the metro population reaches.
+  var MARKET_SIZES = [
+    { id: 'large',  label: 'Large',  rank: 3, minPopulation: 4500000 },
+    { id: 'medium', label: 'Medium', rank: 2, minPopulation: 2000000 },
+    { id: 'small',  label: 'Small',  rank: 1, minPopulation: 0 }
+  ];
+
+  function marketSizeFor(population) {
+    for (var i = 0; i < MARKET_SIZES.length; i++) if (population >= MARKET_SIZES[i].minPopulation) return MARKET_SIZES[i].id;
+    return 'small';
+  }
+
+  // id: [division, metro population, arena name, arena capacity]
+  var VENUES = {
+    'fr-001': ['southeast',  6307000, 'Peachtree Pavilion',      18118],
+    'fr-002': ['atlantic',   4919000, 'Harborview Garden',       19156],
+    'fr-003': ['atlantic',  19498000, 'Gowanus Arena',           17732],
+    'fr-004': ['southeast',  2805000, 'Queen City Coliseum',     19077],
+    'fr-005': ['central',    9263000, 'Lakeshore Center',        20917],
+    'fr-006': ['central',    2159000, 'Cuyahoga Fieldhouse',     19432],
+    'fr-007': ['central',    4342000, 'Motor City Arena',        20332],
+    'fr-008': ['central',    2142000, 'Circle City Fieldhouse',  17923],
+    'fr-009': ['southeast',  6183000, 'Biscayne Bay Arena',      19600],
+    'fr-010': ['central',    1560000, 'Lakefront Forum',         17341],
+    'fr-011': ['atlantic',  19498000, 'Hudson Square Garden',    19812],
+    'fr-012': ['southeast',  2818000, 'Launchpad Arena',         18846],
+    'fr-013': ['atlantic',   6246000, 'Liberty Hall Arena',      20478],
+    'fr-014': ['atlantic',   6712000, 'Northern Lights Centre',  19800],
+    'fr-015': ['southeast',  6305000, 'Capitol Arena',           20356],
+    'fr-016': ['southwest',  8100000, 'Trinity River Arena',     19200],
+    'fr-017': ['northwest',  3005000, 'Front Range Arena',       19520],
+    'fr-018': ['southwest',  7510000, 'Mission Control Center',  18055],
+    'fr-019': ['pacific',   12799000, 'Pacific Coast Arena',     18997],
+    'fr-020': ['pacific',   12799000, 'Sunset Boulevard Arena',  19068],
+    'fr-021': ['southwest',  1336000, 'Riverboat Pavilion',      17794],
+    'fr-022': ['northwest',  3712000, 'North Star Arena',        18978],
+    'fr-023': ['southwest',   962000, 'Bayou Coliseum',          16867],
+    'fr-024': ['northwest',  1478000, 'Prairie Wind Arena',      18203],
+    'fr-025': ['pacific',    5070000, 'Desert Sun Arena',        17071],
+    'fr-026': ['northwest',  2508000, 'Rose City Garden',        19393],
+    'fr-027': ['pacific',    2421000, 'Gold Rush Pavilion',      17608],
+    'fr-028': ['northwest',  1268000, 'Wasatch Center',          18306],
+    'fr-029': ['southwest',  2704000, 'Alamo City Arena',        18418],
+    'fr-030': ['pacific',    4567000, 'Embarcadero Arena',       18064]
+  };
 
   // Labels for the provisional rating bands (used for display only).
   var RATING_TIERS = [
@@ -52,6 +106,7 @@
   ];
 
   function team(id, city, name, abbreviation, conference, marketSize, overall, colors, badge, emblem) {
+    var v = VENUES[id];
     return {
       id: id,
       city: city,
@@ -59,7 +114,10 @@
       fullName: city + ' ' + name,
       abbreviation: abbreviation,
       conference: conference,
+      division: v[0],
+      population: v[1],
       marketSize: marketSize,
+      arena: { name: v[2], capacity: v[3] },
       overall: overall,
       colors: { primary: colors[0], secondary: colors[1], tertiary: colors[2] },
       logo: { src: 'assets/logos/' + id + '.svg', badge: badge, emblem: emblem }
@@ -94,7 +152,7 @@
     team('fr-022', 'Minneapolis',    'Frost',       'MIN', 'west', 'medium', 82, ['#13233F', '#F2F7FB', '#7FB6E3'], 'hexagon', 'snowflake'),
     team('fr-023', 'New Orleans',    'Krewe',       'NOL', 'west', 'small',  74, ['#4E2373', '#E3B23C', '#3DA66B'], 'diamond', 'harlequin'),
     team('fr-024', 'Oklahoma City',  'Twisters',    'OKC', 'west', 'small',  90, ['#3E4651', '#F5C518', '#9EC9E8'], 'shield',  'tornado'),
-    team('fr-025', 'Phoenix',        'Sidewinders', 'PHX', 'west', 'medium', 80, ['#B4532F', '#F1DDB8', '#167F80'], 'diamond', 'snake'),
+    team('fr-025', 'Phoenix',        'Sidewinders', 'PHX', 'west', 'large',  80, ['#B4532F', '#F1DDB8', '#167F80'], 'diamond', 'snake'),
     team('fr-026', 'Portland',       'Cascades',    'POR', 'west', 'medium', 65, ['#1E5631', '#EEF2EC', '#9CBF3B'], 'shield',  'tree'),
     team('fr-027', 'Sacramento',     'Prospectors', 'SAC', 'west', 'medium', 79, ['#2B2B2B', '#D6A83A', '#7AA9D6'], 'roundel', 'pickaxes'),
     team('fr-028', 'Salt Lake City', 'Pioneers',    'SLC', 'west', 'small',  63, ['#A8412C', '#F1D9B5', '#2F3B45'], 'hexagon', 'beehive'),
@@ -102,7 +160,7 @@
     team('fr-030', 'San Francisco',  'Fog',         'SFO', 'west', 'large',  78, ['#1B2A41', '#C9472F', '#B8C4CF'], 'roundel', 'bridge')
   ];
 
-  FRANCHISES.forEach(function (t) { Object.freeze(t.colors); Object.freeze(t.logo); Object.freeze(t); });
+  FRANCHISES.forEach(function (t) { Object.freeze(t.colors); Object.freeze(t.logo); Object.freeze(t.arena); Object.freeze(t); });
   Object.freeze(FRANCHISES);
 
   function byId(id) {
@@ -112,6 +170,11 @@
 
   function conference(id) {
     for (var i = 0; i < CONFERENCES.length; i++) if (CONFERENCES[i].id === id) return CONFERENCES[i];
+    return null;
+  }
+
+  function division(id) {
+    for (var i = 0; i < DIVISIONS.length; i++) if (DIVISIONS[i].id === id) return DIVISIONS[i];
     return null;
   }
 
@@ -140,6 +203,10 @@
       if (!/^[A-Z]{3}$/.test(t.abbreviation)) problems.push(t.id + ': abbreviation must be 3 capital letters');
       if (!conference(t.conference)) problems.push(t.id + ': unknown conference ' + t.conference);
       if (!marketSize(t.marketSize)) problems.push(t.id + ': unknown market size ' + t.marketSize);
+      var div = division(t.division);
+      if (!div || div.conference !== t.conference) problems.push(t.id + ': division ' + t.division + ' is not in its conference');
+      if (t.marketSize !== marketSizeFor(t.population)) problems.push(t.id + ': market size does not match population');
+      if (!t.arena || !t.arena.name || !(t.arena.capacity > 0)) problems.push(t.id + ': missing arena');
       if (!(t.overall >= 0 && t.overall <= 100)) problems.push(t.id + ': overall out of range');
       ['primary', 'secondary', 'tertiary'].forEach(function (c) {
         if (!/^#[0-9A-Fa-f]{6}$/.test(t.colors[c])) problems.push(t.id + ': bad ' + c + ' color');
@@ -158,6 +225,9 @@
     FRANCHISES: FRANCHISES,
     CONFERENCES: CONFERENCES,
     MARKET_SIZES: MARKET_SIZES,
+    DIVISIONS: DIVISIONS,
+    division: division,
+    marketSizeFor: marketSizeFor,
     RATING_TIERS: RATING_TIERS,
     byId: byId,
     conference: conference,

@@ -248,6 +248,9 @@
   min-width: 0;
   cursor: pointer;
 }
+/* The display rule above would otherwise override the hidden attribute
+   (this is what kept filtered-out franchises on screen). */
+.hd-option[hidden] { display: none; }
 .hd-option-card {
   position: relative;
   display: flex;

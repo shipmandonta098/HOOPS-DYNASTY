@@ -65,5 +65,18 @@
       html: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICON_PATHS[name] || '') + '</svg>' });
   }
 
+  // Custom team logos can be web links; if one stops loading, show a
+  // neutral basketball mark instead of a broken image (every screen).
+  var LOGO_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="#8c8c94"/>' +
+    '<g fill="none" stroke="#f2f2f2" stroke-width="2.5"><path d="M4 32h56M32 4v56"/><path d="M13 12c9 9 9 31 0 40M51 12c-9 9-9 31 0 40"/></g></svg>');
+  document.addEventListener('error', function (e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG' || img.getAttribute('data-logo-fallback')) return;
+    if (!/^(https?:|data:)/i.test(img.getAttribute('src') || '')) return;
+    img.setAttribute('data-logo-fallback', 'true');
+    img.src = LOGO_FALLBACK;
+  }, true);
+
   window.HDDom = { el: el, portrait: portrait, hex: hex, gameDate: gameDate, icon: icon };
 })();
