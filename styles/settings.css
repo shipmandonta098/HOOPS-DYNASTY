@@ -1,84 +1,8 @@
 /* ==========================================================================
    HOOPS DYNASTY — Settings screen
-   Uses only the tokens from styles/theme.css and rem-based type, so it
-   follows the active theme and text size automatically.
+   Screen shell, option cards and check indicators come from
+   styles/components.css; this file only lays out the settings content.
    ========================================================================== */
-
-.settings-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 5;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  background: var(--bg);
-  color: var(--text);
-  animation: settings-in 220ms var(--ease-out);
-}
-.settings-screen[hidden] { display: none; }
-
-@keyframes settings-in {
-  from { opacity: 0; transform: translateY(6px); }
-}
-
-/* --- Top bar (sticky so "Back" is always reachable) --------------------- */
-.settings-bar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  padding:
-    max(env(safe-area-inset-top), 8px)
-    max(env(safe-area-inset-right), var(--gutter))
-    8px
-    max(env(safe-area-inset-left), var(--gutter));
-}
-.settings-bar-inner {
-  max-width: 880px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-}
-.settings-back svg { width: 1em; height: 1em; flex: none; }
-
-/* --- Page body ------------------------------------------------------------ */
-.settings-body {
-  max-width: 880px;
-  margin: 0 auto;
-  padding:
-    clamp(20px, 4vh, 40px)
-    max(env(safe-area-inset-right), var(--gutter))
-    max(env(safe-area-inset-bottom), 40px)
-    max(env(safe-area-inset-left), var(--gutter));
-}
-
-.settings-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  line-height: 1.15;
-  text-transform: uppercase;
-  outline: none;
-}
-.settings-title::after {           /* echoes the crimson rule under the wordmark */
-  content: "";
-  display: block;
-  width: 48px;
-  height: 2px;
-  margin-top: 0.75rem;
-  background: var(--accent);
-}
-.settings-intro {
-  margin: 0.9rem 0 0;
-  max-width: 40rem;
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: var(--text-muted);
-}
 
 /* --- Category panel ------------------------------------------------------- */
 .settings-category {
@@ -125,63 +49,6 @@
   line-height: 1.5;
   color: var(--text-muted);
 }
-
-/* --- Shared option-card behaviour (themes + text sizes) ------------------- */
-.option {
-  position: relative;
-  display: block;
-  min-width: 0;
-  cursor: pointer;
-}
-.option-card {
-  position: relative;
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  color: var(--text);
-  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
-}
-.option:hover .option-card { border-color: var(--border-strong); }
-.option input:checked + .option-card {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-.option input:focus-visible + .option-card {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
-
-/* Selected indicator: radio-style ring, filled with a check when active */
-.option-indicator {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid var(--border-strong);
-  display: grid;
-  place-items: center;
-  color: var(--on-accent);
-  transition: background-color 120ms ease, border-color 120ms ease;
-}
-.option-indicator svg { width: 12px; height: 12px; opacity: 0; }
-.option input:checked + .option-card .option-indicator {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.option input:checked + .option-card .option-indicator svg { opacity: 1; }
-
-.option-active {
-  display: none;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent-text);
-}
-.option input:checked + .option-card .option-active { display: inline; }
 
 /* --- Theme cards ---------------------------------------------------------- */
 .theme-grid {
