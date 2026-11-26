@@ -24,10 +24,13 @@
 (function (root, factory) {
   'use strict';
   var node = typeof module === 'object' && module.exports;
-  var api = factory(node ? require('./random.js') : root.HDRandom);
+  var api = factory(
+    node ? require('./random.js') : root.HDRandom,
+    node ? require('./player-identity.js') : root.HDPlayerIdentity
+  );
   if (node) module.exports = api;
   else root.HDPlayerCareer = api;
-})(typeof self !== 'undefined' ? self : this, function (R) {
+})(typeof self !== 'undefined' ? self : this, function (R, Identity) {
   'use strict';
 
   var ROUNDS = 2;
@@ -127,15 +130,18 @@
         pairs++;
         var a = group[i], b = group[i + 1];
         var relation = Math.abs(a.age - b.age) <= 7 ? 'Brother' : 'Cousin';
-        a.relatives.push({ relation: relation, name: b.firstName + ' ' + b.lastName, playerId: b.id });
-        b.relatives.push({ relation: relation, name: a.firstName + ' ' + a.lastName, playerId: a.id });
+        a.relatives.push({ relation: relation, name: Identity.fullName(b), playerId: b.id });
+        b.relatives.push({ relation: relation, name: Identity.fullName(a), playerId: a.id });
       }
     });
     // Former professionals in the family (fictional people)
     needs.forEach(function (p) {
       if (!rng.chance(0.03)) return;
       var relation = rng.chance(0.65) ? 'Son' : 'Nephew';
-      p.relatives.push({ relation: relation, name: rng.pick(FORMER_FIRST) + ' ' + p.lastName, note: 'former professional player' });
+      // Same family name and naming tradition; given name from a pool that
+      // fits the tradition when available.
+      var elder = { firstName: rng.pick(FORMER_FIRST), lastName: p.lastName, nameOrder: p.nameOrder };
+      p.relatives.push({ relation: relation, name: Identity.fullName(elder), note: 'former professional player' });
     });
 
     return save;

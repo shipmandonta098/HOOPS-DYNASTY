@@ -10,8 +10,11 @@
    starting strength exactly, keeping contenders / rebuilders consistent.
 
    Player record:
-   { id, teamId, firstName, lastName, position, age, overall, potential,
-     jerseyNumber, heightIn, portrait }
+   { id, teamId, position, age, overall, potential, jerseyNumber, heightIn,
+     portrait } + identity (name, nationality, birthplace, college, pathway)
+   from scripts/player-identity.js. Ratings, height and age are generated
+   here with NO knowledge of nationality or naming background; identities
+   are assigned afterwards by an independent seeded generator.
    Future systems (contracts, attributes, injuries, morale...) add fields.
    ========================================================================== */
 (function (root, factory) {
@@ -19,11 +22,12 @@
   var node = typeof module === 'object' && module.exports;
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
-    node ? require('./portraits.js') : root.HDPortraits
+    node ? require('./portraits.js') : root.HDPortraits,
+    node ? require('./player-identity.js') : root.HDPlayerIdentity
   );
   if (node) module.exports = api;
   else root.HDRoster = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Portraits) {
+})(typeof self !== 'undefined' ? self : this, function (R, Portraits, Identity) {
   'use strict';
 
   var POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
@@ -35,21 +39,6 @@
   // Team overall = weighted average of the top 10 player ratings
   var WEIGHTS = [6, 5, 5, 4, 4, 3, 2, 2, 1, 1];
   var JERSEYS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24, 25, 30, 31, 32, 33, 34, 35, 40, 41, 42, 43, 44, 45, 50, 51, 55, 77, 88];
-
-  var FIRST = ['Andre', 'Malik', 'Jalen', 'Tyrese', 'Darius', 'Marcus', 'Elijah', 'Isaiah', 'Caleb', 'Jordan', 'Cameron', 'Devin', 'Trey', 'Xavier', 'Quentin',
-    'Rashad', 'Damon', 'Terrell', 'Aaron', 'Brandon', 'Colin', 'Dante', 'Emmett', 'Felix', 'Gavin', 'Hugo', 'Ivan', 'Jonah', 'Kendrick', 'Luca', 'Mateo',
-    'Nikolai', 'Omar', 'Pierce', 'Reggie', 'Silas', 'Tobias', 'Ulysses', 'Vince', 'Wes', 'Yusuf', 'Zane', 'Amari', 'Bryce', 'Cedric', 'Desmond', 'Ezra',
-    'Franco', 'Grant', 'Hassan', 'Idris', 'Jamal', 'Keon', 'Lamar', 'Miles', 'Nate', 'Otis', 'Paxton', 'Roman', 'Santiago', 'Theo', 'Victor', 'Wendell',
-    'Alonzo', 'Bastian', 'Corey', 'Dorian', 'Elias', 'Finn', 'Gideon', 'Harlan', 'Jasper', 'Kai', 'Leon', 'Moses', 'Noel', 'Orlando', 'Rocco', 'Soren'];
-  var LAST = ['Abernathy', 'Achebe', 'Alvarado', 'Ashford', 'Baptiste', 'Barlow', 'Beckford', 'Bellamy', 'Bianchi', 'Boateng', 'Brannigan', 'Calloway',
-    'Castellanos', 'Chukwu', 'Cordero', 'Crenshaw', 'Dabrowski', 'Delgado', 'Diallo', 'Dorsey', 'Duchamp', 'Easley', 'Ellison', 'Esposito', 'Faulkner',
-    'Ferreira', 'Fontaine', 'Galloway', 'Garrity', 'Gentry', 'Haddad', 'Halvorsen', 'Hargrove', 'Holloway', 'Ibekwe', 'Ingram-Shaw', 'Jankovic', 'Jaramillo',
-    'Kamara', 'Kessler', 'Kincaid', 'Kovac', 'Lachance', 'Langford', 'Ledbetter', 'Lindgren', 'Lombardi', 'Mbeki', 'McAllister', 'Mendoza', 'Moreau',
-    'Nakamura', 'Ndiaye', 'Novak', 'Oduya', 'Okafor', 'Olander', 'Pacheco', 'Petrovic', 'Pemberton', 'Quarles', 'Radcliffe', 'Ramsey', 'Rinaldi',
-    'Rutherford', 'Salazar', 'Sandoval', 'Seabrook', 'Silva', 'Sorensen', 'Stanton', 'Strickland', 'Takahashi', 'Thorne', 'Toussaint', 'Underwood',
-    'Valdez', 'Vasquez', 'Voss', 'Wainwright', 'Whitaker', 'Whitfield', 'Wojcik', 'Yamamoto', 'Yeboah', 'Zamora', 'Zielinski', 'Aldridge-Moss', 'Banda',
-    'Carrow', 'Desrosiers', 'Eberhardt', 'Fairley', 'Grimaldi', 'Hutchins', 'Iwobi', 'Jessup', 'Kowalski', 'Lockhart', 'Marchetti', 'Nwosu', 'Ortega',
-    'Prescott', 'Quintero', 'Ridley', 'Sowell', 'Tavares', 'Umeh', 'Vickers', 'Winslow', 'Yancey', 'Zeller-Park'];
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -96,7 +85,7 @@
     return list;
   }
 
-  function generateTeam(team, rng, nextId, usedNames, size) {
+  function generateTeam(team, rng, nextId, size) {
     var target = team.overall;
     var youthBias = target < 71 ? -2.5 : target >= 86 ? 2.5 : 0;
     var positions = rng.shuffle(positionsFor(size));
@@ -104,12 +93,6 @@
     var jerseys = rng.shuffle(JERSEYS);
 
     var players = positions.map(function (pos, i) {
-      var first, last, guard = 0;
-      do {
-        first = rng.pick(FIRST); last = rng.pick(LAST);
-      } while (usedNames[first + ' ' + last] && guard++ < 50);
-      usedNames[first + ' ' + last] = true;
-
       var overall = clamp(Math.round(target + offsets[i] + rng.normal() * 1.2), 40, 99);
       // Better players skew to prime age; bench mixes rookies and veterans.
       var age = clamp(Math.round(26 + youthBias + rng.normal() * 2.6 + (offsets[i] < -8 ? rng.pick([-3, 4]) : 0)), 19, 37);
@@ -118,8 +101,6 @@
       return {
         id: id,
         teamId: team.id,
-        firstName: first,
-        lastName: last,
         position: pos,
         age: age,
         overall: overall,
@@ -156,15 +137,17 @@
     var size = (opts && opts.rosterSize) || ROSTER_SIZE;
     var rng = R.rng('roster:' + seed);
     var counter = 0;
-    var usedNames = {};
     var nextId = function () { counter++; return 'pl-' + String(counter).padStart(4, '0'); };
     var out = { players: [], lineups: {}, ratings: {} };
     teams.forEach(function (team) {
-      var res = generateTeam(team, rng, nextId, usedNames, size);
+      var res = generateTeam(team, rng, nextId, size);
       out.players = out.players.concat(res.players);
       out.lineups[team.id] = res.lineup;
       out.ratings[team.id] = res.overall;
     });
+    // Identities (nationality, name, birthplace, college...) are assigned
+    // league-wide AFTER ratings exist, from their own seed.
+    Identity.assignLeague(out.players, seed);
     return out;
   }
 

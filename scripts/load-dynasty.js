@@ -74,7 +74,7 @@
   // Save a text file to the device. iOS gets the share sheet ("Save to
   // Files") when available; everything else uses a download link.
   function saveTextFile(filename, content) {
-    var blob = new Blob([content], { type: 'application/json' });
+    var blob = new Blob([content], { type: 'application/json;charset=utf-8' });   // keep accents intact
     if (isIOS && typeof File === 'function' && navigator.canShare) {
       var file = new File([blob], filename, { type: 'application/json' });
       if (navigator.canShare({ files: [file] })) {

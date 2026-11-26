@@ -115,7 +115,7 @@
         el('span', { class: 'db-jersey', text: '#' + p.jerseyNumber }),
         el('span', { class: 'db-player-name' }, [
           el('button', { class: 'db-player-full pp-trigger', type: 'button', 'data-player-id': p.id, 'aria-haspopup': 'dialog',
-            'aria-label': 'View profile: ' + p.firstName + ' ' + p.lastName, text: p.firstName + ' ' + p.lastName }),
+            'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
           el('span', { class: 'db-player-sub', text: window.HDRoster.POSITION_NAMES[p.position] + ' · Age ' + p.age })
         ]),
         el('span', { class: 'db-ovr', 'aria-label': 'Overall ' + p.overall }, [el('strong', { text: String(p.overall) }), el('span', { text: 'OVR' })])
@@ -160,7 +160,7 @@
         p ? dom.portrait(p.portrait, { className: 'db-player-portrait', jersey: c.jersey }) : el('span', { class: 'db-portrait-empty', 'aria-hidden': 'true' }),
         el('span', { class: 'db-player-name' }, [
           el('span', { class: 'db-leader-cat', text: r.label + ' per game' }),
-          el('span', { class: 'db-player-full', text: p ? p.firstName + ' ' + p.lastName + ' · ' + p.position : 'No leader yet' })
+          el('span', { class: 'db-player-full', text: p ? window.HDPlayerIdentity.fullName(p) + ' · ' + p.position : 'No leader yet' })
         ]),
         el('span', { class: 'db-leader-value' }, [el('strong', { text: r.value == null ? '—' : r.value.toFixed(1) }), el('span', { text: r.short })])
       ]);

@@ -86,12 +86,21 @@
       ['Weight', weightLabel(p.weightLb)],
       ['Born', el('time', { datetime: p.birthDate, text: dateLabel(p.birthDate) })],
       ['Age', String(age)],
-      ['Nationality', el('span', { class: 'pp-country' }, [
-        el('span', { class: 'hd-flag', html: window.HDFlags.svg(p.nationality) }),
-        el('span', { text: Bio.countryName(p.nationality) })
+      ['Birthplace', window.HDPlayerIdentity.birthplaceLabel(p)],
+      ['Nationality', el('span', { class: 'pp-nationality' }, [
+        el('span', { class: 'pp-country' }, [
+          el('span', { class: 'hd-flag', html: window.HDFlags.svg(p.nationality) }),
+          el('span', { text: Bio.countryName(p.nationality) })
+        ]),
+        p.secondaryNationality ? el('span', { class: 'pp-country pp-secondary' }, [
+          el('span', { class: 'pp-muted', text: 'also' }),
+          el('span', { class: 'hd-flag', html: window.HDFlags.svg(p.secondaryNationality) }),
+          el('span', { text: Bio.countryName(p.secondaryNationality) })
+        ]) : null
       ])],
       ['Relatives', relatives],
-      ['College', p.college ? p.college : el('span', { class: 'pp-none', text: 'None' })],
+      ['College', p.college ? p.college : el('span', { class: 'pp-none', 'aria-label': 'No college', text: '—' })],
+      ['Development', window.HDPlayerIdentity.pathwayLabel(p)],
       ['Draft', Career.draftLabel(p.draft, save.league.name)],
       ['Debut', debut],
       ['Experience', p.experience === 0 ? 'Rookie' : p.experience + (p.experience === 1 ? ' season' : ' seasons')]
@@ -153,7 +162,7 @@
               team ? el('img', { src: team.logo, alt: '', width: 18, height: 18 }) : null,
               el('span', { text: (team ? team.fullName : '') + (season && !current ? ' · ' + season.seasonLabel : '') })
             ]),
-            el('h2', { class: 'pp-name', id: 'pp-name', tabindex: '-1', text: player.firstName + ' ' + player.lastName }),
+            el('h2', { class: 'pp-name', id: 'pp-name', tabindex: '-1', text: window.HDPlayerIdentity.fullName(player) }),
             el('p', { class: 'pp-sub', text: '#' + player.jerseyNumber + ' · ' + window.HDRoster.POSITION_NAMES[player.position] + (starterAt ? ' · Starter' : ' · Bench') })
           ]),
           el('div', { class: 'pp-badges' }, [

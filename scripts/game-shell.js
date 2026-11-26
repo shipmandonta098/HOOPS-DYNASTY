@@ -43,11 +43,15 @@
     return isNaN(t) ? '—' : bornFmt.format(new Date(t));
   }
 
-  function flag(code) {
-    var name = window.HDPlayerBio.countryName(code);
-    return el('span', { class: 'gs-country' }, [
-      el('span', { class: 'hd-flag', html: window.HDFlags.svg(code) }),
-      el('span', { text: name })
+  // Flag of the PRIMARY nationality; full names (incl. a second
+  // nationality) in the tooltip and accessible label.
+  function flag(p) {
+    var Bio = window.HDPlayerBio;
+    var name = Bio.countryName(p.nationality);
+    var full = name + (p.secondaryNationality ? ' (also ' + Bio.countryName(p.secondaryNationality) + ')' : '');
+    return el('span', { class: 'gs-country', title: full, 'aria-label': 'Nationality: ' + full }, [
+      el('span', { class: 'hd-flag', html: window.HDFlags.svg(p.nationality) }),
+      el('span', { 'aria-hidden': 'true', text: name })
     ]);
   }
 
@@ -171,7 +175,7 @@
             el('span', { class: 'gs-player-text' }, [
               el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': p.id,
                 'data-season': String(rosterView.seasonYear), 'aria-haspopup': 'dialog',
-                'aria-label': 'View profile: ' + p.firstName + ' ' + p.lastName, text: p.firstName + ' ' + p.lastName }),
+                'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
               el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter ' + starter : ' · Bench') })
             ])
           ])]),
@@ -183,7 +187,7 @@
           el('td', { class: 'is-num', text: R.heightLabel(p.heightIn) }),
           el('td', { class: 'is-num', text: p.weightLb ? p.weightLb + ' lb' : '—' }),
           el('td', { class: 'is-num', title: p.experience === 0 ? 'Rookie' : p.experience + ' seasons', text: Bio.experienceLabel(p.experience) }),
-          el('td', null, [flag(p.nationality)]),
+          el('td', null, [flag(p)]),
           el('td', { class: p.college ? null : 'gs-muted-cell', title: p.college ? null : 'Did not play U.S. college basketball', text: p.college || '—' })
         ]);
       }))
