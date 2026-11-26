@@ -283,12 +283,16 @@
 
   /* --- display ------------------------------------------------------------ */
 
+  // Shown at state level for U.S. births ("Georgia, USA": the country
+  // name avoids confusion with the country Georgia) and country level for
+  // everyone else ("France"). The birth city stays in the save, unused.
+  var REGION_NAMES = { 'D.C.': 'Washington, D.C.' };
   function birthplaceLabel(p) {
-    if (!p || !p.birthCity) return '—';
-    var parts = [p.birthCity];
-    if (p.birthRegion && p.birthRegion !== p.birthCity) parts.push(p.birthRegion);
-    parts.push(p.birthCountry === 'US' ? 'USA' : N.countryName(p.birthCountry));
-    return parts.join(', ');
+    if (!p || !p.birthCountry) return '—';
+    if (p.birthCountry === 'US') {
+      return p.birthRegion ? (REGION_NAMES[p.birthRegion] || p.birthRegion) + ', USA' : 'United States';
+    }
+    return N.countryName(p.birthCountry);
   }
 
   function pathwayLabel(p) {
