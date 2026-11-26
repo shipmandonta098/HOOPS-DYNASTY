@@ -153,27 +153,11 @@
   .pp-portrait { width: 56px; height: 56px; }
 }
 
-/* Desktop: a panel docked to the right edge instead of a centered column.
-   The game stays visible (dimmed) on the left; clicking it closes the
-   profile. Phones and tablets keep the full-screen layout above. */
+/* Desktop: still full screen, with the content aligned to the left edge
+   instead of a centered column. */
 @media (min-width: 1024px) {
-  .pp-dialog {
-    inset: 0 0 0 auto;
-    width: clamp(600px, 58vw, 900px);
-    border-left: 1px solid var(--border);
-    box-shadow: var(--shadow);
-  }
-  .pp-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
-  .pp-dialog[open] { animation: pp-slide-in 220ms var(--ease-out); }
-  .pp-head-body, .pp-section { max-width: none; margin-left: 0; margin-right: 0; }
-  .pp-head-body { padding: 26px 72px 22px 32px; }
-  .pp-section { padding: 22px 32px 32px; }
+  .pp-head-body, .pp-section { max-width: 1040px; margin-left: 0; margin-right: 0; }
+  .pp-head-body { padding: 26px 32px 22px 40px; }
+  .pp-section { padding: 22px 32px 32px 40px; }
   .pp-row { grid-template-columns: 11rem minmax(0, 1fr); }
-}
-@keyframes pp-slide-in {
-  from { transform: translateX(48px); opacity: 0; }
-  to   { transform: none; opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pp-dialog[open] { animation: none; }
 }
