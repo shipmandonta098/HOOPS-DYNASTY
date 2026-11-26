@@ -71,7 +71,33 @@
     IT: v(['#009246', '#fff', '#CE2B37']),
     SN: v(['#00853F', '#FDEF42', '#E31B23']) + star(15, 10, 2.6, '#00853F'),
     FI: '<rect width="30" height="20" fill="#fff"/><path d="M8 0h5v20H8zM0 7.5h30v5H0z" fill="#002F6C"/>',
-    ME: '<rect width="30" height="20" fill="#D3AE3B"/><rect x="1.2" y="1.2" width="27.6" height="17.6" fill="#C40308"/><circle cx="15" cy="10" r="3" fill="#D3AE3B"/>'
+    ME: '<rect width="30" height="20" fill="#D3AE3B"/><rect x="1.2" y="1.2" width="27.6" height="17.6" fill="#C40308"/><circle cx="15" cy="10" r="3" fill="#D3AE3B"/>',
+    GB: '<rect width="30" height="20" fill="#012169"/><path d="M0 0l30 20M30 0 0 20" stroke="#fff" stroke-width="4"/><path d="M0 0l30 20M30 0 0 20" stroke="#C8102E" stroke-width="1.6"/><path d="M15 0v20M0 10h30" stroke="#fff" stroke-width="6"/><path d="M15 0v20M0 10h30" stroke="#C8102E" stroke-width="3.4"/>',
+    SE: '<rect width="30" height="20" fill="#006AA7"/><path d="M8 0h4v20H8zM0 8h30v4H0z" fill="#FECC00"/>',
+    BE: v(['#000', '#FDDA24', '#EF3340']),
+    CH: '<rect width="30" height="20" fill="#DA291C"/><path d="M13.2 4.5h3.6v4h4v3.6h-4v4h-3.6v-4h-4V8.5h4z" fill="#fff"/>',
+    AT: h(['#C8102E', '#fff', '#C8102E']),
+    BA: '<rect width="30" height="20" fill="#002395"/><path d="M8 0h14v20Z" fill="#FECB00"/>' +
+      [[6, 2], [8.6, 6], [11.2, 10], [13.8, 14], [16.4, 18]].map(function (p) { return star(p[0], p[1], 1, '#fff'); }).join(''),
+    GE: '<rect width="30" height="20" fill="#fff"/><path d="M13 0h4v20h-4zM0 8h30v4H0z" fill="#FF0000"/><path d="M5.5 2.5h1.4v1.3h1.3v1.4H6.9v1.3H5.5V5.2H4.2V3.8h1.3zM23 2.5h1.4v1.3h1.3v1.4h-1.3v1.3H23V5.2h-1.3V3.8H23zM5.5 13.5h1.4v1.3h1.3v1.4H6.9v1.3H5.5v-1.3H4.2v-1.4h1.3zM23 13.5h1.4v1.3h1.3v1.4h-1.3v1.3H23v-1.3h-1.3v-1.4H23z" fill="#FF0000"/>',
+    SS: h(['#000', '#fff', '#DA121A', '#fff', '#078930'], [6, 1, 6, 1, 6]) + '<path d="M0 0 12 10 0 20Z" fill="#0F47AF"/>' + star(4.5, 10, 2.2, '#FCDD09'),
+    CD: '<rect width="30" height="20" fill="#007FFF"/><path d="M0 17 26 0h4v3L4 20H0Z" fill="#F7D618"/><path d="M0 18.5 28 0h2v1.5L2 20H0Z" fill="#CE1021"/>' + star(5, 4.5, 2.6, '#F7D618'),
+    AO: h(['#CC092F', '#000']) + '<path d="M13 7.5a4 4 0 1 1 1.6 6.5" fill="none" stroke="#FFCB00" stroke-width="1.2"/>' + star(16, 8.6, 1.1, '#FFCB00'),
+    CN: '<rect width="30" height="20" fill="#EE1C25"/>' + star(5, 5, 3, '#FFFF00') + star(10, 2, 1, '#FFFF00') + star(12, 4, 1, '#FFFF00') + star(12, 7, 1, '#FFFF00') + star(10, 9, 1, '#FFFF00'),
+    PH: h(['#0038A8', '#CE1126']) + '<path d="M0 0l15 10L0 20Z" fill="#fff"/><circle cx="5" cy="10" r="2" fill="#FCD116"/>' + star(1.6, 2.2, .8, '#FCD116') + star(1.6, 17.8, .8, '#FCD116') + star(12.2, 10, .8, '#FCD116'),
+    IL: '<rect width="30" height="20" fill="#fff"/><path d="M0 2h30v2.6H0zM0 15.4h30V18H0z" fill="#0038B8"/><path d="M15 6.2l3.3 5.7h-6.6ZM15 13.8l-3.3-5.7h6.6Z" fill="none" stroke="#0038B8" stroke-width=".9"/>',
+    NZ: '<rect width="30" height="20" fill="#012169"/><path d="M0 0l15 10M15 0L0 10" stroke="#fff" stroke-width="2"/><path d="M7.5 0v10M0 5h15" stroke="#fff" stroke-width="3.2"/><path d="M7.5 0v10M0 5h15" stroke="#C8102E" stroke-width="1.6"/>' +
+      [[22, 5], [25.5, 9], [19.5, 10], [22, 16]].map(function (p) { return star(p[0], p[1], 1.4, '#fff') + star(p[0], p[1], 1, '#C8102E'); }).join(''),
+    MX: v(['#006847', '#fff', '#CE1126']) + '<circle cx="15" cy="10" r="2.2" fill="#8C5A2B"/>',
+    PR: (function () {
+      var s2 = '';
+      for (var i = 0; i < 5; i++) s2 += '<rect y="' + (i * 4) + '" width="30" height="4.05" fill="' + (i % 2 ? '#fff' : '#ED0000') + '"/>';
+      return s2 + '<path d="M0 0l13 10L0 20Z" fill="#0050F0"/>' + star(4.5, 10, 2.2, '#fff');
+    })(),
+    JM: '<rect width="30" height="20" fill="#009B3A"/><path d="M0 0l15 10L0 20ZM30 0 15 10l15 10Z" fill="#000"/><path d="M0 0l30 20M30 0 0 20" stroke="#FED100" stroke-width="2.6"/>',
+    UA: h(['#0057B7', '#FFD700']),
+    PL: h(['#fff', '#DC143C']),
+    CZ: h(['#fff', '#D7141A']) + '<path d="M0 0l15 10L0 20Z" fill="#11457E"/>'
   };
 
   function svg(code) {

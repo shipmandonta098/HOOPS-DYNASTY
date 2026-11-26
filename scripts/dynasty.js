@@ -11,9 +11,9 @@
    - exportPayload() / parseExport() / exportFilename(): the JSON file format.
    - teamOverall(): the one place team strength is read from.
 
-   SAVE FORMAT (schemaVersion 5)
+   SAVE FORMAT (schemaVersion 7)
    {
-     schemaVersion: 5,
+     schemaVersion: 7,
      id,                         // permanent dynasty ID, never reused
      createdAt, updatedAt, lastPlayedAt,          // ISO timestamps
      league:   { name, foundedYear, conferences[{ id, name, teamIds[] }], teamIds[],
@@ -27,7 +27,9 @@
                colors{primary,secondary,tertiary}, marketSize, conference,
                overall, ratingSource, control: 'human' | 'cpu' }],
      owners:    [owner]                           // scripts/ownership.js
-     players:   [player]                          // scripts/roster.js + player-bio.js
+     players:   [player]       // roster.js (ratings) + player-identity.js (who they are)
+                               // + player-bio.js (weight, birthdate, experience)
+                               // + player-career.js (draft, debut, relatives)
      rosterHistory: [{ seasonYear, seasonLabel, archivedAt, players[], lineups{} }]
                                                   // end-of-season snapshots (newest last)
      lineups:   { teamId: { PG, SG, SF, PF, C } } // player ids
@@ -49,7 +51,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 5;
+  var SCHEMA_VERSION = 7;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -65,7 +67,10 @@
       stats: dep('HDStats', './stats.js'),
       finance: dep('HDFinance', './finance.js'),
       portraits: dep('HDPortraits', './portraits.js'),
-      playerBio: dep('HDPlayerBio', './player-bio.js')
+      playerBio: dep('HDPlayerBio', './player-bio.js'),
+      playerIdentity: dep('HDPlayerIdentity', './player-identity.js'),
+      nationalities: dep('HDNationalities', '../data/nationalities.js'),
+      playerCareer: dep('HDPlayerCareer', './player-career.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -358,9 +363,13 @@
       });
     }
 
-    // Biographical data (weight, birthdate, nationality, experience,
-    // college) for any player without it. Never overwrites.
+    // Identity (nationality, birthplace, college, pathway; names only for
+    // nameless players), then weight / birthdate / experience. Fills
+    // missing fields only; never overwrites.
+    x.playerIdentity.addMissing(save.players, save.id);
     x.playerBio.addBios(save.players, save.id, save.calendar.seasonYear);
+    // Draft, debut and relatives (needs bios: uses experience).
+    x.playerCareer.addCareers(save);
     if (!Array.isArray(save.rosterHistory)) save.rosterHistory = [];
 
     if (!Array.isArray(save.owners)) {
@@ -452,9 +461,25 @@
     // v4: players had no bio data and there was no roster history. Adds
     // both; existing player ratings, ages, teams and lineups are untouched.
     4: function (s) {
+      deps().playerIdentity.addMissing(s.players || [], s.id);
       deps().playerBio.addBios(s.players || [], s.id, s.calendar.seasonYear);
       if (!Array.isArray(s.rosterHistory)) s.rosterHistory = [];
       s.schemaVersion = 5;
+      return s;
+    },
+    // v5: players had no draft, debut or relatives. Added once; nothing
+    // else about any player changes (names are never altered).
+    5: function (s) {
+      deps().playerCareer.addCareers(s);
+      s.schemaVersion = 6;
+      return s;
+    },
+    // v6: identity data model (birthplace, secondary nationality, naming
+    // background, development pathway). Existing names, nationalities,
+    // colleges and ratings are kept exactly; only missing fields are added.
+    6: function (s) {
+      deps().playerIdentity.addMissing(s.players || [], s.id);
+      s.schemaVersion = 7;
       return s;
     }
   };
@@ -569,6 +594,21 @@
     return !!p && ['skin', 'hair', 'hairColor', 'attire'].every(function (k) { return isInt(p[k], 0, 31); });
   }
 
+  var PATHWAY_TYPES = ['ncaa', 'domestic-club', 'foreign-club', 'academy', 'pro-development', 'prep'];
+  function validIdentity(p) {
+    var Nat = deps().nationalities;
+    var pw = p.pathway;
+    return Nat.isValidCode(p.nationality) &&
+      (p.secondaryNationality === null || (Nat.isValidCode(p.secondaryNationality) && p.secondaryNationality !== p.nationality)) &&
+      Nat.isValidCode(p.birthCountry) && isText(p.birthCity, 80) && (p.birthRegion == null || isText(p.birthRegion, 60)) &&
+      (p.nameOrder === 'given-first' || p.nameOrder === 'surname-first') &&
+      (p.nameOrigin === null || (typeof p.nameOrigin === 'string' && p.nameOrigin.length <= 40)) &&
+      (p.suffix == null || isText(p.suffix, 8)) &&
+      !!pw && PATHWAY_TYPES.indexOf(pw.type) !== -1 && isInt(pw.entryAge, 15, 40) &&
+      ((pw.type === 'ncaa') === (typeof p.college === 'string')) &&
+      (pw.country == null || Nat.isValidCode(pw.country));
+  }
+
   // Owners, players, lineups, standings, stats, finances.
   function validateSystems(d, teams, req) {
     var teamIds = {};
@@ -601,8 +641,15 @@
           isInt(p.age, 15, 50) && isInt(p.overall, 0, 100) && isInt(p.jerseyNumber, 0, 99) && validPortrait(p.portrait);
         req(ok, 'Invalid player record.');
         req(p && isInt(p.weightLb, 120, 400) && typeof p.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.birthDate) &&
-          typeof p.nationality === 'string' && /^[A-Z]{2}$/.test(p.nationality) && isInt(p.experience, 0, 30) &&
-          (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
+          isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
+        req(p && validIdentity(p), 'Invalid player identity.');
+        var dr = p && p.draft;
+        req(dr && isInt(dr.year, 1000, 9999) && (dr.undrafted === true ||
+          (isInt(dr.round, 1, 10) && isInt(dr.pick, 1, 60) && isInt(dr.overall, 1, 600) && isText(dr.teamName, 80))), 'Invalid draft record.');
+        req(p && (p.debut === null || (p.debut && /^\d{4}-\d{2}-\d{2}$/.test(p.debut.date) && isText(p.debut.teamName, 80) && isText(p.debut.opponentName, 80))), 'Invalid debut record.');
+        req(p && Array.isArray(p.relatives) && p.relatives.length <= 10 && p.relatives.every(function (r) {
+          return r && isText(r.relation, 30) && isText(r.name, 80) && (r.playerId == null || typeof r.playerId === 'string');
+        }), 'Invalid relatives.');
         if (!p) return;
         seen[p.id] = true;
         (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p);

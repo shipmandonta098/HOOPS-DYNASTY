@@ -43,11 +43,15 @@
     return isNaN(t) ? '—' : bornFmt.format(new Date(t));
   }
 
-  function flag(code) {
-    var name = window.HDPlayerBio.countryName(code);
-    return el('span', { class: 'gs-country' }, [
-      el('span', { class: 'hd-flag', html: window.HDFlags.svg(code) }),
-      el('span', { text: name })
+  // Flag of the PRIMARY nationality; full names (incl. a second
+  // nationality) in the tooltip and accessible label.
+  function flag(p) {
+    var Bio = window.HDPlayerBio;
+    var name = Bio.countryName(p.nationality);
+    var full = name + (p.secondaryNationality ? ' (also ' + Bio.countryName(p.secondaryNationality) + ')' : '');
+    return el('span', { class: 'gs-country', title: full, 'aria-label': 'Nationality: ' + full }, [
+      el('span', { class: 'hd-flag', html: window.HDFlags.svg(p.nationality) }),
+      el('span', { 'aria-hidden': 'true', text: name })
     ]);
   }
 
@@ -169,7 +173,9 @@
           el('th', { scope: 'row', class: 'gs-sticky' }, [el('span', { class: 'gs-player' }, [
             dom.portrait(p.portrait, { className: 'gs-player-portrait', jersey: jersey }),
             el('span', { class: 'gs-player-text' }, [
-              el('span', { class: 'gs-player-name', text: p.firstName + ' ' + p.lastName }),
+              el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': p.id,
+                'data-season': String(rosterView.seasonYear), 'aria-haspopup': 'dialog',
+                'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
               el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter ' + starter : ' · Bench') })
             ])
           ])]),
@@ -181,7 +187,7 @@
           el('td', { class: 'is-num', text: R.heightLabel(p.heightIn) }),
           el('td', { class: 'is-num', text: p.weightLb ? p.weightLb + ' lb' : '—' }),
           el('td', { class: 'is-num', title: p.experience === 0 ? 'Rookie' : p.experience + ' seasons', text: Bio.experienceLabel(p.experience) }),
-          el('td', null, [flag(p.nationality)]),
+          el('td', null, [flag(p)]),
           el('td', { class: p.college ? null : 'gs-muted-cell', title: p.college ? null : 'Did not play U.S. college basketball', text: p.college || '—' })
         ]);
       }))
@@ -288,6 +294,18 @@
     var exitBtn = $('[data-gs-exit]');
     var save = null;
     var active = 'dashboard';
+    var profile = window.HDPlayerProfile.init({ dialog: document.getElementById('player-profile') });
+
+    // Any player name anywhere in the game content opens their profile.
+    content.addEventListener('click', function (e) {
+      var trigger = e.target.closest('[data-player-id]');
+      if (!trigger || !save) return;
+      var season = trigger.getAttribute('data-season');
+      profile.open(save, trigger.getAttribute('data-player-id'), {
+        seasonYear: season ? Number(season) : null,
+        returnFocus: trigger
+      });
+    });
     var mobile = window.matchMedia('(max-width: 1023px)');
 
     // Nav items (built once)
@@ -364,6 +382,7 @@
     }
 
     function open(nextSave, sectionId) {
+      profile.close();
       save = nextSave;          // a fresh copy from storage: never shared between dynasties
       setDrawer(false);
       renderChrome();
@@ -371,6 +390,7 @@
     }
 
     function clear() {
+      profile.close();
       save = null;
       content.textContent = '';
     }
