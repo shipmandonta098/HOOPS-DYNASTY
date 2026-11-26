@@ -15,7 +15,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&display=swap">
   <link rel="stylesheet" href="styles/theme.css">
+  <link rel="stylesheet" href="styles/components.css">
   <link rel="stylesheet" href="styles/settings.css">
+  <link rel="stylesheet" href="styles/new-dynasty.css">
 
   <style>
   /* ==========================================================================
@@ -465,19 +467,19 @@
   <!-- ===== Settings screen =====
        Behaviour: scripts/settings.js. Styles: styles/settings.css.
        Shown/hidden by the screen router at the bottom of this file. -->
-  <section class="settings-screen" id="settings-screen" aria-labelledby="settings-title" hidden>
-    <div class="settings-bar">
-      <div class="settings-bar-inner">
-        <button class="hd-btn is-quiet settings-back" type="button" data-settings-back>
+  <section class="hd-screen settings-screen" id="settings-screen" aria-labelledby="settings-title" hidden>
+    <div class="hd-screen-bar">
+      <div class="hd-screen-bar-inner">
+        <button class="hd-btn is-quiet hd-back" type="button" data-settings-back>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
           Back
         </button>
       </div>
     </div>
 
-    <div class="settings-body">
-      <h1 class="settings-title" id="settings-title" tabindex="-1">Settings</h1>
-      <p class="settings-intro">Adjust how Hoops Dynasty looks on this device. Changes apply instantly and don’t affect your dynasty saves.</p>
+    <div class="hd-screen-body">
+      <h1 class="hd-screen-title" id="settings-title" tabindex="-1">Settings</h1>
+      <p class="hd-screen-intro">Adjust how Hoops Dynasty looks on this device. Changes apply instantly and don’t affect your dynasty saves.</p>
 
       <section class="settings-category hd-panel" aria-labelledby="display-settings-title">
         <h2 class="settings-category-title" id="display-settings-title">Display Settings</h2>
@@ -486,9 +488,9 @@
           <legend class="setting-label">Theme</legend>
           <p class="setting-desc">Choose the color scheme used across every screen.</p>
           <div class="theme-grid">
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="theme" value="original">
-              <span class="option-card theme-card">
+              <span class="hd-option-card theme-card">
                 <span class="theme-preview" data-theme="original" aria-hidden="true">
                   <span class="tp-court"></span>
                   <span class="tp-hoops"></span>
@@ -501,17 +503,17 @@
                   <span class="theme-text">
                     <span class="theme-name-row">
                       <span class="theme-name">Original</span>
-                      <span class="option-active">Active</span>
+                      <span class="hd-option-active">Active</span>
                     </span>
                     <span class="theme-desc">Black, crimson and off-white. The signature Hoops Dynasty look.</span>
                   </span>
-                  <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                  <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
                 </span>
               </span>
             </label>
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="theme" value="dark">
-              <span class="option-card theme-card">
+              <span class="hd-option-card theme-card">
                 <span class="theme-preview" data-theme="dark" aria-hidden="true">
                   <span class="tp-court"></span>
                   <span class="tp-hoops"></span>
@@ -524,17 +526,17 @@
                   <span class="theme-text">
                     <span class="theme-name-row">
                       <span class="theme-name">Dark</span>
-                      <span class="option-active">Active</span>
+                      <span class="hd-option-active">Active</span>
                     </span>
                     <span class="theme-desc">Softer charcoal and muted accents for long sessions.</span>
                   </span>
-                  <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                  <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
                 </span>
               </span>
             </label>
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="theme" value="light">
-              <span class="option-card theme-card">
+              <span class="hd-option-card theme-card">
                 <span class="theme-preview" data-theme="light" aria-hidden="true">
                   <span class="tp-court"></span>
                   <span class="tp-hoops"></span>
@@ -547,11 +549,11 @@
                   <span class="theme-text">
                     <span class="theme-name-row">
                       <span class="theme-name">Light</span>
-                      <span class="option-active">Active</span>
+                      <span class="hd-option-active">Active</span>
                     </span>
                     <span class="theme-desc">Light gray and white panels with dark type and crimson accents.</span>
                   </span>
-                  <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                  <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
                 </span>
               </span>
             </label>
@@ -562,48 +564,48 @@
           <legend class="setting-label">Text Size</legend>
           <p class="setting-desc">Scales menus, descriptions, player info, stats, tables and buttons. The Hoops Dynasty logo keeps its size.</p>
           <div class="size-grid">
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="text-size" value="small">
-              <span class="option-card size-card">
+              <span class="hd-option-card size-card">
                 <span class="size-sample" style="--sample-scale: 0.9" aria-hidden="true">Aa</span>
                 <span class="size-text">
                   <span class="size-name">Small</span>
                   <span class="size-pct">90%</span>
                 </span>
-                <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
               </span>
             </label>
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="text-size" value="medium">
-              <span class="option-card size-card">
+              <span class="hd-option-card size-card">
                 <span class="size-sample" style="--sample-scale: 1" aria-hidden="true">Aa</span>
                 <span class="size-text">
                   <span class="size-name">Medium</span>
                   <span class="size-pct">100%</span>
                 </span>
-                <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
               </span>
             </label>
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="text-size" value="large">
-              <span class="option-card size-card">
+              <span class="hd-option-card size-card">
                 <span class="size-sample" style="--sample-scale: 1.15" aria-hidden="true">Aa</span>
                 <span class="size-text">
                   <span class="size-name">Large</span>
                   <span class="size-pct">115%</span>
                 </span>
-                <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
               </span>
             </label>
-            <label class="option">
+            <label class="hd-option">
               <input class="hd-visually-hidden" type="radio" name="text-size" value="xlarge">
-              <span class="option-card size-card">
+              <span class="hd-option-card size-card">
                 <span class="size-sample" style="--sample-scale: 1.3" aria-hidden="true">Aa</span>
                 <span class="size-text">
                   <span class="size-name">Extra Large</span>
                   <span class="size-pct">130%</span>
                 </span>
-                <span class="option-indicator" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
+                <span class="hd-check" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>
               </span>
             </label>
           </div>
@@ -639,10 +641,166 @@
     </div>
   </section>
 
+
+  <!-- ===== New Dynasty wizard =====
+       Behaviour: scripts/new-dynasty.js. Styles: styles/new-dynasty.css.
+       Franchise data: data/franchises.js (rendered by JS, never hardcoded here). -->
+  <section class="hd-screen nd-screen" id="new-dynasty-screen" aria-label="New Dynasty" hidden>
+    <div class="hd-screen-bar">
+      <div class="hd-screen-bar-inner nd-bar">
+        <button class="hd-btn is-quiet hd-back" type="button" data-nd-back>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+          <span data-nd-back-label>Back</span>
+        </button>
+        <ol class="nd-progress" aria-label="New dynasty steps">
+          <li class="nd-progress-step" data-progress="1"><span class="nd-progress-num" aria-hidden="true">1</span><span class="nd-progress-label">League Setup</span></li>
+          <li class="nd-progress-step" data-progress="2"><span class="nd-progress-num" aria-hidden="true">2</span><span class="nd-progress-label">Select Franchise</span></li>
+          <li class="nd-progress-step" data-progress="3"><span class="nd-progress-num" aria-hidden="true">3</span><span class="nd-progress-label">Confirm Dynasty</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="hd-screen-body nd-body">
+
+      <!-- STEP 1 — League Setup -->
+      <form class="nd-step" data-step="1" novalidate autocomplete="off">
+        <p class="hd-eyebrow">Step 1 of 3</p>
+        <h1 class="hd-screen-title" tabindex="-1" data-step-title>League Setup</h1>
+        <p class="hd-screen-intro">Name your league, sign on as general manager and choose the year it all begins.</p>
+
+        <div class="nd-setup-grid">
+          <div class="hd-panel nd-panel">
+            <div class="hd-field">
+              <label class="hd-label" for="nd-league-name">League Name<span class="hd-required" aria-hidden="true">*</span></label>
+              <input class="hd-input" id="nd-league-name" name="leagueName" type="text" required
+                     maxlength="40" placeholder="e.g. National Hoops Association"
+                     aria-describedby="nd-league-name-error">
+              <p class="hd-error" id="nd-league-name-error" data-error-for="leagueName"></p>
+            </div>
+
+            <div class="hd-field">
+              <label class="hd-label" for="nd-gm-name">General Manager Name<span class="hd-required" aria-hidden="true">*</span></label>
+              <input class="hd-input" id="nd-gm-name" name="gmName" type="text" required
+                     maxlength="40" placeholder="Your name" autocomplete="name"
+                     aria-describedby="nd-gm-name-hint nd-gm-name-error">
+              <p class="hd-hint" id="nd-gm-name-hint">This is how you’ll be identified throughout your dynasty.</p>
+              <p class="hd-error" id="nd-gm-name-error" data-error-for="gmName"></p>
+            </div>
+
+            <div class="hd-field">
+              <label class="hd-label" for="nd-start-year">Starting Year<span class="hd-required" aria-hidden="true">*</span></label>
+              <div class="nd-year">
+                <button class="hd-btn is-icon" type="button" data-year-step="-1" aria-label="Previous year">&minus;</button>
+                <input class="hd-input nd-year-input" id="nd-start-year" name="startYear" type="text" required
+                       inputmode="numeric" pattern="[0-9]*" maxlength="4"
+                       aria-describedby="nd-season-label nd-year-hint nd-start-year-error">
+                <button class="hd-btn is-icon" type="button" data-year-step="1" aria-label="Next year">+</button>
+              </div>
+              <p class="nd-season" id="nd-season-label" aria-live="polite">Inaugural season <strong data-season-label>2026–27</strong></p>
+              <p class="hd-hint" id="nd-year-hint" data-year-hint></p>
+              <p class="hd-error" id="nd-start-year-error" data-error-for="startYear"></p>
+            </div>
+          </div>
+
+          <aside class="hd-panel nd-panel nd-structure" aria-labelledby="nd-structure-title">
+            <h2 class="hd-eyebrow" id="nd-structure-title">League Structure</h2>
+            <dl class="nd-structure-stats">
+              <div><dt>Franchises</dt><dd data-structure="teams">30</dd></div>
+              <div><dt>Conferences</dt><dd data-structure="conferences">2</dd></div>
+            </dl>
+            <ul class="nd-structure-list" data-structure="list"></ul>
+            <p class="hd-hint">You’ll control one franchise. The rest are run by CPU general managers.</p>
+          </aside>
+        </div>
+
+        <div class="nd-actions">
+          <button class="hd-btn is-primary is-large" type="submit">Continue</button>
+        </div>
+      </form>
+
+      <!-- STEP 2 — Select Franchise -->
+      <section class="nd-step" data-step="2" hidden>
+        <p class="hd-eyebrow">Step 2 of 3</p>
+        <h1 class="hd-screen-title" tabindex="-1" data-step-title>Select Franchise</h1>
+        <p class="hd-screen-intro">Choose the team you’ll build into a dynasty.</p>
+
+        <div class="nd-toolbar">
+          <fieldset class="hd-segmented nd-filter">
+            <legend class="hd-visually-hidden">Conference</legend>
+            <label><input type="radio" name="nd-conference" value="all" checked><span>All Teams</span></label>
+            <label><input type="radio" name="nd-conference" value="east"><span>East</span></label>
+            <label><input type="radio" name="nd-conference" value="west"><span>West</span></label>
+          </fieldset>
+          <div class="nd-search">
+            <label class="hd-visually-hidden" for="nd-search">Search franchises</label>
+            <input class="hd-input" id="nd-search" type="search" placeholder="Search city or team" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="nd-sort">
+            <label class="nd-sort-label" for="nd-sort">Sort</label>
+            <div class="hd-select-wrap">
+              <select class="hd-select" id="nd-sort">
+                <option value="city">City (A–Z)</option>
+                <option value="overall">Overall rating</option>
+                <option value="market">Market size</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <p class="nd-count" data-nd-count role="status" aria-live="polite"></p>
+
+        <div class="nd-team-head" aria-hidden="true">
+          <span></span><span>Franchise</span><span>Colors</span><span>Conf.</span><span>Market</span><span class="is-num">OVR</span><span></span>
+        </div>
+        <div class="nd-teams" role="radiogroup" aria-label="Franchises" data-nd-teams></div>
+        <p class="nd-empty" data-nd-empty hidden>No franchises match your search.</p>
+
+        <div class="nd-selection" data-nd-selection>
+          <div class="nd-selection-info" aria-live="polite" data-nd-selection-info></div>
+          <button class="hd-btn is-primary is-large" type="button" data-nd-next-2 disabled>Continue</button>
+        </div>
+      </section>
+
+      <!-- STEP 3 — Confirm Dynasty -->
+      <section class="nd-step" data-step="3" hidden>
+        <p class="hd-eyebrow">Step 3 of 3</p>
+        <h1 class="hd-screen-title" tabindex="-1" data-step-title>Confirm Dynasty</h1>
+        <p class="hd-screen-intro">Review your choices. Use Back to change anything.</p>
+
+        <div class="hd-panel nd-review" data-nd-review></div>
+
+        <p class="hd-error nd-save-error" data-nd-save-error role="alert"></p>
+
+        <div class="nd-actions nd-actions-split">
+          <button class="hd-btn" type="button" data-nd-prev><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> Back</button>
+          <button class="hd-btn is-primary is-large" type="button" data-nd-begin>Begin Dynasty</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Overwrite confirmation (only shown when a dynasty already exists) -->
+    <dialog class="hd-dialog" data-nd-overwrite aria-labelledby="nd-overwrite-title" aria-describedby="nd-overwrite-text">
+      <form method="dialog">
+        <h2 class="hd-dialog-title" id="nd-overwrite-title">Replace current dynasty?</h2>
+        <p class="hd-dialog-text" id="nd-overwrite-text">
+          You already have a dynasty in progress<span data-nd-existing></span>. Beginning a new dynasty will replace it.
+        </p>
+        <div class="hd-dialog-actions">
+          <button class="hd-btn" value="cancel" autofocus>Keep Current</button>
+          <button class="hd-btn is-primary" value="replace">Replace Dynasty</button>
+        </div>
+      </form>
+    </dialog>
+  </section>
+
   <!-- Toast notifications (announced to screen readers) -->
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
+  <script src="data/franchises.js"></script>
+  <script src="scripts/dynasty.js"></script>
+  <script src="scripts/save-store.js"></script>
   <script src="scripts/settings.js"></script>
+  <script src="scripts/new-dynasty.js"></script>
   <script>
   (() => {
     'use strict';
@@ -671,13 +829,14 @@
 
     const toastRoot = $('#toasts');
 
-    function showToast(label) {
+    // "<LABEL> — <detail>"; detail defaults to the placeholder message.
+    function showToast(label, detail = 'coming soon') {
       while (toastRoot.children.length >= MAX_TOASTS) dismissToast(toastRoot.firstElementChild);
       const toast = document.createElement('div');
       toast.className = 'toast';
       const strong = document.createElement('strong');
       strong.textContent = label;                    // textContent keeps it injection-safe
-      toast.append(strong, document.createTextNode(' — coming soon'));
+      toast.append(strong, document.createTextNode(` — ${detail}`));
       toastRoot.appendChild(toast);
       setTimeout(() => dismissToast(toast), TOAST_DURATION_MS);
     }
@@ -698,10 +857,10 @@
 
     const ACTIONS = {
       'continue':     soon('Continue'),
-      'new-dynasty':  soon('New Dynasty'),
+      'new-dynasty':  ({ button }) => openScreen('new-dynasty', button, 1),
       'load-dynasty': soon('Load Dynasty'),
       'quick-game':   soon('Quick Game'),
-      'settings':     ({ button }) => openSettings(button),
+      'settings':     ({ button }) => openScreen('settings', button),
       'how-to-play':  soon('How to Play')
     };
 
@@ -766,12 +925,20 @@
       moveBar(focused || primary);
     }
 
-    function setupMenu() {
+    // Recompute the primary item (first visible, e.g. Continue once a save
+    // exists), stagger order and bar position. Safe to call any time.
+    function refreshMenu() {
+      setupContinue();
       const list = items();
+      primary?.classList.remove('is-primary');
       primary = list[0];
       primary.classList.add('is-primary');
       list.forEach((btn, i) => btn.style.setProperty('--i', i));
       moveBar(primary, true);
+    }
+
+    function setupMenu() {
+      refreshMenu();
 
       menu.addEventListener('pointerover', (e) => {
         const btn = e.target.closest('.menu-btn');
@@ -853,43 +1020,89 @@
        ---------------------------------------------------------------------- */
 
     const stage = $('.stage');
-    const settingsRoot = $('#settings-screen');
+    const SCREENS = {
+      'settings':    { root: $('#settings-screen'),    hash: '#settings' },
+      'new-dynasty': { root: $('#new-dynasty-screen'), hash: '#new-dynasty' }
+    };
     let returnFocus = null;
+    let wizard = null;
 
-    function showScreen(name) {
-      if (document.body.dataset.screen === name) return;
+    // `step` only applies to multi-step screens (the New Dynasty wizard).
+    function showScreen(name, step) {
       const isTitle = name === 'title';
+      const changed = document.body.dataset.screen !== name;
       document.body.dataset.screen = name;
       stage.inert = !isTitle;
-      settingsRoot.hidden = name !== 'settings';
+      for (const [key, screen] of Object.entries(SCREENS)) screen.root.hidden = key !== name;
 
       if (isTitle) {
+        if (!changed) return;
         // Text size may have changed while away: re-measure the bar.
         const btn = returnFocus && !returnFocus.hidden ? returnFocus : primary;
         moveBar(btn, true);
         btn.focus({ preventScroll: true });
-      } else {
-        settingsRoot.scrollTop = 0;
+      } else if (name === 'settings') {
+        if (!changed) return;
+        SCREENS.settings.root.scrollTop = 0;
         $('#settings-title').focus({ preventScroll: true });
+      } else if (name === 'new-dynasty') {
+        const shown = wizard.show(step || 1);
+        // Stepping forward past an incomplete step (e.g. browser Forward
+        // after a reset) lands on the first incomplete step instead.
+        if (shown !== (step || 1)) history.replaceState({ screen: name, step: shown }, '', SCREENS[name].hash);
       }
     }
 
-    function openSettings(fromButton) {
-      returnFocus = fromButton || menu.querySelector('[data-action="settings"]');
-      if (history.state?.screen !== 'settings') history.pushState({ screen: 'settings' }, '', '#settings');
-      showScreen('settings');
+    function openScreen(name, fromButton, step) {
+      returnFocus = fromButton || menu.querySelector(`[data-action="${name}"]`);
+      if (history.state?.screen !== name) history.pushState({ screen: name, step }, '', SCREENS[name].hash);
+      showScreen(name, step);
     }
 
-    function closeSettings() {
-      if (history.state?.screen === 'settings') history.back();   // popstate shows the title
+    // Back to the title (popstate does the actual switch when we own history).
+    function closeScreen() {
+      if (history.state?.screen && history.state.screen !== 'title') history.back();
       else showScreen('title');
     }
 
     window.addEventListener('popstate', () => {
-      showScreen(history.state?.screen === 'settings' ? 'settings' : 'title');
+      const state = history.state;
+      if (state && SCREENS[state.screen]) showScreen(state.screen, state.step);
+      else showScreen('title');
     });
 
-    window.HDSettings.init({ root: settingsRoot, onBack: closeSettings });
+    // A screen hash typed into the address bar (same page, no reload).
+    window.addEventListener('hashchange', () => {
+      const name = Object.keys(SCREENS).find((key) => SCREENS[key].hash === location.hash);
+      if (!name || history.state?.screen === name) return;   // our own navigation
+      history.replaceState({ screen: name, step: 1 }, '', SCREENS[name].hash);
+      showScreen(name, 1);
+    });
+
+    window.HDSettings.init({ root: SCREENS.settings.root, onBack: closeScreen });
+
+    wizard = window.HDNewDynasty.init({
+      root: SCREENS['new-dynasty'].root,
+      franchises: window.HDFranchises,
+      dynasty: window.HDDynasty,
+      store: window.HDSaveStore,
+      // Each step is its own history entry so device Back steps backwards.
+      navigate(step) {
+        history.pushState({ screen: 'new-dynasty', step }, '', SCREENS['new-dynasty'].hash);
+        showScreen('new-dynasty', step);
+      },
+      back: closeScreen,
+      onComplete(save) {
+        refreshMenu();                       // Continue now shows the new dynasty
+        returnFocus = primary;
+        showToast('Dynasty created', `${save.teamName} · ${save.season}`);
+        wizard.reset();
+        // Unwind the wizard's history entries back to the title.
+        const depth = history.state?.screen === 'new-dynasty' ? history.state.step || 1 : 0;
+        if (depth) history.go(-depth);
+        else showScreen('title');
+      }
+    });
 
     // Any preference change (this tab or another) can resize the menu text.
     window.HDPrefs.subscribe(() => moveBar(active, true));
@@ -899,14 +1112,14 @@
        INIT
        ---------------------------------------------------------------------- */
 
-    setupContinue();
     setupMenu();
     layoutCourt();
 
-    // Deep link / refresh on #settings: put the title underneath it in history.
-    if (location.hash === '#settings') {
+    // Deep link / refresh on a screen: put the title underneath it in history.
+    const linked = Object.keys(SCREENS).find((key) => SCREENS[key].hash === location.hash);
+    if (linked) {
       history.replaceState({ screen: 'title' }, '', location.pathname + location.search);
-      openSettings();
+      openScreen(linked, null, linked === 'new-dynasty' ? 1 : undefined);
     }
   })();
   </script>

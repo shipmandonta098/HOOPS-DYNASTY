@@ -1,0 +1,345 @@
+/* ==========================================================================
+   HOOPS DYNASTY — shared UI components
+   Built only on the tokens in styles/theme.css and rem-based type, so every
+   screen that uses them follows the player's theme and text size.
+
+     1. Screen shell      .hd-screen, .hd-screen-bar, .hd-screen-body, ...
+     2. Buttons           .hd-btn variants (base lives in theme.css)
+     3. Form fields       .hd-field, .hd-input, .hd-select, .hd-error, ...
+     4. Segmented control .hd-segmented
+     5. Option cards      .hd-option, .hd-option-card, .hd-check
+     6. Swatches          .hd-swatches
+     7. Dialog            .hd-dialog
+   ========================================================================== */
+
+/* 1. SCREEN SHELL ---------------------------------------------------------- */
+.hd-screen {
+  --screen-max: 880px;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--bg);
+  color: var(--text);
+  animation: hd-screen-in 220ms var(--ease-out);
+}
+.hd-screen[hidden] { display: none; }
+
+@keyframes hd-screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Sticky top bar so "Back" is always reachable */
+.hd-screen-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding:
+    max(env(safe-area-inset-top), 8px)
+    max(env(safe-area-inset-right), var(--gutter))
+    8px
+    max(env(safe-area-inset-left), var(--gutter));
+}
+.hd-screen-bar-inner {
+  max-width: var(--screen-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hd-back svg { width: 1em; height: 1em; flex: none; }
+
+.hd-screen-body {
+  max-width: var(--screen-max);
+  margin: 0 auto;
+  padding:
+    clamp(20px, 4vh, 40px)
+    max(env(safe-area-inset-right), var(--gutter))
+    max(env(safe-area-inset-bottom), 40px)
+    max(env(safe-area-inset-left), var(--gutter));
+}
+
+.hd-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.hd-screen-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.hd-screen-title::after {          /* echoes the crimson rule under the wordmark */
+  content: "";
+  display: block;
+  width: 48px;
+  height: 2px;
+  margin-top: 0.75rem;
+  background: var(--accent);
+}
+.hd-screen-intro {
+  margin: 0.9rem 0 0;
+  max-width: 40rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* 2. BUTTONS --------------------------------------------------------------- */
+.hd-btn.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.hd-btn.is-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.hd-btn.is-primary:active { background: var(--accent); }
+.hd-btn.is-large {
+  min-height: 52px;
+  padding: 0.75rem 1.75rem;
+  font-size: 0.875rem;
+}
+.hd-btn:disabled,
+.hd-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.hd-btn.is-primary:disabled:hover { background: var(--accent); border-color: var(--accent); }
+.hd-btn.is-icon {
+  min-width: var(--tap);
+  padding: 0;
+  font-size: 1.125rem;
+  letter-spacing: 0;
+}
+
+/* 3. FORM FIELDS ----------------------------------------------------------- */
+.hd-field { display: block; min-width: 0; }
+.hd-field + .hd-field { margin-top: 1.25rem; }
+
+.hd-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.hd-label .hd-required { color: var(--accent-text); margin-left: 0.15em; }
+
+.hd-input,
+.hd-select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  transition: border-color 120ms ease;
+}
+.hd-input::placeholder { color: var(--text-muted); opacity: 1; }
+.hd-input:hover,
+.hd-select:hover { border-color: var(--text-muted); }
+.hd-input:focus-visible,
+.hd-select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--text-muted);
+}
+.hd-input[aria-invalid="true"] { border-color: var(--accent-text); }
+/* Search fields: keep the native clear button, drop the extra styling */
+.hd-input[type="search"] { -webkit-appearance: none; appearance: none; }
+
+/* Native select with a theme-aware chevron */
+.hd-select-wrap { position: relative; min-width: 0; }
+.hd-select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2.2rem;
+  cursor: pointer;
+}
+.hd-select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 0.95rem;
+  top: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+.hd-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.hd-error {
+  margin: 0.4rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--accent-text);
+}
+.hd-error:empty { display: none; }
+
+/* 4. SEGMENTED CONTROL ----------------------------------------------------- */
+/* <fieldset class="hd-segmented"><label><input type="radio"><span>…</span></label>… */
+.hd-segmented {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  min-width: 0;
+}
+.hd-segmented label { position: relative; flex: 1 1 auto; min-width: 0; }
+.hd-segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.hd-segmented span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--tap) - 8px);
+  padding: 0.35rem 0.85rem;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.hd-segmented label:hover span { color: var(--text); }
+.hd-segmented input:checked + span { background: var(--accent); color: var(--on-accent); }
+.hd-segmented input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* 5. OPTION CARDS ---------------------------------------------------------- */
+/* <label class="hd-option"><input class="hd-visually-hidden" type="radio">
+     <span class="hd-option-card">… <span class="hd-check">✓</span></span></label> */
+.hd-option {
+  position: relative;
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+.hd-option-card {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+.hd-option:hover .hd-option-card { border-color: var(--border-strong); }
+.hd-option input:checked + .hd-option-card {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.hd-option input:focus-visible + .hd-option-card {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Selected indicator: radio-style ring, filled with a check when active */
+.hd-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.hd-check svg { width: 12px; height: 12px; opacity: 0; }
+.hd-option input:checked + .hd-option-card .hd-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.hd-option input:checked + .hd-option-card .hd-check svg { opacity: 1; }
+
+.hd-option-active {
+  display: none;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.hd-option input:checked + .hd-option-card .hd-option-active { display: inline; }
+
+/* 6. COLOR SWATCHES -------------------------------------------------------- */
+.hd-swatches { display: inline-flex; gap: 4px; flex: none; }
+.hd-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--swatch);
+  /* hairline so near-background colors still read on any theme */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 22%, transparent);
+}
+
+/* 7. DIALOG ---------------------------------------------------------------- */
+.hd-dialog {
+  width: min(460px, calc(100vw - 2 * var(--gutter)));
+  max-height: calc(100dvh - 2 * var(--gutter));
+  margin: auto;
+  padding: clamp(18px, 4vw, 28px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+.hd-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.hd-dialog-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.hd-dialog-text {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+.hd-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 1.5rem;
+}
