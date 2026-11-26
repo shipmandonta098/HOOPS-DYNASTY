@@ -33,7 +33,7 @@ const REQUIRED = ['firstName', 'lastName', 'nameOrder', 'nationality', 'birthCit
 const t0 = Date.now();
 for (let i = 0; i < LEAGUES; i++) {
   const team = F.FRANCHISES[i % F.FRANCHISES.length];
-  const d = D.createDynasty({ leagueName: 'Validation League', gmName: 'Validator', startYear: '2026', franchiseId: team.id }, F);
+  const d = D.createDynasty({ leagueName: 'Validation League', gmName: 'Validator', inauguralYear: '2027', franchiseId: team.id }, F);
   const v = D.validateDynasty(d);
   if (!v.valid) problems.push('League ' + i + ' failed validation: ' + v.errors.join('; '));
 

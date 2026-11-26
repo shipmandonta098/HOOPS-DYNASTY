@@ -66,12 +66,15 @@
     var inputs = {
       leagueName: $('#nd-league-name'),
       gmName: $('#nd-gm-name'),
-      startYear: $('#nd-start-year')
+      inauguralYear: $('#nd-start-year')
     };
     var submitted = false;   // live re-validation only after the first attempt
 
+    // The selected year is the year the inaugural season ENDS.
     $('[data-year-hint]').textContent =
-      'Any year from ' + RULES.minStartYear + ' to ' + RULES.maxStartYear + '.';
+      'The year your first season ends: ' + RULES.defaultInauguralYear + ' starts the ' +
+      window.HDSeason.fromInauguralYear(RULES.defaultInauguralYear).label + ' season. Any year from ' +
+      RULES.minInauguralYear + ' to ' + RULES.maxInauguralYear + '.';
 
     // League structure summary is computed from the data, not hardcoded.
     (function renderStructure() {
@@ -93,7 +96,7 @@
       return {
         leagueName: inputs.leagueName.value,
         gmName: inputs.gmName.value,
-        startYear: inputs.startYear.value
+        inauguralYear: inputs.inauguralYear.value
       };
     }
 
@@ -107,9 +110,11 @@
     }
 
     function updateSeasonLabel() {
-      var year = D.parseYear(inputs.startYear.value);
-      var ok = !isNaN(year) && year >= RULES.minStartYear && year <= RULES.maxStartYear;
-      $('[data-season-label]').textContent = ok ? D.seasonLabel(year) : '—';
+      var year = D.parseYear(inputs.inauguralYear.value);
+      var ok = !isNaN(year) && year >= RULES.minInauguralYear && year <= RULES.maxInauguralYear;
+      var season = ok ? window.HDSeason.fromInauguralYear(year) : null;
+      $('[data-season-label]').textContent = season ? season.label : '—';
+      $('[data-season-start]').textContent = season ? '· preseason begins ' + window.HDSeason.openingMonthLabel(season.startYear) : '';
     }
 
     function setupIsValid() {
@@ -118,10 +123,10 @@
 
     Object.keys(inputs).forEach(function (field) {
       inputs[field].addEventListener('input', function () {
-        if (field === 'startYear') {
+        if (field === 'inauguralYear') {
           // digits only, max 4
-          var digits = inputs.startYear.value.replace(/\D/g, '').slice(0, 4);
-          if (digits !== inputs.startYear.value) inputs.startYear.value = digits;
+          var digits = inputs.inauguralYear.value.replace(/\D/g, '').slice(0, 4);
+          if (digits !== inputs.inauguralYear.value) inputs.inauguralYear.value = digits;
           updateSeasonLabel();
         }
         if (submitted) showErrors(D.validateSetup(setupValues()).errors, field);
@@ -133,13 +138,13 @@
 
     $$('[data-year-step]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var year = D.parseYear(inputs.startYear.value);
-        if (isNaN(year)) year = RULES.defaultStartYear;
+        var year = D.parseYear(inputs.inauguralYear.value);
+        if (isNaN(year)) year = RULES.defaultInauguralYear;
         else year += Number(btn.getAttribute('data-year-step'));
-        year = Math.min(RULES.maxStartYear, Math.max(RULES.minStartYear, year));
-        inputs.startYear.value = String(year);
+        year = Math.min(RULES.maxInauguralYear, Math.max(RULES.minInauguralYear, year));
+        inputs.inauguralYear.value = String(year);
         updateSeasonLabel();
-        if (submitted) showErrors(D.validateSetup(setupValues()).errors, 'startYear');
+        if (submitted) showErrors(D.validateSetup(setupValues()).errors, 'inauguralYear');
       });
     });
 
@@ -493,7 +498,7 @@
       var details = [
         ['League', setup.leagueName],
         ['General Manager', setup.gmName],
-        ['Starting Season', D.seasonLabel(setup.startYear)],
+        ['Inaugural Season', window.HDSeason.fromInauguralYear(setup.inauguralYear).label],
         ['Conference', conf.name],
         ['Market Size', market.label],
         ['Team Overall', team.overall + ' · ' + F.ratingTier(team.overall)],
@@ -518,7 +523,7 @@
         dyn = D.createDynasty({
           leagueName: setup.leagueName,
           gmName: setup.gmName,
-          startYear: String(setup.startYear),
+          inauguralYear: String(setup.inauguralYear),
           franchiseId: selectedId,
           rules: rulesValues()
         }, F);
@@ -572,7 +577,7 @@
 
     function reset() {
       form.reset();
-      inputs.startYear.value = String(RULES.defaultStartYear);
+      inputs.inauguralYear.value = String(RULES.defaultInauguralYear);
       submitted = false;
       showErrors({});
       setRules(D.DEFAULT_RULES);

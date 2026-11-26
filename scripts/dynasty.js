@@ -70,15 +70,18 @@
       playerBio: dep('HDPlayerBio', './player-bio.js'),
       playerIdentity: dep('HDPlayerIdentity', './player-identity.js'),
       nationalities: dep('HDNationalities', '../data/nationalities.js'),
-      playerCareer: dep('HDPlayerCareer', './player-career.js')
+      playerCareer: dep('HDPlayerCareer', './player-career.js'),
+      season: dep('HDSeason', './season.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
 
+  // Setup limits. The player picks the INAUGURAL SEASON YEAR: the year the
+  // first season ENDS (2027 -> the 2026–27 season, preseason October 2026).
   var LEAGUE_RULES = Object.freeze({
-    defaultStartYear: 2026,
-    minStartYear: 1950,
-    maxStartYear: 2100,
+    defaultInauguralYear: 2027,
+    minInauguralYear: 1950,
+    maxInauguralYear: 2100,
     nameMinLength: 2,
     nameMaxLength: 40
   });
@@ -173,10 +176,9 @@
 
   /* --- Small helpers ------------------------------------------------------ */
 
-  // 2026 -> "2026–27" (en dash, like a printed season label)
-  function seasonLabel(year) {
-    year = Number(year);
-    return year + '–' + String((year + 1) % 100).padStart(2, '0');
+  // Season START year -> printed label: 2025 -> "2025–26" (scripts/season.js)
+  function seasonLabel(startYear) {
+    return deps().season.label(startYear);
   }
 
   function phaseLabel(phase) {
@@ -217,30 +219,31 @@
 
   function validateYear(value) {
     var text = String(value == null ? '' : value).trim();
-    if (!text) return 'Starting year is required.';
+    if (!text) return 'Inaugural season year is required.';
     var year = parseYear(text);
     if (isNaN(year)) return 'Enter a four-digit year.';
-    if (year < LEAGUE_RULES.minStartYear || year > LEAGUE_RULES.maxStartYear) {
-      return 'Choose a year from ' + LEAGUE_RULES.minStartYear + ' to ' + LEAGUE_RULES.maxStartYear + '.';
+    if (year < LEAGUE_RULES.minInauguralYear || year > LEAGUE_RULES.maxInauguralYear) {
+      return 'Choose a year from ' + LEAGUE_RULES.minInauguralYear + ' to ' + LEAGUE_RULES.maxInauguralYear + '.';
     }
     return null;
   }
 
-  // -> { valid, errors: { leagueName?, gmName?, startYear? }, values }
+  // input.inauguralYear = the year the first season ENDS.
+  // -> { valid, errors: { leagueName?, gmName?, inauguralYear? }, values }
   function validateSetup(input) {
     input = input || {};
     var errors = {};
     var e;
     if ((e = validateName(input.leagueName, 'League name'))) errors.leagueName = e;
     if ((e = validateName(input.gmName, 'General manager name'))) errors.gmName = e;
-    if ((e = validateYear(input.startYear))) errors.startYear = e;
+    if ((e = validateYear(input.inauguralYear))) errors.inauguralYear = e;
     return {
       valid: Object.keys(errors).length === 0,
       errors: errors,
       values: {
         leagueName: cleanName(input.leagueName),
         gmName: cleanName(input.gmName),
-        startYear: parseYear(input.startYear)
+        inauguralYear: parseYear(input.inauguralYear)
       }
     };
   }
@@ -255,7 +258,8 @@
 
   /**
    * Build a new dynasty.
-   * @param {object} setup       { leagueName, gmName, startYear, franchiseId }
+   * @param {object} setup       { leagueName, gmName, inauguralYear, franchiseId, rules }
+   *                              inauguralYear = year the first season ENDS
    * @param {object} franchises  the HDFranchises module
    * @param {Date}   [now]
    */
@@ -272,6 +276,8 @@
 
     var v = check.values;
     var stamp = now.toISOString();
+    // 2026 -> 2025–26: the dynasty starts in the preseason of October 2025.
+    var inaugural = deps().season.fromInauguralYear(v.inauguralYear);
     var ruleCheck = validateRules(setup.rules || DEFAULT_RULES);
     if (!ruleCheck.valid) throw new Error('Invalid league rules: ' + JSON.stringify(ruleCheck.errors));
 
@@ -303,7 +309,7 @@
       lastPlayedAt: stamp,
       league: {
         name: v.leagueName,
-        foundedYear: v.startYear,
+        foundedYear: inaugural.startYear,
         conferences: franchises.CONFERENCES.map(function (c) {
           return {
             id: c.id,
@@ -316,11 +322,11 @@
       },
       gm: { name: v.gmName, teamId: userTeam.id },
       calendar: {
-        startYear: v.startYear,
-        seasonYear: v.startYear,
-        seasonLabel: seasonLabel(v.startYear),
+        startYear: inaugural.startYear,          // first season's start year
+        seasonYear: inaugural.startYear,         // current season's start year
+        seasonLabel: inaugural.label,
         phase: 'preseason',
-        currentDate: defaultDate(v.startYear, 'preseason')
+        currentDate: defaultDate(inaugural.startYear, 'preseason')
       },
       userTeamId: userTeam.id,
       teams: teams
@@ -329,11 +335,15 @@
     return save;
   }
 
-  // First in-game date for a phase (ISO yyyy-mm-dd).
+  // First in-game date for a phase (ISO yyyy-mm-dd), season START year.
   function defaultDate(seasonYear, phase) {
-    var md = { 'preseason': '10-01', 'regular-season': '10-21', 'playoffs': '04-18', 'offseason': '07-01' }[phase] || '10-01';
-    var year = phase === 'playoffs' || phase === 'offseason' ? seasonYear + 1 : seasonYear;
-    return year + '-' + md;
+    return deps().season.phaseStartDate(seasonYear, phase);
+  }
+
+  // Calendar for the next season (2025–26 -> 2026–27). For the future
+  // season rollover; archive rosters with archiveRosters() first.
+  function nextSeasonCalendar(calendar) {
+    return deps().season.nextCalendar(calendar);
   }
 
   // Full conference name, e.g. "Western Conference".
@@ -867,6 +877,7 @@
     rosterFor: rosterFor,
     archiveRosters: archiveRosters,
     defaultDate: defaultDate,
+    nextSeasonCalendar: nextSeasonCalendar,
     summarize: summarize,
     exportFilename: exportFilename,
     exportPayload: exportPayload,
