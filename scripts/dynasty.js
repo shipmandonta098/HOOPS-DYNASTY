@@ -11,9 +11,9 @@
    - exportPayload() / parseExport() / exportFilename(): the JSON file format.
    - teamOverall(): the one place team strength is read from.
 
-   SAVE FORMAT (schemaVersion 4)
+   SAVE FORMAT (schemaVersion 5)
    {
-     schemaVersion: 4,
+     schemaVersion: 5,
      id,                         // permanent dynasty ID, never reused
      createdAt, updatedAt, lastPlayedAt,          // ISO timestamps
      league:   { name, foundedYear, conferences[{ id, name, teamIds[] }], teamIds[],
@@ -27,7 +27,9 @@
                colors{primary,secondary,tertiary}, marketSize, conference,
                overall, ratingSource, control: 'human' | 'cpu' }],
      owners:    [owner]                           // scripts/ownership.js
-     players:   [player]                          // scripts/roster.js
+     players:   [player]                          // scripts/roster.js + player-bio.js
+     rosterHistory: [{ seasonYear, seasonLabel, archivedAt, players[], lineups{} }]
+                                                  // end-of-season snapshots (newest last)
      lineups:   { teamId: { PG, SG, SF, PF, C } } // player ids
      standings: { teamId: { wins, losses, streak{type,count}, conferenceRank } }
      stats:     { season: { seasonYear, teams{}, players{} } }  // totals
@@ -47,7 +49,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 4;
+  var SCHEMA_VERSION = 5;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -62,7 +64,8 @@
       ownership: dep('HDOwnership', './ownership.js'),
       stats: dep('HDStats', './stats.js'),
       finance: dep('HDFinance', './finance.js'),
-      portraits: dep('HDPortraits', './portraits.js')
+      portraits: dep('HDPortraits', './portraits.js'),
+      playerBio: dep('HDPlayerBio', './player-bio.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -355,6 +358,11 @@
       });
     }
 
+    // Biographical data (weight, birthdate, nationality, experience,
+    // college) for any player without it. Never overwrites.
+    x.playerBio.addBios(save.players, save.id, save.calendar.seasonYear);
+    if (!Array.isArray(save.rosterHistory)) save.rosterHistory = [];
+
     if (!Array.isArray(save.owners)) {
       save.owners = save.teams.map(function (t) {
         var base = x.owners.byFranchise(t.franchiseId) || {
@@ -439,6 +447,14 @@
         luxuryTax: typeof cfg.luxuryTax === 'number' ? cfg.luxuryTax : DEFAULT_RULES.luxuryTax
       };
       s.schemaVersion = 4;
+      return s;
+    },
+    // v4: players had no bio data and there was no roster history. Adds
+    // both; existing player ratings, ages, teams and lineups are untouched.
+    4: function (s) {
+      deps().playerBio.addBios(s.players || [], s.id, s.calendar.seasonYear);
+      if (!Array.isArray(s.rosterHistory)) s.rosterHistory = [];
+      s.schemaVersion = 5;
       return s;
     }
   };
@@ -584,6 +600,9 @@
           isText(p.firstName, 40) && isText(p.lastName, 40) && POSITIONS.indexOf(p.position) !== -1 &&
           isInt(p.age, 15, 50) && isInt(p.overall, 0, 100) && isInt(p.jerseyNumber, 0, 99) && validPortrait(p.portrait);
         req(ok, 'Invalid player record.');
+        req(p && isInt(p.weightLb, 120, 400) && typeof p.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.birthDate) &&
+          typeof p.nationality === 'string' && /^[A-Z]{2}$/.test(p.nationality) && isInt(p.experience, 0, 30) &&
+          (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         if (!p) return;
         seen[p.id] = true;
         (byTeam[p.teamId] = byTeam[p.teamId] || []).push(p);
@@ -609,6 +628,9 @@
       return s && isInt(s.wins, 0, 200) && isInt(s.losses, 0, 200);
     }), 'Missing or invalid standings.');
 
+    req(Array.isArray(d.rosterHistory) && d.rosterHistory.every(function (h) {
+      return h && isInt(h.seasonYear, 1000, 9999) && Array.isArray(h.players) && h.lineups && typeof h.lineups === 'object';
+    }), 'Invalid roster history.');
     req(d.stats && d.stats.season && typeof d.stats.season.teams === 'object' && typeof d.stats.season.players === 'object', 'Missing statistics.');
     req(d.finances && d.finances.config && typeof d.finances.config.salaryCap === 'number' && d.finances.config.salaryCap > 0 &&
       typeof d.finances.config.luxuryTax === 'number' && d.finances.config.luxuryTax > 0, 'Missing financial configuration.');
@@ -624,6 +646,47 @@
 
   function teamRoster(d, teamId) {
     return (d.players || []).filter(function (p) { return p.teamId === teamId; });
+  }
+
+  /* --- Roster seasons ------------------------------------------------------ */
+
+  // Seasons with roster data, newest first: the current season plus any
+  // archived end-of-season snapshots.
+  function rosterSeasons(d) {
+    var list = [{ seasonYear: d.calendar.seasonYear, seasonLabel: d.calendar.seasonLabel, current: true }];
+    (d.rosterHistory || []).forEach(function (h) {
+      if (h.seasonYear !== d.calendar.seasonYear) list.push({ seasonYear: h.seasonYear, seasonLabel: h.seasonLabel || seasonLabel(h.seasonYear), current: false });
+    });
+    return list.sort(function (a, b) { return b.seasonYear - a.seasonYear; });
+  }
+
+  // -> { players[], lineup, current } for a team in a given season
+  function rosterFor(d, teamId, seasonYear) {
+    if (seasonYear == null || seasonYear === d.calendar.seasonYear) {
+      return { players: teamRoster(d, teamId), lineup: (d.lineups || {})[teamId] || {}, current: true };
+    }
+    var snap = (d.rosterHistory || []).filter(function (h) { return h.seasonYear === seasonYear; })[0];
+    if (!snap) return { players: [], lineup: {}, current: false };
+    return {
+      players: snap.players.filter(function (p) { return p.teamId === teamId; }),
+      lineup: snap.lineups[teamId] || {},
+      current: false
+    };
+  }
+
+  // Snapshot every roster as it stands (call at season rollover, before
+  // ages / contracts / transactions move on). Replaces an existing snapshot
+  // for the same season.
+  function archiveRosters(d, now) {
+    var snap = {
+      seasonYear: d.calendar.seasonYear,
+      seasonLabel: d.calendar.seasonLabel,
+      archivedAt: (now || new Date()).toISOString(),
+      players: clone(d.players),
+      lineups: clone(d.lineups)
+    };
+    d.rosterHistory = (d.rosterHistory || []).filter(function (h) { return h.seasonYear !== snap.seasonYear; }).concat([snap]);
+    return d;
   }
 
   function userTeam(d) {
@@ -753,6 +816,9 @@
     userTeam: userTeam,
     userOwner: userOwner,
     teamRoster: teamRoster,
+    rosterSeasons: rosterSeasons,
+    rosterFor: rosterFor,
+    archiveRosters: archiveRosters,
     defaultDate: defaultDate,
     summarize: summarize,
     exportFilename: exportFilename,
