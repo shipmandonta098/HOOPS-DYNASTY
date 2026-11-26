@@ -22,43 +22,41 @@
 .pp-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 
 .pp-dialog {
-  width: min(640px, calc(100vw - 2 * var(--gutter)));
+  /* Full screen on every device */
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   max-width: none;
-  max-height: calc(100dvh - 2 * var(--gutter));
-  margin: auto;
+  max-height: none;
+  margin: 0;
   padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
   color: var(--text);
-  box-shadow: var(--shadow);
   overflow: hidden;
 }
-.pp-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.pp-dialog::backdrop { background: var(--bg); }
 .pp-sheet {
   position: relative;
-  max-height: calc(100dvh - 2 * var(--gutter));
+  height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
-/* Phones: full-height sheet */
-@media (max-width: 559px) {
-  .pp-dialog {
-    width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    border: 0;
-    border-radius: 0;
-  }
-  .pp-sheet { max-height: 100dvh; height: 100%; }
-}
+/* Readable width on large screens; the header band stays full width */
+.pp-head { background: var(--surface); }
+.pp-head-body, .pp-section { max-width: 880px; margin-left: auto; margin-right: auto; }
 
+/* Stays put while the profile scrolls */
 .pp-close {
-  position: absolute;
-  top: max(env(safe-area-inset-top), 10px);
-  right: 10px;
-  z-index: 2;
+  position: fixed;
+  top: max(env(safe-area-inset-top), 12px);
+  right: max(env(safe-area-inset-right), 12px);
+  z-index: 3;
   background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--border);
 }
 
 /* Header */
