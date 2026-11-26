@@ -245,3 +245,5 @@
   background: var(--bg);
   border-top: 1px solid var(--border);
 }
+
+.le-list-actions-start { display: flex; flex-wrap: wrap; gap: 8px; }

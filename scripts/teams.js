@@ -30,6 +30,7 @@
     population: { min: 10000, max: 50000000 },
     capacity: { min: 1000, max: 100000 },
     minPerConference: 4,          // smallest playoff format takes 4 per conference
+    maxTeams: 50,
     logoUrlMax: 2048,
     logoDataMax: 400000           // characters of an uploaded image data URL
   });
@@ -41,7 +42,7 @@
     ['Buffalo', 1155000], ['Calgary', 1600000], ['Cincinnati', 2271000], ['Columbus', 2180000],
     ['Hartford', 1151000], ['Honolulu', 990000], ['Jacksonville', 1713000], ['Kansas City', 2221000],
     ['Las Vegas', 2337000], ['Louisville', 1366000], ['Mexico City', 21800000], ['Montreal', 4500000],
-    ['Nashville', 2103000], ['Omaha', 984000], ['Pittsburgh', 2423000], ['Raleigh', 1509000],
+    ['Nashville', 2103000], ['Omaha', 984000], ['Pittsburgh', 2423000], ['Providence', 1677000], ['Raleigh', 1509000],
     ['Richmond', 1349000], ['San Diego', 3270000], ['Seattle', 4045000], ['St. Louis', 2797000],
     ['Tampa', 3343000], ['Vancouver', 3000000], ['Virginia Beach', 1787000]
   ].map(function (c) { return { city: c[0], population: c[1] }; });
@@ -78,6 +79,60 @@
   }
 
   function defaultLeague() { return F.FRANCHISES.map(fromFranchise); }
+
+  /* --- expansion --------------------------------------------------------- */
+
+  // Expansion franchises not yet in `list`
+  function availableExpansion(list) {
+    var have = {};
+    (list || []).forEach(function (t) { have[t.id] = true; });
+    return F.EXPANSION.filter(function (f) { return !have[f.id]; });
+  }
+
+  // Teams in `list` that share a city with `team` (e.g. a second Oklahoma City club)
+  function sameMarket(team, list) {
+    var city = String(team.city).trim().toLowerCase();
+    return (list || []).filter(function (t) { return t.id !== team.id && String(t.city).trim().toLowerCase() === city; });
+  }
+
+  /**
+   * Editable copy of an expansion franchise, ready to add to `list`. If its
+   * abbreviation is already taken in this league, a unique one is suggested.
+   * @returns {{ team, errors }} errors = validateTeam() against `list`
+   */
+  function expansionTeam(id, list) {
+    var f = F.byId(id);
+    if (!f || F.EXPANSION.indexOf(f) === -1) return null;
+    var t = fromFranchise(f);
+    var taken = (list || []).some(function (o) { return String(o.abbreviation).toUpperCase() === t.abbreviation; });
+    if (taken) t.abbreviation = suggestAbbreviation(t.city, list, t.id);
+    return { team: t, errors: validateTeam(t, list) };
+  }
+
+  var customCounter = 0;
+  // A blank team for "Create a custom team" (generic logo, neutral colors)
+  function newCustomTeam(division) {
+    customCounter++;
+    var id = 'cx-' + Date.now().toString(36) + '-' + customCounter;
+    var div = F.division(division) || F.DIVISIONS[0];
+    return {
+      id: id,
+      franchiseId: id,
+      city: '',
+      name: '',
+      abbreviation: '',
+      division: div.id,
+      conference: div.conference,
+      population: 1000000,
+      marketSize: F.marketSizeFor(1000000),
+      arenaName: '',
+      arenaCapacity: 18000,
+      logo: 'assets/logos/custom.svg',
+      secondaryLogo: null,
+      colors: { primary: '#3A3D44', secondary: '#E8E8EA', tertiary: '#9A9DA5' },
+      overall: 60                 // expansion-level seed for roster generation
+    };
+  }
 
   function copy(t) {
     var c = {};
@@ -199,6 +254,7 @@
       var keys = Object.keys(e);
       if (keys.length) errors.push(fullName(t) + ': ' + e[keys[0]]);
     });
+    if (list.length > LIMITS.maxTeams) errors.push('A league can have at most ' + LIMITS.maxTeams + ' teams.');
     var need = Math.max(LIMITS.minPerConference, opts.minPerConference || 0);
     F.CONFERENCES.forEach(function (c) {
       var n = list.filter(function (t) { return normalize(t).conference === c.id; }).length;
@@ -221,6 +277,10 @@
     fullName: fullName,
     fromFranchise: fromFranchise,
     defaultLeague: defaultLeague,
+    availableExpansion: availableExpansion,
+    expansionTeam: expansionTeam,
+    newCustomTeam: newCustomTeam,
+    sameMarket: sameMarket,
     copy: copy,
     normalize: normalize,
     isLogoRef: isLogoRef,
