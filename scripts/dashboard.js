@@ -1,118 +1,229 @@
 /* ==========================================================================
-   HOOPS DYNASTY — Dynasty dashboard (landing screen for a loaded dynasty)
-   Renders ONLY from the loaded save object, so switching dynasties can
-   never show another dynasty's data. No simulation lives here yet.
+   HOOPS DYNASTY — GM Dashboard (default in-game section)
+   Pure render functions: everything is read from the active dynasty save.
+   Values that depend on systems that don't exist yet (games, contracts)
+   render as dashes with an explanation, never as invented numbers.
 
-   HDDashboard.init({ root, dynasty: HDDynasty, franchises: HDFranchises })
-     -> { render(save), clear(), currentId() }
+   HDDashboard.render(container, save, { go(sectionId) })
+   HDDashboard.panels: header / overview / lineup / teamStats / leaders /
+                       finances — reused by other sections
    ========================================================================== */
 (function () {
   'use strict';
 
-  function el(tag, attrs, children) {
-    var node = document.createElement(tag);
-    attrs = attrs || {};
-    Object.keys(attrs).forEach(function (key) {
-      var value = attrs[key];
-      if (value == null || value === false) return;
-      if (key === 'text') node.textContent = value;
-      else if (key === 'style') Object.keys(value).forEach(function (p) { node.style.setProperty(p, value[p]); });
-      else node.setAttribute(key, value === true ? '' : value);
-    });
-    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
-    return node;
+  var dom = window.HDDom;
+  var el = dom.el;
+
+  function D() { return window.HDDynasty; }
+
+  function ctxFor(save) {
+    var team = D().userTeam(save);
+    var conf = (save.league.conferences || []).filter(function (c) { return c.id === team.conference; })[0];
+    var market = window.HDFranchises.marketSize(team.marketSize);
+    var roster = D().teamRoster(save, team.id);
+    return {
+      team: team,
+      owner: D().userOwner(save),
+      conferenceName: conf ? conf.name : team.conference,
+      marketLabel: market ? market.label : team.marketSize,
+      roster: roster,
+      standing: save.standings[team.id],
+      jersey: { primary: team.colors.primary, secondary: team.colors.secondary }
+    };
   }
 
-  function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function panel(title, attrs, children, action) {
+    var id = 'db-' + title.toLowerCase().replace(/[^a-z]+/g, '-');
+    return el('section', Object.assign({ class: 'hd-panel db-panel', 'aria-labelledby': id }, attrs || {}), [
+      el('div', { class: 'db-panel-head' }, [
+        el('h2', { class: 'db-panel-title', id: id, text: title }),
+        action || null
+      ])
+    ].concat(children));
+  }
 
-  function init(options) {
-    var root = options.root;
-    var D = options.dynasty;
-    var F = options.franchises;
-    var content = root.querySelector('[data-db-content]');
-    var currentId = null;
+  function emptyNote(text) {
+    return el('p', { class: 'db-empty' }, [dom.icon('chart', 'db-empty-icon'), el('span', { text: text })]);
+  }
 
-    function render(save) {
-      currentId = save.id;
-      var team = D.userTeam(save);
-      var conf = (save.league.conferences || []).filter(function (c) { return c.id === team.conference; })[0];
-      var confName = conf ? conf.name : cap(team.conference);
-      var market = F && F.marketSize(team.marketSize);
-      var record = save.record.wins + '–' + save.record.losses;
-
-      content.textContent = '';
-      root.style.setProperty('--c1', team.colors.primary);
-      root.style.setProperty('--c2', team.colors.secondary);
-      root.style.setProperty('--c3', team.colors.tertiary);
-
-      // Hero
-      content.appendChild(el('section', { class: 'hd-panel db-hero', 'aria-labelledby': 'db-title' }, [
-        el('div', { class: 'hd-team-accent', 'aria-hidden': 'true' }, [el('span'), el('span'), el('span')]),
-        el('div', { class: 'db-hero-body' }, [
-          el('img', { class: 'db-logo', src: team.logo, alt: team.fullName + ' logo', width: 96, height: 96 }),
-          el('div', { class: 'db-ident' }, [
-            el('p', { class: 'hd-eyebrow', text: save.league.name }),
-            el('h1', { class: 'db-title', id: 'db-title', tabindex: '-1', text: team.fullName }),
-            el('p', { class: 'db-gm', text: 'General Manager · ' + save.gm.name }),
-            el('div', { class: 'db-chips' }, [
-              el('span', { class: 'db-chip', text: save.calendar.seasonLabel + ' Season' }),
-              el('span', { class: 'db-chip is-phase', text: D.phaseLabel(save.calendar.phase) })
-            ])
-          ]),
-          el('div', { class: 'db-stats' }, [
-            el('div', { class: 'db-stat' }, [el('span', { class: 'db-stat-num', text: record }), el('span', { class: 'db-stat-label', text: 'Record' })]),
-            el('div', { class: 'db-stat' }, [el('span', { class: 'db-stat-num', text: String(D.teamOverall(team)) }), el('span', { class: 'db-stat-label', text: 'OVR' })])
+  /* --- Franchise header ------------------------------------------------ */
+  function header(save, c) {
+    var team = c.team;
+    var swatches = el('span', { class: 'hd-swatches db-swatches', role: 'img',
+      'aria-label': 'Team colors ' + team.colors.primary + ', ' + team.colors.secondary + ', ' + team.colors.tertiary },
+      ['primary', 'secondary', 'tertiary'].map(function (k) { return el('span', { class: 'hd-swatch', style: { '--swatch': dom.hex(team.colors[k]) } }); }));
+    return el('section', { class: 'hd-panel db-header', 'aria-labelledby': 'db-title' }, [
+      el('div', { class: 'hd-team-accent', 'aria-hidden': 'true' }, [el('span'), el('span'), el('span')]),
+      el('div', { class: 'db-header-body' }, [
+        el('img', { class: 'db-logo', src: team.logo, alt: team.fullName + ' logo', width: 84, height: 84 }),
+        el('div', { class: 'db-ident' }, [
+          el('p', { class: 'hd-eyebrow db-league', text: save.league.name }),
+          el('h1', { class: 'db-title', id: 'db-title', tabindex: '-1', text: team.fullName }),
+          el('ul', { class: 'db-meta' }, [
+            el('li', null, [el('span', { class: 'db-meta-k', text: 'GM' }), el('span', { text: save.gm.name })]),
+            el('li', null, [el('span', { class: 'db-meta-k', text: 'Conf' }), el('span', { text: c.conferenceName })]),
+            el('li', null, [el('span', { class: 'db-meta-k', text: 'Market' }), el('span', { text: c.marketLabel })]),
+            el('li', null, [swatches])
           ])
+        ]),
+        el('div', { class: 'db-when' }, [
+          el('p', { class: 'db-date' }, [dom.icon('calendar'), el('time', { datetime: save.calendar.currentDate, text: dom.gameDate(save.calendar.currentDate) })]),
+          el('p', { class: 'db-season', text: save.calendar.seasonLabel + ' · ' + D().phaseLabel(save.calendar.phase) })
         ])
-      ]));
-
-      // Season overview
-      var facts = [
-        ['Season', save.calendar.seasonLabel],
-        ['League Phase', D.phaseLabel(save.calendar.phase)],
-        ['Record', record],
-        ['Conference', confName],
-        ['Market Size', market ? market.label : cap(team.marketSize)],
-        ['League Founded', String(save.league.foundedYear)]
-      ];
-      var overview = el('section', { class: 'hd-panel db-panel', 'aria-labelledby': 'db-overview-title' }, [
-        el('h2', { class: 'hd-eyebrow db-panel-title', id: 'db-overview-title', text: 'Season Overview' }),
-        el('dl', { class: 'db-facts' }, facts.map(function (f) {
-          return el('div', null, [el('dt', { text: f[0] }), el('dd', { text: f[1] })]);
-        }))
-      ]);
-
-      // Conference power ratings (from this save's teams only)
-      var confTeams = save.teams.filter(function (t) { return t.conference === team.conference; })
-        .sort(function (a, b) { return D.teamOverall(b) - D.teamOverall(a) || a.fullName.localeCompare(b.fullName); });
-      var ratings = el('ol', { class: 'db-ratings' }, confTeams.map(function (t, i) {
-        var isUser = t.id === team.id;
-        return el('li', { class: isUser ? 'is-user' : null, 'aria-current': isUser ? 'true' : null }, [
-          el('span', { class: 'db-rank', text: String(i + 1) }),
-          el('img', { src: t.logo, alt: '', width: 28, height: 28, loading: 'lazy' }),
-          el('span', { class: 'db-team' }, [
-            el('span', { text: t.fullName }),
-            isUser ? el('span', { class: 'db-you', text: 'Your team' }) : null
-          ]),
-          el('span', { class: 'db-ovr', text: String(D.teamOverall(t)) })
-        ]);
-      }));
-      var standings = el('section', { class: 'hd-panel db-panel', 'aria-labelledby': 'db-ratings-title' }, [
-        el('h2', { class: 'hd-eyebrow db-panel-title', id: 'db-ratings-title', text: confName + ' · Power Ratings' }),
-        ratings
-      ]);
-
-      content.appendChild(el('div', { class: 'db-grid' }, [overview, standings]));
-      content.appendChild(el('p', { class: 'db-note', text: 'Game simulation, rosters and the season schedule arrive in upcoming updates. Your dynasty is saved on this device.' }));
-    }
-
-    function clear() {
-      currentId = null;
-      content.textContent = '';
-    }
-
-    return { render: render, clear: clear, currentId: function () { return currentId; } };
+      ])
+    ]);
   }
 
-  window.HDDashboard = { init: init };
+  /* --- Overview cards -------------------------------------------------- */
+  function overview(save, c) {
+    var st = c.standing;
+    var gp = st.wins + st.losses;
+    var pct = gp ? (st.wins / gp) : null;
+    var streak = st.streak && st.streak.type && st.streak.count ? st.streak.type + st.streak.count : null;
+    var tierKey = window.HDOwnership.tierFor(D().teamOverall(c.team));
+    function card(label, value, sub, extra) {
+      return el('div', { class: 'db-card' }, [
+        el('span', { class: 'db-card-label', text: label }),
+        el('span', { class: 'db-card-value', text: value }),
+        sub ? el('span', { class: 'db-card-sub', text: sub }) : null,
+        extra || null
+      ]);
+    }
+    var conf = c.owner.confidence;
+    return el('section', { class: 'db-overview', 'aria-label': 'Team overview' }, [
+      card('Record', st.wins + '–' + st.losses, gp ? gp + ' games played' : 'No games played'),
+      card('Win %', pct == null ? '—' : pct.toFixed(3).replace(/^0/, ''), gp ? null : 'Season not started'),
+      card('Team Overall', String(D().teamOverall(c.team)), window.HDOwnership.TIERS[tierKey].label),
+      card('Conference', st.conferenceRank ? window.HDStats.ordinal(st.conferenceRank) : '—', st.conferenceRank ? c.conferenceName : 'Not yet ranked'),
+      card('Streak', streak || '—', streak ? null : 'No games played'),
+      card('Owner Confidence', String(conf), window.HDOwnership.confidenceLabel(conf),
+        el('span', { class: 'db-card-bar', 'aria-hidden': 'true' }, [el('span', { style: { width: conf + '%' } })]))
+    ]);
+  }
+
+  /* --- Starting lineup ------------------------------------------------- */
+  function lineup(save, c, go) {
+    var lu = save.lineups[c.team.id] || {};
+    var byId = {};
+    c.roster.forEach(function (p) { byId[p.id] = p; });
+    var rows = window.HDRoster.POSITIONS.map(function (pos) {
+      var p = byId[lu[pos]];
+      if (!p) return null;
+      return el('li', { class: 'db-player' }, [
+        el('span', { class: 'db-slot', text: pos }),
+        dom.portrait(p.portrait, { className: 'db-player-portrait', jersey: c.jersey }),
+        el('span', { class: 'db-jersey', text: '#' + p.jerseyNumber }),
+        el('span', { class: 'db-player-name' }, [
+          el('span', { class: 'db-player-full', text: p.firstName + ' ' + p.lastName }),
+          el('span', { class: 'db-player-sub', text: window.HDRoster.POSITION_NAMES[p.position] + ' · Age ' + p.age })
+        ]),
+        el('span', { class: 'db-ovr', 'aria-label': 'Overall ' + p.overall }, [el('strong', { text: String(p.overall) }), el('span', { text: 'OVR' })])
+      ]);
+    });
+    var more = go ? el('button', { class: 'hd-btn is-quiet db-link', type: 'button', text: 'Full Roster', on: { click: function () { go('roster'); } } }) : null;
+    return panel('Starting Lineup', null, [el('ol', { class: 'db-lineup' }, rows)], more);
+  }
+
+  /* --- Team statistics -------------------------------------------------- */
+  function teamStats(save, c) {
+    var S = window.HDStats;
+    var sum = S.teamSummary(save.stats && save.stats.season, c.team.id);
+    var table = el('table', { class: 'db-stats' }, [
+      el('thead', null, [el('tr', null, [
+        el('th', { scope: 'col', text: 'Category' }),
+        el('th', { scope: 'col', class: 'is-num', text: 'Value' }),
+        el('th', { scope: 'col', class: 'is-num', text: 'Rank' })
+      ])]),
+      el('tbody', null, sum.rows.map(function (r) {
+        return el('tr', null, [
+          el('th', { scope: 'row' }, [el('span', { text: r.label }), el('abbr', { class: 'db-stat-abbr', title: r.label, text: r.short })]),
+          el('td', { class: 'is-num', text: S.format(r.value, r.format) }),
+          el('td', { class: 'is-num db-rank', text: r.rank ? S.ordinal(r.rank) : '—' })
+        ]);
+      }))
+    ]);
+    return panel('Team Statistics', null, [
+      sum.gamesPlayed ? null : emptyNote('Statistics appear after your first game. League ranks are calculated once games have been played.'),
+      table
+    ]);
+  }
+
+  /* --- Team leaders ----------------------------------------------------- */
+  function leaders(save, c) {
+    var S = window.HDStats;
+    var rows = S.teamLeaders(save.stats && save.stats.season, c.roster);
+    var any = rows.some(function (r) { return r.player; });
+    var list = el('ul', { class: 'db-leaders' }, rows.map(function (r) {
+      var p = r.player;
+      return el('li', { class: 'db-leader' + (p ? '' : ' is-empty') }, [
+        p ? dom.portrait(p.portrait, { className: 'db-player-portrait', jersey: c.jersey }) : el('span', { class: 'db-portrait-empty', 'aria-hidden': 'true' }),
+        el('span', { class: 'db-player-name' }, [
+          el('span', { class: 'db-leader-cat', text: r.label + ' per game' }),
+          el('span', { class: 'db-player-full', text: p ? p.firstName + ' ' + p.lastName + ' · ' + p.position : 'No leader yet' })
+        ]),
+        el('span', { class: 'db-leader-value' }, [el('strong', { text: r.value == null ? '—' : r.value.toFixed(1) }), el('span', { text: r.short })])
+      ]);
+    }));
+    return panel('Team Leaders', null, [any ? null : emptyNote('Team leaders are determined from recorded player statistics once games are played.'), list]);
+  }
+
+  /* --- Finances ---------------------------------------------------------- */
+  function finances(save, c, opts) {
+    opts = opts || {};
+    var Fn = window.HDFinance;
+    var f = Fn.teamSummary(save.finances, c.roster);
+    var scaleMax = f.luxuryTax * 1.15;
+    var pctOf = function (v) { return Math.max(0, Math.min(100, (v / scaleMax) * 100)); };
+    var spending = c.owner.traits.spending;
+
+    var gauge = el('div', { class: 'db-gauge' + (f.payroll == null ? ' is-unavailable' : '') }, [
+      el('div', { class: 'db-gauge-track', role: 'img',
+        'aria-label': f.payroll == null
+          ? 'Payroll unavailable. Salary cap ' + Fn.money(f.salaryCap) + ', luxury tax ' + Fn.money(f.luxuryTax) + '.'
+          : 'Payroll ' + Fn.money(f.payroll) + ' against a ' + Fn.money(f.salaryCap) + ' cap and ' + Fn.money(f.luxuryTax) + ' tax line.' }, [
+        f.payroll == null ? null : el('span', { class: 'db-gauge-fill is-' + f.taxStatus, style: { width: pctOf(f.payroll) + '%' } }),
+        el('span', { class: 'db-gauge-mark', style: { left: pctOf(f.salaryCap) + '%' } }),
+        el('span', { class: 'db-gauge-mark is-tax', style: { left: pctOf(f.luxuryTax) + '%' } })
+      ]),
+      el('div', { class: 'db-gauge-labels', 'aria-hidden': 'true' }, [
+        el('span', { class: 'db-gauge-label', style: { left: pctOf(f.salaryCap) + '%' }, text: 'Cap' }),
+        el('span', { class: 'db-gauge-label is-tax', style: { left: pctOf(f.luxuryTax) + '%' }, text: 'Tax' })
+      ])
+    ]);
+
+    var rows = [
+      ['Team Payroll', Fn.money(f.payroll)],
+      ['Salary Cap', Fn.money(f.salaryCap)],
+      ['Cap Space', Fn.money(f.capSpace)],
+      ['Luxury Tax Threshold', Fn.money(f.luxuryTax)],
+      ['Luxury Tax Status', Fn.STATUS_LABELS[f.taxStatus]],
+      ['Estimated Tax Payment', f.taxStatus === 'taxpayer' ? Fn.money(f.taxBill) : (f.payroll == null ? '—' : 'None')],
+      ['Owner Spending', window.HDOwnership.spendingLabel(spending) + ' · ' + spending + '/100']
+    ];
+    return panel(opts.title || 'Team Finances', null, [
+      gauge,
+      f.payroll == null ? emptyNote('Payroll, cap space and tax figures are calculated from player contracts, which arrive in a future update. League thresholds are shown.') : null,
+      el('dl', { class: 'db-fin' }, rows.map(function (r) {
+        return el('div', null, [el('dt', { text: r[0] }), el('dd', { text: r[1] })]);
+      }))
+    ]);
+  }
+
+  function render(container, save, ctx) {
+    ctx = ctx || {};
+    var c = ctxFor(save);
+    container.textContent = '';
+    container.appendChild(header(save, c));
+    container.appendChild(overview(save, c));
+    container.appendChild(el('div', { class: 'db-columns' }, [
+      el('div', { class: 'db-col' }, [lineup(save, c, ctx.go), teamStats(save, c)]),
+      el('div', { class: 'db-col' }, [leaders(save, c), finances(save, c)])
+    ]));
+  }
+
+  window.HDDashboard = {
+    render: render,
+    context: ctxFor,
+    panels: { header: header, overview: overview, lineup: lineup, teamStats: teamStats, leaders: leaders, finances: finances, panel: panel, emptyNote: emptyNote }
+  };
 })();

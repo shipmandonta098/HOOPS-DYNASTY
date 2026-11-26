@@ -1,0 +1,138 @@
+/* ==========================================================================
+   HOOPS DYNASTY — Owner Welcome screen + shared ownership pieces
+   (meter, expectations, owner card are reused in the Owner section)
+   ========================================================================== */
+
+.ow-screen { --screen-max: 1000px; }
+
+/* Portrait container (shared) */
+.hd-portrait { display: inline-block; flex: none; overflow: hidden; border-radius: 50%; background: var(--surface-raised); }
+.hd-portrait svg { display: block; width: 100%; height: 100%; }
+
+/* --- Franchise header ---------------------------------------------------- */
+.ow-franchise {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.ow-logo { width: 72px; height: 72px; flex: none; }
+.ow-franchise-text { min-width: 0; }
+.ow-franchise .hd-eyebrow { margin-bottom: 0.25rem; overflow-wrap: anywhere; }
+.ow-title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: min(2rem, 7.6vw);
+  font-weight: 800;
+  line-height: 1.1;
+  overflow-wrap: break-word;
+  outline: none;
+}
+
+/* --- Letter -------------------------------------------------------------- */
+.ow-letter { margin-top: clamp(18px, 3vh, 28px); overflow: hidden; }
+.ow-letter-body {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: 20px 32px;
+  padding: clamp(18px, 3.5vw, 32px);
+}
+@media (max-width: 719px) {
+  .ow-letter-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+.ow-owner { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.ow-owner-portrait { width: 96px; height: 96px; border: 2px solid var(--c1, var(--border-strong)); }
+.ow-owner-text { min-width: 0; }
+.ow-owner-name { margin: 0; font-size: 1.125rem; font-weight: 800; overflow-wrap: anywhere; }
+.ow-owner-title { margin: 0.15rem 0 0.6rem; font-size: 0.8125rem; color: var(--text-muted); }
+.ow-chip {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+@media (max-width: 719px) {
+  .ow-owner { flex-direction: row; align-items: center; }
+  .ow-owner-portrait { width: 72px; height: 72px; }
+}
+
+.ow-message { min-width: 0; }
+.ow-message .hd-eyebrow { margin-bottom: 0.75rem; }
+.ow-message-text {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+.ow-signature { margin: 1rem 0 0; display: flex; flex-direction: column; gap: 2px; font-weight: 700; }
+.ow-signature-title { font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); }
+
+/* --- Expectations (shared) ---------------------------------------------- */
+.ow-expectations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.ow-exp {
+  min-width: 0;
+  padding: clamp(16px, 2.5vw, 22px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.ow-exp .hd-eyebrow { margin-bottom: 0.3rem; }
+.ow-exp-tier { margin: 0 0 0.75rem; font-size: 0.875rem; font-weight: 700; }
+.ow-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.55rem; }
+.ow-list li { display: flex; gap: 8px; align-items: flex-start; font-size: 0.875rem; line-height: 1.45; color: var(--text-soft); }
+.ow-list-icon { color: var(--accent-text); margin-top: 0.1em; }
+
+/* --- Confidence meter (shared) ------------------------------------------ */
+.ow-meter { min-width: 0; }
+.ow-meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.ow-meter-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ow-meter-value { font-size: 0.875rem; color: var(--text-muted); white-space: nowrap; }
+.ow-meter-value strong { font-family: var(--font-display); font-size: 1.75rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.ow-meter-track {
+  position: relative;
+  display: block;
+  height: 10px;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+.ow-meter-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 999px; }
+.ow-meter-mark { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.ow-meter-status { display: block; margin-top: 0.45rem; font-size: 0.8125rem; font-weight: 700; }
+
+/* --- Footer ------------------------------------------------------------ */
+.ow-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px 32px;
+  margin-top: 16px;
+  padding: clamp(16px, 3vw, 24px);
+}
+.ow-footer-action { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+@media (max-width: 639px) {
+  .ow-footer { grid-template-columns: minmax(0, 1fr); }
+  .ow-footer-action { align-items: stretch; }
+}
+
+/* Shared icon sizing */
+.hd-icon { display: inline-flex; flex: none; width: 1.15em; height: 1.15em; }
+.hd-icon svg { width: 100%; height: 100%; }

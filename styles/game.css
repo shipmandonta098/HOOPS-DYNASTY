@@ -1,0 +1,235 @@
+/* ==========================================================================
+   HOOPS DYNASTY — in-game shell (sidebar / drawer, top bar, sections)
+   Team colors arrive as --c1 / --c2 / --c3 on .gs-screen.
+   ========================================================================== */
+
+.gs-screen {
+  --nav-w: 248px;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: var(--nav-w) minmax(0, 1fr);
+  background: var(--bg);
+  color: var(--text);
+}
+.gs-screen[hidden] { display: none; }
+
+/* --- Sidebar ------------------------------------------------------------ */
+.gs-nav {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: max(env(safe-area-inset-top), 14px) 10px max(env(safe-area-inset-bottom), 14px) max(env(safe-area-inset-left), 10px);
+}
+.gs-nav-team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.gs-nav-team::after {        /* thin franchise stripe */
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--c1) 0 50%, var(--c2) 50% 80%, var(--c3) 80% 100%);
+}
+.gs-nav-team img { width: 40px; height: 40px; flex: none; }
+.gs-nav-team-text { display: flex; flex-direction: column; min-width: 0; }
+.gs-nav-team-name { font-size: 0.875rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.gs-nav-team-sub { font-size: 0.6875rem; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.gs-nav-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.gs-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+.gs-nav-item:hover { background: var(--surface-raised); color: var(--text); }
+.gs-nav-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.gs-nav-item[aria-current="page"] { background: var(--surface-raised); color: var(--text); font-weight: 700; }
+.gs-nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.gs-nav-item .hd-icon { width: 20px; height: 20px; }
+.gs-nav-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+.gs-nav-foot .gs-nav-item { color: var(--text-muted); }
+
+/* --- Main column -------------------------------------------------------- */
+.gs-main {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.gs-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: max(env(safe-area-inset-top), 8px) max(env(safe-area-inset-right), 24px) 8px 24px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.gs-menu-btn { display: none; }
+.gs-topbar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Simulation controls */
+.gs-sim { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.gs-sim-when { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; min-width: 0; }
+.gs-sim-date { font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
+.gs-sim-phase { font-size: 0.6875rem; letter-spacing: 0.08em; color: var(--text-muted); white-space: nowrap; }
+.gs-advance-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.gs-advance { min-height: 40px; padding: 0.4rem 1rem; }
+.gs-advance-note { font-size: 0.625rem; color: var(--text-muted); white-space: nowrap; }
+
+.gs-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px max(env(safe-area-inset-right), 24px) max(env(safe-area-inset-bottom), 40px) 24px;
+  outline: none;
+}
+
+/* --- Phones / tablets: drawer navigation -------------------------------- */
+@media (max-width: 1023px) {
+  .gs-screen { grid-template-columns: minmax(0, 1fr); }
+  .gs-nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 10;
+    width: min(300px, 86vw);
+    transform: translateX(-100%);
+    transition: transform 200ms var(--ease-out), visibility 0s 200ms;
+    visibility: hidden;
+    box-shadow: var(--shadow);
+  }
+  .gs-screen.is-nav-open .gs-nav { transform: none; visibility: visible; transition: transform 200ms var(--ease-out); }
+  .gs-scrim { position: fixed; inset: 0; z-index: 9; background: rgba(0, 0, 0, 0.5); }
+  .gs-scrim[hidden] { display: none; }
+  .gs-menu-btn { display: inline-flex; margin-left: -8px; }
+  .gs-topbar { padding-left: 16px; padding-right: max(env(safe-area-inset-right), 16px); }
+  .gs-content { padding: 16px max(env(safe-area-inset-right), 16px) max(env(safe-area-inset-bottom), 32px) 16px; }
+}
+@media (max-width: 599px) {
+  .gs-topbar { flex-wrap: wrap; row-gap: 6px; }
+  .gs-sim { width: 100%; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; order: 3; padding-bottom: 2px; }
+  /* Date block keeps a readable width; the button drops below it if needed */
+  .gs-sim-when { align-items: flex-start; flex: 1 1 8.5rem; }
+  .gs-sim-date, .gs-sim-phase { white-space: normal; }
+  .gs-advance { white-space: nowrap; min-height: var(--tap); }
+  /* The note stays available to screen readers via aria-describedby */
+  .gs-advance-note {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+@media (min-width: 1024px) {
+  .gs-scrim { display: none; }
+}
+
+/* --- Section scaffolding ----------------------------------------------- */
+.gs-section-head { margin-bottom: 18px; }
+.gs-section-head .hd-eyebrow { margin-bottom: 0.3rem; }
+.gs-section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: min(1.75rem, 7.4vw);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  outline: none;
+}
+.gs-section-sub { margin: 0.4rem 0 0; font-size: 0.875rem; color: var(--text-muted); }
+.gs-panel { padding: clamp(16px, 2.5vw, 22px); min-width: 0; }
+.gs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.gs-muted { margin: 0.9rem 0 0; font-size: 0.8125rem; color: var(--text-muted); }
+.gs-letter { margin-top: 16px; }
+.gs-letter p { margin: 0.5rem 0 0; line-height: 1.6; color: var(--text-soft); }
+
+/* Owner traits */
+.gs-traits { display: grid; gap: 12px; margin-top: 18px; }
+.gs-trait-head { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--text-soft); }
+.gs-trait-track { display: block; height: 6px; margin-top: 6px; border-radius: 999px; background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
+.gs-trait-track span { display: block; height: 100%; background: var(--text-soft); border-radius: 999px; }
+
+/* Roster table */
+.gs-table-wrap { overflow-x: auto; }
+.gs-roster { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.gs-roster th, .gs-roster td { padding: 0.55rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.gs-roster thead th {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.gs-roster .is-num { text-align: right; }
+.gs-roster tbody th { font-weight: 600; }
+.gs-roster tr.is-starter th { box-shadow: inset 3px 0 0 var(--accent); }
+.gs-player { display: flex; align-items: center; gap: 10px; }
+.gs-player-portrait { width: 36px; height: 36px; }
+.gs-player-text { display: flex; flex-direction: column; }
+.gs-player-name { font-weight: 700; }
+.gs-player-num { font-size: 0.6875rem; color: var(--text-muted); font-weight: 500; }
+.gs-ovr { font-weight: 800; }
+@media (max-width: 599px) {
+  .gs-col-ht, .gs-col-pot, .gs-col-role { display: none; }
+}
+
+/* Placeholders */
+.gs-placeholder { padding: clamp(28px, 6vw, 56px) 20px; text-align: center; border-style: dashed; }
+.gs-placeholder-icon { width: 40px; height: 40px; color: var(--text-muted); }
+.gs-placeholder-tag {
+  margin: 1rem 0 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.gs-placeholder-text { margin: 0.5rem auto 0; max-width: 30rem; font-size: 0.9375rem; line-height: 1.55; color: var(--text-soft); }

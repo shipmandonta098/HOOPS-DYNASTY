@@ -19,6 +19,8 @@
   <link rel="stylesheet" href="styles/settings.css">
   <link rel="stylesheet" href="styles/new-dynasty.css">
   <link rel="stylesheet" href="styles/load-dynasty.css">
+  <link rel="stylesheet" href="styles/owner-welcome.css">
+  <link rel="stylesheet" href="styles/game.css">
   <link rel="stylesheet" href="styles/dashboard.css">
 
   <style>
@@ -870,27 +872,81 @@
     </dialog>
   </section>
 
-  <!-- ===== Dynasty dashboard =====
-       Behaviour: scripts/dashboard.js. Styles: styles/dashboard.css. -->
-  <section class="hd-screen db-screen" id="dashboard-screen" aria-labelledby="db-title" hidden>
+  <!-- ===== Owner Welcome (first entry into a dynasty) =====
+       Behaviour: scripts/owner-welcome.js. Styles: styles/owner-welcome.css. -->
+  <section class="hd-screen ow-screen" id="owner-welcome-screen" aria-labelledby="ow-title" hidden>
     <div class="hd-screen-bar">
       <div class="hd-screen-bar-inner">
-        <button class="hd-btn is-quiet hd-back" type="button" data-db-back><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> Main Menu</button>
+        <button class="hd-btn is-quiet hd-back" type="button" data-ow-exit><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> Main Menu</button>
       </div>
     </div>
-    <div class="hd-screen-body" data-db-content></div>
+    <div class="hd-screen-body" data-ow-content></div>
+  </section>
+
+  <!-- ===== In-game shell: GM dashboard + sections =====
+       Behaviour: scripts/game-shell.js (+ dashboard.js). Styles: styles/game.css,
+       styles/dashboard.css. All content renders from the active dynasty save. -->
+  <section class="gs-screen" id="dashboard-screen" aria-label="Front office" hidden>
+    <nav class="gs-nav" id="gs-nav" aria-label="Front office sections">
+      <div class="gs-nav-team" data-gs-team></div>
+      <ul class="gs-nav-list" data-gs-nav-list></ul>
+      <div class="gs-nav-foot">
+        <button class="gs-nav-item" type="button" data-gs-exit>
+          <span class="hd-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5H4.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5H8M12.5 6.5 16 10l-3.5 3.5M16 10H7.5"/></svg></span>
+          <span>Save &amp; Exit</span>
+        </button>
+      </div>
+    </nav>
+    <div class="gs-scrim" data-gs-scrim hidden></div>
+
+    <div class="gs-main">
+      <header class="gs-topbar">
+        <button class="hd-btn is-quiet is-icon gs-menu-btn" type="button" data-gs-menu aria-controls="gs-nav" aria-expanded="false" aria-label="Open navigation">
+          <span class="hd-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></span>
+        </button>
+        <div class="gs-topbar-title" data-gs-section-label>Dashboard</div>
+
+        <!-- Simulation controls: structure in place; progression arrives with the season calendar -->
+        <div class="gs-sim" role="group" aria-label="Season calendar and simulation">
+          <div class="gs-sim-when">
+            <time class="gs-sim-date" data-gs-date></time>
+            <span class="gs-sim-phase" data-gs-phase></span>
+          </div>
+          <div class="gs-advance-wrap">
+            <button class="hd-btn is-primary gs-advance" type="button" disabled aria-describedby="gs-sim-note">
+              <span class="hd-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4.5v11l9-5.5Z"/></svg></span>
+              Advance Day
+            </button>
+            <span class="gs-advance-note" id="gs-sim-note">Simulation coming soon</span>
+          </div>
+        </div>
+      </header>
+      <div class="gs-content" data-gs-content></div>
+    </div>
   </section>
 
   <!-- Toast notifications (announced to screen readers) -->
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
+  <!-- Data + model (no DOM) -->
   <script src="data/franchises.js"></script>
+  <script src="data/owners.js"></script>
+  <script src="scripts/random.js"></script>
+  <script src="scripts/portraits.js"></script>
+  <script src="scripts/roster.js"></script>
+  <script src="scripts/ownership.js"></script>
+  <script src="scripts/stats.js"></script>
+  <script src="scripts/finance.js"></script>
   <script src="scripts/dynasty.js"></script>
   <script src="scripts/save-manager.js"></script>
+  <!-- Screens -->
+  <script src="scripts/dom.js"></script>
   <script src="scripts/settings.js"></script>
   <script src="scripts/new-dynasty.js"></script>
   <script src="scripts/load-dynasty.js"></script>
+  <script src="scripts/owner-welcome.js"></script>
   <script src="scripts/dashboard.js"></script>
+  <script src="scripts/game-shell.js"></script>
   <script>
   (() => {
     'use strict';
@@ -1105,13 +1161,16 @@
       'settings':     { root: $('#settings-screen'),     hash: '#settings' },
       'new-dynasty':  { root: $('#new-dynasty-screen'),  hash: '#new-dynasty' },
       'load-dynasty': { root: $('#load-dynasty-screen'), hash: '#load-dynasty' },
+      'owner-welcome': { root: $('#owner-welcome-screen'), hash: '#welcome' },
       'dashboard':    { root: $('#dashboard-screen'),    hash: '#dashboard' }
     };
+    const DYNASTY_SCREENS = ['owner-welcome', 'dashboard'];   // carry a dynasty id in history
     const TITLE_URL = location.pathname + location.search;
     let returnFocus = null;
     let wizard = null;
     let loadScreen = null;
-    let dashboard = null;
+    let game = null;
+    let welcome = null;
     let afterUnwind = null;     // runs on the popstate that ends a history.go()
 
     // `step` only applies to multi-step screens (the New Dynasty wizard).
@@ -1133,11 +1192,11 @@
         // Stepping forward past an incomplete step (e.g. browser Forward
         // after a reset) lands on the first incomplete step instead.
         if (shown !== (step || 1)) history.replaceState({ screen: name, step: shown }, '', SCREENS[name].hash);
-      } else if (changed) {
+      } else if (changed && name !== 'dashboard') {     // the game shell manages its own focus
         const root = SCREENS[name].root;
         root.scrollTop = 0;
         if (name === 'load-dynasty') loadScreen.refresh();
-        const title = root.querySelector('#settings-title, #ld-title, #db-title');
+        const title = root.querySelector('#settings-title, #ld-title, #ow-title');
         if (title) title.focus({ preventScroll: true });
       }
     }
@@ -1154,26 +1213,39 @@
       else showScreen('title');
     }
 
-    /* --- Dynasty loading ------------------------------------------------- */
+    /* --- Entering a dynasty ---------------------------------------------- */
 
-    // Show a loaded save on the dashboard. `replace` swaps out the current
-    // history entry (e.g. the Load screen) so Back from the dashboard goes
-    // to the title screen.
-    function openDashboard(save, { replace = false } = {}) {
-      dashboard.render(save);
-      const state = { screen: 'dashboard', id: save.id };
-      if (replace) history.replaceState(state, '', SCREENS.dashboard.hash);
-      else history.pushState(state, '', SCREENS.dashboard.hash);
-      const wasDashboard = document.body.dataset.screen === 'dashboard';
-      showScreen('dashboard');
-      if (wasDashboard) { SCREENS.dashboard.root.scrollTop = 0; $('#db-title').focus({ preventScroll: true }); }
+    // Every way into a dynasty goes through here: the owner introduction
+    // first if it hasn't been completed, otherwise the GM dashboard.
+    // `replace` swaps the current history entry (Load screen, welcome) so
+    // Back from inside a dynasty returns to the title screen.
+    function enterDynasty(save, { replace = false, section = 'dashboard' } = {}) {
+      const name = save.onboarding && save.onboarding.ownerIntroCompleted ? 'dashboard' : 'owner-welcome';
+      const state = name === 'dashboard' ? { screen: name, id: save.id, section } : { screen: name, id: save.id };
+      if (replace) history.replaceState(state, '', SCREENS[name].hash);
+      else history.pushState(state, '', SCREENS[name].hash);
+      showDynastyScreen(name, save, section);
+    }
+
+    function showDynastyScreen(name, save, section) {
+      const wasSame = document.body.dataset.screen === name;
+      if (name === 'dashboard') {
+        game.open(save, section || 'dashboard');
+      } else {
+        welcome.render(save);
+      }
+      showScreen(name);
+      if (wasSame && name === 'owner-welcome') {
+        SCREENS[name].root.scrollTop = 0;
+        $('#ow-title').focus({ preventScroll: true });
+      }
     }
 
     // Load by id: restores the full save, stamps last-played (persisted
-    // before anything is shown), then opens the dashboard.
+    // before anything is shown), then enters the dynasty.
     function loadDynasty(id, options = {}) {
       return window.HDSaves.markPlayed(id).then((save) => {
-        openDashboard(save, options);
+        enterDynasty(save, options);
         showToast('Dynasty loaded', `${window.HDDynasty.userTeam(save).fullName} · ${save.calendar.seasonLabel}`);
       });
     }
@@ -1184,13 +1256,19 @@
       loadDynasty(continueId).catch((err) => showToast('Couldn’t load dynasty', err.message));
     }
 
-    // Returning to a dashboard entry via Back/Forward: re-read that save.
-    function restoreDashboard(id) {
-      if (dashboard.currentId() === id) { showScreen('dashboard'); return; }
-      window.HDSaves.get(id).then((save) => {
-        if (!save) throw new Error('missing');
-        dashboard.render(save);
+    // Back/Forward onto a dynasty entry: re-read that save from storage and
+    // route by its onboarding state (never shows another dynasty's data).
+    function restoreDynasty(state) {
+      if (state.screen === 'dashboard' && game.currentId() === state.id) {
         showScreen('dashboard');
+        if (state.section && state.section !== game.currentSection()) game.show(state.section);
+        return;
+      }
+      window.HDSaves.get(state.id).then((save) => {
+        if (!save) throw new Error('missing');
+        const name = save.onboarding.ownerIntroCompleted ? 'dashboard' : 'owner-welcome';
+        if (name !== state.screen) history.replaceState(name === 'dashboard' ? { screen: name, id: save.id, section: 'dashboard' } : { screen: name, id: save.id }, '', SCREENS[name].hash);
+        showDynastyScreen(name, save, state.section);
       }).catch(() => {
         history.replaceState({ screen: 'title' }, '', TITLE_URL);
         showScreen('title');
@@ -1200,7 +1278,7 @@
     window.addEventListener('popstate', () => {
       if (afterUnwind) { const run = afterUnwind; afterUnwind = null; run(); return; }
       const state = history.state;
-      if (state?.screen === 'dashboard') restoreDashboard(state.id);
+      if (state && DYNASTY_SCREENS.includes(state.screen) && state.id) restoreDynasty(state);
       else if (state && SCREENS[state.screen]) showScreen(state.screen, state.step);
       else showScreen('title');
     });
@@ -1209,7 +1287,7 @@
     // push: keep the current entry (the title) underneath; otherwise replace
     // the entry the browser just created for the typed hash.
     function openFromHash(name, { push = false } = {}) {
-      if (name === 'dashboard') {
+      if (DYNASTY_SCREENS.includes(name)) {
         // No dynasty id in the URL: resume the most recently played one.
         window.HDSaves.mostRecent().then((recent) => {
           if (recent) return loadDynasty(recent.id, { replace: !push });
@@ -1230,12 +1308,38 @@
 
     window.HDSettings.init({ root: SCREENS.settings.root, onBack: closeScreen });
 
-    dashboard = window.HDDashboard.init({
-      root: SCREENS.dashboard.root,
-      dynasty: window.HDDynasty,
-      franchises: window.HDFranchises
+    welcome = window.HDOwnerWelcome.init({
+      root: SCREENS['owner-welcome'].root,
+      // Persist onboarding completion BEFORE entering the front office.
+      onEnter(save) {
+        const next = JSON.parse(JSON.stringify(save));
+        next.onboarding = { ownerIntroCompleted: true, completedAt: new Date().toISOString() };
+        return window.HDSaves.update(next)
+          .then(() => window.HDSaves.get(save.id))
+          .then((fresh) => enterDynasty(fresh, { replace: true }));
+      },
+      onExit: closeScreen
     });
-    $('[data-db-back]').addEventListener('click', closeScreen);
+
+    game = window.HDGameShell.init({
+      root: SCREENS.dashboard.root,
+      onSettings: () => openScreen('settings'),
+      onSectionChange(section) {
+        const st = history.state;
+        if (st && st.screen === 'dashboard' && st.section !== section) history.replaceState({ ...st, section }, '', SCREENS.dashboard.hash);
+      },
+      // Save & Exit: persist (fails loudly), then return to the title.
+      onExit(save) {
+        return window.HDSaves.update(save).then(() => {
+          showToast('Dynasty saved', window.HDDynasty.userTeam(save).fullName);
+          returnFocus = primary;
+          closeScreen();
+        }).catch((err) => {
+          showToast('Couldn’t save dynasty', err.message);
+          throw err;
+        });
+      }
+    });
 
     loadScreen = window.HDLoadScreen.init({
       root: SCREENS['load-dynasty'].root,
@@ -1265,7 +1369,7 @@
           // Opened from the title: push the dashboard above it. Opened from
           // another screen (Load): replace that entry.
           const onTitle = !history.state || !history.state.screen || history.state.screen === 'title';
-          openDashboard(save, { replace: !onTitle });
+          enterDynasty(save, { replace: !onTitle });     // -> Owner Welcome (new dynasty)
           showToast('Dynasty created', `${team.fullName} · ${save.calendar.seasonLabel}`);
         };
         // Unwind the wizard's history entries, then land on the dashboard.
@@ -1279,8 +1383,8 @@
     // dynasty can never stay on screen.
     window.HDSaves.subscribe((event) => {
       refreshMenu();
-      if (event.type === 'remove' && dashboard.currentId() === event.id) dashboard.clear();
-      if (event.type === 'import' && event.mode === 'replace' && dashboard.currentId() === event.id) dashboard.clear();
+      if (event.type === 'remove' && game.currentId() === event.id) game.clear();
+      if (event.type === 'import' && event.mode === 'replace' && game.currentId() === event.id) game.clear();
     });
 
     // Any preference change (this tab or another) can resize the menu text.
@@ -1298,7 +1402,7 @@
     const linked = Object.keys(SCREENS).find((key) => SCREENS[key].hash === location.hash);
     if (linked) {
       history.replaceState({ screen: 'title' }, '', TITLE_URL);
-      if (linked === 'dashboard') openFromHash('dashboard', { push: true });
+      if (DYNASTY_SCREENS.includes(linked)) openFromHash(linked, { push: true });
       else openScreen(linked, null, linked === 'new-dynasty' ? 1 : undefined);
     }
   })();
