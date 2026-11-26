@@ -268,7 +268,7 @@
     { id: 'front-office', label: 'Front Office', icon: 'office', render: placeholder('Front Office', 'office', 'Trades, free agency, the draft and staff management will live here.') },
     { id: 'finances', label: 'Finances', icon: 'finances', render: renderFinances },
     { id: 'owner', label: 'Owner', icon: 'owner', render: renderOwner },
-    { id: 'settings', label: 'Settings', icon: 'settings', action: 'settings' }
+    { id: 'settings', label: 'Settings', icon: 'settings', render: function (c, save, ctx) { window.HDGameSettings.render(c, save, ctx); } }
   ];
 
   function sectionById(id) {
@@ -332,7 +332,6 @@
       if (!btn) return;
       var s = SECTIONS.filter(function (x) { return x.id === btn.getAttribute('data-section'); })[0];
       setDrawer(false);
-      if (s.action === 'settings') { options.onSettings(); return; }
       show(s.id, true);
     });
 
@@ -368,7 +367,12 @@
       });
       $('[data-gs-section-label]').textContent = section.label;
       content.textContent = '';
-      section.render(content, save, { go: function (s) { show(s, true); } });
+      section.render(content, save, {
+        go: function (s) { show(s, true); },
+        // Settings saved a modified copy: adopt it and refresh the chrome
+        replaceSave: function (next) { save = next; renderChrome(); },
+        openAppSettings: function () { options.onSettings(); }
+      });
       main.scrollTop = 0;
       if (focus) {
         var h = content.querySelector('h1');
@@ -380,6 +384,10 @@
     function open(nextSave, sectionId) {
       profile.close();
       save = nextSave;          // a fresh copy from storage: never shared between dynasties
+      // Rule changes scheduled for a season that has now begun take effect.
+      if (D().applyPendingRules(save).length) {
+        window.HDSaves.update(save).catch(function () { /* saved again on exit */ });
+      }
       setDrawer(false);
       renderChrome();
       show(sectionId || 'dashboard', true);

@@ -58,6 +58,7 @@
     play: '<path d="M6 4.5v11l9-5.5Z"/>',
     calendar: '<rect x="3" y="4.5" width="14" height="12.5" rx="1.5"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4"/>',
     check: '<path d="m4.5 10.5 3.5 3.5 7.5-8"/>',
+    lock: '<rect x="4" y="9" width="12" height="8.5" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>',
     chart: '<path d="M3 16.5h14M5.5 13l3.5-4 3 2.5 4-6"/>'
   };
   function icon(name, className) {

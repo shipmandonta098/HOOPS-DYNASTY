@@ -228,7 +228,28 @@
     };
   }
 
+  /**
+   * Season length changed: rescale the owner's win-count objectives to the
+   * new number of games (other objectives and confidence are unchanged).
+   */
+  function rescaleWinTargets(owner, seasonGames) {
+    var tier = owner.expectations && owner.expectations.tier;
+    if (!TIERS[tier]) return owner;
+    var ctx = { seasonGames: seasonGames };
+    (owner.expectations.season || []).forEach(function (obj) {
+      if (!obj.metric || obj.metric.type !== 'wins') return;
+      if (obj.id === 'win-target') {
+        obj.metric.min = winTarget(tier, ctx);
+        obj.text = 'Win at least ' + obj.metric.min + ' games.';
+      } else if (obj.id === 'show-progress') {
+        obj.metric.min = winTarget(tier, ctx, 6);
+      }
+    });
+    return owner;
+  }
+
   return {
+    rescaleWinTargets: rescaleWinTargets,
     INITIAL_CONFIDENCE: INITIAL_CONFIDENCE,
     TIERS: TIERS,
     tierFor: tierFor,
