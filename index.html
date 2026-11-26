@@ -18,6 +18,8 @@
   <link rel="stylesheet" href="styles/components.css">
   <link rel="stylesheet" href="styles/settings.css">
   <link rel="stylesheet" href="styles/new-dynasty.css">
+  <link rel="stylesheet" href="styles/load-dynasty.css">
+  <link rel="stylesheet" href="styles/dashboard.css">
 
   <style>
   /* ==========================================================================
@@ -286,9 +288,10 @@
     opacity: 0.85;
     text-transform: uppercase;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
+    text-align: center;
+    white-space: normal;       /* wrap rather than truncate long franchise names */
+    overflow-wrap: anywhere;
   }
 
   /* 6. FOOTER + TOASTS ------------------------------------------------------ */
@@ -778,19 +781,104 @@
       </section>
     </div>
 
-    <!-- Overwrite confirmation (only shown when a dynasty already exists) -->
-    <dialog class="hd-dialog" data-nd-overwrite aria-labelledby="nd-overwrite-title" aria-describedby="nd-overwrite-text">
+  </section>
+
+
+  <!-- ===== Load Dynasty =====
+       Behaviour: scripts/load-dynasty.js. Styles: styles/load-dynasty.css.
+       Cards are rendered from HDSaves (scripts/save-manager.js). -->
+  <section class="hd-screen ld-screen" id="load-dynasty-screen" aria-labelledby="ld-title" hidden>
+    <div class="hd-screen-bar">
+      <div class="hd-screen-bar-inner">
+        <button class="hd-btn is-quiet hd-back" type="button" data-ld-back><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> Back</button>
+      </div>
+    </div>
+
+    <div class="hd-screen-body">
+      <h1 class="hd-screen-title" id="ld-title" tabindex="-1">Load Dynasty</h1>
+      <p class="hd-screen-intro">Every legacy has a story. Continue yours.</p>
+
+      <div class="ld-toolbar" data-ld-toolbar hidden>
+        <p class="ld-count" data-ld-count role="status" aria-live="polite"></p>
+        <div class="ld-tools">
+          <div class="ld-sort">
+            <label class="ld-sort-label" for="ld-sort">Sort</label>
+            <div class="hd-select-wrap">
+              <select class="hd-select" id="ld-sort">
+                <option value="recent">Most recently played</option>
+                <option value="created">Date created</option>
+                <option value="franchise">Franchise name</option>
+                <option value="league">League name</option>
+              </select>
+            </div>
+          </div>
+          <button class="hd-btn" type="button" data-ld-import><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 10.5v3h11v-3"/></svg> Import Dynasty</button>
+        </div>
+      </div>
+
+      <div class="ld-message" data-ld-message role="alert" hidden></div>
+
+      <div class="ld-grid" data-ld-list aria-label="Saved dynasties"></div>
+
+      <div class="ld-empty" data-ld-empty hidden>
+        <svg class="ld-empty-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 13a3 3 0 0 1 3-3h10l4 5h18a3 3 0 0 1 3 3v19a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z"/>
+          <path d="M5 21h38"/>
+        </svg>
+        <h2 class="ld-empty-title">No Saved Dynasties</h2>
+        <p class="ld-empty-text">Create a new dynasty or import an existing save to begin.</p>
+        <div class="ld-empty-actions">
+          <button class="hd-btn is-primary" type="button" data-ld-new>New Dynasty</button>
+          <button class="hd-btn" type="button" data-ld-import><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 10.5v3h11v-3"/></svg> Import Dynasty</button>
+        </div>
+      </div>
+
+      <!-- Not display:none, so programmatic .click() works on iOS Safari -->
+      <input class="ld-file" type="file" accept="application/json,.json" data-ld-file tabindex="-1" aria-hidden="true">
+    </div>
+
+    <dialog class="hd-dialog" data-ld-delete aria-labelledby="ld-delete-title" aria-describedby="ld-delete-text">
       <form method="dialog">
-        <h2 class="hd-dialog-title" id="nd-overwrite-title">Replace current dynasty?</h2>
-        <p class="hd-dialog-text" id="nd-overwrite-text">
-          You already have a dynasty in progress<span data-nd-existing></span>. Beginning a new dynasty will replace it.
-        </p>
+        <h2 class="hd-dialog-title" id="ld-delete-title">Delete Dynasty?</h2>
+        <div class="ld-dialog-subject">
+          <strong data-ld-delete-team></strong>
+          <span data-ld-delete-league></span>
+        </div>
+        <p class="hd-dialog-text" id="ld-delete-text">Are you sure you want to delete this dynasty? All progress associated with this save will be permanently lost. This action cannot be undone.</p>
+        <p class="hd-hint">If you’ve exported a backup of this save, you can import it again later.</p>
         <div class="hd-dialog-actions">
-          <button class="hd-btn" value="cancel" autofocus>Keep Current</button>
-          <button class="hd-btn is-primary" value="replace">Replace Dynasty</button>
+          <button class="hd-btn" value="cancel" autofocus>Cancel</button>
+          <button class="hd-btn is-solid-danger" value="delete">Delete Dynasty</button>
         </div>
       </form>
     </dialog>
+
+    <dialog class="hd-dialog" data-ld-duplicate aria-labelledby="ld-dup-title" aria-describedby="ld-dup-text">
+      <form method="dialog">
+        <h2 class="hd-dialog-title" id="ld-dup-title">Dynasty Already Saved</h2>
+        <div class="ld-dialog-subject">
+          <strong data-ld-dup-name></strong>
+          <span data-ld-dup-existing></span>
+        </div>
+        <p class="hd-dialog-text" id="ld-dup-text">This file is the same dynasty as one already on this device. Replace your saved copy with the file, or keep both by importing it as a separate dynasty.</p>
+        <div class="hd-dialog-actions ld-dialog-actions-stack">
+          <button class="hd-btn" value="cancel" autofocus>Cancel</button>
+          <button class="hd-btn" value="separate">Import as Separate Dynasty</button>
+          <button class="hd-btn is-solid-danger" value="replace">Replace Existing Save</button>
+        </div>
+      </form>
+    </dialog>
+  </section>
+
+  <!-- ===== Dynasty dashboard =====
+       Behaviour: scripts/dashboard.js. Styles: styles/dashboard.css. -->
+  <section class="hd-screen db-screen" id="dashboard-screen" aria-labelledby="db-title" hidden>
+    <div class="hd-screen-bar">
+      <div class="hd-screen-bar-inner">
+        <button class="hd-btn is-quiet hd-back" type="button" data-db-back><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg> Main Menu</button>
+      </div>
+    </div>
+    <div class="hd-screen-body" data-db-content></div>
   </section>
 
   <!-- Toast notifications (announced to screen readers) -->
@@ -798,9 +886,11 @@
 
   <script src="data/franchises.js"></script>
   <script src="scripts/dynasty.js"></script>
-  <script src="scripts/save-store.js"></script>
+  <script src="scripts/save-manager.js"></script>
   <script src="scripts/settings.js"></script>
   <script src="scripts/new-dynasty.js"></script>
+  <script src="scripts/load-dynasty.js"></script>
+  <script src="scripts/dashboard.js"></script>
   <script>
   (() => {
     'use strict';
@@ -808,11 +898,6 @@
     /* ----------------------------------------------------------------------
        CONFIG
        ---------------------------------------------------------------------- */
-
-    // localStorage key for the saved dynasty. "Continue" appears when this holds
-    // JSON like: { "teamName": "Chicago", "season": 3, "wins": 41, "losses": 22 }
-    // ("record": "41-22" also works instead of wins/losses).
-    const SAVE_KEY = 'hoopsDynasty.save';
 
     const TOAST_DURATION_MS = 2800;
     const MAX_TOASTS = 3;
@@ -831,7 +916,10 @@
 
     // "<LABEL> — <detail>"; detail defaults to the placeholder message.
     function showToast(label, detail = 'coming soon') {
-      while (toastRoot.children.length >= MAX_TOASTS) dismissToast(toastRoot.firstElementChild);
+      // Only count toasts that aren't already on their way out; leaving
+      // toasts stay in the DOM ~260ms, so counting them could loop forever.
+      const live = [...toastRoot.children].filter((t) => !t.classList.contains('leaving'));
+      while (live.length >= MAX_TOASTS) dismissToast(live.shift());
       const toast = document.createElement('div');
       toast.className = 'toast';
       const strong = document.createElement('strong');
@@ -856,9 +944,9 @@
     const soon = (label) => () => showToast(label);
 
     const ACTIONS = {
-      'continue':     soon('Continue'),
+      'continue':     ({ button }) => continueDynasty(button),
       'new-dynasty':  ({ button }) => openScreen('new-dynasty', button, 1),
-      'load-dynasty': soon('Load Dynasty'),
+      'load-dynasty': ({ button }) => openScreen('load-dynasty', button),
       'quick-game':   soon('Quick Game'),
       'settings':     ({ button }) => openScreen('settings', button),
       'how-to-play':  soon('How to Play')
@@ -866,35 +954,22 @@
 
 
     /* ----------------------------------------------------------------------
-       SAVE LOOKUP
+       CONTINUE — always the most recently played saved dynasty (HDSaves)
        ---------------------------------------------------------------------- */
 
-    // Returns { teamName, season, record } if a valid save exists, otherwise null.
-    function readSave() {
-      try {
-        const raw = localStorage.getItem(SAVE_KEY);
-        if (!raw) return null;
-        const save = JSON.parse(raw);
-        if (save && typeof save.teamName === 'string' && save.teamName.trim()) {
-          let record = null;
-          if (typeof save.record === 'string' && save.record.trim()) record = save.record.trim();
-          else if (Number.isFinite(save.wins) && Number.isFinite(save.losses)) record = `${save.wins}-${save.losses}`;
-          return { teamName: save.teamName.trim(), season: save.season ?? 1, record };
-        }
-      } catch (err) {
-        /* Storage blocked or corrupt JSON: behave as if there is no save. */
-      }
-      return null;
-    }
+    let continueId = null;
 
     function setupContinue() {
       const btn = $('#continue-btn');
-      const save = readSave();
-      if (!save) { btn.hidden = true; return; }
-      const parts = [save.teamName, `Season ${save.season}`];
-      if (save.record) parts.push(save.record);
-      $('.sub', btn).textContent = parts.join(' · ');
-      btn.hidden = false;
+      return window.HDSaves.mostRecent().then((recent) => {
+        continueId = recent ? recent.id : null;
+        if (!recent) { btn.hidden = true; return; }
+        $('.sub', btn).textContent = `${recent.fullName} · ${recent.seasonLabel}`;
+        btn.hidden = false;
+      }).catch(() => {
+        continueId = null;          // storage unavailable: behave as if no saves
+        btn.hidden = true;
+      });
     }
 
 
@@ -925,19 +1000,25 @@
       moveBar(focused || primary);
     }
 
-    // Recompute the primary item (first visible, e.g. Continue once a save
-    // exists), stagger order and bar position. Safe to call any time.
-    function refreshMenu() {
-      setupContinue();
+    // Primary = first visible item (Continue when a save exists, otherwise
+    // New Dynasty). Recomputes stagger order and bar position.
+    function applyPrimary() {
       const list = items();
       primary?.classList.remove('is-primary');
       primary = list[0];
       primary.classList.add('is-primary');
       list.forEach((btn, i) => btn.style.setProperty('--i', i));
-      moveBar(primary, true);
+      const focused = list.includes(document.activeElement) ? document.activeElement : null;
+      moveBar(focused || primary, true);
+    }
+
+    // Re-read saves (async), then update Continue + primary. Safe any time.
+    function refreshMenu() {
+      return setupContinue().then(applyPrimary);
     }
 
     function setupMenu() {
+      applyPrimary();
       refreshMenu();
 
       menu.addEventListener('pointerover', (e) => {
@@ -1021,11 +1102,17 @@
 
     const stage = $('.stage');
     const SCREENS = {
-      'settings':    { root: $('#settings-screen'),    hash: '#settings' },
-      'new-dynasty': { root: $('#new-dynasty-screen'), hash: '#new-dynasty' }
+      'settings':     { root: $('#settings-screen'),     hash: '#settings' },
+      'new-dynasty':  { root: $('#new-dynasty-screen'),  hash: '#new-dynasty' },
+      'load-dynasty': { root: $('#load-dynasty-screen'), hash: '#load-dynasty' },
+      'dashboard':    { root: $('#dashboard-screen'),    hash: '#dashboard' }
     };
+    const TITLE_URL = location.pathname + location.search;
     let returnFocus = null;
     let wizard = null;
+    let loadScreen = null;
+    let dashboard = null;
+    let afterUnwind = null;     // runs on the popstate that ends a history.go()
 
     // `step` only applies to multi-step screens (the New Dynasty wizard).
     function showScreen(name, step) {
@@ -1041,51 +1128,130 @@
         const btn = returnFocus && !returnFocus.hidden ? returnFocus : primary;
         moveBar(btn, true);
         btn.focus({ preventScroll: true });
-      } else if (name === 'settings') {
-        if (!changed) return;
-        SCREENS.settings.root.scrollTop = 0;
-        $('#settings-title').focus({ preventScroll: true });
       } else if (name === 'new-dynasty') {
         const shown = wizard.show(step || 1);
         // Stepping forward past an incomplete step (e.g. browser Forward
         // after a reset) lands on the first incomplete step instead.
         if (shown !== (step || 1)) history.replaceState({ screen: name, step: shown }, '', SCREENS[name].hash);
+      } else if (changed) {
+        const root = SCREENS[name].root;
+        root.scrollTop = 0;
+        if (name === 'load-dynasty') loadScreen.refresh();
+        const title = root.querySelector('#settings-title, #ld-title, #db-title');
+        if (title) title.focus({ preventScroll: true });
       }
     }
 
     function openScreen(name, fromButton, step) {
-      returnFocus = fromButton || menu.querySelector(`[data-action="${name}"]`);
+      returnFocus = fromButton || menu.querySelector(`[data-action="${name}"]`) || returnFocus;
       if (history.state?.screen !== name) history.pushState({ screen: name, step }, '', SCREENS[name].hash);
       showScreen(name, step);
     }
 
-    // Back to the title (popstate does the actual switch when we own history).
+    // Back to the previous screen (popstate does the switch when we own history).
     function closeScreen() {
       if (history.state?.screen && history.state.screen !== 'title') history.back();
       else showScreen('title');
     }
 
+    /* --- Dynasty loading ------------------------------------------------- */
+
+    // Show a loaded save on the dashboard. `replace` swaps out the current
+    // history entry (e.g. the Load screen) so Back from the dashboard goes
+    // to the title screen.
+    function openDashboard(save, { replace = false } = {}) {
+      dashboard.render(save);
+      const state = { screen: 'dashboard', id: save.id };
+      if (replace) history.replaceState(state, '', SCREENS.dashboard.hash);
+      else history.pushState(state, '', SCREENS.dashboard.hash);
+      const wasDashboard = document.body.dataset.screen === 'dashboard';
+      showScreen('dashboard');
+      if (wasDashboard) { SCREENS.dashboard.root.scrollTop = 0; $('#db-title').focus({ preventScroll: true }); }
+    }
+
+    // Load by id: restores the full save, stamps last-played (persisted
+    // before anything is shown), then opens the dashboard.
+    function loadDynasty(id, options = {}) {
+      return window.HDSaves.markPlayed(id).then((save) => {
+        openDashboard(save, options);
+        showToast('Dynasty loaded', `${window.HDDynasty.userTeam(save).fullName} · ${save.calendar.seasonLabel}`);
+      });
+    }
+
+    function continueDynasty(button) {
+      if (!continueId) return;
+      returnFocus = button;
+      loadDynasty(continueId).catch((err) => showToast('Couldn’t load dynasty', err.message));
+    }
+
+    // Returning to a dashboard entry via Back/Forward: re-read that save.
+    function restoreDashboard(id) {
+      if (dashboard.currentId() === id) { showScreen('dashboard'); return; }
+      window.HDSaves.get(id).then((save) => {
+        if (!save) throw new Error('missing');
+        dashboard.render(save);
+        showScreen('dashboard');
+      }).catch(() => {
+        history.replaceState({ screen: 'title' }, '', TITLE_URL);
+        showScreen('title');
+      });
+    }
+
     window.addEventListener('popstate', () => {
+      if (afterUnwind) { const run = afterUnwind; afterUnwind = null; run(); return; }
       const state = history.state;
-      if (state && SCREENS[state.screen]) showScreen(state.screen, state.step);
+      if (state?.screen === 'dashboard') restoreDashboard(state.id);
+      else if (state && SCREENS[state.screen]) showScreen(state.screen, state.step);
       else showScreen('title');
     });
 
-    // A screen hash typed into the address bar (same page, no reload).
+    // Opening a screen from its URL hash (reload, bookmark, or typed).
+    // push: keep the current entry (the title) underneath; otherwise replace
+    // the entry the browser just created for the typed hash.
+    function openFromHash(name, { push = false } = {}) {
+      if (name === 'dashboard') {
+        // No dynasty id in the URL: resume the most recently played one.
+        window.HDSaves.mostRecent().then((recent) => {
+          if (recent) return loadDynasty(recent.id, { replace: !push });
+          history.replaceState({ screen: 'title' }, '', TITLE_URL);
+          showScreen('title');
+        }).catch(() => showScreen('title'));
+        return;
+      }
+      history.replaceState({ screen: name, step: name === 'new-dynasty' ? 1 : undefined }, '', SCREENS[name].hash);
+      showScreen(name, 1);
+    }
+
     window.addEventListener('hashchange', () => {
       const name = Object.keys(SCREENS).find((key) => SCREENS[key].hash === location.hash);
       if (!name || history.state?.screen === name) return;   // our own navigation
-      history.replaceState({ screen: name, step: 1 }, '', SCREENS[name].hash);
-      showScreen(name, 1);
+      openFromHash(name);
     });
 
     window.HDSettings.init({ root: SCREENS.settings.root, onBack: closeScreen });
+
+    dashboard = window.HDDashboard.init({
+      root: SCREENS.dashboard.root,
+      dynasty: window.HDDynasty,
+      franchises: window.HDFranchises
+    });
+    $('[data-db-back]').addEventListener('click', closeScreen);
+
+    loadScreen = window.HDLoadScreen.init({
+      root: SCREENS['load-dynasty'].root,
+      saves: window.HDSaves,
+      dynasty: window.HDDynasty,
+      toast: showToast,
+      onLoad: (id) => loadDynasty(id, { replace: true }),
+      onNewDynasty: () => openScreen('new-dynasty', null, 1)
+    });
+    $('[data-ld-back]').addEventListener('click', closeScreen);
 
     wizard = window.HDNewDynasty.init({
       root: SCREENS['new-dynasty'].root,
       franchises: window.HDFranchises,
       dynasty: window.HDDynasty,
-      store: window.HDSaveStore,
+      saves: window.HDSaves,
       // Each step is its own history entry so device Back steps backwards.
       navigate(step) {
         history.pushState({ screen: 'new-dynasty', step }, '', SCREENS['new-dynasty'].hash);
@@ -1093,15 +1259,28 @@
       },
       back: closeScreen,
       onComplete(save) {
-        refreshMenu();                       // Continue now shows the new dynasty
-        returnFocus = primary;
-        showToast('Dynasty created', `${save.teamName} · ${save.season}`);
         wizard.reset();
-        // Unwind the wizard's history entries back to the title.
+        const team = window.HDDynasty.userTeam(save);
+        const land = () => {
+          // Opened from the title: push the dashboard above it. Opened from
+          // another screen (Load): replace that entry.
+          const onTitle = !history.state || !history.state.screen || history.state.screen === 'title';
+          openDashboard(save, { replace: !onTitle });
+          showToast('Dynasty created', `${team.fullName} · ${save.calendar.seasonLabel}`);
+        };
+        // Unwind the wizard's history entries, then land on the dashboard.
         const depth = history.state?.screen === 'new-dynasty' ? history.state.step || 1 : 0;
-        if (depth) history.go(-depth);
-        else showScreen('title');
+        if (depth) { afterUnwind = land; history.go(-depth); }
+        else land();
       }
+    });
+
+    // Every create / import / load / delete refreshes Continue; a deleted
+    // dynasty can never stay on screen.
+    window.HDSaves.subscribe((event) => {
+      refreshMenu();
+      if (event.type === 'remove' && dashboard.currentId() === event.id) dashboard.clear();
+      if (event.type === 'import' && event.mode === 'replace' && dashboard.currentId() === event.id) dashboard.clear();
     });
 
     // Any preference change (this tab or another) can resize the menu text.
@@ -1118,8 +1297,9 @@
     // Deep link / refresh on a screen: put the title underneath it in history.
     const linked = Object.keys(SCREENS).find((key) => SCREENS[key].hash === location.hash);
     if (linked) {
-      history.replaceState({ screen: 'title' }, '', location.pathname + location.search);
-      openScreen(linked, null, linked === 'new-dynasty' ? 1 : undefined);
+      history.replaceState({ screen: 'title' }, '', TITLE_URL);
+      if (linked === 'dashboard') openFromHash('dashboard', { push: true });
+      else openScreen(linked, null, linked === 'new-dynasty' ? 1 : undefined);
     }
   })();
   </script>

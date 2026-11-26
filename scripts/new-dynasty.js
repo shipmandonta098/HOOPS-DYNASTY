@@ -9,11 +9,14 @@
      root,          // #new-dynasty-screen
      franchises,    // HDFranchises
      dynasty,       // HDDynasty
-     store,         // HDSaveStore
+     saves,         // HDSaves (async save manager)
      navigate(step),// router: push a history entry for `step` and show it
      back(),        // router: go back one entry (previous step or title)
      onComplete(save)
    }) -> { show(step) -> step actually shown, reset() }
+
+   Begin Dynasty always creates a NEW, independent save (its own permanent
+   id); it never replaces an existing dynasty.
 
    Entered values live in the form controls themselves, so going Back never
    loses anything. reset() clears them after a dynasty is created.
@@ -47,7 +50,7 @@
     var root = options.root;
     var F = options.franchises;
     var D = options.dynasty;
-    var store = options.store;
+    var saves = options.saves;
     var RULES = D.LEAGUE_RULES;
 
     var $ = function (sel) { return root.querySelector(sel); };
@@ -285,8 +288,6 @@
     var review = $('[data-nd-review]');
     var beginBtn = $('[data-nd-begin]');
     var saveError = $('[data-nd-save-error]');
-    var dialog = $('[data-nd-overwrite]');
-    var pending = null;      // dynasty waiting on the overwrite dialog
 
     function renderReview() {
       var setup = D.validateSetup(setupValues()).values;
@@ -336,37 +337,6 @@
       saveError.textContent = '';
     }
 
-    function save(dynastyObj, replace) {
-      var result = store.write(dynastyObj, { replace: replace });
-      if (result.ok) {
-        options.onComplete(dynastyObj);
-        return;
-      }
-      if (result.reason === 'exists') { askToReplace(dynastyObj); return; }
-      saveError.textContent = result.reason === 'quota'
-        ? 'Couldn’t save: this browser’s storage is full.'
-        : 'Couldn’t save: this browser is blocking local storage.';
-      beginBtn.disabled = false;
-    }
-
-    function askToReplace(dynastyObj) {
-      pending = dynastyObj;
-      var existing = store.summary();
-      var label = existing && existing.teamName
-        ? ' (' + existing.teamName + (existing.season ? ', ' + existing.season : '') + ')'
-        : '';
-      $('[data-nd-existing]').textContent = label;
-      dialog.returnValue = '';
-      dialog.showModal();
-    }
-
-    dialog.addEventListener('close', function () {
-      var dyn = pending;
-      pending = null;
-      if (dialog.returnValue === 'replace' && dyn) save(dyn, true);
-      else { beginBtn.disabled = false; beginBtn.focus(); }
-    });
-
     beginBtn.addEventListener('click', function () {
       if (beginBtn.disabled) return;
       beginBtn.disabled = true;
@@ -384,8 +354,13 @@
         beginBtn.disabled = false;
         return;
       }
-      if (store.exists()) askToReplace(dyn);   // never overwrite silently
-      else save(dyn, false);
+      saves.create(dyn).then(function () {
+        options.onComplete(dyn);
+      }).catch(function (err) {
+        // Persistence failed: say so, keep the user's choices, allow retry.
+        saveError.textContent = 'Your dynasty wasn’t saved. ' + (err && err.message ? err.message : '');
+        beginBtn.disabled = false;
+      });
     });
 
     $('[data-nd-prev]').addEventListener('click', function () { options.back(); });
@@ -404,7 +379,6 @@
     function show(step) {
       step = allowedStep(step);
       current = step;
-      if (dialog.open) dialog.close('cancel');   // e.g. device Back while the prompt is up
       steps.forEach(function (s) { s.hidden = Number(s.getAttribute('data-step')) !== step; });
       $$('.nd-progress-step').forEach(function (li) {
         var n = Number(li.getAttribute('data-progress'));

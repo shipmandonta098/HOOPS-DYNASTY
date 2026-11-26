@@ -343,3 +343,27 @@
   gap: 10px;
   margin-top: 1.5rem;
 }
+
+/* 8. TEAM COLOR ACCENT ----------------------------------------------------- */
+/* Three-color strip (primary / secondary / tertiary) along the top of a
+   franchise-branded panel. Set --c1/--c2/--c3 on an ancestor. Hard color
+   stops, no gradient. */
+.hd-team-accent {
+  display: flex;
+  height: 5px;
+}
+.hd-team-accent span:nth-child(1) { flex: 5; background: var(--c1); }
+.hd-team-accent span:nth-child(2) { flex: 3; background: var(--c2); }
+.hd-team-accent span:nth-child(3) { flex: 2; background: var(--c3); }
+
+/* 9. MISC ------------------------------------------------------------------ */
+.hd-btn svg { width: 1em; height: 1em; flex: none; }
+.hd-btn.is-danger { color: var(--accent-text); }
+.hd-btn.is-danger:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.hd-btn.is-solid-danger {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.hd-btn.is-solid-danger:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
