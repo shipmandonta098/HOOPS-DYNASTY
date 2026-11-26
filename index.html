@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="styles/owner-welcome.css">
   <link rel="stylesheet" href="styles/game.css">
   <link rel="stylesheet" href="styles/dashboard.css">
+  <link rel="stylesheet" href="styles/player-profile.css">
 
   <style>
   /* ==========================================================================
@@ -1004,6 +1005,17 @@
     </div>
   </section>
 
+  <!-- ===== Player profile (opened from any player name in the game) =====
+       Behaviour: scripts/player-profile.js. Styles: styles/player-profile.css. -->
+  <dialog class="pp-dialog" id="player-profile" aria-labelledby="pp-name">
+    <div class="pp-sheet">
+      <button class="hd-btn is-quiet is-icon pp-close" type="button" data-pp-close aria-label="Close player profile">
+        <span class="hd-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m5 5 10 10M15 5 5 15"/></svg></span>
+      </button>
+      <div data-pp-body></div>
+    </div>
+  </dialog>
+
   <!-- Toast notifications (announced to screen readers) -->
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
@@ -1014,6 +1026,7 @@
   <script src="scripts/portraits.js"></script>
   <script src="scripts/roster.js"></script>
   <script src="scripts/player-bio.js"></script>
+  <script src="scripts/player-career.js"></script>
   <script src="scripts/ownership.js"></script>
   <script src="scripts/stats.js"></script>
   <script src="scripts/finance.js"></script>
@@ -1028,6 +1041,7 @@
   <script src="scripts/load-dynasty.js"></script>
   <script src="scripts/owner-welcome.js"></script>
   <script src="scripts/dashboard.js"></script>
+  <script src="scripts/player-profile.js"></script>
   <script src="scripts/game-shell.js"></script>
   <script>
   (() => {

@@ -169,7 +169,9 @@
           el('th', { scope: 'row', class: 'gs-sticky' }, [el('span', { class: 'gs-player' }, [
             dom.portrait(p.portrait, { className: 'gs-player-portrait', jersey: jersey }),
             el('span', { class: 'gs-player-text' }, [
-              el('span', { class: 'gs-player-name', text: p.firstName + ' ' + p.lastName }),
+              el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': p.id,
+                'data-season': String(rosterView.seasonYear), 'aria-haspopup': 'dialog',
+                'aria-label': 'View profile: ' + p.firstName + ' ' + p.lastName, text: p.firstName + ' ' + p.lastName }),
               el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter ' + starter : ' · Bench') })
             ])
           ])]),
@@ -288,6 +290,18 @@
     var exitBtn = $('[data-gs-exit]');
     var save = null;
     var active = 'dashboard';
+    var profile = window.HDPlayerProfile.init({ dialog: document.getElementById('player-profile') });
+
+    // Any player name anywhere in the game content opens their profile.
+    content.addEventListener('click', function (e) {
+      var trigger = e.target.closest('[data-player-id]');
+      if (!trigger || !save) return;
+      var season = trigger.getAttribute('data-season');
+      profile.open(save, trigger.getAttribute('data-player-id'), {
+        seasonYear: season ? Number(season) : null,
+        returnFocus: trigger
+      });
+    });
     var mobile = window.matchMedia('(max-width: 1023px)');
 
     // Nav items (built once)
@@ -364,6 +378,7 @@
     }
 
     function open(nextSave, sectionId) {
+      profile.close();
       save = nextSave;          // a fresh copy from storage: never shared between dynasties
       setDrawer(false);
       renderChrome();
@@ -371,6 +386,7 @@
     }
 
     function clear() {
+      profile.close();
       save = null;
       content.textContent = '';
     }
