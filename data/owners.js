@@ -87,7 +87,22 @@
     owner('own-027', 'fr-027', 'Dariusz Nowakowski',    'Owner & Chairman',         'balanced',             70, 58, 50, [1, 3, 2, 1]),
     owner('own-028', 'fr-028', 'Lorraine Haddock',      'Principal Owner',          'business-oriented',    46, 76, 28, [0, 5, 1, 3]),
     owner('own-029', 'fr-029', 'Esteban Villarreal',    'Owner & Governor',         'patient-builder',      50, 84, 56, [3, 1, 0, 0]),
-    owner('own-030', 'fr-030', 'Vivian Ashcroft-Lee',   'Chairwoman',               'demanding',            88, 28, 74, [4, 4, 0, 1])
+    owner('own-030', 'fr-030', 'Vivian Ashcroft-Lee',   'Chairwoman',               'demanding',            88, 28, 74, [4, 4, 0, 1]),
+
+    // Expansion franchises (data/franchises.js EXPANSION): new owners lean patient
+    owner('own-031', 'fr-031', 'Wade Harrelson',        'Founding Owner',           'patient-builder',      55, 82, 50, [1, 2, 5, 0]),
+    owner('own-032', 'fr-032', 'Gloria Kaminski-Reed',  'Principal Owner',          'balanced',             62, 66, 58, [0, 4, 3, 3]),
+    owner('own-033', 'fr-033', 'Daniel Okafor-Lind',    'Managing Partner',         'championship-driven',  80, 48, 72, [5, 0, 0, 1]),
+    owner('own-034', 'fr-034', 'Theresa Moniz',         'Founding Owner',           'business-oriented',    44, 74, 34, [1, 5, 1, 3]),
+    owner('own-035', 'fr-035', 'Raymond Bellweather',   'Chairman',                 'patient-builder',      52, 86, 54, [0, 3, 6, 4]),
+    owner('own-036', 'fr-036', 'Priya Sandhu-Collins',  'Principal Owner',          'balanced',             64, 64, 60, [3, 4, 0, 2]),
+    owner('own-037', 'fr-037', 'Curtis Langford',       'Owner & Governor',         'demanding',            84, 34, 62, [6, 0, 0, 0]),
+    owner('own-038', 'fr-038', 'Eleanor Whitcomb',      'Founding Owner',           'patient-builder',      50, 84, 48, [0, 5, 6, 3]),
+    owner('own-039', 'fr-039', 'Alejandro Fuentes-Ibarra', 'Presidente & Owner',    'championship-driven',  86, 44, 82, [2, 1, 0, 1]),
+    owner('own-040', 'fr-040', 'Nicole Tran-Hayes',     'Managing Partner',         'balanced',             60, 70, 56, [1, 4, 0, 3]),
+    owner('own-041', 'fr-041', 'Frank Wozniak',         'Principal Owner',          'business-oriented',    42, 72, 30, [0, 2, 5, 0]),
+    owner('own-042', 'fr-042', 'Monique Abernathy',     'Founding Owner',           'patient-builder',      54, 80, 52, [5, 4, 0, 4]),
+    owner('own-043', 'fr-043', 'Harold Vance III',      'Chairman',                 'balanced',             66, 62, 64, [0, 3, 5, 0])
   ];
 
   OWNERS.forEach(function (o) { Object.freeze(o.traits); Object.freeze(o.portrait); Object.freeze(o); });

@@ -1,7 +1,8 @@
 /* ==========================================================================
    HOOPS DYNASTY — Customize League dialog (New Dynasty → Select Franchise)
    Lists every team in the league being set up, with Edit and Delete, and a
-   full team editor: city (+ Relocate), team name, abbreviation, division,
+   Add Team view (ready-made expansion franchises, or a custom team built
+   from scratch) and a full team editor: city (+ Relocate), team name, abbreviation, division,
    population (drives market size), arena name & capacity, primary and
    secondary logos (upload from the device or an image URL), and colors.
 
@@ -93,10 +94,15 @@
         el('p', { class: 'le-counts', role: 'status', text: (notice ? notice + ' ' : '') + teams.length + ' teams · ' + counts })
       ]));
       var custom = T.isCustomized(teams);
+      var full = teams.length >= T.LIMITS.maxTeams;
       body.appendChild(el('div', { class: 'le-list-actions' }, [
-        el('button', { class: 'hd-btn', type: 'button', 'data-le-restore': '', disabled: !custom, text: 'Restore default teams' }),
+        el('div', { class: 'le-list-actions-start' }, [
+          el('button', { class: 'hd-btn', type: 'button', 'data-le-add': '', disabled: full, text: '+ Add team' }),
+          el('button', { class: 'hd-btn', type: 'button', 'data-le-restore': '', disabled: !custom, text: 'Restore default teams' })
+        ]),
         el('button', { class: 'hd-btn is-primary', type: 'button', 'data-le-done': '', text: 'Done' })
       ]));
+      if (full) body.appendChild(el('p', { class: 'le-row-note', text: 'The league is full (' + T.LIMITS.maxTeams + ' teams).' }));
 
       F.DIVISIONS.forEach(function (div) {
         var inDiv = teams.filter(function (t) { return t.division === div.id; })
@@ -147,9 +153,65 @@
       return li;
     }
 
+    /* --- Add Team view ------------------------------------------------------ */
+
+    function renderAdd(notice) {
+      title.textContent = 'Add Team';
+      body.textContent = '';
+      body.appendChild(el('button', { class: 'hd-btn is-quiet le-back', type: 'button', 'data-le-back': '' }, [
+        el('span', { class: 'hd-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>' }),
+        el('span', { text: 'All teams' })
+      ]));
+      var avail = T.availableExpansion(teams);
+      var room = T.LIMITS.maxTeams - teams.length;
+      body.appendChild(el('div', { class: 'le-intro' }, [
+        el('p', { class: 'le-lead', text: 'Add a ready-made expansion franchise, or build a team from scratch. You can edit any team after adding it.' }),
+        el('p', { class: 'le-counts', role: 'status', text: (notice ? notice + ' ' : '') + teams.length + ' teams in the league · room for ' + room + ' more' })
+      ]));
+      body.appendChild(el('div', { class: 'le-list-actions' }, [
+        el('button', { class: 'hd-btn', type: 'button', 'data-le-custom': '', disabled: room < 1, text: 'Create a custom team' }),
+        avail.length > 1 ? el('button', { class: 'hd-btn', type: 'button', 'data-le-add-all': '', disabled: room < avail.length,
+          title: room < avail.length ? 'Not enough room for all of them' : null, text: 'Add all ' + avail.length }) : null
+      ]));
+      body.appendChild(el('h3', { class: 'hd-eyebrow le-division-title', text: 'Expansion franchises (' + avail.length + ')' }));
+      if (!avail.length) {
+        body.appendChild(el('p', { class: 'le-empty', text: 'Every expansion franchise is already in the league.' }));
+        return;
+      }
+      var ul = el('ul', { class: 'le-rows' });
+      avail.forEach(function (f) {
+        var div = F.division(f.division);
+        var shared = T.sameMarket(f, teams);
+        var li = el('li', { class: 'le-row', 'data-exp': f.id, style: { '--team-primary': f.colors.primary } }, [
+          el('img', { class: 'le-row-logo', src: f.logo.src, alt: '', width: 40, height: 40, decoding: 'async' }),
+          el('span', { class: 'le-row-main' }, [
+            el('span', { class: 'le-row-name', text: f.fullName }),
+            el('span', { class: 'le-row-meta', text: f.abbreviation + ' · ' + div.name + ' · ' + marketLabel(f.population) + ' market (' + fmt(f.population) + ') · ' + f.arena.name })
+          ]),
+          el('span', { class: 'le-row-actions' }, [
+            el('button', { class: 'hd-btn is-primary', type: 'button', 'data-le-add-exp': f.id, 'aria-label': 'Add the ' + f.fullName, disabled: room < 1, text: 'Add' })
+          ]),
+          shared.length ? el('span', { class: 'le-row-note', text: 'Shares its market with the ' + shared.map(T.fullName).join(' and ') + '.' }) : null
+        ]);
+        ul.appendChild(li);
+      });
+      body.appendChild(ul);
+    }
+
+    // Adds expansion franchise `id`. If it clashes with the league (e.g. its
+    // name or abbreviation is already used), opens it in the editor instead.
+    function addExpansion(id) {
+      var x = T.expansionTeam(id, teams);
+      if (!x) return null;
+      if (Object.keys(x.errors).length) { renderEdit(null, x.team); return 'edit'; }
+      commit(teams.concat([x.team]));
+      return x.team;
+    }
+
     /* --- Edit view -------------------------------------------------------- */
 
     var draft = null;      // team being edited
+    var isNew = false;     // draft is not in the league yet (Save adds it)
     var errors = {};
 
     function field(id, label, control, hint) {
@@ -266,12 +328,13 @@
       ]);
     }
 
-    function renderEdit(teamId) {
-      var original = teams.filter(function (t) { return t.id === teamId; })[0];
+    function renderEdit(teamId, newTeam) {
+      var original = newTeam || teams.filter(function (t) { return t.id === teamId; })[0];
       if (!original) { renderList(); return; }
+      isNew = !!newTeam;
       draft = T.copy(original);
       errors = {};
-      title.textContent = 'Edit Team';
+      title.textContent = isNew ? 'New Team' : 'Edit Team';
       body.textContent = '';
       body.appendChild(el('button', { class: 'hd-btn is-quiet le-back', type: 'button', 'data-le-back': '' }, [
         el('span', { class: 'hd-icon', 'aria-hidden': 'true', html: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3 5 8l5 5"/></svg>' }),
@@ -305,12 +368,20 @@
 
       form.appendChild(el('div', { class: 'le-form-actions' }, [
         el('button', { class: 'hd-btn', type: 'button', 'data-le-back': '', text: 'Cancel' }),
-        el('button', { class: 'hd-btn is-primary', type: 'submit', text: 'Save team' })
+        el('button', { class: 'hd-btn is-primary', type: 'submit', text: isNew ? 'Add team' : 'Save team' })
       ]));
       body.appendChild(form);
       updatePopulationHint();
       renderPreview();
       dialog.querySelector('.le-sheet').scrollTop = 0;
+      if (isNew) {
+        // A clash (or a blank custom team) shows what needs fixing right away
+        errors = T.validateTeam(draft, teams);
+        if (draft.city) showErrors();
+        var firstBad = Object.keys(errors)[0];
+        var target = firstBad && body.querySelector('#le-' + firstBad);
+        if (target) { target.focus(); return; }
+      }
       title.focus({ preventScroll: true });
     }
 
@@ -376,6 +447,12 @@
         return;
       }
       var saved = T.normalize(draft);
+      if (isNew) {
+        commit(teams.concat([saved]));
+        isNew = false;
+        renderList(saved.id, T.fullName(saved) + ' added to the ' + F.division(saved.division).name + '.');
+        return;
+      }
       commit(teams.map(function (t) { return t.id === saved.id ? saved : t; }));
       renderList(saved.id, T.fullName(saved) + ' saved.');
     }
@@ -440,6 +517,38 @@
         return;
       }
       if ((id = b.getAttribute('data-le-edit'))) { listScroll = dialog.querySelector('.le-sheet').scrollTop; renderEdit(id); return; }
+      if (b.hasAttribute('data-le-add')) { listScroll = dialog.querySelector('.le-sheet').scrollTop; renderAdd(); dialog.querySelector('.le-sheet').scrollTop = 0; title.focus({ preventScroll: true }); return; }
+      if (b.hasAttribute('data-le-custom')) {
+        var firstDiv = F.DIVISIONS.slice().sort(function (a, c) {
+          return teams.filter(function (t) { return t.division === a.id; }).length - teams.filter(function (t) { return t.division === c.id; }).length;
+        })[0];
+        renderEdit(null, T.newCustomTeam(firstDiv.id));
+        return;
+      }
+      if ((id = b.getAttribute('data-le-add-exp'))) {
+        var added = addExpansion(id);
+        if (added && added !== 'edit') {
+          renderAdd(T.fullName(added) + ' added to the ' + F.division(added.division).name + '.');
+          var nextBtn = body.querySelector('[data-le-add-exp]') || body.querySelector('[data-le-back]');
+          nextBtn.focus({ preventScroll: true });
+        }
+        return;
+      }
+      if (b.hasAttribute('data-le-add-all')) {
+        var count = 0, clash = null;
+        T.availableExpansion(teams).forEach(function (f) {
+          if (clash || teams.length >= T.LIMITS.maxTeams) return;
+          var x = T.expansionTeam(f.id, teams);
+          if (Object.keys(x.errors).length) { clash = x.team; return; }
+          teams = teams.concat([x.team]);
+          count++;
+        });
+        commit(teams);
+        if (clash) { renderEdit(null, clash); return; }
+        renderList(null, count + ' expansion team' + (count === 1 ? '' : 's') + ' added.');
+        body.querySelector('[data-le-done]').focus({ preventScroll: true });
+        return;
+      }
       if ((id = b.getAttribute('data-le-delete'))) {
         var li = body.querySelector('.le-row[data-team="' + id + '"]');
         var t = teams.filter(function (x) { return x.id === id; })[0];
@@ -466,7 +575,8 @@
         return;
       }
       if (b.hasAttribute('data-le-back')) {
-        var editedId = draft && draft.id;
+        var editedId = draft && !isNew && body.querySelector('[data-le-form]') && draft.id;
+        isNew = false;
         renderList();
         dialog.querySelector('.le-sheet').scrollTop = listScroll;
         var again = editedId && body.querySelector('[data-le-edit="' + editedId + '"]');
@@ -555,10 +665,11 @@
     dialog.querySelector('[data-le-close]').addEventListener('click', close);
     dialog.addEventListener('cancel', function (e) {
       // Escape inside the editor goes back to the list first
-      if (body.querySelector('[data-le-form]')) {
+      if (body.querySelector('[data-le-form]') || title.textContent === 'Add Team') {
         e.preventDefault();
-        var editedId = draft && draft.id;
-        renderList(editedId);
+        var editedId = draft && !isNew && draft.id;
+        isNew = false;
+        renderList(editedId || null);
       }
     });
     dialog.addEventListener('close', function () {

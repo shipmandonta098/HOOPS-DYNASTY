@@ -94,7 +94,22 @@
     'fr-027': ['pacific',    2421000, 'Gold Rush Pavilion',      17608],
     'fr-028': ['northwest',  1268000, 'Wasatch Center',          18306],
     'fr-029': ['southwest',  2704000, 'Alamo City Arena',        18418],
-    'fr-030': ['pacific',    4567000, 'Embarcadero Arena',       18064]
+    'fr-030': ['pacific',    4567000, 'Embarcadero Arena',       18064],
+
+    // Expansion franchises (not in the founding league; added in Customize)
+    'fr-031': ['southwest',  1478000, 'Red Earth Arena',         18500],
+    'fr-032': ['central',    2423000, 'Allegheny Arena',         18400],
+    'fr-033': ['northwest',  4045000, 'Puget Sound Pavilion',    18600],
+    'fr-034': ['atlantic',   1677000, 'Narragansett Center',     14500],
+    'fr-035': ['central',    2797000, 'Gateway Pavilion',        19000],
+    'fr-036': ['northwest',  3000000, 'Burrard Inlet Arena',     18900],
+    'fr-037': ['atlantic',   2834000, 'Inner Harbor Arena',      18300],
+    'fr-038': ['southeast',  1366000, 'Bluegrass Coliseum',      17800],
+    'fr-039': ['southwest', 21800000, 'Palacio del Sol',         22000],
+    'fr-040': ['pacific',    3270000, 'Mission Bay Arena',       18000],
+    'fr-041': ['atlantic',   1155000, 'Niagara Fieldhouse',      18700],
+    'fr-042': ['central',    2271000, 'Ohio River Arena',        17500],
+    'fr-043': ['southwest',  2221000, 'Heartland Arena',         18900]
   };
 
   // Labels for the provisional rating bands (used for display only).
@@ -160,11 +175,35 @@
     team('fr-030', 'San Francisco',  'Fog',         'SFO', 'west', 'large',  78, ['#1B2A41', '#C9472F', '#B8C4CF'], 'roundel', 'bridge')
   ];
 
-  FRANCHISES.forEach(function (t) { Object.freeze(t.colors); Object.freeze(t.logo); Object.freeze(t.arena); Object.freeze(t); });
-  Object.freeze(FRANCHISES);
+  /* ---- Expansion franchises ------------------------------------------- *
+   * Ready-made teams the player can add to the league in New Dynasty →
+   * Customize. Not part of the founding league. Ratings are expansion-level.
+   * A city that already has a founding team (Oklahoma City) gets a second,
+   * separate franchise; the player chooses whether to add it.            */
+  var EXPANSION = [
+    team('fr-031', 'Oklahoma City',  'Stampede',    'OKS', 'west', 'small',  61, ['#7A2E1D', '#F2E3C6', '#D99A2B'], 'shield',  'horns'),
+    team('fr-032', 'Pittsburgh',     'Inclines',    'PIT', 'east', 'medium', 63, ['#1F1F22', '#F0C419', '#8C9399'], 'hexagon', 'incline'),
+    team('fr-033', 'Seattle',        'Squall',      'SEA', 'west', 'medium', 64, ['#123B3A', '#DCEFEA', '#5FB49C'], 'roundel', 'raindrop'),
+    team('fr-034', 'Providence',     'Jewelers',    'PRO', 'east', 'small',  60, ['#2A1E5C', '#E9E4F5', '#C8A2E8'], 'diamond', 'gem'),
+    team('fr-035', 'St. Louis',      'Archers',     'STL', 'east', 'medium', 63, ['#0F3D6E', '#F3F5F8', '#B8C3CF'], 'shield',  'arch'),
+    team('fr-036', 'Vancouver',      'Lumberjacks', 'VAN', 'west', 'medium', 62, ['#2D4A22', '#F1E6D0', '#B23A2E'], 'shield',  'axe'),
+    team('fr-037', 'Baltimore',      'Crabbers',    'BAL', 'east', 'medium', 61, ['#1B3B6F', '#F5F1E8', '#E2573B'], 'roundel', 'crab'),
+    team('fr-038', 'Louisville',     'Derby',       'LOU', 'east', 'small',  60, ['#5C1A33', '#F2E6D8', '#D4AF37'], 'roundel', 'trophy'),
+    team('fr-039', 'Mexico City',    'Sol',         'MEX', 'west', 'large',  64, ['#0C6B58', '#FBE7B0', '#E4572E'], 'roundel', 'sun'),
+    team('fr-040', 'San Diego',      'Surf',        'SD',  'west', 'medium', 63, ['#0B4F71', '#F6E7C8', '#F28F3B'], 'diamond', 'surfboard'),
+    team('fr-041', 'Buffalo',        'Falls',       'BUF', 'east', 'small',  59, ['#16325C', '#E6F1F8', '#4FA3D9'], 'hexagon', 'falls'),
+    team('fr-042', 'Cincinnati',     'Lanterns',    'CIN', 'east', 'medium', 62, ['#3A2A1E', '#F4D58D', '#C2452D'], 'hexagon', 'lantern'),
+    team('fr-043', 'Kansas City',    'Fountains',   'KC',  'west', 'medium', 61, ['#21415E', '#E9F3F8', '#58B6C0'], 'roundel', 'fountain')
+  ];
 
+  FRANCHISES.concat(EXPANSION).forEach(function (t) { Object.freeze(t.colors); Object.freeze(t.logo); Object.freeze(t.arena); Object.freeze(t); });
+  Object.freeze(FRANCHISES);
+  Object.freeze(EXPANSION);
+
+  // Founding or expansion franchise by id
   function byId(id) {
-    for (var i = 0; i < FRANCHISES.length; i++) if (FRANCHISES[i].id === id) return FRANCHISES[i];
+    var all = FRANCHISES.concat(EXPANSION);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
     return null;
   }
 
@@ -190,8 +229,10 @@
 
   // Integrity check: returns a list of problems (empty = valid). Used by tests
   // and by the dynasty initializer before it builds a league.
-  function validate(list) {
+  // opts.balanced (default true): conferences must have equal team counts.
+  function validate(list, opts) {
     list = list || FRANCHISES;
+    var balanced = !opts || opts.balanced !== false;
     var problems = [];
     var seen = { id: {}, abbreviation: {}, fullName: {} };
     var counts = {};
@@ -200,7 +241,7 @@
         if (seen[k][t[k]]) problems.push('Duplicate ' + k + ': ' + t[k]);
         seen[k][t[k]] = true;
       });
-      if (!/^[A-Z]{3}$/.test(t.abbreviation)) problems.push(t.id + ': abbreviation must be 3 capital letters');
+      if (!/^[A-Z]{2,4}$/.test(t.abbreviation)) problems.push(t.id + ': abbreviation must be 2–4 capital letters');
       if (!conference(t.conference)) problems.push(t.id + ': unknown conference ' + t.conference);
       if (!marketSize(t.marketSize)) problems.push(t.id + ': unknown market size ' + t.marketSize);
       var div = division(t.division);
@@ -213,7 +254,7 @@
       });
       counts[t.conference] = (counts[t.conference] || 0) + 1;
     });
-    CONFERENCES.forEach(function (c) {
+    if (balanced) CONFERENCES.forEach(function (c) {
       if (counts[c.id] !== list.length / CONFERENCES.length) {
         problems.push(c.name + ' has ' + (counts[c.id] || 0) + ' teams');
       }
@@ -223,6 +264,7 @@
 
   return {
     FRANCHISES: FRANCHISES,
+    EXPANSION: EXPANSION,
     CONFERENCES: CONFERENCES,
     MARKET_SIZES: MARKET_SIZES,
     DIVISIONS: DIVISIONS,

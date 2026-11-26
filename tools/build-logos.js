@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { FRANCHISES } = require('../data/franchises.js');
+const { FRANCHISES, EXPANSION } = require('../data/franchises.js');
 
 const OUT_DIR = path.join(__dirname, '..', 'assets', 'logos');
 
@@ -216,7 +216,87 @@ const EMBLEMS = {
       <rect x="24" y="70" width="72" height="5"/>
     </g>
     <path d="M24 46c8 14 16 22 21 22M96 46c-8 14-16 22-21 22M45 30c5 20 12 34 15 38M75 30c-5 20-12 34-15 38" fill="none" stroke="${A}" stroke-width="2.5"/>
-    <g stroke="${A}" stroke-width="3" stroke-linecap="round" opacity=".8"><path d="M30 84h22"/><path d="M62 84h28"/><path d="M38 91h44"/></g>`
+    <g stroke="${A}" stroke-width="3" stroke-linecap="round" opacity=".8"><path d="M30 84h22"/><path d="M62 84h28"/><path d="M38 91h44"/></g>`,
+
+  /* --- expansion franchises --- */
+  horns: (S, A, P) => `
+    <path d="M60 46c-10 0-16 6-16 16 0 12 7 24 16 28 9-4 16-16 16-28 0-10-6-16-16-16Z" fill="${S}"/>
+    <path d="M44 54C34 54 26 46 24 32c6 8 12 10 20 10Z M76 54c10 0 18-8 20-22-6 8-12 10-20 10Z" fill="${A}"/>
+    <circle cx="53" cy="62" r="3" fill="${P}"/><circle cx="67" cy="62" r="3" fill="${P}"/>
+    <path d="M54 80h12" stroke="${P}" stroke-width="3" stroke-linecap="round"/>`,
+  incline: (S, A) => `
+    <g transform="rotate(-30 60 60)">
+      <path d="M18 76h84M18 84h84" stroke="${A}" stroke-width="4" stroke-linecap="round"/>
+      <path d="M34 40h52l-4 32H38Z" fill="${S}"/>
+      <g fill="${A}"><rect x="41" y="46" width="10" height="10" rx="1"/><rect x="55" y="46" width="10" height="10" rx="1"/><rect x="69" y="46" width="10" height="10" rx="1"/></g>
+      <circle cx="46" cy="76" r="4" fill="${S}"/><circle cx="74" cy="76" r="4" fill="${S}"/>
+    </g>`,
+  raindrop: (S, A) => `
+    <path d="M60 22C50 40 40 52 40 66a20 20 0 0 0 40 0c0-14-10-26-20-44Z" fill="${S}"/>
+    <path d="M52 64a8 8 0 0 0 8 10" fill="none" stroke="${A}" stroke-width="4" stroke-linecap="round"/>
+    <g stroke="${A}" stroke-width="3" stroke-linecap="round"><path d="M28 34l-4 8"/><path d="M90 30l-4 8"/><path d="M92 54l-4 8"/></g>`,
+  gem: (S, A) => `
+    <path d="M36 44h48l12 14-36 36-36-36Z" fill="${S}"/>
+    <path d="M36 44l10 14h28l10-14M24 58h72M46 58l14 36 14-36M60 44v14" fill="none" stroke="${A}" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M60 24v8M44 28l4 6M76 28l-4 6" stroke="${A}" stroke-width="3" stroke-linecap="round"/>`,
+  arch: (S, A) => `
+    <path d="M28 92C30 52 42 26 60 26s30 26 32 66h-9C81 58 72 36 60 36S39 58 37 92Z" fill="${S}"/>
+    <path d="M58 70 74 54M74 54h-8M74 54v8" stroke="${A}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M42 84 58 70" stroke="${A}" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M24 92h72" stroke="${A}" stroke-width="3" stroke-linecap="round"/>`,
+  axe: (S, A) => `
+    <rect x="57" y="26" width="7" height="66" rx="3.5" fill="${A}" transform="rotate(20 60 60)"/>
+    <path d="M58 30c-16-4-28 4-30 22 10-6 20-6 30-2Z" fill="${S}" transform="rotate(20 60 60)"/>
+    <path d="M62 30c14-2 22 4 22 12-8-4-14-4-22-2Z" fill="${S}" transform="rotate(20 60 60)"/>`,
+  crab: (S, A, P) => `
+    <ellipse cx="60" cy="66" rx="22" ry="15" fill="${S}"/>
+    <path d="M38 52c-10-2-14-10-12-20 4 4 8 4 12 2-2 6 0 12 6 14Z M82 52c10-2 14-10 12-20-4 4-8 4-12 2 2 6 0 12-6 14Z" fill="${A}"/>
+    <g stroke="${S}" stroke-width="3.5" stroke-linecap="round"><path d="M40 72l-12 6M40 78l-10 10M80 72l12 6M80 78l10 10"/></g>
+    <circle cx="54" cy="58" r="2.6" fill="${P}"/><circle cx="66" cy="58" r="2.6" fill="${P}"/>`,
+  trophy: (S, A) => `
+    <path d="M42 28h36v14c0 14-8 24-18 24S42 56 42 42Z" fill="${S}"/>
+    <path d="M42 34H32c0 12 6 18 12 18M78 34h10c0 12-6 18-12 18" fill="none" stroke="${S}" stroke-width="4"/>
+    <rect x="56" y="66" width="8" height="12" fill="${A}"/>
+    <path d="M44 78h32v8H44Z" fill="${S}"/>
+    <path d="M60 34l3 6.5 7 1-5 5 1.2 7-6.2-3.3-6.2 3.3 1.2-7-5-5 7-1Z" fill="${A}"/>
+    <path d="M38 92h44" stroke="${A}" stroke-width="3" stroke-linecap="round"/>`,
+  sun: (S, A) => {
+    let rays = '';
+    for (let i = 0; i < 12; i++) rays += `<path d="M60 20 64 34H56Z" transform="rotate(${i * 30} 60 60)"/>`;
+    return `
+    <g fill="${A}">${rays}</g>
+    <circle cx="60" cy="60" r="21" fill="${S}"/>
+    <circle cx="60" cy="60" r="13" fill="none" stroke="${A}" stroke-width="3"/>`;
+  },
+  surfboard: (S, A) => `
+    <g transform="rotate(30 60 60)">
+      <path d="M60 20c10 14 12 30 12 40s-2 26-12 40c-10-14-12-30-12-40s2-26 12-40Z" fill="${S}"/>
+      <path d="M60 26v68" stroke="${A}" stroke-width="3"/>
+      <path d="M55 84h10l-5 10Z" fill="${A}"/>
+    </g>
+    <path d="M22 88c6-5 11-5 17 0s11 5 17 0" fill="none" stroke="${A}" stroke-width="4" stroke-linecap="round"/>`,
+  falls: (S, A) => `
+    <path d="M28 34h64v8H28Z" fill="${A}"/>
+    <g fill="${S}"><rect x="34" y="42" width="10" height="40" rx="2"/><rect x="49" y="42" width="10" height="44" rx="2"/><rect x="64" y="42" width="10" height="40" rx="2"/><rect x="79" y="42" width="8" height="36" rx="2"/></g>
+    <path d="M26 92c6-5 10-5 16 0s10 5 16 0 10-5 16 0 10 5 16 0" fill="none" stroke="${A}" stroke-width="4" stroke-linecap="round"/>`,
+  lantern: (S, A) => `
+    <path d="M52 24h16M60 24v6" stroke="${A}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M46 34h28l-4 6H50Z" fill="${S}"/>
+    <path d="M50 40h20l4 36H46Z" fill="${S}"/>
+    <path d="M60 50c-5 6-6 10-3 15 2 3 6 3 8 0 3-5 2-9-5-15Z" fill="${A}"/>
+    <path d="M44 76h32l-4 8H48Z" fill="${S}"/>
+    <path d="M52 92h16" stroke="${A}" stroke-width="3" stroke-linecap="round"/>`,
+  fountain: (S, A) => `
+    <path d="M60 30v34" stroke="${S}" stroke-width="5" stroke-linecap="round"/>
+    <path d="M60 36c-8 0-16 6-20 16M60 36c8 0 16 6 20 16M60 46c-6 0-11 4-13 10M60 46c6 0 11 4 13 10" fill="none" stroke="${A}" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M38 66h44l-6 10H44Z" fill="${S}"/>
+    <path d="M30 82h60v8H30Z" fill="${S}"/>
+    <circle cx="60" cy="26" r="4" fill="${A}"/>`,
+
+  /* --- generic mark for fully custom teams (assets/logos/custom.svg) --- */
+  ball: (S, A) => `
+    <circle cx="60" cy="60" r="28" fill="${S}"/>
+    <g fill="none" stroke="${A}" stroke-width="3"><path d="M32 60h56M60 32v56"/><path d="M40 40c8 8 8 32 0 40M80 40c-8 8-8 32 0 40"/></g>`
 };
 
 function buildLogo(team) {
@@ -240,9 +320,16 @@ function buildLogo(team) {
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const usedEmblems = new Set();
-for (const team of FRANCHISES) {
+const ALL = FRANCHISES.concat(EXPANSION);
+for (const team of ALL) {
   if (usedEmblems.has(team.logo.emblem)) throw new Error(`Emblem "${team.logo.emblem}" is used twice`);
   usedEmblems.add(team.logo.emblem);
   fs.writeFileSync(path.join(OUT_DIR, `${team.id}.svg`), buildLogo(team));
 }
-console.log(`Wrote ${FRANCHISES.length} logos to ${path.relative(process.cwd(), OUT_DIR)}`);
+// Neutral placeholder for teams created from scratch in Customize
+fs.writeFileSync(path.join(OUT_DIR, 'custom.svg'), buildLogo({
+  fullName: 'Custom team', abbreviation: 'NEW',
+  colors: { primary: '#3A3D44', secondary: '#E8E8EA', tertiary: '#9A9DA5' },
+  logo: { badge: 'roundel', emblem: 'ball' }
+}));
+console.log(`Wrote ${ALL.length + 1} logos to ${path.relative(process.cwd(), OUT_DIR)}`);
