@@ -37,11 +37,7 @@
   // Which roster is being viewed; resets when a different dynasty opens.
   var rosterView = { saveId: null, teamId: null, seasonYear: null };
 
-  var bornFmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
-  function bornLabel(iso) {
-    var t = Date.parse(iso + 'T00:00:00Z');
-    return isNaN(t) ? '—' : bornFmt.format(new Date(t));
-  }
+  function bornLabel(iso) { return window.HDSeason.formatDate(iso, 'medium'); }
 
   // Flag of the PRIMARY nationality; full names (incl. a second
   // nationality) in the tooltip and accessible label.

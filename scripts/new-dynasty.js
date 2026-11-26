@@ -71,10 +71,11 @@
     var submitted = false;   // live re-validation only after the first attempt
 
     // The selected year is the year the inaugural season ENDS.
+    // Defaults to the current real-world year; any supported year is allowed.
+    function defaultYear() { return window.HDSeason.currentYear(); }
     $('[data-year-hint]').textContent =
-      'The year your first season ends: ' + RULES.defaultInauguralYear + ' starts the ' +
-      window.HDSeason.fromInauguralYear(RULES.defaultInauguralYear).label + ' season. Any year from ' +
-      RULES.minInauguralYear + ' to ' + RULES.maxInauguralYear + '.';
+      'The year your first season ends: ' + defaultYear() + ' starts the ' +
+      window.HDSeason.fromInauguralYear(defaultYear()).label + ' season. Type any year or use − / +.';
 
     // League structure summary is computed from the data, not hardcoded.
     (function renderStructure() {
@@ -111,7 +112,7 @@
 
     function updateSeasonLabel() {
       var year = D.parseYear(inputs.inauguralYear.value);
-      var ok = !isNaN(year) && year >= RULES.minInauguralYear && year <= RULES.maxInauguralYear;
+      var ok = !D.validateYear(inputs.inauguralYear.value);
       var season = ok ? window.HDSeason.fromInauguralYear(year) : null;
       $('[data-season-label]').textContent = season ? season.label : '—';
       $('[data-season-start]').textContent = season ? '· preseason begins ' + window.HDSeason.openingMonthLabel(season.startYear) : '';
@@ -123,12 +124,8 @@
 
     Object.keys(inputs).forEach(function (field) {
       inputs[field].addEventListener('input', function () {
-        if (field === 'inauguralYear') {
-          // digits only, max 4
-          var digits = inputs.inauguralYear.value.replace(/\D/g, '').slice(0, 4);
-          if (digits !== inputs.inauguralYear.value) inputs.inauguralYear.value = digits;
-          updateSeasonLabel();
-        }
+        // The year is never silently altered: invalid input shows an error.
+        if (field === 'inauguralYear') updateSeasonLabel();
         if (submitted) showErrors(D.validateSetup(setupValues()).errors, field);
       });
       inputs[field].addEventListener('blur', function () {
@@ -139,7 +136,7 @@
     $$('[data-year-step]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var year = D.parseYear(inputs.inauguralYear.value);
-        if (isNaN(year)) year = RULES.defaultInauguralYear;
+        if (isNaN(year)) year = defaultYear();
         else year += Number(btn.getAttribute('data-year-step'));
         year = Math.min(RULES.maxInauguralYear, Math.max(RULES.minInauguralYear, year));
         inputs.inauguralYear.value = String(year);
@@ -577,7 +574,7 @@
 
     function reset() {
       form.reset();
-      inputs.inauguralYear.value = String(RULES.defaultInauguralYear);
+      inputs.inauguralYear.value = String(defaultYear());
       submitted = false;
       showErrors({});
       setRules(D.DEFAULT_RULES);

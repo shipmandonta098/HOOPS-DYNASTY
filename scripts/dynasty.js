@@ -77,11 +77,13 @@
   var EXPORT_FORMAT = 'hoops-dynasty-save';
 
   // Setup limits. The player picks the INAUGURAL SEASON YEAR: the year the
-  // first season ENDS (2027 -> the 2026–27 season, preseason October 2026).
+  // first season ENDS (2026 -> the 2025–26 season, preseason October 2025).
+  // Only technical year limits apply (see scripts/season.js); the default is
+  // the current real-world year (HDSeason.currentYear()).
+  var SEASON = isNode ? require('./season.js') : (typeof self !== 'undefined' ? self : this).HDSeason;
   var LEAGUE_RULES = Object.freeze({
-    defaultInauguralYear: 2027,
-    minInauguralYear: 1950,
-    maxInauguralYear: 2100,
+    minInauguralYear: SEASON.MIN_INAUGURAL_YEAR,
+    maxInauguralYear: SEASON.MAX_INAUGURAL_YEAR,
     nameMinLength: 2,
     nameMaxLength: 40
   });
@@ -192,7 +194,8 @@
 
   function parseYear(value) {
     var text = String(value == null ? '' : value).trim();
-    return /^\d{4}$/.test(text) ? Number(text) : NaN;
+    // Whole positive numbers only: no sign, decimals, spaces or exponents
+    return /^\d+$/.test(text) ? Number(text) : NaN;
   }
 
   function clone(value) {
@@ -221,9 +224,12 @@
     var text = String(value == null ? '' : value).trim();
     if (!text) return 'Inaugural season year is required.';
     var year = parseYear(text);
-    if (isNaN(year)) return 'Enter a four-digit year.';
-    if (year < LEAGUE_RULES.minInauguralYear || year > LEAGUE_RULES.maxInauguralYear) {
-      return 'Choose a year from ' + LEAGUE_RULES.minInauguralYear + ' to ' + LEAGUE_RULES.maxInauguralYear + '.';
+    if (isNaN(year) || !Number.isSafeInteger(year)) return 'Enter a whole-number year, like 2026.';
+    if (year < LEAGUE_RULES.minInauguralYear) {
+      return 'The earliest supported year is ' + LEAGUE_RULES.minInauguralYear + ', so every player is born in 1 AD or later.';
+    }
+    if (year > LEAGUE_RULES.maxInauguralYear) {
+      return 'The latest supported year is ' + LEAGUE_RULES.maxInauguralYear.toLocaleString('en-US') + ' (the limit of the browser’s calendar).';
     }
     return null;
   }
@@ -525,6 +531,8 @@
   var ID = /^[A-Za-z0-9_-]{4,100}$/;
 
   function isText(v, max) { return typeof v === 'string' && v.trim().length > 0 && v.length <= max; }
+  // Game years: positive, and within what the calendar can represent
+  var MAX_YEAR = 275760;
   function isDate(v) { return typeof v === 'string' && v.length <= 40 && !isNaN(Date.parse(v)); }
   function isInt(v, min, max) { return Number.isInteger(v) && v >= min && v <= max; }
 
@@ -542,7 +550,7 @@
 
     var league = d.league || {};
     req(isText(league.name, 80), 'Missing league name.');
-    req(isInt(league.foundedYear, 1000, 9999), 'Missing league founding year.');
+    req(isInt(league.foundedYear, 1, MAX_YEAR), 'Missing league founding year.');
     req(Array.isArray(league.conferences) && league.conferences.length > 0, 'Missing conferences.');
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
@@ -551,11 +559,11 @@
     req(isText(gm.name, 80), 'Missing general manager name.');
 
     var cal = d.calendar || {};
-    req(isInt(cal.startYear, 1000, 9999) && isInt(cal.seasonYear, 1000, 9999), 'Missing season year.');
+    req(isInt(cal.startYear, 1, MAX_YEAR) && isInt(cal.seasonYear, 1, MAX_YEAR), 'Missing season year.');
     req(typeof cal.seasonLabel === 'string' && cal.seasonLabel.length <= 20, 'Missing season label.');
     req(Object.prototype.hasOwnProperty.call(PHASES, cal.phase), 'Unknown league phase.');
 
-    req(typeof cal.currentDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cal.currentDate) && !isNaN(Date.parse(cal.currentDate)), 'Missing in-game date.');
+    req(SEASON.isValidDate(cal.currentDate), 'Missing in-game date.');
     req(d.onboarding && typeof d.onboarding.ownerIntroCompleted === 'boolean', 'Missing onboarding status.');
 
     var teams = Array.isArray(d.teams) ? d.teams : null;
@@ -650,13 +658,13 @@
           isText(p.firstName, 40) && isText(p.lastName, 40) && POSITIONS.indexOf(p.position) !== -1 &&
           isInt(p.age, 15, 50) && isInt(p.overall, 0, 100) && isInt(p.jerseyNumber, 0, 99) && validPortrait(p.portrait);
         req(ok, 'Invalid player record.');
-        req(p && isInt(p.weightLb, 120, 400) && typeof p.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.birthDate) &&
+        req(p && isInt(p.weightLb, 120, 400) && SEASON.isValidDate(p.birthDate) &&
           isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         req(p && validIdentity(p), 'Invalid player identity.');
         var dr = p && p.draft;
-        req(dr && isInt(dr.year, 1000, 9999) && (dr.undrafted === true ||
+        req(dr && isInt(dr.year, 1, MAX_YEAR) && (dr.undrafted === true ||
           (isInt(dr.round, 1, 10) && isInt(dr.pick, 1, 60) && isInt(dr.overall, 1, 600) && isText(dr.teamName, 80))), 'Invalid draft record.');
-        req(p && (p.debut === null || (p.debut && /^\d{4}-\d{2}-\d{2}$/.test(p.debut.date) && isText(p.debut.teamName, 80) && isText(p.debut.opponentName, 80))), 'Invalid debut record.');
+        req(p && (p.debut === null || (p.debut && SEASON.isValidDate(p.debut.date) && isText(p.debut.teamName, 80) && isText(p.debut.opponentName, 80))), 'Invalid debut record.');
         req(p && Array.isArray(p.relatives) && p.relatives.length <= 10 && p.relatives.every(function (r) {
           return r && isText(r.relation, 30) && isText(r.name, 80) && (r.playerId == null || typeof r.playerId === 'string');
         }), 'Invalid relatives.');
@@ -686,7 +694,7 @@
     }), 'Missing or invalid standings.');
 
     req(Array.isArray(d.rosterHistory) && d.rosterHistory.every(function (h) {
-      return h && isInt(h.seasonYear, 1000, 9999) && Array.isArray(h.players) && h.lineups && typeof h.lineups === 'object';
+      return h && isInt(h.seasonYear, 1, MAX_YEAR) && Array.isArray(h.players) && h.lineups && typeof h.lineups === 'object';
     }), 'Invalid roster history.');
     req(d.stats && d.stats.season && typeof d.stats.season.teams === 'object' && typeof d.stats.season.players === 'object', 'Missing statistics.');
     req(d.finances && d.finances.config && typeof d.finances.config.salaryCap === 'number' && d.finances.config.salaryCap > 0 &&
@@ -860,6 +868,7 @@
     phaseLabel: phaseLabel,
     cleanName: cleanName,
     parseYear: parseYear,
+    validateYear: validateYear,
     makeId: makeId,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,

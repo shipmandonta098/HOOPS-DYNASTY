@@ -16,11 +16,12 @@
   var node = typeof module === 'object' && module.exports;
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
-    node ? require('../data/nationalities.js') : root.HDNationalities
+    node ? require('../data/nationalities.js') : root.HDNationalities,
+    node ? require('./season.js') : root.HDSeason
   );
   if (node) module.exports = api;
   else root.HDPlayerBio = api;
-})(typeof self !== 'undefined' ? self : this, function (R, N) {
+})(typeof self !== 'undefined' ? self : this, function (R, N, Season) {
   'use strict';
 
   // Base weight by position, adjusted by height (lb)
@@ -52,7 +53,7 @@
 
     return {
       weightLb: weightLb,
-      birthDate: birthYear + '-' + pad(month) + '-' + pad(day),
+      birthDate: Season.isoDate(birthYear, month, day),     // any year, correctly padded
       experience: experience
     };
   }
