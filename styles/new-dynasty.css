@@ -200,10 +200,32 @@
   .nd-sort .hd-select-wrap { flex: 1; min-width: 0; }
 }
 
-.nd-count {
+.nd-team-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
   margin: 14px 0 8px;
+}
+.nd-count {
+  margin: 0;
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+.nd-team-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.nd-team-actions .hd-btn { gap: 0.45rem; }
+.nd-league-error:empty { display: none; }
+.nd-league-error { margin: 0 0 10px; }
+
+/* Randomize: brief highlight on the picked franchise */
+@keyframes nd-picked {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+.nd-team.is-picked .nd-team-card { animation: nd-picked 0.9s ease-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .nd-team.is-picked .nd-team-card { animation: none; }
 }
 
 /* --- Step 2: franchise list (cards on phones, table rows on desktop) ------ */
