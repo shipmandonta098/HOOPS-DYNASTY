@@ -1,0 +1,138 @@
+/* ==========================================================================
+   HOOPS DYNASTY — Finances section (scripts/finances-ui.js)
+   Tables reuse the Career Statistics table styles (styles/career-stats.css).
+   Option colors: --opt-* tokens in styles/theme.css (per theme).
+   ========================================================================== */
+
+.pp-finances { grid-column: 1 / -1; }
+@media (min-width: 1280px) {
+  .pp-sections .pp-finances { border-top: 1px solid var(--border); }
+}
+@media (min-width: 1024px) {
+  .pp-finances .cs-head { padding-right: 56px; }
+}
+.pp-finances .cs-nav { margin: 10px 0 2px; }
+
+.fin-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+.fin-status.is-under-contract { border-color: var(--opt-po); color: var(--opt-po); }
+.fin-status.is-ufa, .fin-status.is-rfa { border-color: var(--opt-ng); color: var(--opt-ng); }
+
+/* Money: right-aligned tabular figures (inherited from .cs-table) */
+.fin-table td { min-width: 6.5rem; }
+.fin-table .is-text { min-width: 0; }
+.fin-table tr.is-split td, .fin-table tr.is-split th { color: var(--text-muted); }
+.fin-table tr.is-combined th, .fin-table tr.is-combined td { font-weight: 700; }
+.fin-table tr.is-current > th:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.fin-table tfoot tr.is-career th, .fin-table tfoot tr.is-career td {
+  font-weight: 800;
+  border-top: 2px solid var(--border-strong);
+  border-bottom: 0;
+  background: var(--surface-raised);
+}
+.fin-note-inline { color: var(--text-muted); font-size: 0.6875rem; }
+.fin-details { white-space: normal; min-width: 14rem; max-width: 30rem; }
+
+/* Summary: two-column definition grid */
+.fin-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: 0;
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.fin-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+.fin-summary dt { color: var(--text-muted); }
+.fin-summary dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Year-by-year: team column stays put while seasons scroll */
+.fin-years .fin-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.fin-years thead .fin-sticky { z-index: 3; background: var(--surface-raised); }
+.fin-years th.fin-sticky span { vertical-align: middle; }
+.fin-years th.fin-sticky img { vertical-align: middle; margin-right: 6px; }
+.fin-years td { vertical-align: top; }
+.fin-years .fin-sub th, .fin-years .fin-sub td { color: var(--text-muted); font-size: 0.6875rem; }
+.fin-years .is-current { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.fin-years thead th.is-current { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.fin-years .is-past { color: var(--text-muted); }
+.fin-years .is-ext-year { border-left: 1px dashed var(--border-strong); }
+.fin-years td.is-declined .fin-amt { text-decoration: line-through; color: var(--text-muted); }
+.fin-amt { display: block; }
+.fin-tags { display: flex; justify-content: flex-end; gap: 3px; margin-top: 3px; }
+.fin-declined { display: block; margin-top: 2px; font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Option / guarantee designations: color + abbreviation (never color alone) */
+.fin-tag {
+  display: inline-block;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  text-decoration: none;
+  cursor: help;
+}
+.fin-tag.is-po { color: var(--opt-po); }
+.fin-tag.is-to { color: var(--opt-to); }
+.fin-tag.is-ng { color: var(--opt-ng); }
+.fin-tag.is-pg { color: var(--opt-pg); }
+.fin-tag.is-ext { color: var(--text-soft); border-style: dashed; }
+.fin-tag.is-declined { opacity: 0.6; }
+
+.fin-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.fin-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.fin-legend-current {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-bottom: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.fin-clauses { margin-top: 12px; }
+.fin-subtitle { margin: 0 0 4px; font-size: 0.8125rem; font-weight: 800; }
+.fin-clauses ul { margin: 0; padding-left: 1.1rem; font-size: 0.8125rem; color: var(--text-soft); line-height: 1.5; }
+
+/* Finances tab: the team's contracts (scripts/game-shell.js) */
+.gs-grid > .gs-contracts-panel { grid-column: 1 / -1; }
+.gs-contracts td.is-num, .gs-contracts th.is-num { font-variant-numeric: tabular-nums; }
+.gs-contracts tfoot th, .gs-contracts tfoot td { font-weight: 800; border-top: 2px solid var(--border-strong); }
+/* Zebra rows: the row-header cell shares its row's stripe */
+.fin-table tbody tr:nth-child(even) th { background: color-mix(in srgb, var(--surface) 70%, var(--bg)); }
+.fin-years tbody tr:nth-child(even) th.fin-sticky { background: color-mix(in srgb, var(--surface) 70%, var(--bg)); }

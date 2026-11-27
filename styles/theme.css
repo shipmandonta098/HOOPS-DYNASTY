@@ -60,6 +60,11 @@
   --morale-mid: #ffe84d;
   --morale-low: #ff4d6d;
   --morale-glow: 1;
+  /* Contract designations (scripts/finances-ui.js): PO / TO / NG / PG */
+  --opt-po: #4ade80;
+  --opt-to: #60a5fa;
+  --opt-ng: #f59e0b;
+  --opt-pg: #c084fc;
 }
 
 /* --- Dark: softer charcoal, muted accent, easy on the eyes ---------------- */
@@ -89,6 +94,11 @@
   --morale-mid: #ffe84d;
   --morale-low: #ff4d6d;
   --morale-glow: 1;
+  /* Contract designations (scripts/finances-ui.js): PO / TO / NG / PG */
+  --opt-po: #4ade80;
+  --opt-to: #60a5fa;
+  --opt-ng: #f59e0b;
+  --opt-pg: #c084fc;
 }
 
 /* --- Light: light gray canvas, white panels, dark type, crimson ----------- */
@@ -120,6 +130,11 @@
   --morale-mid: #8a6a00;
   --morale-low: #c8102e;
   --morale-glow: 0;
+  /* Deeper option colors: >= 4.5:1 on white */
+  --opt-po: #15803d;
+  --opt-to: #1d4ed8;
+  --opt-ng: #b45309;
+  --opt-pg: #7e22ce;
 }
 
 /* --- Text size: scales every rem-based size in the app -------------------- */

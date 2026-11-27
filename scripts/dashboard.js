@@ -1,7 +1,7 @@
 /* ==========================================================================
    HOOPS DYNASTY — GM Dashboard (default in-game section)
    Pure render functions: everything is read from the active dynasty save.
-   Values that depend on systems that don't exist yet (games, contracts)
+   Values that depend on systems that don't exist yet (e.g. games)
    render as dashes with an explanation, never as invented numbers.
 
    HDDashboard.render(container, save, { go(sectionId) })
@@ -172,7 +172,8 @@
   function finances(save, c, opts) {
     opts = opts || {};
     var Fn = window.HDFinance;
-    var f = Fn.teamSummary(save.finances, c.roster);
+    var K = window.HDContracts;
+    var f = Fn.teamSummary(save.finances, K && save.contracts ? K.teamPayroll(save, c.team.id) : c.roster);
     var scaleMax = f.luxuryTax * 1.15;
     var pctOf = function (v) { return Math.max(0, Math.min(100, (v / scaleMax) * 100)); };
     var spending = c.owner.traits.spending;

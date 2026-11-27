@@ -175,8 +175,25 @@
     var head = [
       ['Player', 'gs-sticky'], ['Pos'], ['OVR', 'is-num'], ['POT', 'is-num'], ['Age', 'is-num'],
       ['Born'], ['Ht', 'is-num'], ['Wt', 'is-num'], ['Exp', 'is-num', 'Seasons of league experience (R = rookie)'],
-      ['Country'], ['College']
+      ['Country'], ['College'], ['Salary', 'is-num', 'Salary for the season (player contract)'], ['Thru', null, 'Last season of the contract']
     ];
+    // Contract money for the viewed season (scripts/contracts.js)
+    var K = window.HDContracts;
+    function salaryCells(p) {
+      if (!K || !save.contracts) return [el('td', { class: 'is-num gs-muted-cell', text: '—' }), el('td', { class: 'gs-muted-cell', text: '—' })];
+      var hit = null, thru = null;
+      K.contractsOf(save, p.id).forEach(function (c) {
+        var y = K.yearFor(c, rosterView.seasonYear);
+        if (y && y.optionStatus !== 'declined') { hit = (hit || 0) + y.salary; thru = c; }
+      });
+      var last = thru ? thru.years.filter(function (y) { return y.optionStatus !== 'declined'; }).slice(-1)[0] : null;
+      var tags = last && window.HDFinancesUI ? window.HDFinancesUI.tagsFor(last).filter(function (t) { return t !== 'EXT'; }) : [];
+      return [
+        el('td', { class: 'is-num', text: hit == null ? '—' : window.HDFinance.money(hit) }),
+        el('td', { title: last ? 'Contract runs through ' + window.HDSeason.label(last.seasonYear) + (tags.length ? ' (' + tags.join(', ') + ' in the final season)' : '') : null,
+          text: last ? window.HDSeason.label(last.seasonYear) + (tags.length ? ' ' + tags.join('/') : '') : '—' })
+      ];
+    }
     var table = el('table', { class: 'gs-roster' }, [
       el('caption', { class: 'hd-visually-hidden', text: team.fullName + ' roster, ' + (season ? season.seasonLabel : '') }),
       el('thead', null, [el('tr', null, head.map(function (h) {
@@ -208,12 +225,53 @@
           el('td', { class: 'is-num', title: p.experience === 0 ? 'Rookie' : p.experience + ' seasons', text: Bio.experienceLabel(p.experience) }),
           el('td', null, [flag(p)]),
           el('td', { class: p.college ? null : 'gs-muted-cell', title: p.college ? null : 'Did not play U.S. college basketball', text: p.college || '—' })
-        ]);
+        ].concat(salaryCells(p)));
       }))
     ]);
     body.appendChild(el('section', { class: 'hd-panel gs-panel gs-roster-panel', 'aria-label': team.fullName + ' roster' }, [
       el('div', { class: 'gs-table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Roster table (scrolls sideways)' }, [table])
     ]));
+  }
+
+  // Every contract on the team's books this season (the payroll's parts)
+  function teamContracts(save, team) {
+    var K = window.HDContracts, Fn = window.HDFinance;
+    if (!K || !save.contracts) return null;
+    var season = save.calendar.seasonYear;
+    var rows = save.players.filter(function (p) { return p.teamId === team.id; }).map(function (p) {
+      var c = K.activeContract(save, p.id);
+      var y = c && K.yearFor(c, season);
+      return { p: p, c: c, y: y && y.optionStatus !== 'declined' ? y : null };
+    }).filter(function (r) { return r.y; }).sort(function (a, b) { return b.y.capHit - a.y.capHit; });
+    var dead = Object.keys(save.contracts.contracts).reduce(function (sum, id) {
+      return sum + (save.contracts.contracts[id].dead || []).filter(function (d) { return d.teamId === team.id && d.seasonYear === season; })
+        .reduce(function (s, d) { return s + d.amount; }, 0);
+    }, 0);
+    var total = K.teamPayroll(save, team.id, season);
+    var types = window.HDContractRules.TYPES;
+    return window.HDDashboard.panels.panel('Team Contracts · ' + save.calendar.seasonLabel, { class: 'hd-panel db-panel gs-contracts-panel' }, [
+      el('div', { class: 'gs-table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Team contracts (scrolls sideways)' }, [
+        el('table', { class: 'gs-roster gs-contracts' }, [
+          el('caption', { class: 'hd-visually-hidden', text: team.fullName + ' contracts, ' + save.calendar.seasonLabel }),
+          el('thead', null, [el('tr', null, [['Player'], ['Type'], ['Salary', 'is-num'], ['Cap Hit', 'is-num'], ['Thru'], ['Rem. Guaranteed', 'is-num']].map(function (h) {
+            return el('th', { scope: 'col', class: h[1] || null, text: h[0] });
+          }))]),
+          el('tbody', null, rows.map(function (r) {
+            return el('tr', null, [
+              el('th', { scope: 'row' }, [el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': r.p.id, 'aria-haspopup': 'dialog',
+                text: window.HDPlayerIdentity.fullName(r.p) })]),
+              el('td', { text: types[r.c.type] ? types[r.c.type].label : r.c.type }),
+              el('td', { class: 'is-num', text: Fn.money(r.y.salary) }),
+              el('td', { class: 'is-num', text: Fn.money(r.y.capHit) }),
+              el('td', { text: window.HDSeason.label(r.c.endSeason) }),
+              el('td', { class: 'is-num', text: Fn.money(K.remainingGuaranteed(r.c, season)) })
+            ]);
+          }).concat(dead ? [el('tr', null, [el('th', { scope: 'row', text: 'Dead money' }), el('td'), el('td'), el('td', { class: 'is-num', text: Fn.money(dead) }), el('td'), el('td')])] : [])),
+          el('tfoot', null, [el('tr', { class: 'gs-contracts-total' }, [el('th', { scope: 'row', text: 'Team payroll' }), el('td'), el('td'),
+            el('td', { class: 'is-num', 'data-payroll': String(total), text: Fn.money(total) }), el('td'), el('td')])])
+        ])
+      ])
+    ]);
   }
 
   function renderFinances(container, save) {
@@ -223,6 +281,7 @@
     container.appendChild(sectionHeader(save, 'Finances', 'League financial rules and your team’s position against them.'));
     container.appendChild(el('div', { class: 'gs-grid' }, [
       window.HDDashboard.panels.finances(save, c, { title: 'Payroll Overview' }),
+      teamContracts(save, c.team),
       window.HDDashboard.panels.panel('League Rules · ' + save.calendar.seasonLabel, null, [
         el('dl', { class: 'db-fin' }, [
           ['Salary Cap', Fn.money(cfg.salaryCap)],

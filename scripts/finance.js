@@ -3,10 +3,10 @@
    League-wide thresholds (salary cap, luxury tax) are configuration stored
    in each dynasty save (finances.config) so future seasons can grow them.
 
-   Team payroll is DERIVED from player contracts. There is no contract
-   system yet, so payroll is null ("unavailable") rather than an invented
-   figure. Once players carry `contract: { salary }`, payroll, cap space,
-   tax status and the tax bill all compute automatically.
+   Team payroll is DERIVED from player contracts: the cap charges in
+   save.contracts (scripts/contracts.js, the single source), passed in as
+   a number. Without contract data payroll is null ("unavailable") rather
+   than an invented figure.
    ========================================================================== */
 (function (root, factory) {
   'use strict';
@@ -65,12 +65,14 @@
   }
 
   /**
+   * rosterOrPayroll: the team's payroll (number, from HDContracts.teamPayroll)
+   *                  or a roster (legacy `contract.salary` fields)
    * -> { payroll|null, salaryCap, luxuryTax, capSpace|null, taxStatus, taxBill|null }
    * taxStatus: 'unavailable' | 'under-cap' | 'over-cap' | 'taxpayer'
    */
-  function teamSummary(finances, roster) {
+  function teamSummary(finances, rosterOrPayroll) {
     var config = (finances && finances.config) || DEFAULT_CONFIG;
-    var pay = payroll(roster);
+    var pay = typeof rosterOrPayroll === 'number' ? rosterOrPayroll : Array.isArray(rosterOrPayroll) ? payroll(rosterOrPayroll) : null;
     var status = 'unavailable';
     if (pay != null) status = pay > config.luxuryTax ? 'taxpayer' : pay > config.salaryCap ? 'over-cap' : 'under-cap';
     return {
