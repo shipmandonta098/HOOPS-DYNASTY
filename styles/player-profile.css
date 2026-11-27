@@ -201,3 +201,24 @@
   .pp-sections .pp-section { max-width: none; }
   .pp-ratings { border-left: 1px solid var(--border); }
 }
+
+/* Bigger OVR / POT badges */
+.pp-badge { min-width: 4.5rem; padding: 0.6rem 0.75rem 0.55rem; }
+.pp-badge strong { font-size: 2rem; }
+.pp-badge span { margin-top: 6px; font-size: 0.625rem; }
+@media (min-width: 1024px) {
+  /* Header spans the same width as the content below, so the badges sit
+     at its right end (clear of the close button) */
+  .pp-head-body { max-width: none; padding-right: 88px; }
+  .pp-badges { gap: 10px; }
+  .pp-badge { min-width: 6rem; padding: 0.75rem 1rem 0.65rem; border-radius: var(--radius-lg); }
+  .pp-badge strong { font-size: 3rem; }
+  .pp-badge span { margin-top: 8px; font-size: 0.6875rem; }
+}
+@media (min-width: 1280px) {
+  /* Line the badges up with the right edge of the Ratings column */
+  .pp-head-body { max-width: 1600px; padding-right: 32px; }
+}
+@media (min-width: 1280px) and (max-width: 1719px) {
+  .pp-head-body { padding-right: 88px; }
+}
