@@ -192,6 +192,7 @@
     }
     segmented('seriesLength', 'nd-series', O.seriesLength.map(function (n) { return { value: String(n), label: 'Best of ' + n }; }));
     segmented('difficulty', 'nd-difficulty', Object.keys(O.difficulty).map(function (k) { return { value: k, label: O.difficulty[k].label }; }));
+    segmented('playerGender', 'nd-gender', Object.keys(O.playerGender).map(function (k) { return { value: k, label: O.playerGender[k].label }; }));
     $('[data-roster-hint]').textContent = 'Players per team, ' + O.rosterSize.min + '–' + O.rosterSize.max + '. Rosters are generated at this size.';
 
     function checked(name) {
@@ -204,6 +205,7 @@
         playoffFormat: ruleEls.playoffFormat.value,
         seriesLength: checked('nd-series'),
         difficulty: checked('nd-difficulty'),
+        playerGender: checked('nd-gender'),
         rosterSize: ruleEls.rosterSize.value,
         salaryCapM: ruleEls.salaryCapM.value,
         luxuryTaxM: ruleEls.luxuryTaxM.value
@@ -214,6 +216,7 @@
       ruleEls.playoffFormat.value = r.playoffFormat;
       root.querySelector('input[name="nd-series"][value="' + r.seriesLength + '"]').checked = true;
       root.querySelector('input[name="nd-difficulty"][value="' + r.difficulty + '"]').checked = true;
+      root.querySelector('input[name="nd-gender"][value="' + (r.playerGender || 'male') + '"]').checked = true;
       ruleEls.rosterSize.value = String(r.rosterSize);
       ruleEls.salaryCapM.value = (r.salaryCap / 1e6).toFixed(1);
       ruleEls.luxuryTaxM.value = (r.luxuryTax / 1e6).toFixed(1);
@@ -232,6 +235,7 @@
       var v = rulesValues();
       $('[data-rule-detail="playoffFormat"]').textContent = (O.playoffFormat[v.playoffFormat] || {}).detail || '';
       $('[data-rule-detail="difficulty"]').textContent = (O.difficulty[v.difficulty] || {}).detail || '';
+      $('[data-rule-detail="playerGender"]').textContent = ((O.playerGender[v.playerGender] || {}).detail || '') + ' Can’t be changed once the league is created.';
       // "Custom" badge on the tab when anything differs from the defaults
       var check = D.validateRules(v);
       var def = D.DEFAULT_RULES;
@@ -574,7 +578,8 @@
         ['Arena', team.arenaName + ' · ' + team.arenaCapacity.toLocaleString('en-US') + ' seats'],
         ['Team Overall', [window.HDRatings.el(team.overall), document.createTextNode(' · ' + F.ratingTier(team.overall))]],
         ['Season & Playoffs', rs.season + ' · ' + rs.playoffs],
-        ['Difficulty & Rosters', rs.difficulty + ' · ' + rs.roster],
+        ['Players', rs.players + ' · ' + rs.roster],
+        ['Difficulty', rs.difficulty],
         ['Salary Cap / Tax Line', rs.salaryCap + ' / ' + rs.luxuryTax]
       ];
       var dl = el('dl', { class: 'nd-details' });

@@ -28,7 +28,9 @@
     ['#5B6068', '#F3EEE6', null],        // gray blazer, blouse
     ['#22262D', '#F4F4F2', '#1F4E79']    // dark suit, blue tie
   ];
-  var HAIR_STYLES = 7;   // see HAIR below
+  var HAIR_STYLES = 11;  // see HAIR below (0–6 original styles, 7–10 added for women's leagues)
+  var MALE_STYLES = 7;   // men keep the original seven (same random draw as before)
+  var FEMALE_STYLES = [4, 5, 7, 8, 9, 10];
 
   var HAIR = [
     'M21 24C21 12 43 12 43 24c-2-6-7-8-11-8s-9 2-11 8Z',                                     // 0 short crop
@@ -37,8 +39,18 @@
     'M21 28c-1-6 1-8 2-9v9Zm22 0c1-6-1-8-2-9v9Z',                                           // 3 receding
     'M19 34c-2-22 28-22 26 0-1-8-2-12-4-15-4-3-14-3-18 0-2 3-3 7-4 15Z',                    // 4 long / bob
     null,                                                                                     // 5 curly (circles)
-    ''                                                                                        // 6 bald
+    '',                                                                                       // 6 bald
+    'M21 24c1-11 21-11 22 0-3-5-9-7-13-6-3 1-6 3-9 6Z',                                       // 7 long straight (front)
+    'M21 24C21 12 43 12 43 24c-3-6-8-8-11-8s-8 2-11 8Z',                                     // 8 ponytail (front)
+    'M21 24C21 12 43 12 43 24c-3-6-8-8-11-8s-8 2-11 8ZM27.5 10a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0-9 0Z', // 9 top bun
+    'M21 24C21 12 43 12 43 24c-3-6-8-8-11-8s-8 2-11 8Z'                                      // 10 braids (front)
   ];
+  // Hair that falls behind the head (drawn before the face)
+  var HAIR_BACK = {
+    7: 'M19 26c0-16 26-16 26 0v17c-3 2-6 2-8 0V31H27v12c-2 2-5 2-8 0Z',
+    8: 'M41 17c7 1 10 9 8 19-1 4-4 5-5 3 2-7 1-12-4-16Z',
+    10: 'M19.5 24v21h4.2V27Zm20.8 3v18h4.2V24Z'
+  };
 
   function idx(value, length) {
     var n = Math.floor(Number(value));
@@ -57,8 +69,8 @@
     opts = opts || {};
     var r = getRandom().rng('portrait:' + seed);
     var hairColor = opts.older && r.chance(0.55) ? r.pick([5, 6]) : r.int(0, 4);
-    var hair = r.int(0, HAIR_STYLES - 1);
-    if (opts.older && r.chance(0.3)) hair = 3;
+    var hair = opts.female ? r.pick(FEMALE_STYLES) : r.int(0, MALE_STYLES - 1);
+    if (opts.older && !opts.female && r.chance(0.3)) hair = 3;
     return { skin: r.int(0, SKIN.length - 1), hair: hair, hairColor: hairColor, attire: r.int(0, ATTIRE.length - 1) };
   }
 
@@ -107,6 +119,7 @@
     return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" ' +
       (label ? 'role="img" aria-label="' + label + '"' : 'aria-hidden="true"') + '>' +
       (bg ? '<rect width="64" height="64" fill="' + bg + '"/>' : '') +
+      (HAIR_BACK[style] ? '<path d="' + HAIR_BACK[style] + '" fill="' + hairColor + '"/>' : '') +
       '<rect x="27" y="33" width="10" height="11" rx="3" fill="' + skin + '"/>' +
       body +
       '<ellipse cx="21" cy="27" rx="2" ry="3" fill="' + skin + '"/>' +

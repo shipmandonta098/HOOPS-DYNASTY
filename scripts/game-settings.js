@@ -129,6 +129,11 @@
       ]),
       el('section', { class: 'hd-panel gs-panel', 'aria-labelledby': id + '-h-comp' }, [
         el('h2', { class: 'hd-eyebrow', id: id + '-h-comp', text: 'Competition' }),
+        el('div', { class: 'hd-field gss-field', 'data-field': 'playerGender' }, [
+          el('span', { class: 'hd-label', text: 'Players' }),
+          el('p', { class: 'gss-fixed', text: (O.playerGender[cur.playerGender || 'male'] || O.playerGender.male).label }),
+          el('div', { class: 'gss-rule-note' }, [el('span', { class: 'gss-tag' }, [dom.icon('lock'), el('span', { text: 'Set when the league was created' })])])
+        ]),
         segField('difficulty', 'Difficulty', Object.keys(O.difficulty).map(function (k) { return { value: k, label: O.difficulty[k].label }; })),
         rosterField
       ]),

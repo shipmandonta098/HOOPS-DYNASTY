@@ -38,11 +38,12 @@
     node ? require('./random.js') : root.HDRandom,
     node ? require('../data/nationalities.js') : root.HDNationalities,
     node ? require('../data/name-pools.js') : root.HDNamePools,
-    node ? require('../data/colleges.js') : root.HDColleges
+    node ? require('../data/colleges.js') : root.HDColleges,
+    node ? require('../data/name-pools-female.js') : root.HDNamePoolsFemale
   );
   if (node) module.exports = api;
   else root.HDPlayerIdentity = api;
-})(typeof self !== 'undefined' ? self : this, function (R, N, Names, Colleges) {
+})(typeof self !== 'undefined' ? self : this, function (R, N, Names, Colleges, Female) {
   'use strict';
 
   var B = Names.BACKGROUNDS;
@@ -64,7 +65,7 @@
     return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   }
   var BLOCKED = {};
-  Names.BLOCKED_NAMES.forEach(function (n) { BLOCKED[fold(n)] = true; });
+  Names.BLOCKED_NAMES.concat(Female ? Female.BLOCKED_NAMES : []).forEach(function (n) { BLOCKED[fold(n)] = true; });
 
   function fullName(p) {
     if (!p) return '';
@@ -95,22 +96,26 @@
   /* --- names ------------------------------------------------------------ */
 
   // -> { firstName, lastName, suffix, nameOrder, nameOrigin }
-  function generateName(backgroundId, rng, used) {
+  // gender 'F': women's given names, and the female surname form where the
+  // tradition has one (data/name-pools-female.js); men's generation is unchanged.
+  function generateName(backgroundId, rng, used, gender) {
     var id = backgroundId;
     var bg = B[id];
     if (bg && bg.mixOf) { id = rng.pick(bg.mixOf); bg = B[id]; }
     if (!bg) { id = 'anglo'; bg = B.anglo; }
     var out;
     for (var attempt = 0; attempt < 40; attempt++) {
-      var first = rng.pick(bg.first);
-      var last = rng.pick(bg.last);
+      var female = gender === 'F' && Female && Female.FIRST[id];
+      var first = rng.pick(female ? Female.FIRST[id] : bg.first);
+      var li = Math.floor(rng.next() * bg.last.length);
+      var last = female && Female.LAST_FEMALE[id] ? Female.LAST_FEMALE[id][li] : bg.last[li];
       if (bg.noRepeatSame && first === last) continue;
       if (bg.compound && rng.chance(bg.compound.rate)) {
-        var second = rng.pick(bg.last);
+        var second = rng.pick(female && Female.LAST_FEMALE[id] ? Female.LAST_FEMALE[id] : bg.last);
         if (second !== last) last = last + bg.compound.join + second;
       }
       if (bg.particles && rng.chance(bg.particles.rate)) last = rng.pick(bg.particles.values) + ' ' + last;
-      var suffix = bg.suffix && rng.chance(bg.suffix.rate) ? rng.pick(bg.suffix.values) : null;
+      var suffix = bg.suffix && rng.chance(bg.suffix.rate) && !female ? rng.pick(bg.suffix.values) : null;   // Jr. / II / III are men's
       out = { firstName: first, lastName: last, suffix: suffix, nameOrder: bg.order || 'given-first', nameOrigin: id };
       var key = fold(fullName(out));
       var plain = fold(first + ' ' + last);
@@ -175,7 +180,7 @@
     var c = N.country(nationality) || N.country('US');
     var college;
     if (opts.college !== undefined) college = opts.college;
-    else college = rng.chance(c.collegeRate) ? Colleges.pick(rng.next) : null;
+    else college = rng.chance(c.collegeRate) ? Colleges.pick(rng.next, opts.gender) : null;
 
     var type = college ? 'ncaa' : weighted(rng, c.pathways);
     var entryAge = opts.entryAge != null ? opts.entryAge : Math.min(age, rng.pick(N.ENTRY_AGES[type]));
@@ -195,9 +200,9 @@
     opts = opts || {};
     var rng = R.rng('identity:' + seed + ':' + player.id);
     var nationality = opts.nationality || pickNationality(rng, opts.usShare);
-    var name = generateName(pickBackground(nationality, rng), rng, opts.used);
+    var name = generateName(pickBackground(nationality, rng), rng, opts.used, player.gender);
     var birth = birthplace(nationality, name.nameOrigin, rng);
-    var dev = development(nationality, player.age, rng);
+    var dev = development(nationality, player.age, rng, { gender: player.gender });
     return {
       firstName: name.firstName, lastName: name.lastName, suffix: name.suffix,
       nameOrder: name.nameOrder, nameOrigin: name.nameOrigin,
@@ -249,7 +254,7 @@
       var rng = R.rng('identity-fill:' + seed + ':' + p.id);
       if (!p.nationality) p.nationality = plan[p.id] || 'US';
       if (!p.firstName || !p.lastName) {
-        var nm = generateName(pickBackground(p.nationality, rng), rng, used);
+        var nm = generateName(pickBackground(p.nationality, rng), rng, used, p.gender);
         p.firstName = nm.firstName; p.lastName = nm.lastName; p.suffix = nm.suffix;
         p.nameOrder = nm.nameOrder; p.nameOrigin = nm.nameOrigin;
       }
@@ -268,6 +273,7 @@
         var hasExp = Number.isInteger(p.experience) && Number.isInteger(p.age);
         var dev = development(p.nationality, p.age, rng, {
           college: p.college !== undefined ? p.college : undefined,
+          gender: p.gender,
           entryAge: hasExp ? Math.max(17, p.age - p.experience) : null
         });
         if (p.college === undefined) p.college = dev.college;
@@ -275,7 +281,7 @@
       }
       if (p.college === undefined) {
         // Pathway known but college missing: keep the two consistent
-        p.college = p.pathway.type === 'ncaa' ? Colleges.pick(rng.next) : null;
+        p.college = p.pathway.type === 'ncaa' ? Colleges.pick(rng.next, p.gender) : null;
       }
     });
     return players;

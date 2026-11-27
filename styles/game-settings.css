@@ -81,3 +81,4 @@
   .gss-actions .hd-btn { flex: 1; }
   .gss-status { text-align: left; }
 }
+.gss-fixed { margin: 0; font-size: 0.9375rem; font-weight: 700; }

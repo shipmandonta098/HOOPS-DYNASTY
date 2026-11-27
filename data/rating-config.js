@@ -197,7 +197,24 @@
     }
   };
 
-  /* --- 7. Draft classes ------------------------------------------------------ */
+  /* --- 7. Player gender ---------------------------------------------------- */
+  // League setting (Men / Women / Mixed). Heights in inches by position
+  // (min..max); women are shorter at every position. Attributes are read
+  // against the gender's own position averages, so height alone never
+  // makes a women's player "worse". Women dunk far less: the dunk rating
+  // is lowered and capped, and counts for less in the overall formula.
+  var GENDER = {
+    M: { HEIGHTS: { PG: [72, 77], SG: [75, 79], SF: [78, 81], PF: [80, 83], C: [82, 86] },
+         HEIGHT_MID: { PG: 74.5, SG: 77, SF: 79.5, PF: 81.5, C: 84 } },
+    F: { HEIGHTS: { PG: [66, 71], SG: [69, 73], SF: [71, 75], PF: [73, 77], C: [75, 80] },
+         HEIGHT_MID: { PG: 68.5, SG: 71, SF: 73, PF: 75, C: 77.5 },
+         DUNK_OFFSET: -30,          // shape offset (points below the player's level)
+         DUNK_CAP: 72,              // even the best women's dunkers top out here
+         FORMULA_WEIGHT: { dunk: 0.2 } },   // multiplier on the position weight
+    MIXED_FEMALE_SHARE: 0.5
+  };
+
+  /* --- 8. Draft classes ------------------------------------------------------ */
   // Incoming rookies: their own distribution, far below established pros.
   var DRAFT = {
     SIZE: 60,
@@ -240,6 +257,7 @@
     AGE: AGE,
     AGING: AGING,
     TEAMS: TEAMS,
-    DRAFT: DRAFT
+    DRAFT: DRAFT,
+    GENDER: GENDER
   };
 });

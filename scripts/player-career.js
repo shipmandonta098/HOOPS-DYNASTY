@@ -27,17 +27,21 @@
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
     node ? require('./player-identity.js') : root.HDPlayerIdentity,
-    node ? require('./season.js') : root.HDSeason
+    node ? require('./season.js') : root.HDSeason,
+    node ? require('../data/name-pools-female.js') : root.HDNamePoolsFemale
   );
   if (node) module.exports = api;
   else root.HDPlayerCareer = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Identity, Season) {
+})(typeof self !== 'undefined' ? self : this, function (R, Identity, Season, Female) {
   'use strict';
 
   var ROUNDS = 2;
   var PICKS_PER_ROUND = 30;
   var FORMER_FIRST = ['Clarence', 'Lonnie', 'Reggie', 'Calvin', 'Darnell', 'Maurice', 'Vernon', 'Otis', 'Lamont', 'Bernard',
     'Rodney', 'Earl', 'Terrence', 'Cornell', 'Dwayne', 'Harold', 'Milton', 'Russell', 'Ezekiel', 'Stanley'];
+
+  var FORMER_FIRST_F = ['Sheila', 'Lorraine', 'Yvette', 'Denise', 'Tamara', 'Regina', 'Vanessa', 'Monica', 'Andrea', 'Carla',
+    'Jacqueline', 'Renée', 'Sonya', 'Gwen', 'Valerie', 'Tracy', 'Felicia', 'Kim', 'Natalie', 'Rochelle'];
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -121,7 +125,7 @@
     // In-league pairs: only players who already share a last name AND a
     // nationality (nothing about either player is changed to fit).
     var byLast = {};
-    needs.forEach(function (p) { var k = p.lastName + '|' + p.nationality; (byLast[k] = byLast[k] || []).push(p); });
+    needs.forEach(function (p) { var k = p.lastName + '|' + p.nationality + '|' + (p.gender || 'M'); (byLast[k] = byLast[k] || []).push(p); });
     var MAX_PAIRS = 8;                          // family ties should be rare
     var pairs = 0;
     Object.keys(byLast).sort().forEach(function (last) {
@@ -130,7 +134,7 @@
         if (pairs >= MAX_PAIRS || !rng.chance(0.1)) continue;
         pairs++;
         var a = group[i], b = group[i + 1];
-        var relation = Math.abs(a.age - b.age) <= 7 ? 'Brother' : 'Cousin';
+        var relation = Math.abs(a.age - b.age) <= 7 ? (a.gender === 'F' ? 'Sister' : 'Brother') : 'Cousin';
         a.relatives.push({ relation: relation, name: Identity.fullName(b), playerId: b.id });
         b.relatives.push({ relation: relation, name: Identity.fullName(a), playerId: a.id });
       }
@@ -138,10 +142,12 @@
     // Former professionals in the family (fictional people)
     needs.forEach(function (p) {
       if (!rng.chance(0.03)) return;
-      var relation = rng.chance(0.65) ? 'Son' : 'Nephew';
-      // Same family name and naming tradition; given name from a pool that
-      // fits the tradition when available.
-      var elder = { firstName: rng.pick(FORMER_FIRST), lastName: p.lastName, nameOrder: p.nameOrder };
+      var female = p.gender === 'F';
+      var relation = rng.chance(0.65) ? (female ? 'Daughter' : 'Son') : (female ? 'Niece' : 'Nephew');
+      // Same family name and naming tradition. A woman's former-pro relative
+      // is her mother or aunt (the surname form matches; e.g. Kowalska).
+      var femalePool = female && Female && Female.FIRST[p.nameOrigin] ? Female.FIRST[p.nameOrigin] : FORMER_FIRST_F;
+      var elder = { firstName: rng.pick(female ? femalePool : FORMER_FIRST), lastName: p.lastName, nameOrder: p.nameOrder };
       p.relatives.push({ relation: relation, name: Identity.fullName(elder), note: 'former professional player' });
     });
 

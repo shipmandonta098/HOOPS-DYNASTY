@@ -43,8 +43,46 @@
   });
   var TOTAL = WEIGHTED.reduce(function (s, x) { return s + x.weight; }, 0);
 
-  // rngNext: function returning [0, 1)
-  function pick(rngNext) {
+  /* --- Women's programs --------------------------------------------------
+     Women's college basketball has its own history of dominance, so the
+     women's feeder system is weighted separately:
+       dynasty  — the sport's most decorated programs (Connecticut's 11+
+                  titles, Tennessee's 8, plus South Carolina, Stanford,
+                  Baylor and Notre Dame, all multiple-time champions)
+       elite    — other national champions and perennial powers
+                  (Louisiana Tech, Old Dominion, USC, Texas, Texas Tech,
+                  Purdue, Maryland, Texas A&M, LSU ...)
+     Every other school above stays in the pool at a lower weight. */
+  var WOMENS_TIERS = {
+    'dynasty': { weight: 9, schools: list('Connecticut|Tennessee|South Carolina|Stanford|Baylor|Notre Dame') },
+    'elite': { weight: 4, schools: list('Louisiana Tech|Old Dominion|USC|Texas|Texas Tech|Purdue|Maryland|Texas A&M|LSU|' +
+      'Iowa|UCLA|Duke|Mississippi State|Louisville|Oregon|NC State|Ohio State|Rutgers|Georgia|Virginia|Indiana|Iowa State|' +
+      'North Carolina|Florida State|Oklahoma|Arizona|Michigan|Kentucky|Ole Miss|Utah|Gonzaga|Creighton|Villanova|Princeton|' +
+      'Washington State|Oregon State|Western Kentucky|Colorado|Miami|Arkansas') }
+  };
+  var WOMENS_BASE = { 'blue-blood': 1.5, 'power': 1.5, 'mid-major': 1, 'hbcu': 0.7, 'small-d1': 0.5 };
+  var WOMENS_WEIGHTED = (function () {
+    var byName = {};
+    Object.keys(TIERS).forEach(function (tier) {
+      TIERS[tier].schools.forEach(function (name) { byName[name] = { name: name, tier: tier, weight: WOMENS_BASE[tier] }; });
+    });
+    Object.keys(WOMENS_TIERS).forEach(function (tier) {
+      WOMENS_TIERS[tier].schools.forEach(function (name) { byName[name] = { name: name, tier: 'womens-' + tier, weight: WOMENS_TIERS[tier].weight }; });
+    });
+    return Object.keys(byName).map(function (k) { return byName[k]; });
+  })();
+  var WOMENS_TOTAL = WOMENS_WEIGHTED.reduce(function (s, x) { return s + x.weight; }, 0);
+
+  // rngNext: function returning [0, 1); gender 'F' uses the women's feeder system
+  function pick(rngNext, gender) {
+    if (gender === 'F') {
+      var rf = rngNext() * WOMENS_TOTAL;
+      for (var j = 0; j < WOMENS_WEIGHTED.length; j++) {
+        rf -= WOMENS_WEIGHTED[j].weight;
+        if (rf < 0) return WOMENS_WEIGHTED[j].name;
+      }
+      return WOMENS_WEIGHTED[WOMENS_WEIGHTED.length - 1].name;
+    }
     var r = rngNext() * TOTAL;
     for (var i = 0; i < WEIGHTED.length; i++) {
       r -= WEIGHTED[i].weight;
@@ -53,11 +91,11 @@
     return WEIGHTED[WEIGHTED.length - 1].name;
   }
 
-  var ALL = WEIGHTED.map(function (x) { return x.name; });
+  var ALL = WOMENS_WEIGHTED.map(function (x) { return x.name; });   // every school (men's + women's lists)
   function tierOf(name) {
     for (var i = 0; i < WEIGHTED.length; i++) if (WEIGHTED[i].name === name) return WEIGHTED[i].tier;
     return null;
   }
 
-  return { TIERS: TIERS, ALL: ALL, pick: pick, tierOf: tierOf };
+  return { TIERS: TIERS, WOMENS_TIERS: WOMENS_TIERS, ALL: ALL, pick: pick, tierOf: tierOf };
 });

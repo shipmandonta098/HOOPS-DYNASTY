@@ -27,6 +27,9 @@
   // Base weight by position, adjusted by height (lb)
   var WEIGHT_BASE = { PG: 190, SG: 200, SF: 215, PF: 232, C: 248 };
   var HEIGHT_MID = { PG: 74.5, SG: 77, SF: 79.5, PF: 81.5, C: 84 };
+  // Women's game (typical professional weights by position)
+  var WEIGHT_BASE_F = { PG: 150, SG: 158, SF: 168, PF: 178, C: 192 };
+  var HEIGHT_MID_F = { PG: 68.5, SG: 71, SF: 73, PF: 75, C: 77.5 };
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function pad(n) { return String(n).padStart(2, '0'); }
@@ -47,9 +50,12 @@
     var hadBirthday = month < 10 || (month === 10 && day <= 1);
     var birthYear = seasonYear - player.age - (hadBirthday ? 0 : 1);
 
-    var base = WEIGHT_BASE[player.position] || 215;
-    var mid = HEIGHT_MID[player.position] || 79;
-    var weightLb = clamp(Math.round(base + (player.heightIn - mid) * 8 + r.normal() * 7), 165, 300);
+    var female = player.gender === 'F';
+    var base = (female ? WEIGHT_BASE_F : WEIGHT_BASE)[player.position] || (female ? 168 : 215);
+    var mid = (female ? HEIGHT_MID_F : HEIGHT_MID)[player.position] || (female ? 73 : 79);
+    var weightLb = female
+      ? clamp(Math.round(base + (player.heightIn - mid) * 6 + r.normal() * 7), 125, 240)
+      : clamp(Math.round(base + (player.heightIn - mid) * 8 + r.normal() * 7), 165, 300);
 
     return {
       weightLb: weightLb,

@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 11;
+  var SCHEMA_VERSION = 12;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -110,6 +110,13 @@
       'hall-of-fame': { label: 'Hall of Fame', detail: 'Ruthless trade AI and owners with little patience.' }
     },
     rosterSize: { min: 13, max: 17 },
+    // Who is generated (heights, names, colleges, portraits...). Set at
+    // creation only: changing it would mean regenerating every player.
+    playerGender: {
+      'male':   { label: 'Men', detail: 'A men’s league.' },
+      'female': { label: 'Women', detail: 'A women’s league: shorter at every position, far fewer dunks, women’s college powerhouses.' },
+      'mixed':  { label: 'Mixed', detail: 'About half the players are women and half are men.' }
+    },
     salaryCap: { min: 50000000, max: 500000000 },
     luxuryTax: { min: 50000000, max: 600000000 }
   });
@@ -120,6 +127,7 @@
     seriesLength: 7,
     difficulty: 'pro',
     rosterSize: 15,
+    playerGender: 'male',
     salaryCap: 141000000,
     luxuryTax: 171300000
   });
@@ -140,6 +148,7 @@
       playoffFormat: input.playoffFormat || DEFAULT_RULES.playoffFormat,
       seriesLength: input.seriesLength != null ? num(input.seriesLength) : DEFAULT_RULES.seriesLength,
       difficulty: input.difficulty || DEFAULT_RULES.difficulty,
+      playerGender: input.playerGender || DEFAULT_RULES.playerGender,
       rosterSize: input.rosterSize != null ? num(input.rosterSize) : DEFAULT_RULES.rosterSize,
       salaryCap: money('salaryCap'),
       luxuryTax: money('luxuryTax')
@@ -148,6 +157,7 @@
     if (!Object.prototype.hasOwnProperty.call(o.playoffFormat, v.playoffFormat)) errors.playoffFormat = 'Choose a playoff format.';
     if (o.seriesLength.indexOf(v.seriesLength) === -1) errors.seriesLength = 'Choose a series length.';
     if (!Object.prototype.hasOwnProperty.call(o.difficulty, v.difficulty)) errors.difficulty = 'Choose a difficulty.';
+    if (!Object.prototype.hasOwnProperty.call(o.playerGender, v.playerGender)) errors.playerGender = 'Choose who plays in the league.';
     if (!Number.isInteger(v.rosterSize) || v.rosterSize < o.rosterSize.min || v.rosterSize > o.rosterSize.max) {
       errors.rosterSize = 'Roster size must be ' + o.rosterSize.min + '–' + o.rosterSize.max + ' players.';
     }
@@ -169,6 +179,7 @@
       playoffs: (RULE_OPTIONS.playoffFormat[r.playoffFormat] || {}).label + ', best of ' + r.seriesLength,
       difficulty: (RULE_OPTIONS.difficulty[r.difficulty] || {}).label,
       roster: r.rosterSize + ' players',
+      players: (RULE_OPTIONS.playerGender[r.playerGender || 'male'] || {}).label,
       salaryCap: '$' + (r.salaryCap / 1e6).toFixed(1) + 'M',
       luxuryTax: '$' + (r.luxuryTax / 1e6).toFixed(1) + 'M'
     };
@@ -581,7 +592,7 @@
 
     // Rosters first: team strength is then derived from the roster.
     if (!Array.isArray(save.players)) {
-      var league = x.roster.generateLeague(save.teams, save.id, { rosterSize: rules.rosterSize });
+      var league = x.roster.generateLeague(save.teams, save.id, { rosterSize: rules.rosterSize, gender: rules.playerGender || 'male' });
       save.players = league.players;
       save.lineups = league.lineups;
       save.teams.forEach(function (t) {
@@ -753,6 +764,14 @@
     10: function (s) {
       deps().morale.ensure(s);
       s.schemaVersion = 11;
+      return s;
+    },
+    // v11: no player gender. Every existing league was a men's league.
+    11: function (s) {
+      if (s.league && s.league.rules && !s.league.rules.playerGender) s.league.rules.playerGender = 'male';
+      (s.players || []).forEach(function (p) { if (!p.gender) p.gender = 'M'; });
+      (s.rosterHistory || []).forEach(function (h) { (h.players || []).forEach(function (p) { if (!p.gender) p.gender = 'M'; }); });
+      s.schemaVersion = 12;
       return s;
     }
   };
@@ -930,6 +949,7 @@
           isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         req(p && validIdentity(p), 'Invalid player identity.');
         req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
+        req(p && (p.gender === undefined || p.gender === 'M' || p.gender === 'F'), 'Invalid player gender.');
         req(p && (p.archetype === undefined || (typeof p.archetype === 'string' && p.archetype.length <= 40)) &&
           (p.archetypeSecondary == null || (typeof p.archetypeSecondary === 'string' && p.archetypeSecondary.length <= 40)), 'Invalid player archetype.');
         var dr = p && p.draft;
