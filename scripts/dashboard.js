@@ -84,7 +84,7 @@
     function card(label, value, sub, extra) {
       return el('div', { class: 'db-card' }, [
         el('span', { class: 'db-card-label', text: label }),
-        el('span', { class: 'db-card-value', text: value }),
+        typeof value === 'string' ? el('span', { class: 'db-card-value', text: value }) : value,
         sub ? el('span', { class: 'db-card-sub', text: sub }) : null,
         extra || null
       ]);
@@ -93,7 +93,7 @@
     return el('section', { class: 'db-overview', 'aria-label': 'Team overview' }, [
       card('Record', st.wins + '–' + st.losses, gp ? gp + ' games played' : 'No games played'),
       card('Win %', pct == null ? '—' : pct.toFixed(3).replace(/^0/, ''), gp ? null : 'Season not started'),
-      card('Team Overall', String(D().teamOverall(c.team)), window.HDOwnership.TIERS[tierKey].label),
+      card('Team Overall', window.HDRatings.el(D().teamOverall(c.team), { className: 'db-card-value' }), window.HDOwnership.TIERS[tierKey].label),
       card('Conference', st.conferenceRank ? window.HDStats.ordinal(st.conferenceRank) : '—', st.conferenceRank ? c.conferenceName : 'Not yet ranked'),
       card('Streak', streak || '—', streak ? null : 'No games played'),
       card('Owner Confidence', String(conf), window.HDOwnership.confidenceLabel(conf),
@@ -118,7 +118,7 @@
             'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
           el('span', { class: 'db-player-sub', text: window.HDRoster.POSITION_NAMES[p.position] + ' · Age ' + p.age })
         ]),
-        el('span', { class: 'db-ovr', 'aria-label': 'Overall ' + p.overall }, [el('strong', { text: String(p.overall) }), el('span', { text: 'OVR' })])
+        el('span', { class: 'db-ovr', 'aria-label': 'Overall ' + p.overall }, [window.HDRatings.el(p.overall, { tag: 'strong' }), el('span', { text: 'OVR' })])
       ]);
     });
     var more = go ? el('button', { class: 'hd-btn is-quiet db-link', type: 'button', text: 'Full Roster', on: { click: function () { go('roster'); } } }) : null;

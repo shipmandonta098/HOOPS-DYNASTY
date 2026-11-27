@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 8;
+  var SCHEMA_VERSION = 9;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -73,7 +73,8 @@
       nationalities: dep('HDNationalities', '../data/nationalities.js'),
       playerCareer: dep('HDPlayerCareer', './player-career.js'),
       season: dep('HDSeason', './season.js'),
-      teams: dep('HDTeams', './teams.js')
+      teams: dep('HDTeams', './teams.js'),
+      playerAttributes: dep('HDPlayerAttributes', './player-attributes.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -565,6 +566,8 @@
     // missing fields only; never overwrites.
     x.playerIdentity.addMissing(save.players, save.id);
     x.playerBio.addBios(save.players, save.id, save.calendar.seasonYear);
+    // Attribute ratings (needs position, overall, height, weight, age)
+    x.playerAttributes.addAttributes(save.players, save.id);
     // Draft, debut and relatives (needs bios: uses experience).
     x.playerCareer.addCareers(save);
     if (!Array.isArray(save.rosterHistory)) save.rosterHistory = [];
@@ -698,6 +701,15 @@
       });
       if (s.league && !Array.isArray(s.league.divisions)) s.league.divisions = divisionsFor(s.teams || []);
       s.schemaVersion = 8;
+      return s;
+    },
+    // v8: players had no attribute ratings. Added once to current and
+    // archived players; overall, potential and everything else unchanged.
+    8: function (s) {
+      var A = deps().playerAttributes;
+      A.addAttributes(s.players || [], s.id);
+      (s.rosterHistory || []).forEach(function (h) { A.addAttributes(h.players || [], s.id); });
+      s.schemaVersion = 9;
       return s;
     }
   };
@@ -872,6 +884,7 @@
         req(p && isInt(p.weightLb, 120, 400) && SEASON.isValidDate(p.birthDate) &&
           isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         req(p && validIdentity(p), 'Invalid player identity.');
+        req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
         var dr = p && p.draft;
         req(dr && isInt(dr.year, 1, MAX_YEAR) && (dr.undrafted === true ||
           (isInt(dr.round, 1, 10) && isInt(dr.pick, 1, 60) && isInt(dr.overall, 1, 600) && isText(dr.teamName, 80))), 'Invalid draft record.');

@@ -370,3 +370,13 @@
   font-weight: 700;
 }
 .hd-btn.is-solid-danger:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+/* 8. RATINGS (scripts/ratings.js) -------------------------------------------
+   Only the number is colored; labels keep their own color. */
+.hd-rating { font-variant-numeric: tabular-nums; }
+.hd-rating--elite   { color: var(--rating-elite); }
+.hd-rating--great   { color: var(--rating-great); }
+.hd-rating--average { color: var(--rating-average); }
+.hd-rating--below   { color: var(--rating-below); }
+.hd-rating--poor    { color: var(--rating-poor); }
+.hd-rating--none    { color: inherit; }
