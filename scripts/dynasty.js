@@ -919,6 +919,8 @@
           isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         req(p && validIdentity(p), 'Invalid player identity.');
         req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
+        req(p && (p.archetype === undefined || (typeof p.archetype === 'string' && p.archetype.length <= 40)) &&
+          (p.archetypeSecondary == null || (typeof p.archetypeSecondary === 'string' && p.archetypeSecondary.length <= 40)), 'Invalid player archetype.');
         var dr = p && p.draft;
         req(dr && isInt(dr.year, 1, MAX_YEAR) && (dr.undrafted === true ||
           (isInt(dr.round, 1, 10) && isInt(dr.pick, 1, 60) && isInt(dr.overall, 1, 600) && isText(dr.teamName, 80))), 'Invalid draft record.');
