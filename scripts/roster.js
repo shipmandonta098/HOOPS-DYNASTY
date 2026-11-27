@@ -1,17 +1,21 @@
 /* ==========================================================================
    HOOPS DYNASTY — roster initialization (minimal, extensible)
 
-   generateLeague(teams, seed) builds 15 fictional players per team and a
-   valid starting lineup (one distinct player per position). It runs ONCE,
-   when a dynasty is created (or migrated from a save without rosters);
-   the result is stored in the save and never regenerated.
+   generateLeague(teams, seed) builds the league's players and a valid
+   starting lineup per team (one distinct player per position). It runs
+   ONCE, when a dynasty is created (or migrated from a save without
+   rosters); the result is stored in the save and never regenerated.
 
-   Ratings are calibrated so teamOverall(roster) equals the franchise's
-   starting strength exactly, keeping contenders / rebuilders consistent.
+   Ratings come from scripts/player-ratings.js (config: data/rating-config.js):
+   the league's overall distribution is handed out unevenly across teams
+   (franchise strength biases it; market size never does), each player gets
+   an archetype and attributes, and OVERALL IS COMPUTED FROM THE ATTRIBUTES.
+   Team overall is then derived from the actual roster (teamOverall).
 
    Player record:
-   { id, teamId, position, age, overall, potential, jerseyNumber, heightIn,
-     portrait } + identity (name, nationality, birthplace, college, pathway)
+   { id, teamId, position, age, overall, potential, archetype,
+     archetypeSecondary, attributes, jerseyNumber, heightIn, portrait }
+     + identity (name, nationality, birthplace, college, pathway)
    from scripts/player-identity.js. Ratings, height and age are generated
    here with NO knowledge of nationality or naming background; identities
    are assigned afterwards by an independent seeded generator.
@@ -23,20 +27,20 @@
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
     node ? require('./portraits.js') : root.HDPortraits,
-    node ? require('./player-identity.js') : root.HDPlayerIdentity
+    node ? require('./player-identity.js') : root.HDPlayerIdentity,
+    node ? require('./player-ratings.js') : root.HDPlayerRatings
   );
   if (node) module.exports = api;
   else root.HDRoster = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Portraits, Identity) {
+})(typeof self !== 'undefined' ? self : this, function (R, Portraits, Identity, Ratings) {
   'use strict';
 
   var POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
   var POSITION_NAMES = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward', PF: 'Power Forward', C: 'Center' };
   var ROSTER_SIZE = 15;
   var HEIGHTS = { PG: [72, 77], SG: [75, 79], SF: [78, 81], PF: [80, 83], C: [82, 86] };
-  // Rating offsets from the team target, best to worst (15 slots)
-  var OFFSETS = [9, 6, 4, 3, 2, -1, -3, -4, -6, -7, -9, -11, -12, -14, -16];
-  // Team overall = weighted average of the top 10 player ratings
+  // Team overall = rotation-weighted average of the top 10 player ratings
+  // (starters count most, the end of the rotation least)
   var WEIGHTS = [6, 5, 5, 4, 4, 3, 2, 2, 1, 1];
   var JERSEYS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24, 25, 30, 31, 32, 33, 34, 35, 40, 41, 42, 43, 44, 45, 50, 51, 55, 77, 88];
 
@@ -66,18 +70,6 @@
     return lineup;
   }
 
-  // Rating offsets for any roster size, sampled from the 15-player curve.
-  function offsetsFor(size) {
-    if (size === OFFSETS.length) return OFFSETS.slice();
-    var out = [];
-    for (var i = 0; i < size; i++) {
-      var t = size === 1 ? 0 : i * (OFFSETS.length - 1) / (size - 1);
-      var lo = Math.floor(t), hi = Math.min(OFFSETS.length - 1, lo + 1);
-      out.push(Math.round(OFFSETS[lo] + (OFFSETS[hi] - OFFSETS[lo]) * (t - lo)));
-    }
-    return out;
-  }
-
   // Balanced positions: every position at least twice for 10+ players.
   function positionsFor(size) {
     var list = [];
@@ -85,65 +77,54 @@
     return list;
   }
 
-  function generateTeam(team, rng, nextId, size) {
-    var target = team.overall;
-    var youthBias = target < 71 ? -2.5 : target >= 86 ? 2.5 : 0;
-    var positions = rng.shuffle(positionsFor(size));
-    var offsets = offsetsFor(size);
-    var jerseys = rng.shuffle(JERSEYS);
-
-    var players = positions.map(function (pos, i) {
-      var overall = clamp(Math.round(target + offsets[i] + rng.normal() * 1.2), 40, 99);
-      // Better players skew to prime age; bench mixes rookies and veterans.
-      var age = clamp(Math.round(26 + youthBias + rng.normal() * 2.6 + (offsets[i] < -8 ? rng.pick([-3, 4]) : 0)), 19, 37);
-      var potential = clamp(overall + Math.max(0, 26 - age) * rng.int(1, 3) + rng.int(0, 3), overall, 99);
-      var id = nextId();
-      return {
-        id: id,
-        teamId: team.id,
-        position: pos,
-        age: age,
-        overall: overall,
-        potential: potential,
-        jerseyNumber: jerseys[i],
-        heightIn: rng.int(HEIGHTS[pos][0], HEIGHTS[pos][1]),
-        portrait: Portraits.generate(id + ':' + team.id)
-      };
-    });
-
-    // Calibrate: nudge individual ratings until the roster formula hits the
-    // franchise's starting strength exactly.
-    var guard2 = 0;
-    var current = teamOverall(players);
-    while (current !== target && guard2++ < 400) {
-      var dir = current < target ? 1 : -1;
-      var ordered = players.slice().sort(function (a, b) { return b.overall - a.overall; });
-      var p = ordered[guard2 % 10];
-      p.overall = clamp(p.overall + dir, 40, 99);
-      p.potential = Math.max(p.potential, p.overall);
-      current = teamOverall(players);
-    }
-
-    return { players: players, lineup: bestLineup(players), overall: current };
+  function buildPlayer(seed, team, profile, pos, targetOverall, id, jersey) {
+    var r = R.rng('ratings:' + seed + ':' + id);
+    var age = Ratings.ageFor(r, targetOverall, profile.type);
+    var heightIn = r.int(HEIGHTS[pos][0], HEIGHTS[pos][1]);
+    var rated = Ratings.generatePlayer(r, { position: pos, age: age, heightIn: heightIn, targetOverall: targetOverall });
+    return {
+      id: id,
+      teamId: team.id,
+      position: pos,
+      age: age,
+      overall: rated.overall,                 // computed from the attributes
+      potential: rated.potential,
+      archetype: rated.archetype,
+      archetypeSecondary: rated.archetypeSecondary,
+      attributes: rated.attributes,
+      jerseyNumber: jersey,
+      heightIn: heightIn,
+      portrait: Portraits.generate(id + ':' + team.id)
+    };
   }
 
   /**
-   * @param teams  dynasty team records (need id, overall)
+   * @param teams  dynasty team records (id; overall = franchise strength,
+   *               used only to bias talent allocation)
    * @param seed   any string (the dynasty id), for reproducibility
    * @param opts   { rosterSize } (default 15)
-   * @returns { players[], lineups{ teamId: {PG,SG,SF,PF,C} }, ratings{ teamId: n } }
+   * @returns { players[], lineups{ teamId: {PG,SG,SF,PF,C} }, ratings{ teamId: n },
+   *            profiles{ teamId: { strength, type } } }
    */
   function generateLeague(teams, seed, opts) {
     var size = (opts && opts.rosterSize) || ROSTER_SIZE;
     var rng = R.rng('roster:' + seed);
     var counter = 0;
     var nextId = function () { counter++; return 'pl-' + String(counter).padStart(4, '0'); };
-    var out = { players: [], lineups: {}, ratings: {} };
+    var sizes = {}, profiles = {};
+    teams.forEach(function (t) { sizes[t.id] = size; profiles[t.id] = Ratings.teamProfile(rng, t); });
+    var values = Ratings.allocate(rng, teams, sizes, profiles);
+    var out = { players: [], lineups: {}, ratings: {}, profiles: profiles };
     teams.forEach(function (team) {
-      var res = generateTeam(team, rng, nextId, size);
-      out.players = out.players.concat(res.players);
-      out.lineups[team.id] = res.lineup;
-      out.ratings[team.id] = res.overall;
+      var positions = rng.shuffle(positionsFor(size));
+      var mine = rng.shuffle(values[team.id]);
+      var jerseys = rng.shuffle(JERSEYS);
+      var players = positions.map(function (pos, i) {
+        return buildPlayer(seed, team, profiles[team.id], pos, mine[i], nextId(), jerseys[i]);
+      });
+      out.players = out.players.concat(players);
+      out.lineups[team.id] = bestLineup(players);
+      out.ratings[team.id] = teamOverall(players);      // from the actual roster
     });
     // Identities (nationality, name, birthplace, college...) are assigned
     // league-wide AFTER ratings exist, from their own seed.

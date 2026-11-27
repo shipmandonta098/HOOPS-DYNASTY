@@ -222,3 +222,8 @@
 @media (min-width: 1280px) and (max-width: 1719px) {
   .pp-head-body { padding-right: 88px; }
 }
+
+/* Keep the right-most values clear of the fixed close button */
+@media (min-width: 1024px) {
+  .pp-sections .pp-ratings, .pp-section:only-child { padding-right: 72px; }
+}

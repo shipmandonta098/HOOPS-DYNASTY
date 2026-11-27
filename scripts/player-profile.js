@@ -73,6 +73,8 @@
 
     var rows = [
       ['Position', window.HDRoster.POSITION_NAMES[p.position] + ' (' + p.position + ')'],
+      p.archetype ? ['Archetype', window.HDPlayerRatings.archetypeLabel(p.archetype) +
+        (p.archetypeSecondary ? ' / ' + window.HDPlayerRatings.archetypeLabel(p.archetypeSecondary) : '')] : null,
       ['Height', heightLabel(p.heightIn)],
       ['Weight', weightLabel(p.weightLb)],
       ['Born', el('time', { datetime: p.birthDate, text: dateLabel(p.birthDate) })],
@@ -99,7 +101,7 @@
 
     return el('section', { class: 'pp-section', 'aria-labelledby': 'pp-bio-title' }, [
       el('h3', { class: 'hd-eyebrow pp-section-title', id: 'pp-bio-title', text: 'Bio' }),
-      el('dl', { class: 'pp-bio' }, rows.map(function (r) {
+      el('dl', { class: 'pp-bio' }, rows.filter(Boolean).map(function (r) {
         return el('div', { class: 'pp-row' }, [
           el('dt', { text: r[0] }),
           el('dd', null, [typeof r[1] === 'string' ? document.createTextNode(r[1]) : r[1]])
@@ -142,9 +144,15 @@
   }
 
   // Future: statistics, contract, game log, transactions...
+  function moraleSection(ctx) {
+    if (!ctx.current || !window.HDMorale || !ctx.save.morale) return null;   // morale is about now
+    return window.HDMoraleUI.profileSection(ctx.save, ctx.player);
+  }
+
   var SECTIONS = [
     { id: 'bio', label: 'Bio', render: bioSection },
-    { id: 'ratings', label: 'Ratings', render: ratingsSection }
+    { id: 'ratings', label: 'Ratings', render: ratingsSection },
+    { id: 'morale', label: 'Morale', render: moraleSection }
   ];
 
   /* --- Dialog ------------------------------------------------------------- */
@@ -204,7 +212,7 @@
         findPlayer: function (id) { return pool.filter(function (p) { return p.id === id; })[0] || null; }
       };
       var sections = el('div', { class: 'pp-sections' });
-      SECTIONS.forEach(function (s) { sections.appendChild(s.render(ctx)); });
+      SECTIONS.forEach(function (s) { var node = s.render(ctx); if (node) sections.appendChild(node); });
       body.appendChild(sections);
     }
 

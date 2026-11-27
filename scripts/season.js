@@ -17,8 +17,9 @@
    0–99 into 1900–1999.
 
    Technical limits (the only ones enforced)
-   - MIN_INAUGURAL_YEAR 40: rosters include players up to 37 years old and
-     the calendar has no year 0, so every birth year stays at 1 AD or later.
+   - MIN_INAUGURAL_YEAR 42: generated rosters include players up to 39
+     years old (data/rating-config.js AGE.MAX) and the calendar has no
+     year 0, so every birth year stays at 1 AD or later.
    - MAX_INAUGURAL_YEAR 275000: JavaScript dates (used to name weekdays and
      months) end in September 275760; this leaves room for centuries of
      seasons after the inaugural one.
@@ -31,7 +32,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var MIN_INAUGURAL_YEAR = 40;
+  var MIN_INAUGURAL_YEAR = 42;   // AGE.MAX (39) + 3: see above
   var MAX_INAUGURAL_YEAR = 275000;
 
   // First in-game date of each phase, relative to the season's start year

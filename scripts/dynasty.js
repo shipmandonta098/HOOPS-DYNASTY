@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 10;
+  var SCHEMA_VERSION = 11;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -75,7 +75,8 @@
       season: dep('HDSeason', './season.js'),
       teams: dep('HDTeams', './teams.js'),
       playerAttributes: dep('HDPlayerAttributes', './player-attributes.js'),
-      news: dep('HDNews', './news.js')
+      news: dep('HDNews', './news.js'),
+      morale: dep('HDMorale', './morale.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -531,6 +532,8 @@
     attachSystems(save, null);
     // League news: the founding events (scripts/news.js)
     deps().news.addFoundingNews(save);
+    // Morale: personalities and team captains (scripts/morale.js)
+    deps().morale.ensure(save);
     return save;
   }
 
@@ -744,6 +747,13 @@
       deps().news.addFoundingNews(s);
       s.schemaVersion = 10;
       return s;
+    },
+    // v10: no morale data. Players get a personality and each team a
+    // captain; ratings, roles and everything else are unchanged.
+    10: function (s) {
+      deps().morale.ensure(s);
+      s.schemaVersion = 11;
+      return s;
     }
   };
 
@@ -801,6 +811,7 @@
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
     req(deps().news.isValid(d), 'Invalid league news.');
+    req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
       req(pr && isInt(pr.seasonYear, 1, MAX_YEAR) && pr.values && typeof pr.values === 'object' &&
@@ -919,6 +930,8 @@
           isInt(p.experience, 0, 30) && (p.college === null || isText(p.college, 80)), 'Invalid player biography.');
         req(p && validIdentity(p), 'Invalid player identity.');
         req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
+        req(p && (p.archetype === undefined || (typeof p.archetype === 'string' && p.archetype.length <= 40)) &&
+          (p.archetypeSecondary == null || (typeof p.archetypeSecondary === 'string' && p.archetypeSecondary.length <= 40)), 'Invalid player archetype.');
         var dr = p && p.draft;
         req(dr && isInt(dr.year, 1, MAX_YEAR) && (dr.undrafted === true ||
           (isInt(dr.round, 1, 10) && isInt(dr.pick, 1, 60) && isInt(dr.overall, 1, 600) && isText(dr.teamName, 80))), 'Invalid draft record.');
