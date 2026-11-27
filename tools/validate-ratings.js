@@ -5,7 +5,7 @@
    and N draft classes, then reports the distributions and checks them
    against the targets in data/rating-config.js. Exits 1 on a failed check.
 
-   Usage:  node tools/validate-ratings.js [leagues=100] [--json]
+   Usage:  node tools/validate-ratings.js [leagues=100] [--gender=male|female|mixed] [--json]
    ========================================================================== */
 'use strict';
 
@@ -17,6 +17,7 @@ const A = require('../scripts/player-attributes.js');
 
 const N = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a))) || 100;
 const JSON_OUT = process.argv.includes('--json');
+const GENDER = ((process.argv.find((a) => a.startsWith('--gender=')) || '--gender=male').split('=')[1]);
 
 const stats = (xs) => {
   const s = xs.slice().sort((a, b) => a - b);
@@ -34,7 +35,7 @@ const teams = [];
 const leagues = [];
 const invalid = [];
 for (let i = 0; i < N; i++) {
-  const d = D.createDynasty({ leagueName: 'Sample League', gmName: 'Validator', inauguralYear: '2026', franchiseId: 'fr-001' }, F, new Date(Date.UTC(2026, 0, 1, 0, 0, i)));
+  const d = D.createDynasty({ leagueName: 'Sample League', gmName: 'Validator', inauguralYear: '2026', franchiseId: 'fr-001', rules: { playerGender: GENDER } }, F, new Date(Date.UTC(2026, 0, 1, 0, 0, i)));
   const v = D.validateDynasty(d);
   if (!v.valid) invalid.push('league ' + i + ': ' + v.errors[0]);
   const lg = { players: d.players, teams: d.teams };
@@ -44,7 +45,7 @@ for (let i = 0; i < N; i++) {
     const bad = [p.overall, p.potential].concat(Object.values(p.attributes)).some((x) => !Number.isInteger(x) || x < 0 || x > 100);
     if (bad) invalid.push(p.id + ' out-of-range rating');
     if (p.potential < p.overall) invalid.push(p.id + ' potential below overall');
-    if (PR.overallFromAttributes(p.attributes, p.position) !== p.overall) invalid.push(p.id + ' overall contradicts attributes');
+    if (PR.overallFromAttributes(p.attributes, p.position, p.gender) !== p.overall) invalid.push(p.id + ' overall contradicts attributes');
     if (p.overall >= 100) invalid.push(p.id + ' generated a 100 overall');
   });
   d.teams.forEach((t) => teams.push({ overall: t.overall, elite: d.players.filter((p) => p.teamId === t.id && p.overall >= 90).length, stars: d.players.filter((p) => p.teamId === t.id && p.overall >= 85).length, mkt: t.marketSize }));
@@ -59,7 +60,7 @@ const out = (s = '') => report.push(s);
 const checks = [];
 const check = (ok, label) => checks.push({ ok, label });
 
-out(`HOOPS DYNASTY — rating distribution report: ${N} leagues, ${P} players (${(P / N).toFixed(0)} per league)`);
+out(`HOOPS DYNASTY — rating distribution report: ${N} ${GENDER} leagues, ${P} players (${(P / N).toFixed(0)} per league)`);
 out('');
 out(`Overall   mean ${so.mean.toFixed(2)} · median ${so.median} · SD ${so.sd.toFixed(2)} · range ${so.min}–${so.max}`);
 out('');
@@ -101,6 +102,23 @@ const prime = players.filter((p) => p.age >= 25 && p.age <= 31), kids = players.
 check(stats(prime.map((p) => p.overall)).mean > stats(kids.map((p) => p.overall)).mean + 3, 'prime-age players outrate raw prospects on average');
 check(players.some((p) => p.age <= 23 && p.overall >= 85), 'exceptional young stars exist');
 check(players.some((p) => p.age >= 33 && p.overall >= 80), 'productive older veterans exist');
+
+out('');
+out('Height (in) and dunk by gender and position');
+['M', 'F'].forEach((g) => {
+  const gp = players.filter((p) => p.gender === g);
+  if (!gp.length) return;
+  out(`  ${g === 'F' ? 'Women' : 'Men  '} (${pct(gp.length, P)})  ` + ['PG', 'SG', 'SF', 'PF', 'C'].map((pos) => {
+    const xs = gp.filter((p) => p.position === pos);
+    return `${pos} ${stats(xs.map((p) => p.heightIn)).mean.toFixed(1)}in · dunk ${stats(xs.map((p) => p.attributes.dunk)).mean.toFixed(0)}`;
+  }).join('  |  '));
+});
+const men = players.filter((p) => p.gender === 'M'), women = players.filter((p) => p.gender === 'F');
+if (men.length && women.length) {
+  check(['PG', 'SG', 'SF', 'PF', 'C'].every((pos) => stats(women.filter((p) => p.position === pos).map((p) => p.heightIn)).mean < stats(men.filter((p) => p.position === pos).map((p) => p.heightIn)).mean - 4), 'women are shorter than men at every position');
+  check(stats(women.map((p) => p.attributes.dunk)).mean < stats(men.map((p) => p.attributes.dunk)).mean - 15, 'women dunk far less than men');
+}
+if (women.length) check(women.every((p) => p.attributes.dunk <= 72), 'women\'s dunk capped at 72');
 
 out('');
 out('Average overall by position');
@@ -162,7 +180,7 @@ out(`  correlation with franchise strength: r = ${catalogCorr.toFixed(2)} (outlo
 out('');
 out('Draft classes (' + N + ' classes of ' + C.DRAFT.SIZE + ')');
 const classes = [];
-for (let i = 0; i < N; i++) classes.push(PR.generateDraftClass('validate-' + i));
+for (let i = 0; i < N; i++) classes.push(PR.generateDraftClass('validate-' + i, { gender: GENDER }));
 const rookies = classes.flat();
 const ro = stats(rookies.map((p) => p.overall)), rp = stats(rookies.map((p) => p.potential));
 out(`  rookie overall mean ${ro.mean.toFixed(1)} · SD ${ro.sd.toFixed(1)} · range ${ro.min}–${ro.max} · potential mean ${rp.mean.toFixed(1)}`);
@@ -174,7 +192,7 @@ out(`  NBA-ready (72+) per class: mean ${stats(ready).mean.toFixed(2)}, classes 
 out(`  95+ ceilings per class: mean ${stats(gens).mean.toFixed(2)}, classes with none ${pct(gens.filter((x) => !x).length, N)}`);
 check(ro.mean < so.mean - 10, 'rookies enter well below established pros');
 check(gens.filter((x) => !x).length / N >= 0.4 && stats(gens).mean <= 1, 'generational prospects are rare: ' + stats(gens).mean.toFixed(2) + ' per class, ' + pct(gens.filter((x) => !x).length, N) + ' of classes have none');
-check(rookies.every((p) => PR.overallFromAttributes(p.attributes, p.position) === p.overall), 'draft prospects: overall computed from attributes');
+check(rookies.every((p) => PR.overallFromAttributes(p.attributes, p.position, p.gender) === p.overall), 'draft prospects: overall computed from attributes');
 
 out('');
 out('Long-term balance');

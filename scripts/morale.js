@@ -52,7 +52,7 @@
     'leader':       { label: 'Leader',       share: 8,  role: 0.85, team: 1.1, market: 0.7, dev: 1,   swing: 0.8,
       summary: 'Steadies the locker room; takes setbacks in stride.' },
     'professional': { label: 'Professional', share: 25, role: 0.7,  team: 1,   market: 0.6, dev: 0.9, swing: 0.8,
-      summary: 'Accepts his role and prepares the same way every day.' },
+      summary: 'Accepts any role and prepares the same way every day.' },
     'competitor':   { label: 'Competitor',   share: 20, role: 1.1,  team: 1.5, market: 0.8, dev: 1,   swing: 1,
       summary: 'Lives and dies with winning.' },
     'easygoing':    { label: 'Easygoing',    share: 20, role: 0.8,  team: 0.8, market: 0.5, dev: 0.8, swing: 0.75,
@@ -60,7 +60,7 @@
     'spotlight':    { label: 'Spotlight',    share: 15, role: 1.3,  team: 1,   market: 2,   dev: 1.1, swing: 1.15,
       summary: 'Wants a featured role and a big stage.' },
     'volatile':     { label: 'Volatile',     share: 12, role: 1.3,  team: 1.2, market: 1,   dev: 1.2, swing: 1.35,
-      summary: 'Big highs, bigger lows — and he lets everyone know.' }
+      summary: 'Big highs, bigger lows — and the whole locker room hears about it.' }
   });
   var PERSONALITY_IDS = Object.keys(PERSONALITIES);
 
@@ -193,7 +193,7 @@
     if (diff < 0 && exp === 'starter') roleImpact -= Math.max(0, player.overall - 78) * 0.7 * P.role;
     add('role', 'Playing time & role', roleImpact,
       diff < 0 ? 'Expects a ' + ROLE_LABELS[exp].toLowerCase() + ' role; currently ' + ROLE_LABELS[act].toLowerCase() + '.'
-        : diff > 0 ? 'Getting more than he expected: ' + ROLE_LABELS[act].toLowerCase() + '.'
+        : diff > 0 ? 'Getting more than expected: ' + ROLE_LABELS[act].toLowerCase() + '.'
         : 'Role matches expectations (' + ROLE_LABELS[act].toLowerCase() + ').');
 
     // Team success & hype
@@ -228,7 +228,7 @@
       return e.playerId === player.id && (!e.expires || Season.compareDates(e.expires, today) >= 0);
     });
     var roster = active.filter(function (e) { return e.kind === 'roster'; }).reduce(function (s, e) { return s + e.delta; }, 0);
-    add('moves', 'Roster & trade moves', roster, roster ? 'Reacting to recent roster moves.' : 'No recent roster moves affecting him.');
+    add('moves', 'Roster & trade moves', roster, roster ? 'Reacting to recent roster moves.' : 'No recent roster moves.');
     var off = active.filter(function (e) { return e.kind === 'off-court'; });
     if (off.length) add('off-court', 'Off-court events', off.reduce(function (s, e) { return s + e.delta; }, 0), off.map(function (e) { return e.reason; }).join(' '));
 
@@ -304,7 +304,7 @@
     var unhappyBench = list.filter(function (x) { return x.m.mood.id === 'low' && x.m.role !== 'starter'; });
     if (unhappyBench.length >= 3) issues.push({ level: 'warn', text: unhappyBench.length + ' bench players are unhappy with their role.' });
     list.filter(function (x) { return contractOutlook(x.m.value, x.p.personality).tradeRequestRisk >= 0.35; }).forEach(function (x) {
-      issues.push({ level: 'risk', text: x.p.firstName + ' ' + x.p.lastName + ' is unhappy enough that he may ask out.' });
+      issues.push({ level: 'risk', text: x.p.firstName + ' ' + x.p.lastName + ' is unhappy enough to ask out.' });
     });
     if (!issues.length) issues.push({ level: 'ok', text: 'Minutes line up with expectations — no rotation crunch.' });
     return { average: avg, counts: counts, captain: ctx.captain, issues: issues, players: ev.players };

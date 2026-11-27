@@ -237,7 +237,7 @@
     'retirement': function (save, d) {
       var p = player(save, d.playerId);
       return { category: 'retirement', importance: 2, teamIds: [p.teamId], playerIds: [d.playerId],
-        headline: pname(p) + ' announces his retirement after ' + d.seasons + ' seasons.', body: '' };
+        headline: pname(p) + ' announces retirement after ' + d.seasons + ' seasons.', body: '' };
     },
     'milestone': function (save, d) {
       var p = player(save, d.playerId);

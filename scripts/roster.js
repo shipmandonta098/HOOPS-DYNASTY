@@ -77,14 +77,17 @@
     return list;
   }
 
-  function buildPlayer(seed, team, profile, pos, targetOverall, id, jersey) {
+  function buildPlayer(seed, team, profile, pos, targetOverall, id, jersey, mode) {
     var r = R.rng('ratings:' + seed + ':' + id);
+    // Men's leagues keep their exact random sequence (gender draws only otherwise)
+    var gender = mode && mode !== 'male' ? Ratings.genderFor(R.rng('gender:' + seed + ':' + id), mode) : 'M';
     var age = Ratings.ageFor(r, targetOverall, profile.type);
-    var heightIn = r.int(HEIGHTS[pos][0], HEIGHTS[pos][1]);
-    var rated = Ratings.generatePlayer(r, { position: pos, age: age, heightIn: heightIn, targetOverall: targetOverall });
+    var heightIn = gender === 'F' ? Ratings.heightFor(r, pos, 'F') : r.int(HEIGHTS[pos][0], HEIGHTS[pos][1]);
+    var rated = Ratings.generatePlayer(r, { position: pos, age: age, heightIn: heightIn, targetOverall: targetOverall, gender: gender });
     return {
       id: id,
       teamId: team.id,
+      gender: gender,
       position: pos,
       age: age,
       overall: rated.overall,                 // computed from the attributes
@@ -94,7 +97,7 @@
       attributes: rated.attributes,
       jerseyNumber: jersey,
       heightIn: heightIn,
-      portrait: Portraits.generate(id + ':' + team.id)
+      portrait: Portraits.generate(id + ':' + team.id, { female: gender === 'F' })
     };
   }
 
@@ -102,7 +105,7 @@
    * @param teams  dynasty team records (id; overall = franchise strength,
    *               used only to bias talent allocation)
    * @param seed   any string (the dynasty id), for reproducibility
-   * @param opts   { rosterSize } (default 15)
+   * @param opts   { rosterSize (default 15), gender: 'male'|'female'|'mixed' }
    * @returns { players[], lineups{ teamId: {PG,SG,SF,PF,C} }, ratings{ teamId: n },
    *            profiles{ teamId: { strength, type } } }
    */
@@ -120,7 +123,7 @@
       var mine = rng.shuffle(values[team.id]);
       var jerseys = rng.shuffle(JERSEYS);
       var players = positions.map(function (pos, i) {
-        return buildPlayer(seed, team, profiles[team.id], pos, mine[i], nextId(), jerseys[i]);
+        return buildPlayer(seed, team, profiles[team.id], pos, mine[i], nextId(), jerseys[i], opts && opts.gender);
       });
       out.players = out.players.concat(players);
       out.lineups[team.id] = bestLineup(players);

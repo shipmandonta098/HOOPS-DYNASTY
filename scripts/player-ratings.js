@@ -45,8 +45,14 @@
    * raw = BASE_SHARE x weighted mean + PEAK_SHARE x mean of the best
    *       PEAK_COUNT position-relevant attributes; overall = STRETCH x raw + OFFSET
    */
-  function overallFromAttributes(attrs, position) {
+  function overallFromAttributes(attrs, position, gender) {
     var w = C.POSITION_WEIGHTS[position] || C.POSITION_WEIGHTS.SF;
+    var gw = gender === 'F' && C.GENDER.F.FORMULA_WEIGHT;
+    if (gw) {                                   // e.g. dunking matters less in the women's game
+      var copy = {};
+      Object.keys(w).forEach(function (k) { copy[k] = w[k] * (gw[k] != null ? gw[k] : 1); });
+      w = copy;
+    }
     var F = C.FORMULA;
     var sum = 0, total = 0, peaks = [];
     Object.keys(w).forEach(function (k) {
@@ -95,7 +101,7 @@
       var a2 = arch.secondary ? (arch.secondary.offsets[k] || 0) : 0;
       shape[k] = (prof[k] || 0) * C.POSITION_SHAPE + a1 * (1 - hb) + a2 * hb + rng.normal() * C.ATTRIBUTE_NOISE;
     });
-    // Personal signature: a couple of strengths and a weakness of his own
+    // Personal signature: a couple of strengths and a weakness of their own
     var order = rng.shuffle(SKILLS);
     var S = C.SIGNATURE;
     for (var i = 0; i < S.strengths; i++) shape[order[i]] += rng.int(S.strengthMin, S.strengthMax);
@@ -103,10 +109,11 @@
     // Occasional skill outside the position's stereotype
     if (rng.chance(C.SURPRISE_CHANCE)) {
       var weakest = SKILLS.slice().sort(function (a, b) { return shape[a] - shape[b]; }).slice(0, 8);
-      shape[rng.pick(weakest)] = rng.int(C.SURPRISE_MIN, C.SURPRISE_MAX);   // well above his level
+      shape[rng.pick(weakest)] = rng.int(C.SURPRISE_MIN, C.SURPRISE_MAX);   // well above their level
     }
     // Physical profile
-    var dh = Number.isFinite(p.heightIn) ? p.heightIn - C.HEIGHT_MID[p.position] : 0;
+    var G0 = C.GENDER[p.gender === 'F' ? 'F' : 'M'];
+    var dh = Number.isFinite(p.heightIn) ? p.heightIn - G0.HEIGHT_MID[p.position] : 0;
     Object.keys(C.HEIGHT_EFFECT).forEach(function (k) { shape[k] += C.HEIGHT_EFFECT[k] * dh; });
     // Age: athleticism fades, craft grows — not every attribute declines
     var G = C.AGING;
@@ -118,6 +125,8 @@
     var mean = SKILLS.reduce(function (s, k) { return s + shape[k]; }, 0) / SKILLS.length;
     SKILLS.forEach(function (k) { shape[k] -= mean; });
     shape.$stamina = rng.normal() * 7 - Math.max(0, p.age - G.STAMINA_FROM) * G.STAMINA_PER_YEAR;
+    if (p.gender === 'F') { shape.dunk += C.GENDER.F.DUNK_OFFSET; shape.$dunkCap = C.GENDER.F.DUNK_CAP; }
+    shape.$gender = p.gender === 'F' ? 'F' : 'M';
     return shape;
   }
 
@@ -127,6 +136,7 @@
     var out = {};
     SKILLS.forEach(function (k) { out[k] = Math.round(clamp(level + shape[k], C.ATTRIBUTE_MIN, C.ATTRIBUTE_MAX)); });
     out.stamina = Math.round(clamp(62 + (level - 70) * 0.4 + shape.$stamina, 35, 99));
+    if (shape.$dunkCap) out.dunk = Math.min(out.dunk, shape.$dunkCap);
     return out;
   }
 
@@ -135,11 +145,11 @@
     var lo = 0, hi = 160;
     for (var i = 0; i < 30; i++) {
       var mid = (lo + hi) / 2;
-      if (overallFromAttributes(attributesAt(shape, mid), position) < target) lo = mid; else hi = mid;
+      if (overallFromAttributes(attributesAt(shape, mid), position, shape.$gender) < target) lo = mid; else hi = mid;
     }
     // pick the closer of the two neighbours
     var a = attributesAt(shape, lo), b = attributesAt(shape, hi);
-    var oa = overallFromAttributes(a, position), ob = overallFromAttributes(b, position);
+    var oa = overallFromAttributes(a, position, shape.$gender), ob = overallFromAttributes(b, position, shape.$gender);
     return Math.abs(ob - target) <= Math.abs(oa - target) ? { level: hi, attrs: b } : { level: lo, attrs: a };
   }
 
@@ -170,7 +180,7 @@
 
   /**
    * @param rng   seeded generator
-   * @param p     { position, age, heightIn, targetOverall }
+   * @param p     { position, age, heightIn, targetOverall, gender: 'M'|'F' }
    * @param opts  { potential: {growthMean, generationalChance} }
    * @returns { archetype, archetypeSecondary, attributes, overall, potential }
    */
@@ -183,7 +193,7 @@
     attrs.durability = Math.round(clamp(78 + rng.normal() * 10 - Math.max(0, p.age - G.DURABILITY_FROM) * G.DURABILITY_PER_YEAR, 30, 99));
     var ordered = {};
     KEYS.forEach(function (k) { ordered[k] = attrs[k]; });
-    var overall = overallFromAttributes(ordered, p.position);     // never assigned: computed
+    var overall = overallFromAttributes(ordered, p.position, p.gender);     // never assigned: computed
     return {
       archetype: arch.primary.id,
       archetypeSecondary: arch.secondary ? arch.secondary.id : null,
@@ -285,22 +295,36 @@
     var rng = R.rng('draft-class:' + seed);
     var size = opts.size || D.SIZE;
     var quality = rng.normal() * D.QUALITY_SD;
-    var heights = { PG: [72, 77], SG: [75, 79], SF: [78, 81], PF: [80, 83], C: [82, 86] };
+    var mode = opts.gender || 'male';
     var ages = Object.keys(D.AGE_WEIGHTS).map(function (a) { return [Number(a), D.AGE_WEIGHTS[a]]; });
     var out = [];
     for (var i = 0; i < size; i++) {
       var position = POSITIONS[i % POSITIONS.length];
+      var gender = genderFor(rng, mode);
+      var heights = C.GENDER[gender].HEIGHTS;
       var age = weightedPick(rng, ages);
       var target = D.OVERALL_MEAN + quality + rng.normal() * D.OVERALL_SD + (age - 20) * 1.2;
       if (rng.chance(D.NBA_READY_CHANCE)) target = rng.int(72, 80);
       target = Math.round(clamp(target, 35, 82));
       var heightIn = rng.int(heights[position][0], heights[position][1]);
-      var pl = generatePlayer(rng, { position: position, age: age, heightIn: heightIn, targetOverall: target },
+      var pl = generatePlayer(rng, { position: position, age: age, heightIn: heightIn, targetOverall: target, gender: gender },
         { potential: { growthMean: Math.max(4, D.POTENTIAL_GROWTH_MEAN - (age - 19) * 2.5), generationalChance: D.GENERATIONAL_CHANCE } });
-      pl.position = position; pl.age = age; pl.heightIn = heightIn;
+      pl.position = position; pl.age = age; pl.heightIn = heightIn; pl.gender = gender;
       out.push(pl);
     }
     return out;
+  }
+
+  // League setting -> one player's gender
+  function genderFor(rng, mode) {
+    if (mode === 'female') return 'F';
+    if (mode === 'mixed') return rng.chance(C.GENDER.MIXED_FEMALE_SHARE) ? 'F' : 'M';
+    return 'M';
+  }
+
+  function heightFor(rng, position, gender) {
+    var h = C.GENDER[gender === 'F' ? 'F' : 'M'].HEIGHTS[position];
+    return rng.int(h[0], h[1]);
   }
 
   function archetypeLabel(id) { return ARCH_BY_ID[id] ? ARCH_BY_ID[id].label : null; }
@@ -317,6 +341,8 @@
     ageFor: ageFor,
     generateDraftClass: generateDraftClass,
     archetypeLabel: archetypeLabel,
+    genderFor: genderFor,
+    heightFor: heightFor,
     TYPE_IDS: TYPE_IDS
   };
 });
