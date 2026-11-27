@@ -291,6 +291,17 @@
     var active = 'dashboard';
     var profile = window.HDPlayerProfile.init({ dialog: document.getElementById('player-profile') });
 
+    // League News ticker along the bottom of every section: this dynasty's
+    // news only (scripts/news.js). A young dynasty has few real headlines,
+    // so a handful of gameplay tips fill in until there are enough.
+    var ticker = window.HDNewsTicker.create($('[data-gs-ticker]'), { label: 'League News' });
+    var IN_GAME_TIPS = window.HDNews.AMBIENT.filter(function (t) { return t.indexOf('Tip:') === 0 && t.indexOf('during setup') === -1; });
+    function renderNews() {
+      if (!save) { ticker.setItems([]); return; }
+      var real = window.HDNews.latest(save, 15).map(function (n) { return n.headline; });
+      ticker.setItems(real.length >= 5 ? real : real.concat(IN_GAME_TIPS));
+    }
+
     // Any player name anywhere in the game content opens their profile.
     content.addEventListener('click', function (e) {
       var trigger = e.target.closest('[data-player-id]');
@@ -369,7 +380,7 @@
       section.render(content, save, {
         go: function (s) { show(s, true); },
         // Settings saved a modified copy: adopt it and refresh the chrome
-        replaceSave: function (next) { save = next; renderChrome(); },
+        replaceSave: function (next) { save = next; renderChrome(); renderNews(); },
         openAppSettings: function () { options.onSettings(); }
       });
       main.scrollTop = 0;
@@ -389,6 +400,7 @@
       }
       setDrawer(false);
       renderChrome();
+      renderNews();
       show(sectionId || 'dashboard', true);
     }
 
@@ -396,6 +408,7 @@
       profile.close();
       save = null;
       content.textContent = '';
+      ticker.setItems([]);
     }
 
     nav.inert = mobile.matches;
