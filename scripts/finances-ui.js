@@ -201,24 +201,33 @@
 
   /* --- History ------------------------------------------------------------- */
 
-  var KIND_LABELS = {
-    'signed': 'Signed', 'rookie-scale': 'Rookie-Scale Signing', 'free-agent': 'Free-Agent Signing', 'extension': 'Extension',
-    'player-option-exercised': 'Player Option Exercised', 'player-option-declined': 'Player Option Declined',
-    'team-option-exercised': 'Team Option Exercised', 'team-option-declined': 'Team Option Declined',
-    'guarantee-activated': 'Guarantee Activated', 'renegotiation': 'Renegotiation', 'terminated': 'Contract Terminated',
-    'waived': 'Waived', 'buyout': 'Buyout', 'expired': 'Contract Expired', 'acquired-trade': 'Acquired via Trade', 'retired': 'Retired'
-  };
+  // Contract History = the financial records of the league's transaction
+  // log (scripts/transactions.js): the same records as Transactions.
+  function TX() { return window.HDTransactions; }
+  function txTeam(tx, pid) {
+    if (tx.type === 'trade' && tx.assets) {
+      var mine = tx.assets.filter(function (a) { return a.kind === 'player' && a.playerId === pid; })[0];
+      if (mine) return tx.teamNames[mine.to];
+    }
+    var id = tx.toTeamIds[0] || tx.fromTeamIds[0];
+    return id ? tx.teamNames[id] : null;
+  }
+  function txAmount(tx) {
+    var m = tx.money;
+    if (!m) return null;
+    return [m.total, m.amount, m.salary, m.remainingGuaranteed].filter(function (v) { return typeof v === 'number'; })[0];
+  }
 
   function historyBlock(save, player, ids) {
     var list = K().history(save, player.id);
-    var founded = save.league.foundedYear;
     var body = el('tbody', null, list.map(function (t) {
+      var amt = txAmount(t);
       return el('tr', null, [
-        el('th', { scope: 'row', class: 'is-text', text: t.date ? dateLabel(t.date) : 'Before ' + founded }),
-        el('td', { class: 'is-text', text: t.teamName || DASH }),
-        el('td', { class: 'is-text', text: KIND_LABELS[t.kind] || t.kind }),
-        el('td', { class: 'is-text fin-details', text: t.details || '' }),
-        el('td', { text: t.amount == null ? DASH : usd(t.amount) })
+        el('th', { scope: 'row', class: 'is-text', text: t.date ? dateLabel(t.date) : 'Date not recorded' }),
+        el('td', { class: 'is-text', text: txTeam(t, player.id) || DASH }),
+        el('td', { class: 'is-text', text: TX().TYPES[t.type].label }),
+        el('td', { class: 'is-text fin-details', text: TX().textOf(TX().describe(save, t, player.id)).replace(/\.$/, t.preDynasty && t.type !== 'acquired' ? ' (on file when the league began).' : '.') }),
+        el('td', { text: amt == null ? DASH : usd(amt) })
       ]);
     }));
     return block(ids.history, 'Contract History', [
@@ -246,7 +255,7 @@
       ]),
       el('nav', { class: 'cs-nav', 'aria-label': 'Finances tables' }, [['salaries', 'Salaries'], ['current', 'Current Contract'], ['history', 'Contract History']].map(function (n) {
         return el('a', { href: '#' + ids[n[0]], 'data-fin-jump': ids[n[0]], text: n[1] });
-      })),
+      }).concat(window.HDTransactionsUI && save.transactions ? [el('a', { href: '#pp-tx-title', 'data-fin-jump': 'pp-tx-title', 'data-fin-outside': '', text: 'Transactions' })] : [])),
       salaries(save, player, ids),
       current(save, player, ids),
       historyBlock(save, player, ids)
@@ -255,7 +264,8 @@
       var jump = e.target.closest('[data-fin-jump]');
       if (!jump) return;
       e.preventDefault();
-      var h = root.querySelector('#' + jump.getAttribute('data-fin-jump'));
+      var id = jump.getAttribute('data-fin-jump');
+      var h = root.querySelector('#' + id) || (root.parentNode && root.parentNode.querySelector('#' + id));
       if (h) { h.setAttribute('tabindex', '-1'); h.scrollIntoView({ block: 'start', behavior: 'smooth' }); h.focus({ preventScroll: true }); }
     });
     return root;
