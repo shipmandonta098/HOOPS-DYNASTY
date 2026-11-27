@@ -87,6 +87,7 @@
 
   function captainScore(p) {
     var bonus = { leader: 30, professional: 12, competitor: 6, easygoing: 0, spotlight: -4, volatile: -30 }[p.personality] || 0;
+    if (p.traits) bonus = bonus / 2 + (p.traits.leadership - 50) * 0.8 - Math.max(0, p.traits.volatility - 60) * 0.5;
     return bonus + p.overall * 0.5 + Math.min(p.experience || 0, 12) * 1.5;
   }
 
@@ -233,7 +234,16 @@
     if (off.length) add('off-court', 'Off-court events', off.reduce(function (s, e) { return s + e.delta; }, 0), off.map(function (e) { return e.reason; }).join(' '));
 
     // Locker room: captain and personalities buffer or amplify swings
-    var swing = P.swing;
+    // Temperament: the volatility stat sets how hard morale swings (falls
+    // back to the personality type for players without stats)
+    var swing = player.traits ? 0.7 + player.traits.volatility / 170 : P.swing;
+
+    // Losing streaks hit volatile players hardest (once games are played)
+    var stk = save.standings && save.standings[player.teamId] && save.standings[player.teamId].streak;
+    if (stk && stk.type === 'L' && stk.count >= 3) {
+      var v = player.traits ? player.traits.volatility : 50;
+      add('streak', 'Losing streak', -Math.min(12, (stk.count - 2) * (v / 50)), stk.count + '-game losing streak.');
+    }
     var isCaptain = ctx.captain && ctx.captain.id === player.id;
     var lockerImpact = 0, lockerDetail = [];
     if (isCaptain) { lockerImpact += 3; lockerDetail.push('Proud to wear the captain’s armband.'); }
@@ -303,7 +313,7 @@
     });
     var unhappyBench = list.filter(function (x) { return x.m.mood.id === 'low' && x.m.role !== 'starter'; });
     if (unhappyBench.length >= 3) issues.push({ level: 'warn', text: unhappyBench.length + ' bench players are unhappy with their role.' });
-    list.filter(function (x) { return contractOutlook(x.m.value, x.p.personality).tradeRequestRisk >= 0.35; }).forEach(function (x) {
+    list.filter(function (x) { return contractOutlook(x.m.value, x.p.personality, x.p.traits).tradeRequestRisk >= 0.35; }).forEach(function (x) {
       issues.push({ level: 'risk', text: x.p.firstName + ' ' + x.p.lastName + ' is unhappy enough to ask out.' });
     });
     if (!issues.length) issues.push({ level: 'ok', text: 'Minutes line up with expectations — no rotation crunch.' });
@@ -339,12 +349,18 @@
    * @returns { resignWillingness 0..1, askingPriceFactor (x market value),
    *            freeAgencyLeaveRisk 0..1, tradeRequestRisk 0..1, summary }
    */
-  function contractOutlook(morale, personality) {
+  function contractOutlook(morale, personality, traits) {
     var m = clamp(typeof morale === 'number' ? morale : 60, 0, 100);
     var P = PERSONALITIES[personality] || PERSONALITIES.professional;
+    if (traits) {
+      // Personality stats refine it: temperament drives trade demands,
+      // loyalty keeps players home, greed walks to the best offer
+      P = { swing: 0.7 + traits.volatility / 170 };
+      personality = traits.volatility >= 65 ? 'volatile' : (100 - traits.loyalty) >= 65 ? 'spotlight' : personality;
+    }
     var willing = clamp((m - 25) / 60, 0, 1);
     var price = Math.round((1.12 - 0.2 * willing) * 100) / 100;   // happy: takes a reasonable deal
-    var leave = clamp((70 - m) / 70 * (P.swing), 0, 1);
+    var leave = clamp((70 - m) / 70 * (P.swing) * (traits ? 0.6 + (100 - traits.loyalty) / 125 : 1), 0, 1);
     var request = m >= 40 ? 0 : clamp((40 - m) / 40 * P.swing * (personality === 'volatile' || personality === 'spotlight' ? 1.3 : 0.8), 0, 1);
     var summary = m >= 70 ? 'Open to re-signing and willing to take a reasonable deal.'
       : m >= 45 ? 'Would listen to an extension at full market value.'
