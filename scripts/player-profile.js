@@ -139,8 +139,68 @@
         }))
       ]));
     });
+    // Mental attributes (on-court IQ): multipliers on the skills above
+    var PM = window.HDPlayerMental;
+    if (PM && p.mental) {
+      var eff = ctx.current ? PM.effectiveMental(ctx.save, p) : null;
+      grid.appendChild(el('div', { class: 'pp-attr-group pp-mental', role: 'group', 'aria-labelledby': 'pp-attr-mental' }, [
+        el('h4', { class: 'pp-attr-group-title', id: 'pp-attr-mental', text: 'Mental' }),
+        el('ul', { class: 'pp-attrs' }, PM.MENTAL.map(function (m) {
+          var v = p.mental[m.key];
+          var boosted = eff && eff[m.key] > v;
+          return el('li', { class: 'pp-attr', title: m.summary }, [
+            el('span', { class: 'pp-attr-name' }, [
+              document.createTextNode(m.label),
+              boosted ? el('span', { class: 'pp-boost', title: 'Leadership boost from ' + window.HDPlayerIdentity.fullName(eff.leader), text: ' +' + (eff[m.key] - v) }) : null
+            ]),
+            el('span', { class: 'pp-attr-bar', 'aria-hidden': 'true' }, [
+              el('span', { class: 'pp-attr-fill ' + Rt.className(v), style: { width: v + '%' } })
+            ]),
+            Rt.el(v, { className: 'pp-attr-value', tag: 'strong' })
+          ]);
+        })),
+        eff && eff.boost ? el('p', { class: 'pp-boost-note', text: 'Playing with ' + window.HDPlayerIdentity.fullName(eff.leader) + ' adds +' + eff.boost + ' to IQ and composure.' }) : null
+      ]));
+    }
     section.appendChild(grid);
     return section;
+  }
+
+  function personalitySection(ctx) {
+    var p = ctx.player, PM = window.HDPlayerMental;
+    if (!PM || !p.traits) return null;
+    var t = p.traits;
+    var fa = PM.freeAgencyDemand(t, {});
+    var prog = PM.progressionModifiers(t);
+    var aura = ctx.current ? PM.leadershipAura(ctx.save, p.teamId) : null;
+    var isLeader = aura && aura.leader && aura.leader.id === p.id;
+    function row(key, effect) {
+      var v = t[key], tr = PM.TRAITS.filter(function (x) { return x.key === key; })[0];
+      var twoEnded = !!tr.low;
+      return el('li', { class: 'pt-row' }, [
+        el('div', { class: 'pt-head' }, [
+          el('span', { class: 'pt-label', text: tr.label }),
+          el('span', { class: 'pt-desc', text: PM.traitLabel(key, v) + ' · ' + v })
+        ]),
+        el('div', { class: 'pt-scale' + (twoEnded ? ' is-two' : ''), role: 'img', 'aria-label': tr.label + ' ' + v + ' of 100' }, [
+          twoEnded ? el('span', { class: 'pt-end', text: tr.low }) : null,
+          el('span', { class: 'pt-track' }, [el('span', { class: 'pt-fill', style: { width: v + '%' } }), el('span', { class: 'pt-dot', style: { left: v + '%' } })]),
+          twoEnded ? el('span', { class: 'pt-end', text: tr.high }) : null
+        ]),
+        el('p', { class: 'pt-effect', text: effect })
+      ]);
+    }
+    var streakNote = t.volatility >= 65 ? 'Losing streaks hit hard; may demand a trade or cause friction in the locker room.'
+      : t.volatility >= 35 ? 'Feels losing streaks but keeps it together.' : 'Stays level through losing streaks.';
+    return el('section', { class: 'pp-section pp-personality', 'aria-labelledby': 'pp-personality-title' }, [
+      el('h3', { class: 'hd-eyebrow pp-section-title', id: 'pp-personality-title', text: 'Personality' }),
+      el('ul', { class: 'pt-list' }, [
+        row('loyalty', fa.summary),
+        row('workEthic', 'Offseason training ×' + prog.trainingPoints.toFixed(2) + (prog.peakExtensionYears > 0 ? '; holds the physical peak ~' + prog.peakExtensionYears + ' yr longer.' : prog.peakExtensionYears < 0 ? '; physical decline starts ~' + Math.abs(prog.peakExtensionYears) + ' yr earlier.' : '.')),
+        row('volatility', streakNote),
+        row('leadership', isLeader && aura.boost ? 'The team’s leading voice: young teammates get +' + aura.boost + ' IQ and composure.' : t.leadership >= 70 ? 'A respected voice in the locker room.' : 'Leads by example at most.')
+      ])
+    ]);
   }
 
   // Future: statistics, contract, game log, transactions...
@@ -152,6 +212,7 @@
   var SECTIONS = [
     { id: 'bio', label: 'Bio', render: bioSection },
     { id: 'ratings', label: 'Ratings', render: ratingsSection },
+    { id: 'personality', label: 'Personality', render: personalitySection },
     { id: 'morale', label: 'Morale', render: moraleSection }
   ];
 

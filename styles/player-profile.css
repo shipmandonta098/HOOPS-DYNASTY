@@ -227,3 +227,21 @@
 @media (min-width: 1024px) {
   .pp-sections .pp-ratings, .pp-section:only-child { padding-right: 72px; }
 }
+
+/* Mental group + leadership boost */
+.pp-boost { color: var(--rating-elite); font-weight: 800; font-size: 0.75rem; }
+.pp-boost-note { margin: 0.4rem 0 0; font-size: 0.75rem; color: var(--text-muted); }
+
+/* Personality stats */
+.pt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.pt-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.pt-label { font-size: 0.875rem; font-weight: 700; }
+.pt-desc { font-size: 0.8125rem; color: var(--text-soft); font-variant-numeric: tabular-nums; text-align: right; }
+.pt-scale { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.pt-end { flex: none; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.pt-track { position: relative; flex: 1; height: 6px; border-radius: 3px; background: var(--border); }
+.pt-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: color-mix(in srgb, var(--text-muted) 70%, transparent); }
+.pt-scale.is-two .pt-fill { display: none; }
+.pt-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--surface); }
+.pt-scale:not(.is-two) .pt-dot { display: none; }
+.pt-effect { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.45; }

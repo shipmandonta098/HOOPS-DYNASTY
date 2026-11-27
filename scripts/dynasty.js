@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 12;
+  var SCHEMA_VERSION = 13;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -76,7 +76,8 @@
       teams: dep('HDTeams', './teams.js'),
       playerAttributes: dep('HDPlayerAttributes', './player-attributes.js'),
       news: dep('HDNews', './news.js'),
-      morale: dep('HDMorale', './morale.js')
+      morale: dep('HDMorale', './morale.js'),
+      mental: dep('HDPlayerMental', './player-mental.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -543,7 +544,11 @@
     attachSystems(save, null);
     // League news: the founding events (scripts/news.js)
     deps().news.addFoundingNews(save);
-    // Morale: personalities and team captains (scripts/morale.js)
+    // Personalities, then mental attributes and personality stats, then
+    // captains (chosen with the leadership stat) — scripts/morale.js,
+    // scripts/player-mental.js
+    deps().morale.addPersonalities(save.players, save.id);
+    deps().mental.addMissing(save.players, save.id);
     deps().morale.ensure(save);
     return save;
   }
@@ -773,6 +778,14 @@
       (s.rosterHistory || []).forEach(function (h) { (h.players || []).forEach(function (p) { if (!p.gender) p.gender = 'M'; }); });
       s.schemaVersion = 12;
       return s;
+    },
+    // v12: no mental attributes or personality stats. Added to current
+    // players (from their existing personality); ratings and captains kept.
+    12: function (s) {
+      deps().morale.addPersonalities(s.players || [], s.id);
+      deps().mental.addMissing(s.players || [], s.id);
+      s.schemaVersion = 13;
+      return s;
     }
   };
 
@@ -950,6 +963,7 @@
         req(p && validIdentity(p), 'Invalid player identity.');
         req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
         req(p && (p.gender === undefined || p.gender === 'M' || p.gender === 'F'), 'Invalid player gender.');
+        req(p && (p.mental === undefined || deps().mental.isValidMental(p.mental)) && (p.traits === undefined || deps().mental.isValidTraits(p.traits)), 'Invalid mental attributes or personality stats.');
         req(p && (p.archetype === undefined || (typeof p.archetype === 'string' && p.archetype.length <= 40)) &&
           (p.archetypeSecondary == null || (typeof p.archetypeSecondary === 'string' && p.archetypeSecondary.length <= 40)), 'Invalid player archetype.');
         var dr = p && p.draft;

@@ -81,7 +81,7 @@
   function profileSection(save, player) {
     var ev = M().evaluate(save, player);
     var P = M().PERSONALITIES[ev.personality];
-    var out = M().contractOutlook(ev.value, ev.personality);
+    var out = M().contractOutlook(ev.value, ev.personality, player.traits);
     var pct = function (x) { return Math.round(x * 100) + '%'; };
     return el('section', { class: 'pp-section pp-morale', 'aria-labelledby': 'pp-morale-title' }, [
       el('h3', { class: 'hd-eyebrow pp-section-title', id: 'pp-morale-title', text: 'Morale' }),
