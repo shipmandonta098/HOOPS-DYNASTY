@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 14;
+  var SCHEMA_VERSION = 15;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -78,7 +78,8 @@
       news: dep('HDNews', './news.js'),
       morale: dep('HDMorale', './morale.js'),
       mental: dep('HDPlayerMental', './player-mental.js'),
-      careerStats: dep('HDCareerStats', './career-stats.js')
+      careerStats: dep('HDCareerStats', './career-stats.js'),
+      contracts: dep('HDContracts', './contracts.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -346,6 +347,18 @@
     return res;
   }
 
+  /**
+   * Moves the in-game date forward and processes everything dated up to it
+   * that the save tracks today: player paychecks (scripts/contracts.js).
+   * Never moves the date backward.
+   */
+  function advanceDate(save, iso) {
+    if (!SEASON.isValidDate(iso)) throw new Error('Invalid date: ' + iso);
+    if (SEASON.compareDates(iso, save.calendar.currentDate) > 0) save.calendar.currentDate = iso;
+    if (save.contracts) deps().contracts.accrueTo(save, save.calendar.currentDate);
+    return save;
+  }
+
   // League-office news for rule changes (Difficulty is a player setting, not news)
   var RULE_NEWS = {
     seasonGames: function (v) { return 'a ' + v + '-game season'; },
@@ -592,6 +605,9 @@
     deps().morale.ensure(save);
     // Career statistics: empty until games are played (scripts/career-stats.js)
     deps().careerStats.ensure(save);
+    // Contracts: every player's current deal, from league rules
+    // (scripts/contracts.js, data/contract-rules.js). Earnings start empty.
+    deps().contracts.ensure(save);
     return save;
   }
 
@@ -835,6 +851,13 @@
       deps().careerStats.ensure(s);
       s.schemaVersion = 14;
       return s;
+    },
+    // v14: no contracts. Every player gets a current contract ONCE, from
+    // league rules; salary history starts now (nothing earned is invented).
+    14: function (s) {
+      if (Array.isArray(s.players) && s.finances) deps().contracts.ensure(s);
+      s.schemaVersion = 15;
+      return s;
     }
   };
 
@@ -893,6 +916,7 @@
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
     req(deps().news.isValid(d), 'Invalid league news.');
     req(deps().careerStats.isValid(d), 'Invalid career statistics.');
+    req(deps().contracts.isValid(d), 'Invalid contract data.');
     req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
@@ -1228,6 +1252,7 @@
     // News moves with a save stored under a new id (scripts/news.js)
     rebindNews: function (save) { return deps().news.rebind(save); },
     recordGame: recordGame,
+    advanceDate: advanceDate,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
     RULE_KEYS: RULE_KEYS,

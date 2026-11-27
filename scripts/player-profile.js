@@ -203,7 +203,7 @@
     ]);
   }
 
-  // Future: statistics, contract, game log, transactions...
+  // Future: game log, transactions...
   function moraleSection(ctx) {
     if (!ctx.current || !window.HDMorale || !ctx.save.morale) return null;   // morale is about now
     return window.HDMoraleUI.profileSection(ctx.save, ctx.player);
@@ -216,6 +216,9 @@
     { id: 'morale', label: 'Morale', render: moraleSection },
     { id: 'stats', label: 'Career Statistics', render: function (ctx) {     // full width, below everything else
       return window.HDCareerStatsUI && ctx.save.careerStats ? window.HDCareerStatsUI.section(ctx) : null;
+    } },
+    { id: 'finances', label: 'Finances', render: function (ctx) {    // full width, below Career Statistics
+      return window.HDFinancesUI && ctx.save.contracts ? window.HDFinancesUI.section(ctx) : null;
     } }
   ];
 
