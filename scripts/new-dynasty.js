@@ -359,7 +359,7 @@
 
     function ovrBlock(team) {
       return el('span', { class: 'nd-team-ovr' }, [
-        el('span', { class: 'nd-ovr-num', text: team.overall }),
+        window.HDRatings.el(team.overall, { className: 'nd-ovr-num' }),
         el('span', { class: 'nd-ovr-label', text: 'OVR' })
       ]);
     }
@@ -572,14 +572,14 @@
         ['Conference', conf.name + (division ? ' · ' + division.name : '')],
         ['Market Size', market.label + ' · ' + team.population.toLocaleString('en-US') + ' metro population'],
         ['Arena', team.arenaName + ' · ' + team.arenaCapacity.toLocaleString('en-US') + ' seats'],
-        ['Team Overall', team.overall + ' · ' + F.ratingTier(team.overall)],
+        ['Team Overall', [window.HDRatings.el(team.overall), document.createTextNode(' · ' + F.ratingTier(team.overall))]],
         ['Season & Playoffs', rs.season + ' · ' + rs.playoffs],
         ['Difficulty & Rosters', rs.difficulty + ' · ' + rs.roster],
         ['Salary Cap / Tax Line', rs.salaryCap + ' / ' + rs.luxuryTax]
       ];
       var dl = el('dl', { class: 'nd-details' });
       details.forEach(function (row) {
-        dl.appendChild(el('div', null, [el('dt', { text: row[0] }), el('dd', { text: row[1] })]));
+        dl.appendChild(el('div', null, [el('dt', { text: row[0] }), Array.isArray(row[1]) ? el('dd', null, row[1]) : el('dd', { text: row[1] })]));
       });
       review.appendChild(dl);
       saveError.textContent = '';

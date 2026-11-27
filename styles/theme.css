@@ -48,6 +48,13 @@
   --text-muted: #8c8c94;
   --focus: #f2f2f2;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  /* Rating colors (scripts/ratings.js): 90+, 80–89, 65–79, 50–64, 0–49.
+     Every value >= 4.5:1 on this theme's backgrounds and panels. */
+  --rating-elite: #22c55e;
+  --rating-great: #86efac;
+  --rating-average: #9ca3af;
+  --rating-below: #f59e0b;
+  --rating-poor: #ef4444;
 }
 
 /* --- Dark: softer charcoal, muted accent, easy on the eyes ---------------- */
@@ -68,6 +75,11 @@
   --text-muted: #9b9fa7;
   --focus: #e6e3dc;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --rating-elite: #22c55e;
+  --rating-great: #86efac;
+  --rating-average: #9ca3af;
+  --rating-below: #f59e0b;
+  --rating-poor: #f87171;      /* #ef4444 is under 4.5:1 on these charcoal panels */
 }
 
 /* --- Light: light gray canvas, white panels, dark type, crimson ----------- */
@@ -88,6 +100,12 @@
   --text-muted: #5b616c;
   --focus: #15171b;
   --shadow: 0 6px 20px rgba(20, 24, 32, 0.12);
+  /* Deeper shades of the same five colors: the bright ones are unreadable on white */
+  --rating-elite: #137333;
+  --rating-great: #477012;
+  --rating-average: #5f6672;
+  --rating-below: #a14a07;
+  --rating-poor: #b91c1c;
 }
 
 /* --- Text size: scales every rem-based size in the app -------------------- */

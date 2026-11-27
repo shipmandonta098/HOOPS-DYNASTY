@@ -4,8 +4,9 @@
    from the active dynasty save; for a past season it reads that season's
    archived roster snapshot.
 
-   Sections are a registry so ratings, stats, contract, game log... can be
-   added later without touching the shell. Today: Bio.
+   Sections are a registry so stats, contract, game log... can be added
+   later without touching the shell. Today: Bio and Ratings (attributes,
+   colored with scripts/ratings.js).
 
    HDPlayerProfile.init({ dialog }) -> { open(save, playerId, opts), close() }
    opts: { seasonYear, returnFocus }
@@ -107,8 +108,44 @@
     ]);
   }
 
-  // Future: ratings, statistics, contract, game log, transactions...
-  var SECTIONS = [{ id: 'bio', label: 'Bio', render: bioSection }];
+  function ratingsSection(ctx) {
+    var p = ctx.player;
+    var A = window.HDPlayerAttributes;
+    var Rt = window.HDRatings;
+    var section = el('section', { class: 'pp-section pp-ratings', 'aria-labelledby': 'pp-ratings-title' }, [
+      el('h3', { class: 'hd-eyebrow pp-section-title', id: 'pp-ratings-title', text: 'Ratings' })
+    ]);
+    if (!p.attributes) {
+      section.appendChild(el('p', { class: 'pp-none', text: 'Ratings aren’t available for this player.' }));
+      return section;
+    }
+    var grid = el('div', { class: 'pp-attr-groups' });
+    A.GROUPS.forEach(function (g) {
+      var attrs = A.ATTRIBUTES.filter(function (a) { return a.group === g.id; });
+      grid.appendChild(el('div', { class: 'pp-attr-group', role: 'group', 'aria-labelledby': 'pp-attr-' + g.id }, [
+        el('h4', { class: 'pp-attr-group-title', id: 'pp-attr-' + g.id, text: g.label }),
+        el('ul', { class: 'pp-attrs' }, attrs.map(function (a) {
+          var v = p.attributes[a.key];
+          var valid = Rt.tier(v) !== null;
+          return el('li', { class: 'pp-attr' }, [
+            el('span', { class: 'pp-attr-name', text: a.label }),
+            el('span', { class: 'pp-attr-bar', 'aria-hidden': 'true' }, [
+              el('span', { class: 'pp-attr-fill ' + Rt.className(v), style: { width: (valid ? v : 0) + '%' } })
+            ]),
+            Rt.el(v, { className: 'pp-attr-value', tag: 'strong' })
+          ]);
+        }))
+      ]));
+    });
+    section.appendChild(grid);
+    return section;
+  }
+
+  // Future: statistics, contract, game log, transactions...
+  var SECTIONS = [
+    { id: 'bio', label: 'Bio', render: bioSection },
+    { id: 'ratings', label: 'Ratings', render: ratingsSection }
+  ];
 
   /* --- Dialog ------------------------------------------------------------- */
 
@@ -156,8 +193,8 @@
             el('p', { class: 'pp-sub', text: '#' + player.jerseyNumber + ' · ' + window.HDRoster.POSITION_NAMES[player.position] + (starterAt ? ' · Starter' : ' · Bench') })
           ]),
           el('div', { class: 'pp-badges' }, [
-            el('span', { class: 'pp-badge' }, [el('strong', { text: String(player.overall) }), el('span', { text: 'OVR' })]),
-            el('span', { class: 'pp-badge' }, [el('strong', { text: String(player.potential) }), el('span', { text: 'POT' })])
+            el('span', { class: 'pp-badge' }, [window.HDRatings.el(player.overall, { tag: 'strong', label: 'Overall' }), el('span', { text: 'OVR', 'aria-hidden': 'true' })]),
+            el('span', { class: 'pp-badge' }, [window.HDRatings.el(player.potential, { tag: 'strong', label: 'Potential' }), el('span', { text: 'POT', 'aria-hidden': 'true' })])
           ])
         ])
       ]));
@@ -166,7 +203,9 @@
         save: save, player: player, current: current, teamById: teamById,
         findPlayer: function (id) { return pool.filter(function (p) { return p.id === id; })[0] || null; }
       };
-      SECTIONS.forEach(function (s) { body.appendChild(s.render(ctx)); });
+      var sections = el('div', { class: 'pp-sections' });
+      SECTIONS.forEach(function (s) { sections.appendChild(s.render(ctx)); });
+      body.appendChild(sections);
     }
 
     function open(save, playerId, opts) {

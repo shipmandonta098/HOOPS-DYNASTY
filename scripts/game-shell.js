@@ -139,12 +139,11 @@
           el('span', { text: team.fullName }),
           team.id === save.userTeamId ? el('span', { class: 'gs-roster-you', text: 'Your Team' }) : null
         ]),
-        el('p', { class: 'gs-roster-team-meta', text: [
-          (season ? season.seasonLabel : ''),
-          players.length + ' players',
-          'Team overall ' + overall,
-          conf ? conf.name : null
-        ].filter(Boolean).join(' · ') })
+        el('p', { class: 'gs-roster-team-meta' }, [
+          [(season ? season.seasonLabel : ''), players.length + ' players'].filter(Boolean).join(' · ') + ' · Team overall ',
+          window.HDRatings.el(overall, { className: 'gs-team-ovr' }),
+          conf ? ' · ' + conf.name : null
+        ])
       ])
     ]));
 
@@ -176,8 +175,8 @@
             ])
           ])]),
           el('td', { text: p.position }),
-          el('td', { class: 'is-num gs-ovr', text: String(p.overall) }),
-          el('td', { class: 'is-num', text: String(p.potential) }),
+          el('td', { class: 'is-num gs-ovr' }, [window.HDRatings.el(p.overall)]),
+          el('td', { class: 'is-num gs-pot' }, [window.HDRatings.el(p.potential)]),
           el('td', { class: 'is-num', text: String(p.age) }),
           el('td', null, [el('time', { datetime: p.birthDate, text: bornLabel(p.birthDate) })]),
           el('td', { class: 'is-num', text: R.heightLabel(p.heightIn) }),
