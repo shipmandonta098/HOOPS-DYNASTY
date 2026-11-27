@@ -412,6 +412,7 @@
         return b.get(next.id).then(function (existing) {
           if (mode === 'separate') {
             next.id = D.makeId();
+            if (D.rebindNews) D.rebindNews(next);     // its news follows the new id
           } else if (mode === 'replace') {
             if (!existing) mode = 'new';
           } else if (existing) {

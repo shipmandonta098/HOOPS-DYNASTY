@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 9;
+  var SCHEMA_VERSION = 10;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -74,7 +74,8 @@
       playerCareer: dep('HDPlayerCareer', './player-career.js'),
       season: dep('HDSeason', './season.js'),
       teams: dep('HDTeams', './teams.js'),
-      playerAttributes: dep('HDPlayerAttributes', './player-attributes.js')
+      playerAttributes: dep('HDPlayerAttributes', './player-attributes.js'),
+      news: dep('HDNews', './news.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -286,9 +287,32 @@
     });
     if (Object.keys(pending).length) save.league.pendingRules = { seasonYear: save.calendar.seasonYear + 1, values: pending };
     else delete save.league.pendingRules;
+    publishRuleNews(save, result);
     result.ok = true;
     result.errors = {};
     return result;
+  }
+
+  // League-office news for rule changes (Difficulty is a player setting, not news)
+  var RULE_NEWS = {
+    seasonGames: function (v) { return 'a ' + v + '-game season'; },
+    playoffFormat: function (v) { return { 'play-in': 'a 20-team playoff with a play-in tournament', 'sixteen': 'a 16-team playoff', 'eight': 'an 8-team playoff' }[v]; },
+    seriesLength: function (v) { return 'best-of-' + v + ' playoff series'; },
+    rosterSize: function (v) { return v + '-player rosters'; },
+    salaryCap: function (v) { return 'a $' + (v / 1e6).toFixed(1) + 'M salary cap'; },
+    luxuryTax: function (v) { return 'a $' + (v / 1e6).toFixed(1) + 'M luxury tax line'; }
+  };
+  function joinAnd(list) { return list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1]; }
+  function publishRuleNews(save, result) {
+    [['now', result.applied, save.calendar.seasonYear], ['next', result.scheduled, save.calendar.seasonYear + 1]].forEach(function (g) {
+      var changes = g[1].filter(function (c) { return RULE_NEWS[c.key]; }).map(function (c) { return RULE_NEWS[c.key](c.to); });
+      if (!changes.length) return;
+      deps().news.record(save, {
+        type: 'rules-change',
+        key: save.calendar.currentDate + ':' + g[0] + ':' + changes.join('|'),
+        data: { effective: g[0], seasonYear: g[2], changes: [joinAnd(changes)] }
+      });
+    });
   }
 
   // Drop one scheduled change (e.g. "Cancel" next to it in Settings)
@@ -505,6 +529,8 @@
       teams: teams
     };
     attachSystems(save, null);
+    // League news: the founding events (scripts/news.js)
+    deps().news.addFoundingNews(save);
     return save;
   }
 
@@ -711,6 +737,13 @@
       (s.rosterHistory || []).forEach(function (h) { A.addAttributes(h.players || [], s.id); });
       s.schemaVersion = 9;
       return s;
+    },
+    // v9: no league news. The founding events (league, GM hire, owner's
+    // goals, expansion / relocation) are published from the save's own data.
+    9: function (s) {
+      deps().news.addFoundingNews(s);
+      s.schemaVersion = 10;
+      return s;
     }
   };
 
@@ -767,6 +800,7 @@
     req(Array.isArray(league.conferences) && league.conferences.length > 0, 'Missing conferences.');
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
+    req(deps().news.isValid(d), 'Invalid league news.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
       req(pr && isInt(pr.seasonYear, 1, MAX_YEAR) && pr.values && typeof pr.values === 'object' &&
@@ -1094,6 +1128,8 @@
     parseYear: parseYear,
     validateYear: validateYear,
     makeId: makeId,
+    // News moves with a save stored under a new id (scripts/news.js)
+    rebindNews: function (save) { return deps().news.rebind(save); },
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
     RULE_KEYS: RULE_KEYS,
