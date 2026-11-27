@@ -108,3 +108,5 @@
 @media (max-width: 379px) {
   .hd-ticker-label { gap: 0.4rem; padding-left: max(env(safe-area-inset-left), 0.75rem); padding-right: 1rem; letter-spacing: 0.08em; font-size: 0.625rem; }
 }
+.hd-ticker-label-lead { white-space: pre; }
+.hd-ticker.is-compact .hd-ticker-label-lead { display: none; }

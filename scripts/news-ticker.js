@@ -32,7 +32,19 @@
     label.className = 'hd-ticker-label';
     label.setAttribute('aria-hidden', 'true');
     label.innerHTML = '<span class="hd-ticker-dot"></span>';
-    label.appendChild(document.createTextNode(opts.label || 'League News'));
+    // "League News": "League " is dropped when the label would crowd out
+    // the headlines (narrow phones, large text) — see fitLabel()
+    var words = String(opts.label || 'League News').split(' ');
+    var last = words.pop();
+    var text = document.createElement('span');
+    if (words.length) {
+      var lead = document.createElement('span');
+      lead.className = 'hd-ticker-label-lead';
+      lead.textContent = words.join(' ') + ' ';
+      text.appendChild(lead);
+    }
+    text.appendChild(document.createTextNode(last));
+    label.appendChild(text);
 
     var viewport = document.createElement('div');
     viewport.className = 'hd-ticker-viewport';
@@ -59,8 +71,15 @@
       });
     }
 
+    // Keep the label to at most 40% of the ticker
+    function fitLabel() {
+      root.classList.remove('is-compact');
+      if (root.clientWidth && label.offsetWidth > root.clientWidth * 0.4) root.classList.add('is-compact');
+    }
+
     var lastWidth = -1;
     function build() {
+      fitLabel();
       var list = texts();
       track.textContent = '';
       root.hidden = list.length === 0;

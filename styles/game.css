@@ -91,8 +91,12 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* topbar · content · League News ticker (pinned to the bottom) */
+  display: flex;
+  flex-direction: column;
 }
 .gs-topbar {
+  flex: none;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -125,6 +129,8 @@
 .gs-advance-note { font-size: 0.625rem; color: var(--text-muted); white-space: nowrap; }
 
 .gs-content {
+  flex: 1 0 auto;
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px max(env(safe-area-inset-right), 24px) max(env(safe-area-inset-bottom), 40px) 24px;
@@ -308,3 +314,15 @@
   color: var(--accent-text);
 }
 .gs-placeholder-text { margin: 0.5rem auto 0; max-width: 30rem; font-size: 0.9375rem; line-height: 1.55; color: var(--text-soft); }
+
+/* --- League News ticker: stays at the bottom of the screen while the
+   section scrolls; sits at the bottom when the content is short --------- */
+.gs-ticker {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex: none;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+}
+.gs-ticker .hd-ticker { border-bottom: 0; }
