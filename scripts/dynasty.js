@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 15;
+  var SCHEMA_VERSION = 16;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -79,7 +79,9 @@
       morale: dep('HDMorale', './morale.js'),
       mental: dep('HDPlayerMental', './player-mental.js'),
       careerStats: dep('HDCareerStats', './career-stats.js'),
-      contracts: dep('HDContracts', './contracts.js')
+      contracts: dep('HDContracts', './contracts.js'),
+      transactions: dep('HDTransactions', './transactions.js'),
+      rosterMod: dep('HDRoster', './roster.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -348,6 +350,67 @@
   }
 
   /**
+   * Complete a trade (the trade engine / AI calls this once both sides
+   * agree; proposals that fail never reach it). One record in the
+   * transaction log, shared by every player involved; contracts move with
+   * the players unchanged; lineups and captains are re-set for the teams.
+   *   trade = { id, date?, assets: [
+   *     { kind: 'player', playerId, from, to } |
+   *     { kind: 'pick', year, round, originalTeamId?, protection?, swap?, from, to } |
+   *     { kind: 'cash', amount, from, to } ] }
+   * -> { completed, transaction | reason }   (idempotent per trade id)
+   */
+  function completeTrade(save, trade) {
+    var x = deps();
+    var key = 'trade:' + (trade && trade.id);
+    if (!trade || !trade.id || !Array.isArray(trade.assets) || !trade.assets.length) return { completed: false, reason: 'invalid' };
+    if (x.transactions.has(save, key)) return { completed: false, reason: 'duplicate' };
+    var teamIds = {};
+    save.teams.forEach(function (t) { teamIds[t.id] = true; });
+    var byId = {};
+    save.players.forEach(function (p) { byId[p.id] = p; });
+    var seenPlayers = {};
+    var ok = trade.assets.every(function (a) {
+      if (!teamIds[a.from] || !teamIds[a.to] || a.from === a.to) return false;
+      if (a.kind === 'player') {
+        if (!byId[a.playerId] || byId[a.playerId].teamId !== a.from || seenPlayers[a.playerId]) return false;
+        seenPlayers[a.playerId] = true; return true;
+      }
+      if (a.kind === 'pick') return Number.isInteger(a.year) && Number.isInteger(a.round) && a.round >= 1;
+      if (a.kind === 'cash') return typeof a.amount === 'number' && a.amount >= 0;
+      return false;
+    });
+    if (!ok) return { completed: false, reason: 'invalid' };
+    // Every team keeps enough players for a starting five
+    var counts = {};
+    save.players.forEach(function (p) { counts[p.teamId] = (counts[p.teamId] || 0) + 1; });
+    trade.assets.forEach(function (a) { if (a.kind === 'player') { counts[a.from]--; counts[a.to]++; } });
+    if (Object.keys(counts).some(function (t) { return counts[t] < 5; })) return { completed: false, reason: 'roster-size' };
+    var date = trade.date || save.calendar.currentDate;
+    var assets = trade.assets.map(function (a) {
+      var out = Object.assign({}, a);
+      if (a.kind === 'pick') out.id = 'pick-' + a.year + '-r' + a.round + '-' + (a.originalTeamId || a.from) + (a.swap ? '-swap' : '');
+      return out;
+    });
+    var contractIds = [], bonuses = {};
+    assets.forEach(function (a) {
+      if (a.kind !== 'player') return;
+      byId[a.playerId].teamId = a.to;
+      var moved = x.contracts.transfer(save, a.playerId, a.to, date, { tradeId: trade.id });
+      if (moved) { contractIds.push(moved.contractId); if (moved.bonus) bonuses[a.playerId] = moved.bonus; }
+    });
+    var involved = {};
+    assets.forEach(function (a) { involved[a.from] = true; involved[a.to] = true; });
+    Object.keys(involved).forEach(function (tid) {
+      save.lineups[tid] = x.rosterMod.bestLineup(save.players.filter(function (p) { return p.teamId === tid; }));
+    });
+    x.morale.ensure(save);
+    var tx = x.transactions.log(save, { type: 'trade', key: key, date: date, assets: assets, contractIds: contractIds,
+      meta: { tradeBonuses: bonuses } });
+    return { completed: true, transaction: tx };
+  }
+
+  /**
    * Moves the in-game date forward and processes everything dated up to it
    * that the save tracks today: player paychecks (scripts/contracts.js).
    * Never moves the date backward.
@@ -607,6 +670,10 @@
     deps().careerStats.ensure(save);
     // Contracts: every player's current deal, from league rules
     // (scripts/contracts.js, data/contract-rules.js). Earnings start empty.
+    // Transaction log: draft selections from career backgrounds, then every
+    // contract event (scripts/transactions.js — the single log)
+    deps().transactions.ensure(save);
+    deps().transactions.addDraftHistory(save);
     deps().contracts.ensure(save);
     return save;
   }
@@ -858,6 +925,16 @@
       if (Array.isArray(s.players) && s.finances) deps().contracts.ensure(s);
       s.schemaVersion = 15;
       return s;
+    },
+    // v15: contract history lived inside the contract store. It moves into
+    // the single transaction log (same events, nothing invented), plus the
+    // draft selections already in each player's career background.
+    15: function (s) {
+      deps().transactions.ensure(s);
+      if (Array.isArray(s.players)) deps().transactions.addDraftHistory(s);
+      if (s.contracts) deps().contracts.upgradeStore(s);
+      s.schemaVersion = 16;
+      return s;
     }
   };
 
@@ -917,6 +994,7 @@
     req(deps().news.isValid(d), 'Invalid league news.');
     req(deps().careerStats.isValid(d), 'Invalid career statistics.');
     req(deps().contracts.isValid(d), 'Invalid contract data.');
+    req(deps().transactions.isValid(d), 'Invalid transaction history.');
     req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
@@ -1250,9 +1328,10 @@
     validateYear: validateYear,
     makeId: makeId,
     // News moves with a save stored under a new id (scripts/news.js)
-    rebindNews: function (save) { return deps().news.rebind(save); },
+    rebindNews: function (save) { deps().transactions.rebind(save); return deps().news.rebind(save); },
     recordGame: recordGame,
     advanceDate: advanceDate,
+    completeTrade: completeTrade,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
     RULE_KEYS: RULE_KEYS,

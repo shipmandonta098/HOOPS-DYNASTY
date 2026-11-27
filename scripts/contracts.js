@@ -8,7 +8,6 @@
        version: 1,
        contracts:    { [contractId]: Contract },
        byPlayer:     { [playerId]: [contractId, ...] }    oldest first
-       transactions: [ Transaction ]                      contract history
        earnings:     { [playerId]: [ { seasonYear, teamId, teamName, amount, kind } ] }
      }
 
@@ -37,6 +36,9 @@
      }
 
    Rules live in data/contract-rules.js. Salaries are whole dollars.
+   Contract HISTORY is not stored here: every contract event is a record in
+   the league's single transaction log (scripts/transactions.js); Contract
+   History shows its financial records.
 
    History is never invented: a dynasty starts with every player's CURRENT
    contract (generated once from league rules, with past signing dates
@@ -50,14 +52,15 @@
   var api = factory(
     node ? require('./random.js') : root.HDRandom,
     node ? require('./season.js') : root.HDSeason,
-    node ? require('../data/contract-rules.js') : root.HDContractRules
+    node ? require('../data/contract-rules.js') : root.HDContractRules,
+    node ? require('./transactions.js') : root.HDTransactions
   );
   if (node) module.exports = api;
   else root.HDContracts = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Season, Rules) {
+})(typeof self !== 'undefined' ? self : this, function (R, Season, Rules, Tx) {
   'use strict';
 
-  var STORE_VERSION = 1;
+  var STORE_VERSION = 2;          // v2: history moved to the transaction log
   var STATUSES = ['active', 'expired', 'waived', 'bought-out', 'terminated', 'retired'];
 
   /* --- small helpers -------------------------------------------------------- */
@@ -84,7 +87,7 @@
 
   /* --- store ---------------------------------------------------------------- */
 
-  function emptyStore() { return { version: STORE_VERSION, contracts: {}, byPlayer: {}, transactions: [], earnings: {} }; }
+  function emptyStore() { return { version: STORE_VERSION, contracts: {}, byPlayer: {}, earnings: {} }; }
   function store(save) { if (!save.contracts) save.contracts = emptyStore(); return save.contracts; }
 
   function contractsOf(save, playerId) {
@@ -109,26 +112,40 @@
     return c;
   }
 
-  // Deterministic ids keep re-runs from duplicating history entries.
-  function record(save, entry) {
-    var s = store(save);
-    var id = 'tx-' + [entry.kind, entry.contractId || entry.playerId, entry.seasonYear == null ? '' : entry.seasonYear, entry.date || 'pre', entry.key || ''].join(':');
-    if (s.transactions.some(function (t) { return t.id === id; })) return null;
-    var t = {
-      id: id,
-      date: entry.date || null,
-      seasonYear: entry.seasonYear == null ? null : entry.seasonYear,
-      playerId: entry.playerId,
-      contractId: entry.contractId || null,
-      teamId: entry.teamId || null,
-      teamName: entry.teamName || (entry.teamId ? teamName(save, entry.teamId) : null),
-      kind: entry.kind,
-      details: entry.details || '',
-      amount: entry.amount == null ? null : entry.amount,
-      preDynasty: !!entry.preDynasty
+  /* --- transaction log (scripts/transactions.js) ------------------------------- */
+
+  // Terms of a contract for a transaction record. `years` limits it to some
+  // seasons (e.g. the extension years only).
+  function terms(c, years) {
+    years = (years || c.years).filter(function (y) { return y.optionStatus !== 'declined'; });
+    var total = years.reduce(function (s, y) { return s + y.salary; }, 0);
+    return {
+      total: total,
+      years: years.length,
+      guaranteed: years.reduce(function (s, y) { return s + guaranteedFor(y); }, 0),
+      aav: years.length ? Math.round(total / years.length) : 0,
+      contractType: c.type,
+      options: years.filter(function (y) { return y.option; }).map(function (y) { return { seasonYear: y.seasonYear, option: y.option }; }),
+      firstSeason: years.length ? years[0].seasonYear : c.startSeason,
+      lastSeason: years.length ? years[years.length - 1].seasonYear : c.endSeason
     };
-    s.transactions.push(t);
-    return t;
+  }
+  function record(save, entry) {
+    var c = entry.contract;
+    return Tx.log(save, {
+      type: entry.type,
+      key: entry.key,
+      date: entry.date || null,
+      seasonYear: entry.seasonYear,
+      playerIds: [entry.playerId || (c && c.playerId)],
+      fromTeamIds: entry.from ? [entry.from] : [],
+      toTeamIds: entry.to ? [entry.to] : [],
+      teamNames: entry.teamNames,
+      contractIds: c ? [c.id] : [],
+      money: entry.money || null,
+      meta: entry.meta || {},
+      preDynasty: !!entry.preDynasty
+    });
   }
 
   /* --- contract math --------------------------------------------------------- */
@@ -349,23 +366,27 @@
     balanceTeams(save, fresh, ctx);
     fresh.forEach(function (gen) {
       delete gen._gen;
-      var c = addContract(save, gen), p = { id: c.playerId };
+      var c = addContract(save, gen);
+      var p = playerById(save, c.playerId) || { id: c.playerId };
+      var dr = p.draft || {};
+      var names = {}; names[c.signingTeamId] = c.signingTeamName;
+      var firstDeal = Number.isInteger(dr.year) && c.startSeason === dr.year;
+      var original = c.years.filter(function (y) { return !y.decidedBeforeDynasty || !y.option || y.optionStatus !== 'declined'; });
       record(save, {
-        kind: c.type === 'rookie-scale' ? 'rookie-scale' : 'signed', playerId: p.id, contractId: c.id,
-        teamId: c.signingTeamId, teamName: c.signingTeamName, date: c.signedDate, seasonYear: c.startSeason,
-        amount: totalValue(c), preDynasty: true,
-        details: c.years.length + '-year ' + Rules.TYPES[c.type].label.toLowerCase() + ' contract (on file when the league began)'
+        type: c.type === 'rookie-scale' ? 'signed-rookie-scale' : (dr.undrafted && firstDeal ? 'signed-undrafted' : 'signed'),
+        key: 'signing:' + c.id, contract: c, to: c.signingTeamId, teamNames: names, date: c.signedDate, preDynasty: true,
+        money: terms(c, original), meta: { first: firstDeal && !dr.undrafted && c.type !== 'rookie-scale' }
       });
       c.years.forEach(function (y) {
         if (y.decidedBeforeDynasty && y.option) record(save, {
-          kind: y.option === 'team' ? 'team-option-exercised' : 'player-option-exercised', playerId: p.id, contractId: c.id,
-          teamId: c.teamId, date: y.optionDeadline, seasonYear: y.seasonYear, amount: y.salary, preDynasty: true,
-          details: Season.label(y.seasonYear) + ' option exercised before the league began'
+          type: y.option === 'team' ? 'team-option-exercised' : 'player-option-exercised', key: 'option:' + c.id + ':' + y.seasonYear,
+          contract: c, to: c.signingTeamId, teamNames: names, date: y.optionDeadline, preDynasty: true,
+          money: { salary: y.salary }, meta: { optionSeason: y.seasonYear }
         });
       });
       if (c.signingTeamId !== c.teamId) record(save, {
-        kind: 'acquired-trade', playerId: p.id, contractId: c.id, teamId: c.teamId, date: null, seasonYear: null, preDynasty: true,
-        details: 'Contract acquired from the ' + c.signingTeamName + ' before the league began'
+        type: 'acquired', key: 'acquired:' + c.id + ':pre', contract: c, from: c.signingTeamId, to: c.teamId, teamNames: names,
+        date: null, seasonYear: null, preDynasty: true
       });
     });
     return save;
@@ -429,8 +450,8 @@
     var c = get(save, contractId), y = findYear(c, seasonYear);
     if (!y.option || y.optionStatus !== 'pending') return false;
     y.optionStatus = 'exercised';             // keeps its PO / TO designation
-    record(save, { kind: y.option === 'team' ? 'team-option-exercised' : 'player-option-exercised', playerId: c.playerId, contractId: c.id,
-      teamId: c.teamId, date: date, seasonYear: seasonYear, amount: y.salary, details: Season.label(seasonYear) + ' ' + y.option + ' option exercised' });
+    record(save, { type: y.option === 'team' ? 'team-option-exercised' : 'player-option-exercised', key: 'option:' + c.id + ':' + seasonYear,
+      contract: c, to: c.teamId, date: date, money: { salary: y.salary }, meta: { optionSeason: seasonYear } });
     return true;
   }
 
@@ -440,9 +461,9 @@
     // Declining ends the deal before that season: later years go with it
     c.years.forEach(function (o) { if (o.seasonYear >= seasonYear) o.optionStatus = 'declined'; });
     c.endSeason = lastLive(c);
-    record(save, { kind: y.option === 'team' ? 'team-option-declined' : 'player-option-declined', playerId: c.playerId, contractId: c.id,
-      teamId: c.teamId, date: date, seasonYear: seasonYear, amount: y.salary,
-      details: Season.label(seasonYear) + ' ' + y.option + ' option declined · free agent in ' + (c.endSeason + 1) + ' (' + Rules.freeAgencyStatus(c) + ')' });
+    record(save, { type: y.option === 'team' ? 'team-option-declined' : 'player-option-declined', key: 'option:' + c.id + ':' + seasonYear,
+      contract: c, to: c.teamId, date: date, money: { salary: y.salary },
+      meta: { optionSeason: seasonYear, faStatus: Rules.freeAgencyStatus(c), faYear: c.endSeason + 1 } });
     return true;
   }
 
@@ -451,8 +472,8 @@
     var c = get(save, contractId), y = findYear(c, seasonYear);
     if (y.guarantee === 'full' || !isLive(y)) return false;
     y.guarantee = 'full'; y.guaranteedAmount = null;
-    record(save, { kind: 'guarantee-activated', playerId: c.playerId, contractId: c.id, teamId: c.teamId, date: date,
-      seasonYear: seasonYear, amount: y.salary, details: Season.label(seasonYear) + ' salary now fully guaranteed' });
+    record(save, { type: 'guarantee-activated', key: 'guarantee:' + c.id + ':' + seasonYear, contract: c, to: c.teamId, date: date,
+      money: { salary: y.salary }, meta: { optionSeason: seasonYear } });
     return true;
   }
 
@@ -463,7 +484,8 @@
    * trading team and charged to the acquiring team's cap over the
    * remaining guaranteed seasons.
    */
-  function transfer(save, playerId, toTeamId, date) {
+  // opts.tradeId: part of a logged trade (the trade record covers it)
+  function transfer(save, playerId, toTeamId, date, opts) {
     var c = activeContract(save, playerId);
     if (!c || c.teamId === toTeamId) return false;
     var from = c.teamId;
@@ -481,10 +503,9 @@
       }
     }
     c.teamId = toTeamId;
-    record(save, { kind: 'acquired-trade', playerId: playerId, contractId: c.id, teamId: toTeamId, date: date, seasonYear: season,
-      amount: remainingGuaranteed(c, season), key: toTeamId,
-      details: 'Acquired from the ' + (teamName(save, from) || 'previous team') + ' · contract unchanged' + (bonus ? ' · trade bonus paid' : '') });
-    return true;
+    if (!(opts && opts.tradeId)) record(save, { type: 'acquired', key: 'acquired:' + c.id + ':' + date + ':' + toTeamId, contract: c,
+      from: from, to: toTeamId, date: date, money: { remainingGuaranteed: remainingGuaranteed(c, season), tradeBonus: bonus || null } });
+    return { from: from, bonus: bonus, contractId: c.id };
   }
 
   // Keeps contracts in line with rosters if another system moved a player
@@ -514,8 +535,8 @@
     c.endSeason = c.years[c.years.length - 1].seasonYear;
     var total = salaries.reduce(function (s, v) { return s + Math.round(v); }, 0);
     c.extensions.push({ date: opts.date || save.calendar.currentDate, fromSeason: from, toSeason: c.endSeason, total: total });
-    record(save, { kind: 'extension', playerId: c.playerId, contractId: c.id, teamId: c.teamId, date: opts.date || save.calendar.currentDate,
-      seasonYear: from, amount: total, details: salaries.length + '-year extension through ' + Season.label(c.endSeason) });
+    record(save, { type: 'extension', key: 'extension:' + c.id + ':' + from, contract: c, to: c.teamId, date: opts.date || save.calendar.currentDate,
+      money: terms(c, c.years.filter(function (y) { return y.seasonYear >= from; })) });
     return true;
   }
 
@@ -536,24 +557,25 @@
       var deadAmt = Math.round(g * scale) + (y.paid || 0);
       if (deadAmt > 0) c.dead.push({ seasonYear: y.seasonYear, teamId: c.teamId, amount: deadAmt });
     });
-    record(save, { kind: buyout == null ? 'waived' : 'buyout', playerId: c.playerId, contractId: c.id, teamId: c.teamId, date: date,
-      seasonYear: season, amount: buyout == null ? owed : buyout,
-      details: buyout == null ? 'Waived · remaining guaranteed money stays on the cap' : 'Contract bought out' });
+    record(save, { type: buyout == null ? 'waived' : 'buyout', key: 'waived:' + c.id, contract: c, from: c.teamId, date: date,
+      money: { amount: buyout == null ? owed : buyout } });
     return true;
   }
 
   function terminate(save, contractId, date, reason) {
     var c = get(save, contractId);
     if (c.status !== 'active') return false;
+    if (reason === 'retired') { store(save).retired = store(save).retired || {}; store(save).retired[c.playerId] = date; }
     c.status = reason === 'retired' ? 'retired' : 'terminated';
-    record(save, { kind: reason === 'retired' ? 'retired' : 'terminated', playerId: c.playerId, contractId: c.id, teamId: c.teamId,
-      date: date, seasonYear: save.calendar.seasonYear, details: reason === 'retired' ? 'Retired · remaining salary forfeited' : 'Contract terminated' });
+    record(save, { type: reason === 'retired' ? 'retired' : 'terminated', key: (reason === 'retired' ? 'retired:' + c.playerId : 'terminated:' + c.id),
+      contract: c, from: c.teamId, date: date, meta: reason === 'retired' ? { forfeited: remainingGuaranteed(c, save.calendar.seasonYear) } : {} });
     return true;
   }
   function retire(save, playerId, date) {
     var c = activeContract(save, playerId);
     if (c) return terminate(save, c.id, date, 'retired');
-    record(save, { kind: 'retired', playerId: playerId, date: date, seasonYear: save.calendar.seasonYear, details: 'Retired' });
+    var p = playerById(save, playerId);
+    record(save, { type: 'retired', key: 'retired:' + playerId, playerId: playerId, from: p ? p.teamId : null, date: date });
     store(save).retired = store(save).retired || {};
     store(save).retired[playerId] = date;
     return true;
@@ -567,11 +589,58 @@
       var c = s.contracts[id];
       if (c.status === 'active' && lastLive(c) < seasonYear) {
         c.status = 'expired';
-        record(save, { kind: 'expired', playerId: c.playerId, contractId: c.id, teamId: c.teamId, date: date || iso(seasonYear, 7, 1),
-          seasonYear: seasonYear, details: 'Contract expired · ' + (Rules.freeAgencyStatus(c) === 'RFA' ? 'restricted' : 'unrestricted') + ' free agent' });
+        record(save, { type: 'expired', key: 'expired:' + c.id, contract: c, from: c.teamId, date: date || iso(seasonYear, 7, 1),
+          meta: { faStatus: Rules.freeAgencyStatus(c) } });
       }
     });
     return save;
+  }
+
+  /**
+   * A new contract (free agency / re-signing). The player must not be under
+   * contract. salaries: [amount per season from opts.startSeason]
+   * opts: { teamId, date, type ('veteran'|'minimum'|'maximum'), startSeason, options: { [i]: 'player'|'team' }, eventKey }
+   */
+  function sign(save, playerId, salaries, opts) {
+    opts = opts || {};
+    if (activeContract(save, playerId) || !salaries.length || !opts.teamId) return null;
+    var prev = latestContract(save, playerId);
+    var n = contractsOf(save, playerId).length + 1;
+    var startSeason = opts.startSeason || save.calendar.seasonYear;
+    var date = opts.date || save.calendar.currentDate;
+    var c = {
+      id: 'ctr-' + playerId + '-' + n, playerId: playerId, type: opts.type || 'veteran', status: 'active',
+      signingTeamId: opts.teamId, signingTeamName: teamName(save, opts.teamId), teamId: opts.teamId,
+      signedDate: date, startSeason: startSeason, endSeason: startSeason + salaries.length - 1, preDynasty: false,
+      years: salaries.map(function (amt, i) {
+        var y = makeYear(startSeason + i, Math.round(amt));
+        var o = opts.options && opts.options[i];
+        if (o) { y.option = o; y.optionStatus = 'pending'; y.optionDeadline = iso(y.seasonYear, 6, 29); }
+        return y;
+      }),
+      clauses: { tradeBonusPct: null, noTrade: false, incentives: [], signingBonus: null }, extensions: [], dead: []
+    };
+    addContract(save, c);
+    record(save, {
+      type: !prev ? 'signed' : prev.teamId === opts.teamId || prev.waivedBy === opts.teamId ? 're-signed' : 'signed-free-agent',
+      key: opts.eventKey || 'signing:' + c.id, contract: c, to: opts.teamId, from: prev ? prev.teamId : null, date: date, money: terms(c)
+    });
+    return c;
+  }
+
+  // Waiver claim: the claiming team takes over the contract as it stands
+  function claim(save, contractId, teamId, date) {
+    var c = get(save, contractId);
+    if (c.status !== 'waived' || !teamId || teamId === c.waivedBy) return false;
+    var season = save.calendar.seasonYear;
+    var from = c.waivedBy;
+    c.dead = c.dead.filter(function (d) { return d.seasonYear < season; });
+    c.years.forEach(function (y) { delete y.payable; });
+    c.status = 'active';
+    c.teamId = teamId;
+    delete c.waivedBy;
+    record(save, { type: 'claimed', key: 'claimed:' + c.id + ':' + date, contract: c, from: from, to: teamId, date: date, money: terms(c, c.years.filter(function (y) { return y.seasonYear >= season; })) });
+    return true;
   }
 
   /* --- league queries --------------------------------------------------------- */
@@ -656,18 +725,60 @@
     return Rules.freeAgencyStatus(c);
   }
 
+  // Contract History: the financial records of the transaction log, newest first
   function history(save, playerId) {
-    var list = ((save.contracts && save.contracts.transactions) || []).filter(function (t) { return t.playerId === playerId; });
-    // Undated pre-league entries (e.g. a trade before the league began) sit
-    // just before the league's first day: after any dated pre-league signing.
-    var eve = iso(save.calendar.startYear, 9, 30);
-    return list.slice().sort(function (a, b) {
-      var d = cmp(b.date || eve, a.date || eve);
-      return d || list.indexOf(b) - list.indexOf(a);
-    });
+    return Tx.forPlayer(save, playerId, { financial: true, newestFirst: true });
   }
 
   /* --- lifecycle -------------------------------------------------------------- */
+
+  /**
+   * Store v1 (save format 15) kept its own contract history list. Each entry
+   * becomes a record in the transaction log, keyed exactly as new events
+   * are, then the list is dropped (one source). Idempotent.
+   */
+  function upgradeStore(save) {
+    var s = save.contracts;
+    if (!s || !Array.isArray(s.transactions)) return save;
+    var lastTeam = {};
+    var FIN = { 'team-option-exercised': 1, 'player-option-exercised': 1, 'team-option-declined': 1, 'player-option-declined': 1 };
+    s.transactions.forEach(function (t) {
+      var c = s.contracts[t.contractId] || null;
+      var names = {}; if (t.teamId && t.teamName) names[t.teamId] = t.teamName;
+      var base = { contract: c, playerId: t.playerId, date: t.date, seasonYear: t.seasonYear, teamNames: names, preDynasty: !!t.preDynasty };
+      var y = c && t.seasonYear != null ? yearFor(c, t.seasonYear) : null;
+      var k = t.kind;
+      if (k === 'signed' || k === 'rookie-scale') {
+        var p = playerById(save, t.playerId) || {}, dr = p.draft || {};
+        var firstDeal = c && Number.isInteger(dr.year) && c.startSeason === dr.year;
+        record(save, Object.assign(base, { type: k === 'rookie-scale' ? 'signed-rookie-scale' : (dr.undrafted && firstDeal ? 'signed-undrafted' : 'signed'),
+          key: 'signing:' + t.contractId, to: t.teamId, money: c ? terms(c, c.years.filter(function (x) { return !x.extension; })) : null,
+          meta: { first: !!firstDeal && !dr.undrafted && k !== 'rookie-scale' } }));
+        if (c) lastTeam[c.id] = t.teamId;
+      } else if (FIN[k] || k === 'guarantee-activated') {
+        record(save, Object.assign(base, { type: k, key: (k === 'guarantee-activated' ? 'guarantee:' : 'option:') + t.contractId + ':' + t.seasonYear,
+          to: t.teamId, money: { salary: y ? y.salary : t.amount }, meta: { optionSeason: t.seasonYear, faStatus: c ? Rules.freeAgencyStatus(c) : 'UFA' } }));
+      } else if (k === 'acquired-trade') {
+        var from = c ? (lastTeam[c.id] || c.signingTeamId) : null;
+        record(save, Object.assign(base, { type: 'acquired', key: 'acquired:' + t.contractId + ':' + (t.date ? t.date + ':' + t.teamId : 'pre'), from: from, to: t.teamId }));
+        if (c) lastTeam[c.id] = t.teamId;
+      } else if (k === 'extension') {
+        record(save, Object.assign(base, { type: 'extension', key: 'extension:' + t.contractId + ':' + t.seasonYear, to: t.teamId,
+          money: c ? terms(c, c.years.filter(function (x) { return x.seasonYear >= t.seasonYear; })) : { total: t.amount } }));
+      } else if (k === 'waived' || k === 'buyout') {
+        record(save, Object.assign(base, { type: k, key: 'waived:' + t.contractId, from: t.teamId, money: { amount: t.amount } }));
+      } else if (k === 'retired') {
+        record(save, Object.assign(base, { type: 'retired', key: 'retired:' + t.playerId, from: t.teamId }));
+      } else if (k === 'terminated') {
+        record(save, Object.assign(base, { type: 'terminated', key: 'terminated:' + t.contractId, from: t.teamId }));
+      } else if (k === 'expired') {
+        record(save, Object.assign(base, { type: 'expired', key: 'expired:' + t.contractId, from: t.teamId, meta: { faStatus: c ? Rules.freeAgencyStatus(c) : 'UFA' } }));
+      }
+    });
+    delete s.transactions;
+    s.version = STORE_VERSION;
+    return save;
+  }
 
   /** Creates the store and generates every missing contract (once). */
   function ensure(save) {
@@ -679,7 +790,7 @@
   function isValid(save) {
     var s = save.contracts;
     if (s === undefined) return true;
-    if (!s || typeof s !== 'object' || !s.contracts || !s.byPlayer || !Array.isArray(s.transactions) || !s.earnings) return false;
+    if (!s || typeof s !== 'object' || !s.contracts || !s.byPlayer || !s.earnings) return false;
     var ok = Object.keys(s.contracts).every(function (id) {
       var c = s.contracts[id];
       return c && c.id === id && typeof c.playerId === 'string' && STATUSES.indexOf(c.status) !== -1 && Rules.TYPES[c.type] &&
@@ -707,6 +818,7 @@
     STORE_VERSION: STORE_VERSION,
     paydays: paydays,
     ensure: ensure,
+    upgradeStore: upgradeStore,
     generateLeague: generateLeague,
     marketShare: marketShare,
     contractsOf: contractsOf,
@@ -727,6 +839,9 @@
     transfer: transfer,
     syncTeams: syncTeams,
     extend: extend,
+    sign: sign,
+    claim: claim,
+    terms: terms,
     waive: waive,
     terminate: terminate,
     retire: retire,

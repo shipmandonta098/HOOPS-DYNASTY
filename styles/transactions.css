@@ -1,0 +1,59 @@
+/* ==========================================================================
+   HOOPS DYNASTY — Transactions section (scripts/transactions-ui.js)
+   A plain chronological reference list: bold dates, subtle separators.
+   ========================================================================== */
+
+.pp-transactions { grid-column: 1 / -1; }
+@media (min-width: 1280px) {
+  .pp-sections .pp-transactions { border-top: 1px solid var(--border); }
+}
+@media (min-width: 1024px) {
+  .pp-transactions .cs-head { padding-right: 56px; }
+}
+
+.tx-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 10px 0 4px; }
+.tx-tools .hd-select-wrap { flex: 0 1 12rem; }
+.tx-select { min-height: 36px; font-size: 0.8125rem; }
+.tx-sort {
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.tx-sort:hover { color: var(--text); border-color: var(--text-muted); }
+.tx-sort:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tx-count { margin-left: auto; font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.tx-list { margin: 10px 0 0; padding: 0; list-style: none; }
+.tx-item { padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
+.tx-item:last-child { border-bottom: 0; }
+.tx-line { margin: 0; font-size: 0.875rem; line-height: 1.55; color: var(--text-soft); overflow-wrap: anywhere; }
+.tx-date { color: var(--text); font-weight: 700; }
+.tx-pre { color: var(--text-muted); font-size: 0.8125rem; }
+.tx-team, .tx-pick { color: var(--text); font-weight: 600; }
+
+/* Player names: accessible accent, real buttons */
+.tx-ref {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tx-ref:hover { text-decoration-thickness: 2px; }
+.tx-ref:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.tx-details { margin: 4px 0 0; font-size: 0.8125rem; color: var(--text-soft); }
+.tx-details summary { cursor: pointer; color: var(--accent-text); font-weight: 600; width: max-content; }
+.tx-details summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tx-details ul { margin: 6px 0 0; padding-left: 1.1rem; line-height: 1.5; }
