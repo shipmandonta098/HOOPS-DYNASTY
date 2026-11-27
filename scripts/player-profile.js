@@ -213,7 +213,10 @@
     { id: 'bio', label: 'Bio', render: bioSection },
     { id: 'ratings', label: 'Ratings', render: ratingsSection },
     { id: 'personality', label: 'Personality', render: personalitySection },
-    { id: 'morale', label: 'Morale', render: moraleSection }
+    { id: 'morale', label: 'Morale', render: moraleSection },
+    { id: 'stats', label: 'Career Statistics', render: function (ctx) {     // full width, below everything else
+      return window.HDCareerStatsUI && ctx.save.careerStats ? window.HDCareerStatsUI.section(ctx) : null;
+    } }
   ];
 
   /* --- Dialog ------------------------------------------------------------- */

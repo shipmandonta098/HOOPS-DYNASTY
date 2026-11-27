@@ -1,0 +1,119 @@
+/* ==========================================================================
+   HOOPS DYNASTY — Career Statistics tables (scripts/career-stats-ui.js)
+   Information-dense reference tables in the Hoops Dynasty style.
+   ========================================================================== */
+
+.pp-stats { grid-column: 1 / -1; }
+@media (min-width: 1280px) {
+  .pp-sections .pp-stats { border-top: 1px solid var(--border); }
+}
+
+.cs-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.cs-head .pp-section-title { margin: 0; }
+.cs-modes { flex: 0 1 auto; }
+.cs-modes span { padding-left: 0.8rem; padding-right: 0.8rem; }
+.cs-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 12px 0 4px; }
+.cs-nav { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.cs-nav a {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  text-decoration: none;
+}
+.cs-nav a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cs-nav a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cs-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--text-soft); cursor: pointer; }
+.cs-note, .cs-empty, .cs-legend { margin: 10px 0 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.45; }
+.cs-note { padding: 0.5rem 0.75rem; border-left: 3px solid var(--border-strong); background: var(--surface); }
+.cs-empty { padding: 1rem; border: 1px dashed var(--border-strong); border-radius: var(--radius); text-align: center; }
+
+.cs-block { margin-top: 18px; }
+.cs-title { margin: 0 0 6px; font-family: var(--font-display); font-size: 0.9375rem; font-weight: 800; scroll-margin-top: 16px; }
+.cs-title:focus { outline: none; }
+
+/* Each table scrolls sideways on its own; the page never does */
+.cs-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  -webkit-overflow-scrolling: touch;
+}
+.cs-wrap:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.cs-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cs-table th, .cs-table td {
+  padding: 0.32rem 0.45rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+.cs-table .is-text { text-align: left; }
+.cs-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-raised);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.cs-table abbr { text-decoration: none; cursor: help; }
+.cs-sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+.cs-sort:hover, .cs-sort:focus-visible { color: var(--text); }
+.cs-sort:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.cs-th[aria-sort] { color: var(--text); }
+.cs-th[aria-sort="descending"] .cs-sort::after { content: " ▾"; }
+.cs-th[aria-sort="ascending"] .cs-sort::after { content: " ▴"; }
+
+/* Season column stays visible while scrolling sideways */
+.cs-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  box-shadow: 1px 0 0 var(--border);
+}
+.cs-table thead .cs-sticky { z-index: 3; background: var(--surface-raised); }
+.cs-table tbody th { font-weight: 600; color: var(--text); }
+
+/* Rows */
+.cs-table tbody tr:nth-child(even) td, .cs-table tbody tr:nth-child(even) .cs-sticky { background: color-mix(in srgb, var(--surface) 70%, var(--bg)); }
+.cs-table tbody tr:hover td, .cs-table tbody tr:hover .cs-sticky { background: var(--surface-raised); }
+.cs-row.is-current td, .cs-row.is-current .cs-sticky { box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--accent) 7%, transparent); }
+.cs-row.is-current .cs-sticky { box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 9999px color-mix(in srgb, var(--accent) 7%, transparent); }
+.cs-row.is-split td, .cs-row.is-split .cs-sticky { color: var(--text-muted); }
+.cs-row.is-split .cs-sticky { padding-left: 1.2rem; font-weight: 400; }
+.cs-row.is-combined .cs-sticky { font-weight: 700; }
+
+/* Career rows */
+.cs-table tfoot th, .cs-table tfoot td { background: var(--surface); font-weight: 700; border-top: 2px solid var(--border-strong); }
+.cs-table tfoot .is-franchise th, .cs-table tfoot .is-franchise td { font-weight: 600; color: var(--text-soft); border-top: 0; }
+.cs-table tfoot .cs-sticky { background: var(--surface); }
+
+/* League leaders (bold + underline, with a tooltip) and career highs */
+.cs-lead { font-weight: 800; color: var(--text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.cs-high { background: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
+.cs-awards abbr { font-weight: 700; color: var(--text-soft); }
+
+/* Keep the mode selector clear of the profile's fixed close button */
+@media (min-width: 1024px) {
+  .pp-stats .cs-head { padding-right: 56px; }
+}
