@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="styles/game.css">
   <link rel="stylesheet" href="styles/dashboard.css">
   <link rel="stylesheet" href="styles/player-profile.css">
+  <link rel="stylesheet" href="styles/news-ticker.css">
 
   <style>
   /* ==========================================================================
@@ -39,7 +40,7 @@
        3. Court background
        4. Brand (ball icon, wordmark, tagline)
        5. Menu + sliding red bar
-       6. Footer + toasts
+       6. Footer (League News ticker + version) + toasts
        7. Keyframes
        8. Responsive
        9. Reduced motion
@@ -134,7 +135,8 @@
     padding:
       max(env(safe-area-inset-top), 12px)
       max(env(safe-area-inset-right), var(--gutter))
-      max(env(safe-area-inset-bottom), 36px)
+      /* room for the footer (ticker + version); measured by JS */
+      calc(var(--title-foot-h, 4.75rem) + 12px)
       max(env(safe-area-inset-left), var(--gutter));
   }
 
@@ -299,15 +301,22 @@
     overflow-wrap: anywhere;
   }
 
-  /* 6. FOOTER + TOASTS ------------------------------------------------------ */
-  .version {
+  /* 6. FOOTER: LEAGUE NEWS TICKER + VERSION -------------------------------- */
+  .title-foot {
     position: fixed;
-    left: max(env(safe-area-inset-left), var(--gutter));
-    bottom: max(env(safe-area-inset-bottom), 12px);
-    z-index: 1;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    animation: fade-to 500ms ease-out 1200ms both;
+    --to: 1;
+  }
+  .version {
+    padding: 0.45rem max(env(safe-area-inset-right), var(--gutter)) max(env(safe-area-inset-bottom), 0.6rem) max(env(safe-area-inset-left), var(--gutter));
     font-size: 0.6875rem;
     letter-spacing: 0.12em;
     color: var(--text-muted);
+    background: var(--bg);
   }
 
   .toasts {
@@ -336,9 +345,14 @@
   .toast strong { text-transform: uppercase; letter-spacing: 0.14em; }
   .toast.leaving { animation: toast-out 250ms ease-in forwards; }
 
-  /* Title screen stays laid out underneath other screens, just hidden */
+  /* Toasts on the title screen sit above the ticker */
+  body[data-screen="title"] .toasts { bottom: calc(var(--title-foot-h, 4.75rem) + 10px); }
+
+  /* Title screen stays laid out underneath other screens, just hidden
+     (and the ticker stops moving while it can't be seen) */
   body:not([data-screen="title"]) .stage,
-  body:not([data-screen="title"]) .version { visibility: hidden; }
+  body:not([data-screen="title"]) .title-foot { visibility: hidden; }
+  body:not([data-screen="title"]) .title-foot .hd-ticker-track { animation-play-state: paused; }
 
   /* 7. KEYFRAMES ------------------------------------------------------------ */
   @keyframes draw { to { stroke-dashoffset: 0; } }
@@ -368,10 +382,11 @@
   @media (min-aspect-ratio: 4/3) and (max-height: 760px) {
     .menu { margin-top: 14px; }
   }
-  /* Phones held sideways: reclaim the footer gap (version sits off to the left) */
+  /* Phones held sideways: tighter footer */
   @media (min-aspect-ratio: 4/3) and (max-height: 480px) {
-    .stage { padding-bottom: max(env(safe-area-inset-bottom), 16px); }
+    .stage { padding-bottom: calc(var(--title-foot-h, 4rem) + 6px); }
     .menu { margin-top: 10px; }
+    .version { padding-top: 0.25rem; padding-bottom: max(env(safe-area-inset-bottom), 0.3rem); }
   }
 
   /* 9. REDUCED MOTION ------------------------------------------------------- */
@@ -382,7 +397,7 @@
     }
     .court .ln { stroke-dashoffset: 0; }
     .court .ft-dash { opacity: 0.85; }
-    .court .strip, .menu-bar, .menu-btn, .brand { opacity: 1; }
+    .court .strip, .menu-bar, .menu-btn, .brand, .title-foot { opacity: 1; }
   }
   </style>
 </head>
@@ -469,7 +484,13 @@
     </nav>
   </div>
 
-  <footer class="version">v0.2.0</footer>
+  <!-- League News ticker (scripts/news-ticker.js) directly above the version line.
+       Headlines: the most recently played dynasty's news (scripts/news.js), or
+       general basketball lines and tips when there is no saved dynasty. -->
+  <footer class="title-foot" id="title-foot">
+    <div class="title-ticker" id="title-ticker"></div>
+    <div class="version">v0.2.0</div>
+  </footer>
 
   <!-- ===== Settings screen =====
        Behaviour: scripts/settings.js. Styles: styles/settings.css.
@@ -1059,6 +1080,7 @@
   <script src="scripts/season.js"></script>
   <script src="scripts/ratings.js"></script>
   <script src="scripts/player-attributes.js"></script>
+  <script src="scripts/news.js"></script>
   <script src="scripts/portraits.js"></script>
   <script src="scripts/player-identity.js"></script>
   <script src="scripts/roster.js"></script>
@@ -1074,6 +1096,7 @@
   <script src="scripts/flags.js"></script>
   <script src="scripts/settings.js"></script>
   <script src="scripts/recent-names.js"></script>
+  <script src="scripts/news-ticker.js"></script>
   <script src="scripts/league-editor.js"></script>
   <script src="scripts/game-settings.js"></script>
   <script src="scripts/new-dynasty.js"></script>
@@ -1202,10 +1225,43 @@
       moveBar(focused || primary, true);
     }
 
-    // Re-read saves (async), then update Continue + primary. Safe any time.
+    // Re-read saves (async), then update Continue + primary + news. Safe any time.
     function refreshMenu() {
+      refreshNews();
       return setupContinue().then(applyPrimary);
     }
+
+
+    /* ----------------------------------------------------------------------
+       LEAGUE NEWS TICKER — the most recently played dynasty's news, or
+       general lines and tips when there is none (never another dynasty's)
+       ---------------------------------------------------------------------- */
+
+    const titleFoot = $('#title-foot');
+    const ticker = window.HDNewsTicker.create($('#title-ticker'), { label: 'League News' });
+    const MIN_REAL = 5;            // fewer real headlines than this: add tips
+    let newsRequest = 0;
+
+    function refreshNews() {
+      const req = ++newsRequest;
+      const tips = window.HDNews.AMBIENT.filter((t) => t.indexOf('Tip:') === 0);
+      return window.HDSaves.mostRecent()
+        .then((recent) => (recent ? window.HDSaves.get(recent.id) : null))
+        .then((save) => {
+          if (req !== newsRequest) return;             // a newer refresh won
+          if (!save) { ticker.setItems(window.HDNews.AMBIENT.slice()); return; }
+          const real = window.HDNews.latest(save, 15).map((n) => n.headline);
+          ticker.setItems(real.length >= MIN_REAL ? real : real.concat(tips));
+        })
+        .catch(() => { if (req === newsRequest) ticker.setItems(window.HDNews.AMBIENT.slice()); });
+    }
+
+    // The menu area keeps clear of the footer, whatever its height
+    function measureFoot() {
+      document.documentElement.style.setProperty('--title-foot-h', titleFoot.offsetHeight + 'px');
+    }
+    if (window.ResizeObserver) new ResizeObserver(measureFoot).observe(titleFoot);
+    measureFoot();
 
     function setupMenu() {
       applyPrimary();
