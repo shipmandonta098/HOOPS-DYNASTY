@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 10;
+  var SCHEMA_VERSION = 11;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -75,7 +75,8 @@
       season: dep('HDSeason', './season.js'),
       teams: dep('HDTeams', './teams.js'),
       playerAttributes: dep('HDPlayerAttributes', './player-attributes.js'),
-      news: dep('HDNews', './news.js')
+      news: dep('HDNews', './news.js'),
+      morale: dep('HDMorale', './morale.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -531,6 +532,8 @@
     attachSystems(save, null);
     // League news: the founding events (scripts/news.js)
     deps().news.addFoundingNews(save);
+    // Morale: personalities and team captains (scripts/morale.js)
+    deps().morale.ensure(save);
     return save;
   }
 
@@ -744,6 +747,13 @@
       deps().news.addFoundingNews(s);
       s.schemaVersion = 10;
       return s;
+    },
+    // v10: no morale data. Players get a personality and each team a
+    // captain; ratings, roles and everything else are unchanged.
+    10: function (s) {
+      deps().morale.ensure(s);
+      s.schemaVersion = 11;
+      return s;
     }
   };
 
@@ -801,6 +811,7 @@
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
     req(deps().news.isValid(d), 'Invalid league news.');
+    req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
       req(pr && isInt(pr.seasonYear, 1, MAX_YEAR) && pr.values && typeof pr.values === 'object' &&

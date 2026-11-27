@@ -144,9 +144,15 @@
   }
 
   // Future: statistics, contract, game log, transactions...
+  function moraleSection(ctx) {
+    if (!ctx.current || !window.HDMorale || !ctx.save.morale) return null;   // morale is about now
+    return window.HDMoraleUI.profileSection(ctx.save, ctx.player);
+  }
+
   var SECTIONS = [
     { id: 'bio', label: 'Bio', render: bioSection },
-    { id: 'ratings', label: 'Ratings', render: ratingsSection }
+    { id: 'ratings', label: 'Ratings', render: ratingsSection },
+    { id: 'morale', label: 'Morale', render: moraleSection }
   ];
 
   /* --- Dialog ------------------------------------------------------------- */
@@ -206,7 +212,7 @@
         findPlayer: function (id) { return pool.filter(function (p) { return p.id === id; })[0] || null; }
       };
       var sections = el('div', { class: 'pp-sections' });
-      SECTIONS.forEach(function (s) { sections.appendChild(s.render(ctx)); });
+      SECTIONS.forEach(function (s) { var node = s.render(ctx); if (node) sections.appendChild(node); });
       body.appendChild(sections);
     }
 

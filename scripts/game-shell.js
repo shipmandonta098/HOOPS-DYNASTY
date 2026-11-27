@@ -51,7 +51,7 @@
     ]);
   }
 
-  function renderRoster(container, save) {
+  function renderRoster(container, save, ctx) {
     if (rosterView.saveId !== save.id) {
       rosterView = { saveId: save.id, teamId: save.userTeamId, seasonYear: save.calendar.seasonYear };
     }
@@ -102,7 +102,7 @@
       rosterView.teamId = teamSelect.value;
       rosterView.seasonYear = Number(seasonSelect.value);
       mine.hidden = rosterView.teamId === save.userTeamId;
-      renderRosterBody(body, save);
+      renderRosterBody(body, save, ctx);
     }
     teamSelect.addEventListener('change', update);
     seasonSelect.addEventListener('change', update);
@@ -110,7 +110,7 @@
     update();
   }
 
-  function renderRosterBody(body, save) {
+  function renderRosterBody(body, save, ctx) {
     var R = window.HDRoster;
     var Bio = window.HDPlayerBio;
     var team = save.teams.filter(function (t) { return t.id === rosterView.teamId; })[0];
@@ -152,6 +152,26 @@
       return;
     }
 
+    // Morale (current season only): Locker Room panel + a smiley per player
+    var morale = null, captainId = null;
+    if (data.current && window.HDMorale && save.morale) {
+      morale = window.HDMorale.evaluateTeam(save, team.id).players;
+      captainId = save.morale.captains[team.id];
+      var mine = team.id === save.userTeamId && ctx && ctx.replaceSave;
+      body.appendChild(window.HDMoraleUI.lockerRoomPanel(save, team.id, mine ? {
+        onCaptainChange: function (playerId) {
+          var copy = JSON.parse(JSON.stringify(save));
+          window.HDMorale.setCaptain(copy, team.id, playerId);
+          window.HDSaves.update(copy).then(function () {
+            ctx.replaceSave(copy);
+            renderRosterBody(body, copy, ctx);
+            var sel = body.querySelector('#lr-captain');
+            if (sel) sel.focus();
+          });
+        }
+      } : null));
+    }
+
     var head = [
       ['Player', 'gs-sticky'], ['Pos'], ['OVR', 'is-num'], ['POT', 'is-num'], ['Age', 'is-num'],
       ['Born'], ['Ht', 'is-num'], ['Wt', 'is-num'], ['Exp', 'is-num', 'Seasons of league experience (R = rookie)'],
@@ -168,9 +188,13 @@
           el('th', { scope: 'row', class: 'gs-sticky' }, [el('span', { class: 'gs-player' }, [
             dom.portrait(p.portrait, { className: 'gs-player-portrait', jersey: jersey }),
             el('span', { class: 'gs-player-text' }, [
-              el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': p.id,
-                'data-season': String(rosterView.seasonYear), 'aria-haspopup': 'dialog',
-                'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
+              el('span', { class: 'gs-player-name-row' }, [
+                el('button', { class: 'gs-player-name pp-trigger', type: 'button', 'data-player-id': p.id,
+                  'data-season': String(rosterView.seasonYear), 'aria-haspopup': 'dialog',
+                  'aria-label': 'View profile: ' + window.HDPlayerIdentity.fullName(p), text: window.HDPlayerIdentity.fullName(p) }),
+                morale ? window.HDMoraleUI.icon(morale[p.id], { className: 'gs-morale' }) : null,
+                captainId === p.id ? el('span', { class: 'lr-c-badge', title: 'Team captain', 'aria-label': 'Team captain', text: 'C' }) : null
+              ]),
               el('span', { class: 'gs-player-num', text: '#' + p.jerseyNumber + (starter ? ' · Starter ' + starter : ' · Bench') })
             ])
           ])]),
