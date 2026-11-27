@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 13;
+  var SCHEMA_VERSION = 14;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -77,7 +77,8 @@
       playerAttributes: dep('HDPlayerAttributes', './player-attributes.js'),
       news: dep('HDNews', './news.js'),
       morale: dep('HDMorale', './morale.js'),
-      mental: dep('HDPlayerMental', './player-mental.js')
+      mental: dep('HDPlayerMental', './player-mental.js'),
+      careerStats: dep('HDCareerStats', './career-stats.js')
     };
   }
   var EXPORT_FORMAT = 'hoops-dynasty-save';
@@ -304,6 +305,45 @@
     result.ok = true;
     result.errors = {};
     return result;
+  }
+
+  /**
+   * Record a completed game everywhere statistics live: the career store
+   * (scripts/career-stats.js) and, for the current regular season, the
+   * dashboard's season totals (scripts/stats.js). Idempotent per game id.
+   */
+  function recordGame(save, game) {
+    var x = deps();
+    var res = x.careerStats.recordGame(save, game);
+    if (!res.recorded) return res;
+    var year = Number.isInteger(game.seasonYear) ? game.seasonYear : save.calendar.seasonYear;
+    var season = save.stats && save.stats.season;
+    if ((game.competition || 'regular') === 'regular' && season && season.seasonYear === year) {
+      var sides = [game.home, game.away];
+      var tot = sides.map(function (sd) {
+        var t = { fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, orb: 0, drb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0, pts: 0, mp: 0 };
+        sd.players.forEach(function (l) {
+          Object.keys(t).forEach(function (k) { if (k !== 'pts') t[k] += l[k] || 0; });
+          t.pts += 2 * ((l.fg || 0) - (l.tp || 0)) + 3 * (l.tp || 0) + (l.ft || 0);
+        });
+        return t;
+      });
+      sides.forEach(function (sd, i) {
+        var t = tot[i], o = tot[1 - i];
+        if (season.teams[sd.teamId]) {
+          x.stats.addTeamGame(season, sd.teamId, { min: t.mp, pts: t.pts, oppPts: o.pts, fgm: t.fg, fga: t.fga, tpm: t.tp, tpa: t.tpa,
+            ftm: t.ft, fta: t.fta, reb: t.orb + t.drb, ast: t.ast, stl: t.stl, blk: t.blk, tov: t.tov,
+            poss: x.careerStats.possessions(t, o), oppPoss: x.careerStats.possessions(o, t) });
+        }
+        sd.players.forEach(function (l) {
+          if (!(l.mp > 0) || !season.players[l.playerId]) return;
+          x.stats.addPlayerGame(season, l.playerId, { gs: l.started ? 1 : 0, min: l.mp,
+            pts: 2 * ((l.fg || 0) - (l.tp || 0)) + 3 * (l.tp || 0) + (l.ft || 0), fgm: l.fg || 0, fga: l.fga || 0, tpm: l.tp || 0, tpa: l.tpa || 0,
+            ftm: l.ft || 0, fta: l.fta || 0, reb: (l.orb || 0) + (l.drb || 0), ast: l.ast || 0, stl: l.stl || 0, blk: l.blk || 0, tov: l.tov || 0 });
+        });
+      });
+    }
+    return res;
   }
 
   // League-office news for rule changes (Difficulty is a player setting, not news)
@@ -550,6 +590,8 @@
     deps().morale.addPersonalities(save.players, save.id);
     deps().mental.addMissing(save.players, save.id);
     deps().morale.ensure(save);
+    // Career statistics: empty until games are played (scripts/career-stats.js)
+    deps().careerStats.ensure(save);
     return save;
   }
 
@@ -786,6 +828,13 @@
       deps().mental.addMissing(s.players || [], s.id);
       s.schemaVersion = 13;
       return s;
+    },
+    // v13: no career statistics store. Added empty: no games had been
+    // simulated, and pre-dynasty history is never invented.
+    13: function (s) {
+      deps().careerStats.ensure(s);
+      s.schemaVersion = 14;
+      return s;
     }
   };
 
@@ -843,6 +892,7 @@
     req(Array.isArray(league.teamIds), 'Missing league team list.');
     req(league.rules && validateRules(league.rules).valid, 'Missing or invalid league rules.');
     req(deps().news.isValid(d), 'Invalid league news.');
+    req(deps().careerStats.isValid(d), 'Invalid career statistics.');
     req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
@@ -1177,6 +1227,7 @@
     makeId: makeId,
     // News moves with a save stored under a new id (scripts/news.js)
     rebindNews: function (save) { return deps().news.rebind(save); },
+    recordGame: recordGame,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
     RULE_KEYS: RULE_KEYS,

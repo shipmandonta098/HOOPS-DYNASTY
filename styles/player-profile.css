@@ -225,7 +225,7 @@
 
 /* Keep the right-most values clear of the fixed close button */
 @media (min-width: 1024px) {
-  .pp-sections .pp-ratings, .pp-section:only-child { padding-right: 72px; }
+  .pp-sections .pp-ratings, .pp-sections .pp-morale, .pp-section:only-child { padding-right: 72px; }
 }
 
 /* Mental group + leadership boost */
