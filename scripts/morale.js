@@ -28,10 +28,11 @@
 (function (root, factory) {
   'use strict';
   var node = typeof module === 'object' && module.exports;
-  var api = factory(node ? require('./random.js') : root.HDRandom, node ? require('./season.js') : root.HDSeason);
+  var api = factory(node ? require('./random.js') : root.HDRandom, node ? require('./season.js') : root.HDSeason,
+    function () { return node ? require('./coaches.js') : root.HDCoaches; });
   if (node) module.exports = api;
   else root.HDMorale = api;
-})(typeof self !== 'undefined' ? self : this, function (R, Season) {
+})(typeof self !== 'undefined' ? self : this, function (R, Season, Coaches) {
   'use strict';
 
   var CONFIG = Object.freeze({
@@ -131,16 +132,22 @@
   }
 
   // Role he actually has: lineup, then depth order by overall
+  // The team's head coach (scripts/coaches.js), if the save has coaches
+  function coachOf(save, teamId) { var C = Coaches(); return C && save.coaches ? C.forTeam(save, teamId) : null; }
+  function rotationSlots(save, teamId) { var C = Coaches(), c = coachOf(save, teamId); return c ? C.rotationSize(c) : CONFIG.ROTATION_SLOTS; }
+
   function actualRoles(save, teamId) {
+    var coach = coachOf(save, teamId);
+    var score = function (p) { return coach ? Coaches().minutesScore(coach, p) : p.overall; };
     var roster = save.players.filter(function (p) { return p.teamId === teamId; });
     var lineup = (save.lineups || {})[teamId] || {};
     var starters = {};
     Object.keys(lineup).forEach(function (pos) { starters[lineup[pos]] = true; });
     var bench = roster.filter(function (p) { return !starters[p.id]; })
-      .sort(function (a, b) { return b.overall - a.overall || a.id.localeCompare(b.id); });
+      .sort(function (a, b) { return score(b) - score(a) || a.id.localeCompare(b.id); });
     var out = {};
     roster.forEach(function (p) { if (starters[p.id]) out[p.id] = 'starter'; });
-    var rotationSpots = CONFIG.ROTATION_SLOTS - Object.keys(starters).length;
+    var rotationSpots = rotationSlots(save, teamId) - Object.keys(starters).length;
     bench.forEach(function (p, i) { out[p.id] = i < rotationSpots ? 'rotation' : i < rotationSpots + 4 ? 'bench' : 'reserve'; });
     return out;
   }
@@ -242,7 +249,8 @@
     var stk = save.standings && save.standings[player.teamId] && save.standings[player.teamId].streak;
     if (stk && stk.type === 'L' && stk.count >= 3) {
       var v = player.traits ? player.traits.volatility : 50;
-      add('streak', 'Losing streak', -Math.min(12, (stk.count - 2) * (v / 50)), stk.count + '-game losing streak.');
+      var buf = coachOf(save, player.teamId) ? Coaches().streakBuffer(coachOf(save, player.teamId), player) : 1;
+      add('streak', 'Losing streak', -Math.min(12, (stk.count - 2) * (v / 50)) * buf, stk.count + '-game losing streak.');
     }
     var isCaptain = ctx.captain && ctx.captain.id === player.id;
     var lockerImpact = 0, lockerDetail = [];
@@ -255,6 +263,10 @@
     }
     if (ctx.volatileCount >= 3) { swing *= 1.12; lockerImpact -= 2; lockerDetail.push(ctx.volatileCount + ' volatile personalities make the room tense.'); }
     add('locker', 'Locker room', lockerImpact, lockerDetail.join(' ') || 'A quiet locker room.');
+
+    // Head coach: star management, discipline vs. temperament, veteran bias
+    var cf = coachOf(save, player.teamId) && Coaches().moraleFactor(coachOf(save, player.teamId), player, ctx);
+    if (cf) add('coach', 'Head coach', cf.impact, cf.detail);
 
     // Temperament (seeded)
     var temper = R.rng('temper:' + save.id + ':' + player.id).normal() * CONFIG.TEMPERAMENT_SD;
@@ -293,8 +305,9 @@
     var issues = [];
     // Players whose own level earns regular minutes (development wishes are a separate factor)
     var wantMinutes = list.filter(function (x) { return x.p.overall >= 72; });
-    if (wantMinutes.length > CONFIG.ROTATION_SLOTS) {
-      var over = wantMinutes.length - CONFIG.ROTATION_SLOTS;
+    var slots = rotationSlots(save, teamId);
+    if (wantMinutes.length > slots) {
+      var over = wantMinutes.length - slots;
       var excessVets = wantMinutes.filter(function (x) { return x.p.age >= CONFIG.VETERAN_AGE && ROLES.indexOf(x.m.role) < 2; })
         .sort(function (a, b) { return a.p.overall - b.p.overall; });
       var name = function (x) { return x.p.firstName + ' ' + x.p.lastName + ' (' + x.p.age + ', ' + x.p.overall + ' OVR)'; };
@@ -305,7 +318,7 @@
         : squeezed.length
           ? ' Squeezed out: ' + squeezed.slice(0, 3).map(name).join(', ') + '. Trim the rotation or move one of them before their morale slips.'
           : '';
-      issues.push({ level: 'warn', text: 'Crowded rotation: ' + wantMinutes.length + ' players expect regular minutes, but only ' + CONFIG.ROTATION_SLOTS + ' rotation spots exist.' + advice });
+      issues.push({ level: 'warn', text: 'Crowded rotation: ' + wantMinutes.length + ' players expect regular minutes, but only ' + slots + ' rotation spots exist.' + advice });
     }
     var topSeven = list.slice().sort(function (a, b) { return b.p.overall - a.p.overall; }).slice(0, 7);
     topSeven.filter(function (x) { return ROLES.indexOf(x.m.role) < 2; }).forEach(function (x) {

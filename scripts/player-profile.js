@@ -49,7 +49,9 @@
         var otherTeam = other ? ctx.teamById[other.teamId] : null;
         var name = other
           ? el('button', { class: 'pp-link', type: 'button', 'data-player-id': other.id, text: r.name })
-          : el('span', { text: r.name });
+          : r.coachId && window.HDCoaches && window.HDCoaches.get(save, r.coachId)
+            ? el('button', { class: 'pp-link', type: 'button', 'data-coach-id': r.coachId, text: r.name })
+            : el('span', { text: r.name });
         return el('li', null, [
           el('span', { text: r.relation + ' of ' }), name,
           r.note ? el('span', { class: 'pp-muted', text: ' (' + r.note + ')' }) : null,
@@ -235,9 +237,10 @@
 
     function render() {
       var save = state.save;
+      if (state.coachId) { window.HDCoachProfile.render(body, dialog, save, state.coachId); return; }
       var seasonYear = state.seasonYear == null ? save.calendar.seasonYear : state.seasonYear;
       var current = seasonYear === save.calendar.seasonYear;
-      var pool = current ? save.players
+      var pool = current ? save.players.concat(save.retiredPlayers || [])
         : ((save.rosterHistory || []).filter(function (h) { return h.seasonYear === seasonYear; })[0] || { players: [] }).players;
       var player = pool.filter(function (p) { return p.id === state.playerId; })[0];
       var teamById = {};
@@ -268,7 +271,8 @@
               el('span', { text: (team ? team.fullName : '') + (season && !current ? ' · ' + season.seasonLabel : '') })
             ]),
             el('h2', { class: 'pp-name', id: 'pp-name', tabindex: '-1', text: window.HDPlayerIdentity.fullName(player) }),
-            el('p', { class: 'pp-sub', text: '#' + player.jerseyNumber + ' · ' + window.HDRoster.POSITION_NAMES[player.position] + (starterAt ? ' · Starter' : ' · Bench') })
+            el('p', { class: 'pp-sub', text: player.retired ? window.HDRoster.POSITION_NAMES[player.position] + ' · Retired ' + dateLabel(player.retiredDate)
+              : '#' + player.jerseyNumber + ' · ' + window.HDRoster.POSITION_NAMES[player.position] + (starterAt ? ' · Starter' : ' · Bench') })
           ]),
           el('div', { class: 'pp-badges' }, [
             el('span', { class: 'pp-badge' }, [window.HDRatings.el(player.overall, { tag: 'strong', label: 'Overall' }), el('span', { text: 'OVR', 'aria-hidden': 'true' })]),
@@ -288,7 +292,8 @@
 
     function open(save, playerId, opts) {
       opts = opts || {};
-      state = { save: save, playerId: playerId, seasonYear: opts.seasonYear == null ? null : opts.seasonYear };
+      state = opts.coach ? { save: save, coachId: playerId, seasonYear: null }
+        : { save: save, playerId: playerId, seasonYear: opts.seasonYear == null ? null : opts.seasonYear };
       if (!dialog.open) returnFocus = opts.returnFocus || document.activeElement;
       render();
       if (!dialog.open) dialog.showModal();
@@ -307,6 +312,8 @@
     // Click on the backdrop (the dialog element itself, outside the sheet)
     dialog.addEventListener('click', function (e) {
       if (e.target === dialog) close();
+      var coachLink = e.target.closest('[data-coach-id]');
+      if (coachLink && state) { open(state.save, coachLink.getAttribute('data-coach-id'), { coach: true }); return; }
       var link = e.target.closest('[data-player-id]');
       if (link && state) open(state.save, link.getAttribute('data-player-id'), { seasonYear: state.seasonYear });
     });

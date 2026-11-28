@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 16;
+  var SCHEMA_VERSION = 17;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -81,6 +81,7 @@
       careerStats: dep('HDCareerStats', './career-stats.js'),
       contracts: dep('HDContracts', './contracts.js'),
       transactions: dep('HDTransactions', './transactions.js'),
+      coaches: dep('HDCoaches', './coaches.js'),
       rosterMod: dep('HDRoster', './roster.js')
     };
   }
@@ -411,6 +412,36 @@
   }
 
   /**
+   * A player retires (completed event): his contract ends, the retirement
+   * is logged, he may go into coaching (personality decides —
+   * scripts/coaches.js), and he moves from the roster to the retired
+   * players archive (his profile and history stay available).
+   * -> { retired, coach | null, reason? }
+   */
+  function retirePlayer(save, playerId, date) {
+    var x = deps();
+    var p = save.players.filter(function (q) { return q.id === playerId; })[0];
+    if (!p) return { retired: false, reason: 'not-found' };
+    if (save.players.filter(function (q) { return q.teamId === p.teamId; }).length <= 5) return { retired: false, reason: 'roster-size' };
+    date = date || save.calendar.currentDate;
+    if (save.contracts) x.contracts.retire(save, playerId, date);
+    else x.transactions.log(save, { type: 'retired', key: 'retired:' + playerId, date: date, playerIds: [playerId], fromTeamIds: [p.teamId] });
+    var coach = x.coaches.considerCoaching(save, p, date);
+    if (coach) x.transactions.log(save, { type: 'entered-coaching', key: 'coaching:' + playerId, date: date, playerIds: [playerId], meta: { coachId: coach.id } });
+    save.players = save.players.filter(function (q) { return q.id !== playerId; });
+    var archived = clone(p);
+    archived.retiredDate = date;
+    archived.retired = true;
+    (save.retiredPlayers = save.retiredPlayers || []).push(archived);
+    var lu = save.lineups[p.teamId];
+    if (lu && Object.keys(lu).some(function (pos) { return lu[pos] === playerId; })) {
+      save.lineups[p.teamId] = x.rosterMod.bestLineup(save.players.filter(function (q) { return q.teamId === p.teamId; }));
+    }
+    x.morale.ensure(save);
+    return { retired: true, coach: coach };
+  }
+
+  /**
    * Moves the in-game date forward and processes everything dated up to it
    * that the save tracks today: player paychecks (scripts/contracts.js).
    * Never moves the date backward.
@@ -665,6 +696,9 @@
     // scripts/player-mental.js
     deps().morale.addPersonalities(save.players, save.id);
     deps().mental.addMissing(save.players, save.id);
+    // Head coaches (scripts/coaches.js): their style shapes rotations and morale
+    deps().coaches.ensure(save);
+    save.retiredPlayers = [];
     deps().morale.ensure(save);
     // Career statistics: empty until games are played (scripts/career-stats.js)
     deps().careerStats.ensure(save);
@@ -935,6 +969,14 @@
       if (s.contracts) deps().contracts.upgradeStore(s);
       s.schemaVersion = 16;
       return s;
+    },
+    // v16: no coaches. Every team gets a head coach (no playing or
+    // executive history invented); retired players get an archive.
+    16: function (s) {
+      if (Array.isArray(s.players) && Array.isArray(s.teams)) deps().coaches.ensure(s);
+      if (!Array.isArray(s.retiredPlayers)) s.retiredPlayers = [];
+      s.schemaVersion = 17;
+      return s;
     }
   };
 
@@ -995,6 +1037,8 @@
     req(deps().careerStats.isValid(d), 'Invalid career statistics.');
     req(deps().contracts.isValid(d), 'Invalid contract data.');
     req(deps().transactions.isValid(d), 'Invalid transaction history.');
+    req(deps().coaches.isValid(d), 'Invalid coaching staff.');
+    req(d.retiredPlayers === undefined || (Array.isArray(d.retiredPlayers) && d.retiredPlayers.every(function (p) { return p && typeof p.id === 'string'; })), 'Invalid retired players.');
     req(!Array.isArray(d.players) || deps().morale.isValid(d), 'Invalid morale data.');
     if (league.pendingRules !== undefined) {
       var pr = league.pendingRules;
@@ -1205,7 +1249,8 @@
       seasonLabel: d.calendar.seasonLabel,
       archivedAt: (now || new Date()).toISOString(),
       players: clone(d.players),
-      lineups: clone(d.lineups)
+      lineups: clone(d.lineups),
+      coaches: d.coaches ? clone(d.coaches.byTeam) : null
     };
     d.rosterHistory = (d.rosterHistory || []).filter(function (h) { return h.seasonYear !== snap.seasonYear; }).concat([snap]);
     return d;
@@ -1332,6 +1377,7 @@
     recordGame: recordGame,
     advanceDate: advanceDate,
     completeTrade: completeTrade,
+    retirePlayer: retirePlayer,
     validateSetup: validateSetup,
     RULE_OPTIONS: RULE_OPTIONS,
     RULE_KEYS: RULE_KEYS,

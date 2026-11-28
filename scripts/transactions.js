@@ -98,7 +98,8 @@
     // career status
     'retirement-announced': T('Retirement Announced', 'retirement', false, false),
     'retired': T('Retired', 'retirement', true, true),
-    'unretired': T('Returned from Retirement', 'retirement', false, false)
+    'unretired': T('Returned from Retirement', 'retirement', false, false),
+    'entered-coaching': T('Entered Coaching', 'retirement', true, false)
   };
 
   /* --- small helpers ---------------------------------------------------------- */
@@ -376,6 +377,9 @@
       case 'retired':
         s.push(txt('Retired from professional basketball' + (from ? '' : '.')));
         if (from) { s.push(txt(' as a member of ')); team(from); s.push(txt('.')); }
+        break;
+      case 'entered-coaching':
+        s.push(txt('Began a coaching career; joined the pool of available coaches.'));
         break;
       default:
         s.push(txt(TYPES[tx.type] ? TYPES[tx.type].label + '.' : 'Transaction.'));
