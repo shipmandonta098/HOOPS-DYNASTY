@@ -172,6 +172,27 @@
       } : null));
     }
 
+    // Head coach for the viewed season (archived seasons keep their coach)
+    var Co = window.HDCoaches;
+    var coachId = !Co || !save.coaches ? null : data.current ? save.coaches.byTeam[team.id]
+      : ((save.rosterHistory || []).filter(function (h) { return h.seasonYear === rosterView.seasonYear; })[0] || {}).coaches;
+    if (coachId && typeof coachId === 'object') coachId = coachId[team.id];
+    var coach = coachId ? Co.get(save, coachId) : null;
+    if (coach) {
+      var lob = data.current && team.id === save.userTeamId ? Co.lobbying(save, team.id) : null;
+      body.appendChild(el('section', { class: 'hd-panel gs-panel gs-coach', 'aria-label': 'Head coach' }, [
+        dom.portrait(coach.portrait, { className: 'gs-coach-portrait' }),
+        el('div', { class: 'gs-coach-text' }, [
+          el('p', { class: 'hd-eyebrow gs-coach-role', text: 'Head Coach' }),
+          el('button', { class: 'gs-player-name gs-coach-name', type: 'button', 'data-coach-id': coach.id, 'aria-haspopup': 'dialog',
+            'aria-label': 'View coach profile: ' + Co.fullName(coach), text: Co.fullName(coach) }),
+          el('p', { class: 'gs-coach-sub', text: Co.summary(coach) }),
+          lob ? el('p', { class: 'gs-coach-lobby', text: lob.text }) : null
+        ]),
+        el('span', { class: 'gs-coach-ovr' }, [window.HDRatings.el(Co.overall(coach), { tag: 'strong', label: 'Coaching overall' }), el('span', { text: 'OVR', 'aria-hidden': 'true' })])
+      ]));
+    }
+
     var head = [
       ['Player', 'gs-sticky'], ['Pos'], ['OVR', 'is-num'], ['POT', 'is-num'], ['Age', 'is-num'],
       ['Born'], ['Ht', 'is-num'], ['Wt', 'is-num'], ['Exp', 'is-num', 'Seasons of league experience (R = rookie)'],
@@ -387,6 +408,8 @@
 
     // Any player name anywhere in the game content opens their profile.
     content.addEventListener('click', function (e) {
+      var coachTrigger = e.target.closest('[data-coach-id]');
+      if (coachTrigger && save) { profile.open(save, coachTrigger.getAttribute('data-coach-id'), { coach: true, returnFocus: coachTrigger }); return; }
       var trigger = e.target.closest('[data-player-id]');
       if (!trigger || !save) return;
       var season = trigger.getAttribute('data-season');

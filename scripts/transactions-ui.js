@@ -25,7 +25,7 @@
   // Segments -> inline nodes (links by id; historical names as recorded)
   function render(save, segs) {
     var known = {};
-    (save.players || []).forEach(function (p) { known[p.id] = true; });
+    (save.players || []).concat(save.retiredPlayers || []).forEach(function (p) { known[p.id] = true; });
     return segs.map(function (s) {
       if (s.player && known[s.player]) {
         return el('button', { class: 'pp-link tx-ref', type: 'button', 'data-player-id': s.player, text: s.text });
