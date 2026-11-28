@@ -52,7 +52,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var SCHEMA_VERSION = 17;
+  var SCHEMA_VERSION = 18;
 
   // Sibling modules (globals in the browser, require() in Node).
   var isNode = typeof module === 'object' && module.exports;
@@ -82,6 +82,7 @@
       contracts: dep('HDContracts', './contracts.js'),
       transactions: dep('HDTransactions', './transactions.js'),
       coaches: dep('HDCoaches', './coaches.js'),
+      tendencies: dep('HDTendencies', './player-tendencies.js'),
       rosterMod: dep('HDRoster', './roster.js')
     };
   }
@@ -696,6 +697,8 @@
     // scripts/player-mental.js
     deps().morale.addPersonalities(save.players, save.id);
     deps().mental.addMissing(save.players, save.id);
+    // Tendencies for the game sim (from attributes, mental and personality)
+    deps().tendencies.addMissing(save.players, save.id);
     // Head coaches (scripts/coaches.js): their style shapes rotations and morale
     deps().coaches.ensure(save);
     save.retiredPlayers = [];
@@ -977,6 +980,16 @@
       if (!Array.isArray(s.retiredPlayers)) s.retiredPlayers = [];
       s.schemaVersion = 17;
       return s;
+    },
+    // v17: no tendencies. Generated from each player's existing ratings,
+    // mental attributes and personality (nothing else changes).
+    17: function (s) {
+      var T = deps().tendencies;
+      T.addMissing(s.players, s.id);
+      T.addMissing(s.retiredPlayers, s.id);
+      (s.rosterHistory || []).forEach(function (h) { T.addMissing(h.players, s.id); });
+      s.schemaVersion = 18;
+      return s;
     }
   };
 
@@ -1159,6 +1172,7 @@
         req(p && validIdentity(p), 'Invalid player identity.');
         req(p && deps().playerAttributes.isValid(p.attributes), 'Invalid player attributes.');
         req(p && (p.gender === undefined || p.gender === 'M' || p.gender === 'F'), 'Invalid player gender.');
+        req(p && (p.tendencies === undefined || deps().tendencies.isValid(p.tendencies)), 'Invalid player tendencies.');
         req(p && (p.mental === undefined || deps().mental.isValidMental(p.mental)) && (p.traits === undefined || deps().mental.isValidTraits(p.traits)), 'Invalid mental attributes or personality stats.');
         req(p && (p.archetype === undefined || (typeof p.archetype === 'string' && p.archetype.length <= 40)) &&
           (p.archetypeSecondary == null || (typeof p.archetypeSecondary === 'string' && p.archetypeSecondary.length <= 40)), 'Invalid player archetype.');

@@ -119,10 +119,62 @@
     var section = el('section', { class: 'pp-section pp-ratings', 'aria-labelledby': 'pp-ratings-title' }, [
       el('h3', { class: 'hd-eyebrow pp-section-title', id: 'pp-ratings-title', text: 'Ratings' })
     ]);
-    if (!p.attributes) {
-      section.appendChild(el('p', { class: 'pp-none', text: 'Ratings aren’t available for this player.' }));
+    // Attributes / Tendencies toggle (remembered)
+    var TD = window.HDTendencies;
+    if (TD && p.tendencies) {
+      var view = readRatingsView();
+      var toggle = el('div', { class: 'hd-segmented pp-view-toggle', role: 'radiogroup', 'aria-label': 'Ratings view' }, [['attributes', 'Attributes'], ['tendencies', 'Tendencies']].map(function (v) {
+        return el('label', null, [el('input', { type: 'radio', name: 'pp-ratings-view', value: v[0], checked: view === v[0], 'data-ratings-view': v[0] }), el('span', { text: v[1] })]);
+      }));
+      section.appendChild(toggle);
+      var holder = el('div', { class: 'pp-ratings-body' });
+      section.appendChild(holder);
+      var draw = function () {
+        holder.textContent = '';
+        holder.appendChild(view === 'tendencies' ? tendenciesView(p) : attributesView(ctx));
+      };
+      toggle.addEventListener('change', function (e) {
+        view = e.target.value; writeRatingsView(view); draw();
+      });
+      draw();
       return section;
     }
+    section.appendChild(attributesView(ctx));
+    return section;
+  }
+
+  var VIEW_KEY = 'hoopsDynasty.ratingsView';
+  function readRatingsView() { try { return window.localStorage.getItem(VIEW_KEY) === 'tendencies' ? 'tendencies' : 'attributes'; } catch (e) { return 'attributes'; } }
+  function writeRatingsView(v) { try { window.localStorage.setItem(VIEW_KEY, v); } catch (e) { /* not stored */ } }
+
+  // Tendencies: how often, not how well — neutral bars, no rating colors
+  function tendenciesView(p) {
+    var TD = window.HDTendencies;
+    var grid = el('div', { class: 'pp-attr-groups pp-tendencies' });
+    TD.GROUPS.forEach(function (g) {
+      grid.appendChild(el('div', { class: 'pp-attr-group', role: 'group', 'aria-labelledby': 'pp-td-' + g.id }, [
+        el('h4', { class: 'pp-attr-group-title', id: 'pp-td-' + g.id, text: g.label }),
+        el('ul', { class: 'pp-attrs' }, TD.TENDENCIES.filter(function (x) { return x.group === g.id; }).map(function (x) {
+          var v = p.tendencies[x.key];
+          return el('li', { class: 'pp-attr pp-tend' + (x.ends ? ' is-two' : ''), title: x.desc, 'data-tendency': x.key }, [
+            el('span', { class: 'pp-attr-name' }, [document.createTextNode(x.label), el('span', { class: 'pp-tend-label', text: TD.label(x.key, v) })]),
+            el('span', { class: 'pp-attr-bar pp-tend-bar', 'aria-hidden': 'true' }, [
+              x.ends ? el('span', { class: 'pp-tend-mid' }) : null,
+              el('span', { class: 'pp-attr-fill pp-tend-fill', style: { width: v + '%' } })
+            ]),
+            el('strong', { class: 'pp-attr-value pp-tend-value', 'aria-label': x.label + ': ' + v + ' of 100 — ' + TD.label(x.key, v), text: String(v) })
+          ]);
+        }))
+      ]));
+    });
+    return el('div', null, [grid, el('p', { class: 'cs-legend', text: 'Tendencies are how often a player chooses each action in games (0–100), not how well he does it.' })]);
+  }
+
+  function attributesView(ctx) {
+    var p = ctx.player;
+    var A = window.HDPlayerAttributes;
+    var Rt = window.HDRatings;
+    if (!p.attributes) return el('p', { class: 'pp-none', text: 'Ratings aren’t available for this player.' });
     var grid = el('div', { class: 'pp-attr-groups' });
     A.GROUPS.forEach(function (g) {
       var attrs = A.ATTRIBUTES.filter(function (a) { return a.group === g.id; });
@@ -164,8 +216,7 @@
         eff && eff.boost ? el('p', { class: 'pp-boost-note', text: 'Playing with ' + window.HDPlayerIdentity.fullName(eff.leader) + ' adds +' + eff.boost + ' to IQ and composure.' }) : null
       ]));
     }
-    section.appendChild(grid);
-    return section;
+    return grid;
   }
 
   function personalitySection(ctx) {
